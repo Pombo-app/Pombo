@@ -126,7 +126,7 @@ class ChannelManager {
         target.initialLoadInProgress = preserved.initialLoadInProgress;
         target._publishPermCache = preserved._publishPermCache;
 
-        // Wire identity: records persisted (or synced) before the §1 rename
+        // Wire identity: records persisted (or synced) before the rename
         // carry authorMode 'members'/'everyone' — same axis, old names.
         if (!target.wireIdentity && target.authorMode) {
             target.wireIdentity = target.authorMode === 'members' ? 'sealed' : 'visible';
@@ -382,10 +382,10 @@ class ChannelManager {
                 members: ch.members || [],
                 // Access losses this device has already rotated the epoch for;
                 // without it every admin open would rotate again for the same
-                // cut. (rotatedForBanned is the pre-§6.2 name of the same set.)
+                // cut. (rotatedForBanned is the older, narrower name of the same set.)
                 rotatedForNoAccess: ch.rotatedForNoAccess || ch.rotatedForBanned || [],
                 // Who had gate access at the last sweep — losing it is what
-                // triggers the deferred rotation (§6.2).
+                // triggers the deferred rotation.
                 accessSnapshot: ch.accessSnapshot || [],
                 // Addresses banned from here, kept as gate-read candidates so
                 // Moderation can still list them after a reload.
@@ -2070,7 +2070,7 @@ class ChannelManager {
     /**
      * Rotate the epoch for anyone who LOST access since the last sweep —
      * bans made while the admin was away, expired PAID subscriptions, sold
-     * tokens/NFTs, Closed revokes (§6.2).
+     * tokens/NFTs, Closed revokes.
      *
      * Only the channel admin can announce an epoch, so a cut elsewhere leaves
      * the ex-member holding the current key until an admin shows up. The

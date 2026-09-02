@@ -1688,7 +1688,7 @@ class EpochKeyManager {
         if (!currentAnnounce) return true;               // no anchor yet — cannot judge
         if (kid === currentAnnounce.keyId) {
             // Current epoch — but a history timestamp from before the epoch
-            // existed is backdating under the current key (§3.6): the kid in
+            // existed is backdating under the current key: the kid in
             // force then was an older one.
             if (live || !Number.isFinite(timestamp)) return true;
             const validFrom = currentAnnounce.validFrom ?? currentAnnounce.timestamp ?? 0;

@@ -100,7 +100,7 @@ export const CONFIG = {
         // Live messages may use the previous epoch's kid for this long after
         // a rotation (the "short tolerance" of the kid freshness rule)
         kidFreshnessToleranceMs: 10 * 60 * 1000,
-        // Ingest clamp for the payload's own timestamp (§3.6): allowed clock
+        // Ingest clamp for the payload's own timestamp: allowed clock
         // skew ahead of now / ahead of the signed envelope time. One-sided —
         // a payload OLDER than its envelope is legitimate (TTL republish).
         timestampSkewMs: 5 * 60 * 1000,

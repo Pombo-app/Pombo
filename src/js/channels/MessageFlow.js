@@ -191,7 +191,7 @@ export class MessageFlow {
             return;
         }
 
-        // Timestamp forgery clamps (§3.6): the payload timestamp is what the
+        // Timestamp forgery clamps: the payload timestamp is what the
         // UI orders, pages and ages by, and the publisher writes it freely.
         // Reject a payload dated ahead of the wall clock or ahead of its own
         // signed envelope beyond clock skew. One-sided on purpose: a payload

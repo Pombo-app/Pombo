@@ -1051,7 +1051,7 @@ class ChannelSettingsUI {
     }
 
     /**
-     * Gated channels, channel admin only: manual epoch rotation (§3.5). Free,
+     * Gated channels, channel admin only: manual epoch rotation. Free,
      * unlike the publish-key re-key below — the UI keeps them apart.
      */
     initRotateEpochSection(streamId) {

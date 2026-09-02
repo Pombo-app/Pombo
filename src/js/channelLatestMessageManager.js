@@ -261,7 +261,7 @@ class ChannelLatestMessageManager {
     _normalizeRemoteEntry(raw) {
         if (!raw || typeof raw !== 'object') return null;
         const t = raw.type;
-        // Same §3.6 clamp the message ingest applies — this resend path does
+        // Same forged-timestamp clamp the message ingest applies — this resend path does
         // not pass through MessageFlow, so a future-dated payload would
         // otherwise still surface in the sidebar/Explore preview line.
         const payloadTs = Number(raw.timestamp || 0);
