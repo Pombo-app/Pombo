@@ -126,12 +126,19 @@ class ChannelManager {
         target.initialLoadInProgress = preserved.initialLoadInProgress;
         target._publishPermCache = preserved._publishPermCache;
 
-        // Author visibility: a gated channel persisted without the field is
-        // from before the mode existed — Everyone by definition. Channels
-        // created with the mode always persist it, and the gate repair below
-        // re-reads it from the on-chain metadata whenever it runs.
-        if (target.type === 'gated' && !target.authorMode) {
-            target.authorMode = 'everyone';
+        // Wire identity: records persisted (or synced) before the §1 rename
+        // carry authorMode 'members'/'everyone' — same axis, old names.
+        if (!target.wireIdentity && target.authorMode) {
+            target.wireIdentity = target.authorMode === 'members' ? 'sealed' : 'visible';
+        }
+        if (target.wireIdentity === 'members') target.wireIdentity = 'sealed';
+        if (target.wireIdentity === 'everyone') target.wireIdentity = 'visible';
+        // A gated channel persisted without the field is from before the mode
+        // existed — Visible by definition. Channels created with the mode
+        // always persist it, and the gate repair below re-reads it from the
+        // on-chain metadata whenever it runs.
+        if (target.type === 'gated' && !target.wireIdentity) {
+            target.wireIdentity = 'visible';
         }
 
         // Gated channel without its gate address — persisted by an old build
@@ -162,10 +169,10 @@ class ChannelManager {
         this._gateAuthorityChecked.add(channel.messageStreamId);
         const { gateManager } = await import('./gate.js');
         const info = await gateManager.getGateInfo(channel.gate.address);
-        const mode = info.wireIdentityName === 'sealed' ? 'members' : 'everyone';
+        const mode = info.wireIdentityName === 'sealed' ? 'sealed' : 'visible';
         let changed = false;
-        if (channel.authorMode !== mode) {
-            channel.authorMode = mode;
+        if (channel.wireIdentity !== mode) {
+            channel.wireIdentity = mode;
             changed = true;
         }
         if (!!channel.readOnly !== info.readOnly) {
@@ -239,7 +246,7 @@ class ChannelManager {
         const flags = await this.readGateFromMetadata(channel.messageStreamId, { withMode: true });
         if (!flags?.gateAddress) throw new Error('no gate address in stream metadata');
         channel.gate = { address: flags.gateAddress };
-        channel.authorMode = flags.authorMode;
+        channel.wireIdentity = flags.wireIdentity;
         await this.saveChannels();
         Logger.info('Gate address repaired from metadata:', channel.messageStreamId?.slice(-20), '→', flags.gateAddress);
     }
@@ -247,7 +254,7 @@ class ChannelManager {
     /**
      * The gate clone address from a stream's on-chain metadata (`g`, written
      * at creation), or null when the stream is not a gated channel. With
-     * `withMode`, returns { gateAddress, authorMode } — the `m` flag lives in
+     * `withMode`, returns { gateAddress, wireIdentity } — the `m` flag lives in
      * the same metadata JSON and is immutable, like the gate.
      */
     async readGateFromMetadata(messageStreamId, { withMode = false } = {}) {
@@ -260,7 +267,7 @@ class ChannelManager {
             const valid = /^0x[0-9a-f]{40}$/.test(gateAddress || '') ? gateAddress : null;
             if (!withMode) return valid;
             return valid
-                ? { gateAddress: valid, authorMode: pombo.m === 1 ? 'members' : 'everyone' }
+                ? { gateAddress: valid, wireIdentity: pombo.m === 1 ? 'sealed' : 'visible' }
                 : null;
         } catch {
             return null;
@@ -365,7 +372,7 @@ class ChannelManager {
                 gate: ch.gate || null,
                 // Author visibility — losing it would flip a Members-only
                 // channel back to clone publishes (account on the wire).
-                authorMode: ch.authorMode || null,
+                wireIdentity: ch.wireIdentity || null,
                 createdAt: ch.createdAt,
                 createdBy: ch.createdBy,
                 // Local membership timestamp — drives per-channel latest-wins
@@ -373,9 +380,13 @@ class ChannelManager {
                 joinedAt: ch.joinedAt || ch.createdAt || null,
                 password: ch.password,
                 members: ch.members || [],
-                // Bans this device has already rotated the epoch for; without
-                // it every admin open would rotate again for the same ban.
-                rotatedForBanned: ch.rotatedForBanned || [],
+                // Access losses this device has already rotated the epoch for;
+                // without it every admin open would rotate again for the same
+                // cut. (rotatedForBanned is the pre-§6.2 name of the same set.)
+                rotatedForNoAccess: ch.rotatedForNoAccess || ch.rotatedForBanned || [],
+                // Who had gate access at the last sweep — losing it is what
+                // triggers the deferred rotation (§6.2).
+                accessSnapshot: ch.accessSnapshot || [],
                 // Addresses banned from here, kept as gate-read candidates so
                 // Moderation can still list them after a reload.
                 knownBanned: ch.knownBanned || [],
@@ -526,7 +537,7 @@ class ChannelManager {
             // identity mode and the read-only flag are immutable fields of
             // the clone — the contract is the authority on both, and the
             // stream-metadata flags written below are cached copies.
-            const authorMode = type === 'gated' ? (options.authorMode || 'members') : null;
+            const wireIdentity = type === 'gated' ? (options.wireIdentity || 'sealed') : null;
             let gateAddress = null;
             if (type === 'gated') {
                 const { gateManager, GATE_MODE, WIRE_IDENTITY } = await import('./gate.js');
@@ -537,7 +548,7 @@ class ChannelManager {
                     minBalance: options.gateMinBalance,
                     price: options.gatePrice,
                     duration: options.gateDuration,
-                    wireIdentity: authorMode === 'members'
+                    wireIdentity: wireIdentity === 'sealed'
                         ? WIRE_IDENTITY.SEALED : WIRE_IDENTITY.VISIBLE,
                     readOnly: !!options.readOnly
                 });
@@ -550,7 +561,7 @@ class ChannelManager {
             // rides the creation permission batch. The private half is
             // adopted below and distributed to members via -4 wraps.
             let publishKey = null;
-            if (authorMode === 'members') {
+            if (wireIdentity === 'sealed') {
                 publishKey = epochKeyManager.mintPublishKey();
             }
 
@@ -562,7 +573,7 @@ class ChannelManager {
                 type,
                 {
                     ...options, onProgress, gateAddress,
-                    authorMode, publishKeyAddress: publishKey?.address
+                    wireIdentity, publishKeyAddress: publishKey?.address
                 }
             );
             Logger.debug('Triple-stream created:', { 
@@ -693,10 +704,10 @@ class ChannelManager {
                 // is what flips every gated code path (transport, epoch keys,
                 // authorship) — keep it null elsewhere.
                 gate: type === 'gated' ? { address: gateAddress } : null,
-                // Author visibility ('members' | 'everyone'), IMMUTABLE:
-                // 'members' publishes -1/-2 under the shared key with
+                // Identity on the wire ('sealed' | 'visible'), IMMUTABLE:
+                // 'sealed' publishes -1/-2 under the shared key with
                 // authorship sealed inside the epoch envelope.
-                authorMode: authorMode,
+                wireIdentity: wireIdentity,
                 createdAt: Date.now(),
                 joinedAt: Date.now(),
                 createdBy: realAddress,
@@ -955,15 +966,15 @@ class ChannelManager {
             // Author visibility from the -1 metadata (`m`, immutable). It has
             // to be right BEFORE the first publish — a Members-only channel
             // joined as Everyone would put the account on the wire.
-            let authorMode = null;
+            let wireIdentity = null;
             if (channelType === 'gated') {
-                authorMode = options.authorMode || null;
-                if (!authorMode) {
+                wireIdentity = options.wireIdentity || null;
+                if (!wireIdentity) {
                     try {
                         const flags = await this.readGateFromMetadata(messageStreamId, { withMode: true });
-                        authorMode = flags?.authorMode || 'everyone';
+                        wireIdentity = flags?.wireIdentity || 'visible';
                     } catch {
-                        authorMode = 'everyone';
+                        wireIdentity = 'visible';
                     }
                 }
             }
@@ -982,7 +993,7 @@ class ChannelManager {
                 gate: channelType === 'gated' && options.gateAddress
                     ? { address: options.gateAddress.toLowerCase() }
                     : null,
-                authorMode: authorMode,
+                wireIdentity: wireIdentity,
                 createdAt: Date.now(),
                 joinedAt: Date.now(),
                 createdBy: createdBy,
@@ -1833,7 +1844,7 @@ class ChannelManager {
                 Logger.warn('Epoch key setup failed (messages will wait for key):', e.message);
                 this._scheduleEpochSetupRetry(channel);
             }
-            this._rotateForPendingBans(channel).catch(() => {});
+            this._rotateForLostAccess(channel).catch(() => {});
         }
 
         // Fire-and-forget: pull latest-message preview (-1/P0). Sidebar
@@ -2057,34 +2068,56 @@ class ChannelManager {
     }
 
     /**
-     * Rotate the epoch for bans this device never rotated for.
+     * Rotate the epoch for anyone who LOST access since the last sweep —
+     * bans made while the admin was away, expired PAID subscriptions, sold
+     * tokens/NFTs, Closed revokes (§6.2).
      *
-     * Only the channel admin can announce an epoch, so a moderator's ban cuts
-     * key distribution immediately but leaves the banned member holding the
-     * current key until an admin shows up. Comparing the gate's banned set
-     * with the one we last rotated for closes that window on the admin's next
-     * open, whoever did the banning and whenever. No event scan: free RPCs cap
-     * eth_getLogs at 10k blocks, and the flags read is one we already make.
+     * Only the channel admin can announce an epoch, so a cut elsewhere leaves
+     * the ex-member holding the current key until an admin shows up. The
+     * flags read is the one the members panel already makes; comparing it
+     * with the previous sweep's snapshot closes the window on the admin's
+     * next open. No event scan: free RPCs cap eth_getLogs at 10k blocks.
+     *
+     * Two triggers, deliberately different:
+     * - banned now and never rotated for: rotate even without a snapshot
+     *   (the original pending-bans semantics — a ban is explicit intent);
+     * - in the last snapshot with access, now without: rotate (lost access).
+     * A candidate who never had access (refused requester) never triggers.
      */
-    async _rotateForPendingBans(channel) {
+    async _rotateForLostAccess(channel) {
         if (!channel?.gate?.address) return;
         if (!epochKeyManager.isOwnAdmin(channel)) return;
 
-        const banned = (await this.getGateBannedMembers(channel.messageStreamId))
-            .map(a => a.toLowerCase());
-        if (banned.length === 0) return;
+        const flags = await this.getGateMemberFlags(channel.messageStreamId);
+        if (flags.length === 0) return;   // unreadable gate — judge nothing
 
-        const covered = new Set((channel.rotatedForBanned || []).map(a => a.toLowerCase()));
-        if (banned.every(a => covered.has(a))) return;
+        const lower = a => a.toLowerCase();
+        const withAccess = new Set(flags.filter(m => m.access).map(m => lower(m.address)));
+        const noAccessNow = new Set(flags.filter(m => !m.access && !m.isOwner).map(m => lower(m.address)));
+        const bannedNow = flags.filter(m => m.banned).map(m => lower(m.address));
+        const previously = new Set((channel.accessSnapshot || []).map(lower));
+
+        // Regained access clears the cover, so losing it AGAIN rotates again.
+        const covered = new Set(
+            (channel.rotatedForNoAccess || channel.rotatedForBanned || [])
+                .map(lower).filter(a => !withAccess.has(a)));
+
+        const pending = [...new Set([
+            ...[...noAccessNow].filter(a => previously.has(a)),
+            ...bannedNow
+        ])].filter(a => !covered.has(a));
 
         try {
-            await epochKeyManager.rotateEpoch(channel);
-            channel.rotatedForBanned = banned;
+            if (pending.length > 0) {
+                await epochKeyManager.rotateEpoch(channel);
+                channel.rotatedForNoAccess = [...covered, ...pending];
+                Logger.info('Rotated the epoch for lost access:',
+                    pending.length, 'address(es) on', channel.messageStreamId.slice(-20));
+            }
+            channel.accessSnapshot = [...withAccess];
             await this.saveChannels();
-            Logger.info('Rotated the epoch for bans made while the admin was away:',
-                channel.messageStreamId.slice(-20));
         } catch (e) {
-            Logger.warn('Deferred rotation for pending bans failed (will retry next open):', e.message);
+            Logger.warn('Deferred rotation for lost access failed (will retry next open):', e.message);
         }
     }
 

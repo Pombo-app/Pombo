@@ -416,7 +416,7 @@ class GraphAPI {
                     gateAddress: /^0x[0-9a-f]{40}$/.test(String(pomboMetadata.g || '').toLowerCase())
                         ? String(pomboMetadata.g).toLowerCase() : null,
                     // Author visibility (`m: 1` = Members only; absent = Everyone)
-                    authorMode: pomboMetadata.m === 1 ? 'members' : 'everyone'
+                    wireIdentity: pomboMetadata.m === 1 ? 'sealed' : 'visible'
                 };
             } catch (error) {
                 Logger.warn('Failed to get channel info:', error);
@@ -506,7 +506,7 @@ class GraphAPI {
                                 gateAddress: /^0x[0-9a-f]{40}$/.test(String(pomboMetadata.g || '').toLowerCase())
                                     ? String(pomboMetadata.g).toLowerCase() : null,
                                 // Author visibility (`m: 1` = Members only)
-                                authorMode: pomboMetadata.m === 1 ? 'members' : 'everyone'
+                                wireIdentity: pomboMetadata.m === 1 ? 'sealed' : 'visible'
                             });
                         }
                     } catch (parseError) {

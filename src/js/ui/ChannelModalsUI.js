@@ -96,7 +96,7 @@ class ChannelModalsUI {
         this.switchGateAssetTab('token');   // reapplies the gate token preset
         this.switchTokenPresetTab('paid', 'usdc');
         // Reset author visibility to the Members only default
-        const authorMembers = document.getElementById('gate-author-visibility-members');
+        const authorMembers = document.getElementById('gate-wire-identity-sealed');
         if (authorMembers) authorMembers.checked = true;
         this._wireAuthorVisibilityCaption();
         this._updateAuthorVisibilityCaption();
@@ -386,16 +386,16 @@ class ChannelModalsUI {
     _updateAuthorVisibilityCaption() {
         const caption = document.getElementById('author-visibility-caption');
         if (!caption) return;
-        const onTheWire = document.getElementById('gate-author-visibility-everyone')?.checked;
+        const onTheWire = document.getElementById('gate-wire-identity-visible')?.checked;
         caption.textContent = onTheWire
-            ? "Storage is protected from pollution. Every message exposes its author's account."
+            ? "Every message exposes its author's account, attributable by anyone, forever. Removed members' messages are rejected by readers, but can still reach storage."
             : 'Full author privacy. Removed members can pollute storage until you reset the key with a paid on-chain action.';
     }
 
     _wireAuthorVisibilityCaption() {
         if (this._authorCaptionWired) return;
         this._authorCaptionWired = true;
-        for (const id of ['gate-author-visibility-members', 'gate-author-visibility-everyone']) {
+        for (const id of ['gate-wire-identity-sealed', 'gate-wire-identity-visible']) {
             document.getElementById(id)?.addEventListener('change', () =>
                 this._updateAuthorVisibilityCaption());
         }
@@ -910,9 +910,9 @@ class ChannelModalsUI {
                     channelManager.readGateFromMetadata(entry.streamId, { withMode: true }))
                 .then((flags) => {
                     if (!flags) return;
-                    const members = flags.authorMode === 'members';
+                    const members = flags.wireIdentity === 'sealed';
                     authorsEl.textContent = members
-                        ? 'Authors visible to members only'
+                        ? 'Sealed identity — authors readable by members only'
                         : 'Every message is signed by its author on the wire';
                     authorsEl.className = 'mt-2 text-xs text-center '
                         + (members ? 'text-white/40' : 'text-amber-400/70');
@@ -1113,11 +1113,11 @@ class ChannelModalsUI {
         // after the wallet already paid for the gate deploy attempt.
         const gateOptions = isGated ? { gateMode } : {};
         if (isGated) {
-            // Author visibility (IMMUTABLE post-creation): Members only
-            // unless the creator opted into Everyone.
-            gateOptions.authorMode =
-                document.getElementById('gate-author-visibility-everyone')?.checked
-                    ? 'everyone' : 'members';
+            // Identity on the wire (IMMUTABLE post-creation): Sealed unless
+            // the creator opted into Visible.
+            gateOptions.wireIdentity =
+                document.getElementById('gate-wire-identity-visible')?.checked
+                    ? 'visible' : 'sealed';
         }
         if (isGated && !isClosed) {
             const tokenInputId = gateMode === GATE_MODE.PAID ? 'paid-token-input' : 'gate-token-input';

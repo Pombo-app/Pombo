@@ -412,7 +412,7 @@ describe('ChannelManager Extended', () => {
 
         it('records the rotation so the deferred pass does not repeat it', async () => {
             await channelManager.banMemberLevels(streamId, '0xmember1', { protocol: true });
-            expect(channelManager.channels.get(streamId).rotatedForBanned).toContain('0xmember1');
+            expect(channelManager.channels.get(streamId).rotatedForNoAccess).toContain('0xmember1');
         });
 
         it('refuses to ban the channel creator', async () => {

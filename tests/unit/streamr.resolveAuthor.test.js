@@ -57,7 +57,7 @@ describe('resolveAuthor', () => {
     });
 
     it('leaves authorship to the seal on a members-only content stream', async () => {
-        streamrController._gatedChannelFor.mockResolvedValue(gated({ authorMode: 'members' }));
+        streamrController._gatedChannelFor.mockResolvedValue(gated({ wireIdentity: 'sealed' }));
 
         // The shared publish key is the publisher here; this stage neither
         // confirms nor drops, it just gets out of the way.
@@ -66,7 +66,7 @@ describe('resolveAuthor', () => {
     });
 
     it('still judges the admin stream on a members-only channel', async () => {
-        streamrController._gatedChannelFor.mockResolvedValue(gated({ authorMode: 'members' }));
+        streamrController._gatedChannelFor.mockResolvedValue(gated({ wireIdentity: 'sealed' }));
 
         // Published under the owner's own account: accepted by namespace.
         expect(await streamrController.resolveAuthor(ADMIN, {}, OWNER)).toBe(OWNER.toLowerCase());

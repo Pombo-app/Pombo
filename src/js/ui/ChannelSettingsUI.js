@@ -255,6 +255,7 @@ class ChannelSettingsUI {
             this.initChannelNotificationsToggle(currentChannel.streamId);
             this.initKeyResponderToggle(currentChannel.streamId)
                 .catch(() => { /* stays hidden */ });
+            this.initRotateEpochSection(currentChannel.streamId);
             this.initRekeyPublishSection(currentChannel.streamId);
         }
 
@@ -1050,6 +1051,45 @@ class ChannelSettingsUI {
     }
 
     /**
+     * Gated channels, channel admin only: manual epoch rotation (§3.5). Free,
+     * unlike the publish-key re-key below — the UI keeps them apart.
+     */
+    initRotateEpochSection(streamId) {
+        const section = document.getElementById('rotate-epoch-section');
+        const button = document.getElementById('rotate-epoch-btn');
+        if (!section || !button) return;
+
+        const { channelManager, showNotification } = this.deps;
+        const channel = channelManager.channels.get(streamId);
+        const show = !!channel?.gate?.address
+            && channelManager.isChannelOwner(streamId);
+        section.classList.toggle('hidden', !show);
+        if (!show) return;
+
+        if (button._clickHandler) button.removeEventListener('click', button._clickHandler);
+        button._clickHandler = async () => {
+            const status = document.getElementById('rotate-epoch-status');
+            button.disabled = true;
+            if (status) {
+                status.textContent = 'Rotating…';
+                status.classList.remove('hidden');
+            }
+            try {
+                const { epochKeyManager } = await import('../epochKeyManager.js');
+                await epochKeyManager.rotateEpoch(channel);
+                if (status) status.textContent = 'New key issued. Members pick it up automatically.';
+                showNotification?.('Channel key rotated', 'success');
+            } catch (error) {
+                if (status) status.textContent = '';
+                showNotification?.('Rotation failed: ' + error.message, 'error');
+            } finally {
+                button.disabled = false;
+            }
+        };
+        button.addEventListener('click', button._clickHandler);
+    }
+
+    /**
      * Members-only channels, channel admin only: the escape valve that
      * replaces the shared publish key when ex-key-holders abuse it.
      */
@@ -1060,7 +1100,7 @@ class ChannelSettingsUI {
 
         const { channelManager, showNotification } = this.deps;
         const channel = channelManager.channels.get(streamId);
-        const show = channel?.authorMode === 'members'
+        const show = channel?.wireIdentity === 'sealed'
             && channelManager.isChannelOwner(streamId);
         section.classList.toggle('hidden', !show);
         if (!show) return;

@@ -67,7 +67,7 @@ export const usesEpochKeys = (channel) =>
  * before the mode existed — publish via the gate clone as always.
  */
 export const usesSharedPublish = (channel) =>
-    usesEpochKeys(channel) && channel?.authorMode === 'members';
+    usesEpochKeys(channel) && channel?.wireIdentity === 'sealed';
 
 // Re-request backoff: a pending request younger than this is not superseded.
 const REQUEST_MIN_INTERVAL_MS = 60 * 1000;
@@ -1494,6 +1494,9 @@ class EpochKeyManager {
      * keeps the roster private: the -4 resend is publicly readable over HTTP.
      */
     async _maybePublishHello(channel, s, keyId, epoch) {
+        // A preview shadow channel receives keys (live-holding gates answer
+        // its requests) but peeking must not enter the roster.
+        if (channel.preview) return;
         if (epoch !== s.currentEpoch) return;
         if (s.helloEpochs.has(epoch)) return;
         if (!(await this._rosterCapable(channel, s))) return;
@@ -1683,7 +1686,14 @@ class EpochKeyManager {
     _kidIsFresh(s, kid, entry, { live, timestamp } = {}) {
         const currentAnnounce = s.announces.get(s.currentEpoch);
         if (!currentAnnounce) return true;               // no anchor yet — cannot judge
-        if (kid === currentAnnounce.keyId) return true;  // current epoch always fine
+        if (kid === currentAnnounce.keyId) {
+            // Current epoch — but a history timestamp from before the epoch
+            // existed is backdating under the current key (§3.6): the kid in
+            // force then was an older one.
+            if (live || !Number.isFinite(timestamp)) return true;
+            const validFrom = currentAnnounce.validFrom ?? currentAnnounce.timestamp ?? 0;
+            return timestamp >= validFrom - CONFIG.gate.kidFreshnessToleranceMs;
+        }
 
         if (live) {
             // Previous epoch tolerated briefly after a rotation (messages in

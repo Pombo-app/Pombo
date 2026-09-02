@@ -174,8 +174,9 @@ export class Membership {
             try {
                 await epochKeyManager.rotateEpoch(channel);
                 // Covered: the deferred pass must not rotate again for this one.
-                channel.rotatedForBanned = [
-                    ...new Set([...(channel.rotatedForBanned || []), address.toLowerCase()])
+                channel.rotatedForNoAccess = [
+                    ...new Set([...(channel.rotatedForNoAccess || channel.rotatedForBanned || []),
+                        address.toLowerCase()])
                 ];
                 await this.manager.saveChannels();
             } catch (rotateError) {

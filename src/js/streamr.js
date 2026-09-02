@@ -331,7 +331,7 @@ class StreamrController {
             // envelope). Absent = Everyone — which is what every channel
             // created before the flag existed is. IMMUTABLE post-creation:
             // flipping it would break validation of the mixed history.
-            m: type === 'gated' && options.authorMode === 'members' ? 1 : undefined,
+            m: type === 'gated' && options.wireIdentity === 'sealed' ? 1 : undefined,
             // Only include metadata if visible
             d: exposure === 'visible' ? (options.description || '') : undefined,  // description
             l: exposure === 'visible' ? (options.language || 'en') : undefined,   // language
@@ -1396,14 +1396,17 @@ class StreamrController {
             throw new Error('Stream not found');
         }
 
-        // Parse existing Pombo metadata from the stream description
+        // Parse existing Pombo metadata from the stream description.
+        // The description also carries the gate address ('g') and wire identity
+        // ('m'): writing over a failed read would strip the gate from the
+        // channel on-chain, so an unreadable description aborts the update.
         let meta = {};
         try {
             const desc = await stream.getDescription();
             meta = desc ? JSON.parse(desc) : {};
         } catch (e) {
-            Logger.warn('updateStreamMetadata: could not parse existing metadata:', e.message);
-            meta = {};
+            Logger.error('updateStreamMetadata: existing metadata unreadable, refusing to overwrite:', e.message);
+            throw new Error('Channel metadata could not be read; rename aborted to avoid losing the gate');
         }
 
         if (typeof updates.name === 'string') meta.n = updates.name;
@@ -1924,7 +1927,7 @@ class StreamrController {
         // everyone. The author comes from the wrapper inside the epoch seal
         // (_openAuthorship, after decrypt); this stage neither confirms nor
         // drops.
-        if (channel.authorMode === 'members'
+        if (channel.wireIdentity === 'sealed'
                 && !isAdminStream(streamId) && !isKeysStream(streamId)) {
             return publisherId ?? null;
         }
@@ -1980,14 +1983,14 @@ class StreamrController {
      * both modes).
      *
      * @param {Object} channel - The gated Members-only channel
-     * @param {Object} sealed - The decrypted epoch plaintext (the wrapper)
+     * @param {Object} epochWrapper - The decrypted epoch plaintext (the wrapper)
      * @param {Object} [options]
      * @param {boolean} [options.live=false]
      * @returns {Promise<{author: string, payload: Object}|null>}
      */
-    async _openAuthorship(channel, sealed, { live = false } = {}) {
+    async _openAuthorship(channel, epochWrapper, { live = false } = {}) {
         const { authorship } = await import('./authorship.js');
-        const opened = authorship.open(channel.messageStreamId, sealed);
+        const opened = authorship.open(channel.messageStreamId, epochWrapper);
         if (!opened) {
             Logger.warn('authorship: unverifiable wrapper on', channel.messageStreamId.slice(-20), '— dropping');
             return null;
@@ -2285,14 +2288,14 @@ class StreamrController {
                 channel.messageStreamId, payload,
                 { privateKey: auth.privateKey, publicKey: auth.publicKey },
                 auth.bindProof);
-            const sealedWrapper = await epochKeyCrypto.encryptWithEpochKey(wrapper, key.cryptoKey);
-            const envelope = { e: 'epoch-aes-gcm', k: key.kid, ct: sealedWrapper.ct, iv: sealedWrapper.iv };
+            const epochWrapper = await epochKeyCrypto.encryptWithEpochKey(wrapper, key.cryptoKey);
+            const envelope = { e: 'epoch-aes-gcm', k: key.kid, ct: epochWrapper.ct, iv: epochWrapper.iv };
             return this.publishAs(
                 this._sharedPublishIdentity(pubKey), streamId, partition, envelope);
         }
 
-        const sealed = await epochKeyCrypto.encryptWithEpochKey(payload, key.cryptoKey);
-        const envelope = { e: 'epoch-aes-gcm', k: key.kid, ct: sealed.ct, iv: sealed.iv };
+        const epochWrapper = await epochKeyCrypto.encryptWithEpochKey(payload, key.cryptoKey);
+        const envelope = { e: 'epoch-aes-gcm', k: key.kid, ct: epochWrapper.ct, iv: epochWrapper.iv };
 
         return this.publishAs(
             this._accountIdentity, streamId, partition, envelope,

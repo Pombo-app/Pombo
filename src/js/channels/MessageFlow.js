@@ -190,6 +190,21 @@ export class MessageFlow {
             Logger.debug('Unknown message type, skipping:', data?.type);
             return;
         }
+
+        // Timestamp forgery clamps (§3.6): the payload timestamp is what the
+        // UI orders, pages and ages by, and the publisher writes it freely.
+        // Reject a payload dated ahead of the wall clock or ahead of its own
+        // signed envelope beyond clock skew. One-sided on purpose: a payload
+        // OLDER than its envelope is a legitimate republish.
+        const skew = CONFIG.gate.timestampSkewMs;
+        if (data.timestamp > Date.now() + skew) {
+            Logger.warn('Rejecting future-dated message:', data.id, new Date(data.timestamp).toISOString());
+            return;
+        }
+        if (Number.isFinite(data._timestamp) && data.timestamp > data._timestamp + skew) {
+            Logger.warn('Rejecting message dated ahead of its envelope:', data.id);
+            return;
+        }
         
         Logger.debug('handleTextMessage:', { messageId: data.id, type: data.type || 'text', sender: data.sender?.slice(0,10) });
         

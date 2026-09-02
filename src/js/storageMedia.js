@@ -1611,7 +1611,7 @@ class StorageMediaController {
                 chunkIdentity = EthereumKeyPairIdentity.fromPrivateKey(
                     dmCrypto.generateEphemeralPrivateKey());
                 chunkPublisher = await chunkIdentity.getUserId();
-            } else if (channel?.authorMode === 'members') {
+            } else if (channel?.wireIdentity === 'sealed') {
                 // Members-only: chunks travel under the SHARED publish key —
                 // that address is what the verify reads must match.
                 const { epochKeyManager } = await import('./epochKeyManager.js');

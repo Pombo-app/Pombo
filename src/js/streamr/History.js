@@ -275,7 +275,7 @@ export class History {
                         // proof of past membership), but never from
                         // verification.
                         const modeChannel = await this.controller._gatedChannelFor(messageStreamId);
-                        if (modeChannel?.authorMode === 'members') {
+                        if (modeChannel?.wireIdentity === 'sealed') {
                             const authored = await this.controller._openAuthorship(modeChannel, content);
                             if (!authored) continue;
                             content = authored.payload;
@@ -651,7 +651,7 @@ export class History {
                         // Members-only: the author comes from the wrapper
                         // inside the seal, never from the transport.
                         const modeChannel = await this.controller._gatedChannelFor(streamId);
-                        if (modeChannel?.authorMode === 'members') {
+                        if (modeChannel?.wireIdentity === 'sealed') {
                             const authored = await this.controller._openAuthorship(modeChannel, content);
                             if (!authored) {
                                 skippedCount++;

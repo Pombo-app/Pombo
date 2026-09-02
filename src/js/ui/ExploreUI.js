@@ -41,10 +41,10 @@ const EXPLORE_HEADER_BOTTOM_SLACK = 96;
  * identity glyph: both modes guarantee authorship to participants, what
  * changes is the audience.
  */
-function authorVisibilityHtml(authorMode) {
-    if (!authorMode) return '';
-    const members = authorMode === 'members';
-    const title = members ? 'Authors visible to members only' : 'Author on the wire';
+function authorVisibilityHtml(wireIdentity) {
+    if (!wireIdentity) return '';
+    const members = wireIdentity === 'sealed';
+    const title = members ? 'Sealed — authors readable by members only' : 'Visible — every message signed by its author';
     const color = 'text-white/50';
     const icon = members
         ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/>'
@@ -697,7 +697,7 @@ class ExploreUI {
                             // The audience icon centers over the LAST tag
                             // (language when present), not over the group.
                             const icon = ch.type === 'gated'
-                                ? authorVisibilityHtml(ch.authorMode || 'everyone') : '';
+                                ? authorVisibilityHtml(ch.wireIdentity || 'visible') : '';
                             const badges = [categoryBadge, languageBadge].filter(Boolean);
                             if (!icon) return badges.join('');
                             if (!badges.length) return icon;
@@ -878,7 +878,7 @@ class ExploreUI {
                 .then((info) => {
                     // The card's author-visibility icon rides on the cached
                     // info so the async patch renders it too
-                    info.authorMode = ch.authorMode || 'everyone';
+                    info.wireIdentity = ch.wireIdentity || 'visible';
                     this._gateCardInfo.set(ch.gateAddress, info);
                     this._patchGateAccess(ch.gateAddress, info);
                     if (this.browseAccessFilter === 'gated' || this.browseAccessFilter === 'paid') {

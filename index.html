@@ -933,14 +933,14 @@
                             <label class="block text-xs font-medium text-white/80 uppercase tracking-wider mb-2">Identity on the wire</label>
                             <div class="flex gap-2">
                                 <label class="flex-1 cursor-pointer">
-                                    <input type="radio" name="author-visibility" id="gate-author-visibility-members" class="peer sr-only" checked>
+                                    <input type="radio" name="author-visibility" id="gate-wire-identity-sealed" class="peer sr-only" checked>
                                     <span class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/5 text-white/50 border border-white/5 peer-checked:bg-white/10 peer-checked:text-white peer-checked:border-white/10">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
                                         Sealed
                                     </span>
                                 </label>
                                 <label class="flex-1 cursor-pointer">
-                                    <input type="radio" name="author-visibility" id="gate-author-visibility-everyone" class="peer sr-only">
+                                    <input type="radio" name="author-visibility" id="gate-wire-identity-visible" class="peer sr-only">
                                     <span class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/5 text-white/50 border border-white/5 peer-checked:bg-white/10 peer-checked:text-amber-400/90 peer-checked:border-white/10">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m-18.716-2.253A8.959 8.959 0 003 12c0 .778.099 1.533.284 2.253"/></svg>
                                         Visible
@@ -1008,7 +1008,7 @@
                         <!-- Visibility Toggle -->
                         <div id="exposure-section" class="flex items-center justify-between">
                             <div>
-                                <label class="text-xs font-medium text-white/70 uppercase tracking-wider">Visible</label>
+                                <label class="text-xs font-medium text-white/70 uppercase tracking-wider">Listed</label>
                                 <p class="text-xs text-white/30 mt-0.5">Channel appears in Explore</p>
                             </div>
                             <button type="button" id="visibility-toggle" class="relative w-9 h-5 rounded-full transition-colors bg-white/10" data-enabled="false">
@@ -2010,6 +2010,17 @@
                                         <div class="text-white/30">Loading...</div>
                                     </div>
                                 </div>
+                            </div>
+                            <!-- Gated channels, admin only: manual epoch rotation. Free, unlike the re-key below. -->
+                            <div id="rotate-epoch-section" class="hidden p-4 bg-white/[0.03] rounded-xl border border-white/5">
+                                <h4 class="text-sm font-medium text-white/90 mb-1">Rotate Channel Key</h4>
+                                <p class="text-sm text-white/40 mb-3">
+                                    Issues a new encryption key now. Anyone without current access stops reading new messages. Free — no transaction.
+                                </p>
+                                <button id="rotate-epoch-btn" class="w-full bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 px-4 py-2.5 rounded-xl text-sm transition">
+                                    Rotate Channel Key
+                                </button>
+                                <p id="rotate-epoch-status" class="hidden mt-2 text-xs text-white/40"></p>
                             </div>
                             <!-- Members-only channels, admin only: the escape valve against ex-key-holder abuse -->
                             <div id="rekey-publish-section" class="hidden p-4 bg-amber-500/5 rounded-xl border border-amber-500/10">
