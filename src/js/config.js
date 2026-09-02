@@ -89,11 +89,12 @@ export const CONFIG = {
     // isValidSignature/checkAccess drive envelope validation and epoch-key
     // distribution. See docs/UNIFIED_IMPLEMENTATION_PLAN.md §7.11.
     gate: {
-        // PomboGateFactory v2 on Polygon PoS (pre-audit deploy, 2026-08-17).
-        // v2 adds owner-appointed moderators (setModerator). Gates minted by
-        // the v1 factory (0xaCd7…E548) keep working — they just have no
-        // moderator surface.
-        factoryAddress: '0x14595B5F192fA56714D1F8821BD1651dC5bFd1aB',
+        // PomboGateFactory v3 on Polygon PoS (pre-audit deploy, 2026-09-02).
+        // v3 is the single gate: isValidSignature answers checkAccess plus
+        // the read-only filter, so lapsed access cuts publishing at ingest.
+        // No legacy: v1/v2 gates are not supported and their channels are
+        // expected to be recreated.
+        factoryAddress: '0x7DeA564Acff815cc34aC79329a83A91244207253',
         // checkAccess eth_call cache — mirrors the SDK's own ERC-1271 TTL
         checkAccessCacheMs: 10 * 60 * 1000,
         // Live messages may use the previous epoch's kid for this long after

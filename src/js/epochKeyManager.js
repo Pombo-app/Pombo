@@ -603,8 +603,13 @@ class EpochKeyManager {
     }
 
     /** A Members-only channel is not writable until the announced publish
-     *  key (at its announced rev) is held. */
+     *  key (at its announced rev) is held. In a read-only channel a plain
+     *  member never qualifies for that key, so once the role is known
+     *  (channels.js reconciles it from the gate) they stop asking for a
+     *  wrap nobody may answer. Unknown role keeps asking — harmless, the
+     *  responders refuse. */
     _needsPubKey(channel, s) {
+        if (channel?.readOnly && channel._selfMayPublishReadOnly === false) return false;
         return usesSharedPublish(channel) && !!s.pubAnnounce
             && s.pubKey?.keyId !== s.pubAnnounce.keyId;
     }
@@ -1199,8 +1204,24 @@ class EpochKeyManager {
         }
 
         // Members-only: the shared publish key rides along with the epochs —
-        // a joiner needs both before the channel is writable for them.
-        if (usesSharedPublish(channel) && s.pubKey
+        // a joiner needs both before the channel is writable for them. In a
+        // read-only channel that key IS the write capability, so it only goes
+        // to the owner and the moderators; everyone else reads with the epoch
+        // keys alone. An unreadable gate fails closed for the capability.
+        let mayHoldPublishKey = true;
+        if (usesSharedPublish(channel)) {
+            try {
+                const info = await gateManager.getGateInfo(channel.gate.address);
+                if (info.readOnly) {
+                    mayHoldPublishKey = await gateManager.canModerate(
+                        channel.gate.address, request.requester);
+                }
+            } catch (e) {
+                Logger.warn('epochKeys: gate unreadable for the publish-key check — withholding it:', e.message);
+                mayHoldPublishKey = false;
+            }
+        }
+        if (mayHoldPublishKey && usesSharedPublish(channel) && s.pubKey
                 && s.pubAnnounce?.keyId === s.pubKey.keyId
                 && !covered.has(s.pubKey.keyId)) {
             try {

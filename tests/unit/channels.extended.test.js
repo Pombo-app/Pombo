@@ -159,6 +159,7 @@ vi.mock('../../src/js/media.js', () => ({
 
 vi.mock('../../src/js/gate.js', () => ({
     GATE_MODE: Object.freeze({ NONE: 0, TOKEN_BALANCE: 1, NFT_OWNERSHIP: 2, PAID: 3 }),
+    WIRE_IDENTITY: Object.freeze({ VISIBLE: 0, SEALED: 1 }),
     gateManager: {
         createGate: vi.fn().mockResolvedValue('0xgate'),
         allow: vi.fn().mockResolvedValue(true),
@@ -167,6 +168,12 @@ vi.mock('../../src/js/gate.js', () => ({
         ban: vi.fn().mockResolvedValue(true),
         unban: vi.fn().mockResolvedValue(true),
         checkAccess: vi.fn().mockResolvedValue(true),
+        getGateInfo: vi.fn().mockResolvedValue({
+            owner: '0xowner', mode: 0, modeName: 'none', token: null,
+            minBalance: 0n, price: 0n, duration: 0n,
+            wireIdentity: 0, wireIdentityName: 'visible', readOnly: false
+        }),
+        listMembers: vi.fn().mockResolvedValue([]),
         getGateMembers: vi.fn().mockResolvedValue([]),
         setModerator: vi.fn().mockResolvedValue(true),
         canModerate: vi.fn().mockResolvedValue(false)
@@ -391,7 +398,7 @@ describe('ChannelManager Extended', () => {
             epochKeyManager.rotateEpoch.mockClear();
 
             await channelManager.banMemberLevels(streamId, '0xmember1', { protocol: true });
-            expect(gateManager.ban).toHaveBeenCalledWith('0xgate', '0xmember1', false);
+            expect(gateManager.ban).toHaveBeenCalledWith('0xgate', '0xmember1');
             expect(epochKeyManager.rotateEpoch).toHaveBeenCalled();
 
             gateManager.ban.mockClear();

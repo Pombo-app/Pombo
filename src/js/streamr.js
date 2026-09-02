@@ -504,9 +504,16 @@ class StreamrController {
                 //
                 // The shared key only ever writes: reading is the clone's job
                 // (members subscribe through ERC-1271), so it gets PUBLISH
-                // alone. Same grant shape on re-key.
+                // alone. Same grant shape on re-key. And the inverse holds
+                // too: with a shared key present nothing publishes through
+                // the clone on -1/-2, so the clone is SUBSCRIBE-only there —
+                // a publish grant it never uses would only let a modified
+                // client self-identify on the wire.
                 const contentMembers = options.publishKeyAddress
-                    ? [options.gateAddress, { userId: options.publishKeyAddress, permissions: ['publish'] }]
+                    ? [
+                        { userId: options.gateAddress, permissions: ['subscribe'] },
+                        { userId: options.publishKeyAddress, permissions: ['publish'] }
+                    ]
                     : gateMembers;
                 for (const [stream, label] of [
                     [messageStream, 'Message'],
@@ -1485,14 +1492,21 @@ class StreamrController {
         }
 
         // Gated (N-C): the stream grant belongs to the gate clone; a member's
-        // write ability is the CURRENT gate. One cached eth_call.
+        // write ability is the CURRENT gate plus the read-only filter — the
+        // same condition the contract's isValidSignature applies at ingest,
+        // so the composer never promises a publish the network would refuse.
         const gatedChannel = await this._gatedChannelFor(streamId);
         if (gatedChannel) {
             try {
                 const { gateManager } = await import('./gate.js');
-                const ok = await gateManager.checkAccess(
-                    gatedChannel.gate.address, authManager.getAddress());
-                return createPermissionResult(ok, false);
+                const address = authManager.getAddress();
+                const [ok, info] = await Promise.all([
+                    gateManager.checkAccess(gatedChannel.gate.address, address),
+                    gateManager.getGateInfo(gatedChannel.gate.address)
+                ]);
+                const mayWrite = ok && (!info.readOnly
+                    || await gateManager.canModerate(gatedChannel.gate.address, address));
+                return createPermissionResult(mayWrite, false);
             } catch (error) {
                 return createPermissionResult(null, true, error.message);
             }

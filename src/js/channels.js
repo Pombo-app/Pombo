@@ -144,7 +144,48 @@ class ChannelManager {
                 Logger.warn('Gate repair failed for', target.messageStreamId?.slice(-20), '—', e.message));
         }
 
+        // The CONTRACT is the authority on the identity mode and the
+        // read-only flag; the stream-metadata copies are mutable and even
+        // erasable by a failed rename. Reconcile once per session — a
+        // mismatch only ever means the metadata copy drifted.
+        if (target.type === 'gated' && target.gate?.address) {
+            this._reconcileGateAuthority(target).catch(e =>
+                Logger.warn('Gate authority read failed for', target.messageStreamId?.slice(-20), '—', e.message));
+        }
+
         return target;
+    }
+
+    async _reconcileGateAuthority(channel) {
+        this._gateAuthorityChecked ??= new Set();
+        if (this._gateAuthorityChecked.has(channel.messageStreamId)) return;
+        this._gateAuthorityChecked.add(channel.messageStreamId);
+        const { gateManager } = await import('./gate.js');
+        const info = await gateManager.getGateInfo(channel.gate.address);
+        const mode = info.wireIdentityName === 'sealed' ? 'members' : 'everyone';
+        let changed = false;
+        if (channel.authorMode !== mode) {
+            channel.authorMode = mode;
+            changed = true;
+        }
+        if (!!channel.readOnly !== info.readOnly) {
+            channel.readOnly = info.readOnly;
+            changed = true;
+        }
+        // Session cache of "may I write here": _needsPubKey consults it so a
+        // plain member of a read-only channel stops requesting the shared
+        // publish key nobody may hand them.
+        if (info.readOnly) {
+            const self = authManager.getAddress();
+            channel._selfMayPublishReadOnly = self
+                ? await gateManager.canModerate(channel.gate.address, self)
+                : false;
+        }
+        if (changed) {
+            Logger.info('Gate authority corrected the local record:',
+                channel.messageStreamId?.slice(-20), '→', mode, info.readOnly ? '(read-only)' : '');
+            await this.saveChannels();
+        }
     }
 
     /**
@@ -481,29 +522,34 @@ class ChannelManager {
 
             // Gated channels (N-C): the gate clone comes FIRST — its address
             // goes into the stream metadata and receives every permission
-            // grant. One factory tx; the creator becomes the gate owner and
-            // is everMember from block one.
+            // grant. One factory tx; the creator becomes the gate owner. The
+            // identity mode and the read-only flag are immutable fields of
+            // the clone — the contract is the authority on both, and the
+            // stream-metadata flags written below are cached copies.
+            const authorMode = type === 'gated' ? (options.authorMode || 'members') : null;
             let gateAddress = null;
             if (type === 'gated') {
-                const { gateManager, GATE_MODE } = await import('./gate.js');
+                const { gateManager, GATE_MODE, WIRE_IDENTITY } = await import('./gate.js');
                 const gateMode = options.gateMode ?? GATE_MODE.NONE;
                 gateAddress = await gateManager.createGate({
                     mode: gateMode,
                     token: options.gateToken,
                     minBalance: options.gateMinBalance,
                     price: options.gatePrice,
-                    duration: options.gateDuration
+                    duration: options.gateDuration,
+                    wireIdentity: authorMode === 'members'
+                        ? WIRE_IDENTITY.SEALED : WIRE_IDENTITY.VISIBLE,
+                    readOnly: !!options.readOnly
                 });
                 Logger.info('Gate clone created:', gateAddress);
                 try { onProgress?.(); } catch (_) { /* ignore */ }
             }
 
-            // Members-only author visibility (the default for new gated
-            // channels): mint the SHARED publish key now so its address rides
-            // the creation permission batch. The private half is adopted
-            // below and distributed to members via -4 wraps.
+            // Members-only author visibility (Sealed, the default for new
+            // gated channels): mint the SHARED publish key now so its address
+            // rides the creation permission batch. The private half is
+            // adopted below and distributed to members via -4 wraps.
             let publishKey = null;
-            const authorMode = type === 'gated' ? (options.authorMode || 'members') : null;
             if (authorMode === 'members') {
                 publishKey = epochKeyManager.mintPublishKey();
             }

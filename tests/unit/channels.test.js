@@ -143,12 +143,19 @@ vi.mock('../../src/js/media.js', () => ({
 
 vi.mock('../../src/js/gate.js', () => ({
     GATE_MODE: Object.freeze({ NONE: 0, TOKEN_BALANCE: 1, NFT_OWNERSHIP: 2, PAID: 3 }),
+    WIRE_IDENTITY: Object.freeze({ VISIBLE: 0, SEALED: 1 }),
     gateManager: {
         createGate: vi.fn().mockResolvedValue('0xgate'),
         allowBatch: vi.fn().mockResolvedValue(true),
         allow: vi.fn().mockResolvedValue(true),
         ban: vi.fn().mockResolvedValue(true),
         checkAccess: vi.fn().mockResolvedValue(true),
+        getGateInfo: vi.fn().mockResolvedValue({
+            owner: '0xowner', mode: 0, modeName: 'none', token: null,
+            minBalance: 0n, price: 0n, duration: 0n,
+            wireIdentity: 0, wireIdentityName: 'visible', readOnly: false
+        }),
+        listMembers: vi.fn().mockResolvedValue([]),
         getGateMembers: vi.fn().mockResolvedValue([]),
         setModerator: vi.fn().mockResolvedValue(true),
         canModerate: vi.fn().mockResolvedValue(false)
