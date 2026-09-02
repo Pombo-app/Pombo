@@ -149,12 +149,16 @@ class GateManager {
 
     /**
      * Run an RPC operation, rotating to the next endpoint once on failure.
-     * Mirrors GasEstimator's sticky-with-failover behaviour.
+     * Mirrors GasEstimator's sticky-with-failover behaviour. A revert
+     * (CALL_EXCEPTION) is the chain answering, not the endpoint failing —
+     * rotating on it would just replay the same revert against every
+     * endpoint in the list.
      */
     async _withProvider(op) {
         try {
             return await op(this._getProvider());
         } catch (firstError) {
+            if (firstError?.code === 'CALL_EXCEPTION') throw firstError;
             this._rpcIndex++;
             Logger.debug('gate: RPC failed, rotating endpoint:', firstError.message);
             return op(this._getProvider());
@@ -192,9 +196,28 @@ class GateManager {
         const key = gateAddress.toLowerCase();
         const cached = this._infoCache.get(key);
         if (cached && Date.now() - cached.at < CONFIG.gate.checkAccessCacheMs) {
+            if (cached.info === null) throw new Error('gate is not v3 (unsupported)');
             return cached.info;
         }
-        const info = await this._withProvider(async () => {
+        let info;
+        try {
+            info = await this._readGateInfo(gateAddress);
+        } catch (error) {
+            // A revert means the gate lacks the v3 getters — a pre-v3 clone.
+            // Unsupported by decision; cache the verdict so every consumer of
+            // a dead channel doesn't hammer the RPC re-discovering it.
+            if (error?.code === 'CALL_EXCEPTION') {
+                this._infoCache.set(key, { info: null, at: Date.now() });
+                throw new Error('gate is not v3 (unsupported)');
+            }
+            throw error;
+        }
+        this._infoCache.set(key, { info, at: Date.now() });
+        return info;
+    }
+
+    _readGateInfo(gateAddress) {
+        return this._withProvider(async () => {
             const gate = this._readContract(gateAddress);
             const [owner, mode, token, minBalance, price, duration, wireIdentity, readOnly] = await Promise.all([
                 gate.owner(), gate.mode(), gate.token(),
@@ -212,8 +235,6 @@ class GateManager {
                 readOnly: Boolean(readOnly)
             };
         });
-        this._infoCache.set(key, { info, at: Date.now() });
-        return info;
     }
 
     /** Drop the cached parameters for one gate (after setPrice/setDuration). */

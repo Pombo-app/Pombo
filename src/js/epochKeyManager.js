@@ -1148,7 +1148,9 @@ class EpochKeyManager {
         try {
             await gateManager.getGateInfo(channel.gate.address);
         } catch (e) {
-            Logger.warn('epochKeys: gate unreadable, answering current epoch only:', e.message);
+            // debug, not warn: this fires on every answered request of a
+            // dead pre-v3 channel and would flood the console
+            Logger.debug('epochKeys: gate unreadable, answering current epoch only:', e.message);
             currentEpochOnly = true;
         }
 
@@ -1217,7 +1219,7 @@ class EpochKeyManager {
                         channel.gate.address, request.requester);
                 }
             } catch (e) {
-                Logger.warn('epochKeys: gate unreadable for the publish-key check — withholding it:', e.message);
+                Logger.debug('epochKeys: gate unreadable for the publish-key check — withholding it:', e.message);
                 mayHoldPublishKey = false;
             }
         }
