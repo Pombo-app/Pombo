@@ -288,6 +288,18 @@ class GateManager {
         return value;
     }
 
+    /**
+     * Overwrite one (gate, user) access-cache entry with a verdict just read
+     * elsewhere (the states() batch). The lost-access sweep seeds it so the
+     * member it is rotating for is refused keys immediately — a stale cached
+     * `true` would otherwise hand out the fresh epoch for up to the TTL.
+     */
+    noteAccess(gateAddress, userAddress, value) {
+        this._accessCache.set(
+            `${gateAddress.toLowerCase()}|${userAddress.toLowerCase()}`,
+            { value: !!value, at: Date.now() });
+    }
+
     /** @returns {Promise<bigint>} Unix seconds the subscription runs to; 0 = never paid */
     paidUntil(gateAddress, userAddress) {
         return this._withProvider(() =>
@@ -396,6 +408,11 @@ class GateManager {
                 paidUntil: Number(states[i].paidUntil),
                 isOwner: address === owner
             }));
+            // The states() batch is an authoritative access read — refresh the
+            // per-user cache so a cut this read just revealed refuses keys
+            // immediately instead of after the TTL. (Not on the fallback path
+            // below: its per-flag access is a guess, never cacheable.)
+            for (const m of members) this.noteAccess(gateAddress, m.address, m.access);
         } catch (error) {
             Logger.warn('gate: states() failed, falling back to flag reads:', error.message);
             members = await this._withProvider(async () => {

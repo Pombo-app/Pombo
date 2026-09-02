@@ -2110,10 +2110,13 @@ class ChannelManager {
         try {
             if (pending.length > 0) {
                 await epochKeyManager.rotateEpoch(channel);
-                channel.rotatedForNoAccess = [...covered, ...pending];
                 Logger.info('Rotated the epoch for lost access:',
                     pending.length, 'address(es) on', channel.messageStreamId.slice(-20));
             }
+            // Persist the PRUNED cover even when nothing is pending — a member
+            // who regained access must leave the cover now, or the record of
+            // the regain is lost and their next loss never rotates.
+            channel.rotatedForNoAccess = [...covered, ...pending];
             channel.accessSnapshot = [...withAccess];
             await this.saveChannels();
         } catch (e) {

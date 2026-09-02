@@ -261,6 +261,14 @@ class ChannelLatestMessageManager {
     _normalizeRemoteEntry(raw) {
         if (!raw || typeof raw !== 'object') return null;
         const t = raw.type;
+        // Same §3.6 clamp the message ingest applies — this resend path does
+        // not pass through MessageFlow, so a future-dated payload would
+        // otherwise still surface in the sidebar/Explore preview line.
+        const payloadTs = Number(raw.timestamp || 0);
+        const envTs = Number(raw._timestamp || 0);
+        const skew = CONFIG.gate.timestampSkewMs;
+        if (payloadTs && (payloadTs > Date.now() + skew
+            || (envTs && payloadTs > envTs + skew))) return null;
         const ts = Number(raw._timestamp || raw.timestamp || 0) || Date.now();
         // Reactions carry no `sender`; use the publisher injected by streamr.js
         const sender = (raw.sender || raw._publisherId || null);
