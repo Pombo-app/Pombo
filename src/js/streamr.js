@@ -1911,7 +1911,7 @@ class StreamrController {
     async _gatedChannelFor(streamId) {
         try {
             const { channelManager } = await import('./channels.js');
-            const base = String(streamId).replace(/-[1234]$/, '');
+            const base = String(streamId).replace(/-[12345]$/, '');
             const channel = channelManager?.channels?.get(base + '-1')
                 // Gated previews (Explore browse) live outside the map —
                 // without this fallback the preview's subscribes lose the
@@ -2098,7 +2098,7 @@ class StreamrController {
         } catch { /* registry unavailable → ephemeral (public/password) */ }
 
         if (channelManager?.usesAccountPublish?.(streamId)) {
-            const base = String(streamId).replace(/-[1234]$/, '');
+            const base = String(streamId).replace(/-[12345]$/, '');
             const channel = channelManager.channels?.get(base + '-1');
             if (channel?.type === 'gated' || channel?.gate?.address) {
                 // Errors here MUST propagate: falling through to the ephemeral
@@ -2813,7 +2813,7 @@ class StreamrController {
         let channelManager = null;
         try { ({ channelManager } = await import('./channels.js')); } catch { /* early boot */ }
         if (channelManager?.usesAccountPublish?.(messageStreamId)) {
-            const base = String(messageStreamId).replace(/-[1234]$/, '');
+            const base = String(messageStreamId).replace(/-[12345]$/, '');
             const channel = channelManager.channels?.get(base + '-1');
             if (channel?.type === 'gated' || channel?.gate?.address) {
                 // Members-only: chunks travel under the shared key too — the
@@ -2891,6 +2891,17 @@ class StreamrController {
      * @param {string} password - Password for encrypted channels (optional)
      */
     async publishReaction(messageStreamId, reaction, password = null) {
+        // Gated channels react on the -5: it is where members participate, so
+        // a read-only channel still has reactions, and the -1 stops carrying
+        // emoji the preview scanners had to skip. Everywhere else the -1/P0
+        // stays the reaction stream — those channels have no -5.
+        const channel = await this._gatedChannelFor(messageStreamId);
+        if (channel) {
+            const interactionsId = deriveInteractionsId(messageStreamId);
+            Logger.debug('publishReaction → interactions stream:', { interactionsId, messageId: reaction?.messageId });
+            return await this.publishAsChannel(
+                interactionsId, STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS, reaction, password);
+        }
         Logger.debug('publishReaction called - sending to messageStream partition 0:', { messageStreamId, messageId: reaction?.messageId });
         return await this.publishAsChannel(
             messageStreamId, STREAM_CONFIG.MESSAGE_STREAM.MESSAGES, reaction, password);
@@ -2961,7 +2972,7 @@ class StreamrController {
         // on-chain (the account signs).
         try {
             const { channelManager } = await import('./channels.js');
-            const base = String(adminStreamId).replace(/-[1234]$/, '');
+            const base = String(adminStreamId).replace(/-[12345]$/, '');
             const channel = channelManager.channels?.get(base + '-1');
             if (channel?.type === 'gated' || channel?.gate?.address) {
                 // -3 publishes as the ACCOUNT on gated too (_gateTransportOptions):
@@ -3120,7 +3131,7 @@ class StreamrController {
         // opens for anyone who cannot reach the owner's group key.
         try {
             const { channelManager } = await import('./channels.js');
-            const base = String(adminStreamId).replace(/-[1234]$/, '');
+            const base = String(adminStreamId).replace(/-[12345]$/, '');
             const channel = channelManager.channels?.get(base + '-1');
             // Visible channels are storefronts: the image IS the marketing and
             // publishes in the CLEAR so non-members (Explore) can render it.

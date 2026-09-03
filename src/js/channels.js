@@ -1954,7 +1954,23 @@ class ChannelManager {
                 initialHistorySafetyTimer = null;
             }
             if (!channel || !channel.initialLoadInProgress) return;
-            
+
+            // Reactions live on the -5 for gated channels — their history is
+            // a separate read, awaited here so the first render already has
+            // them instead of popping in after.
+            if (channel.interactionsStreamId) {
+                await streamrController.fetchHistoryAsync(
+                    channel.interactionsStreamId,
+                    STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS,
+                    STREAM_CONFIG.INITIAL_MESSAGES,
+                    (data) => this.handleControlMessage(messageStreamId, data),
+                    pwd,
+                    null,
+                    false,
+                    { quiet: true }
+                ).catch(e => Logger.warn('Interactions history failed:', e.message));
+            }
+
             // Flush any remaining batch verifications
             await this.flushBatchVerification(messageStreamId);
             
@@ -2006,6 +2022,22 @@ class ChannelManager {
                 STREAM_CONFIG.INITIAL_MESSAGES,
                 onHistoryComplete
             );
+
+            // Reactions live on the -5 for gated channels (that is what lets
+            // a read-only channel have them). Same handler as before: they
+            // arrive as control messages either way.
+            if (channel?.interactionsStreamId) {
+                try {
+                    await streamrController.subscribeToPartition(
+                        channel.interactionsStreamId,
+                        STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS,
+                        (data) => this.handleControlMessage(messageStreamId, data),
+                        pwd
+                    );
+                } catch (e) {
+                    Logger.warn('Failed to subscribe to the interactions stream:', e.message);
+                }
+            }
         } catch (subscribeError) {
             // Release UI gate so the user is not stranded on the spinner.
             if (initialHistorySafetyTimer) {
@@ -2258,6 +2290,21 @@ class ChannelManager {
                     false,
                     { quiet: true }
                 );
+            }
+
+            // Reactions moved to the -5: pull their history too, or a
+            // reopened channel would render messages with no reactions.
+            if (channel.interactionsStreamId) {
+                await streamrController.fetchHistoryAsync(
+                    channel.interactionsStreamId,
+                    STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS,
+                    STREAM_CONFIG.INITIAL_MESSAGES,
+                    (data) => this.handleControlMessage(messageStreamId, data),
+                    channel.password || null,
+                    null,
+                    false,
+                    { quiet: true }
+                ).catch(e => Logger.warn('Interactions history failed:', e.message));
             }
 
             await this.flushBatchVerification(messageStreamId);
