@@ -549,6 +549,18 @@ class StreamrController {
                         { userId: options.interactionsKeyAddress, permissions: ['publish'] }
                     ]
                     : gateMembers;
+                // The -2 is where everyone PARTICIPATES — presence, typing,
+                // media coordination — so it carries the interactions key
+                // beside the content one. Without that grant a read-only
+                // member is invisible, and so is everyone else: the transport
+                // rejects the key the participation paths actually use.
+                const ephemeralMembers = options.interactionsKeyAddress
+                    ? [
+                        ...contentMembers.filter(m =>
+                            (m.userId || m) !== options.interactionsKeyAddress),
+                        { userId: options.interactionsKeyAddress, permissions: ['publish'] }
+                    ]
+                    : contentMembers;
                 for (const [stream, label] of [
                     [messageStream, 'Message'],
                     [ephemeralStream, 'Ephemeral'],
@@ -572,10 +584,12 @@ class StreamrController {
                                 : { public: false, members: gateMembers, memberPermissions: ['subscribe'] })
                             : {
                                 public: false,
-                                members: (stream === messageStream || stream === ephemeralStream)
+                                members: stream === messageStream
                                     ? contentMembers
-                                    : (stream === interactionsStream
-                                        ? interactionMembers : gateMembers)
+                                    : (stream === ephemeralStream
+                                        ? ephemeralMembers
+                                        : (stream === interactionsStream
+                                            ? interactionMembers : gateMembers))
                             };
                         await this.setStreamPermissions(stream.id, perms);
                         Logger.info(`✓ ${label} stream: gate clone permissions set`);
