@@ -462,7 +462,8 @@ class GateManager {
     /** Drop cached access for one user (after allow/ban) or a whole gate. */
     invalidateAccess(gateAddress, userAddress = null) {
         const prefix = gateAddress.toLowerCase();
-        for (const cache of [this._accessCache, this._paidCache]) {
+        for (const cache of [this._accessCache, this._paidCache, this._modCache]) {
+            if (!cache) continue;
             for (const key of cache.keys()) {
                 if (!key.startsWith(prefix)) continue;
                 if (userAddress && key !== `${prefix}|${userAddress.toLowerCase()}`) continue;

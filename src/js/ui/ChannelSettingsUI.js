@@ -257,6 +257,7 @@ class ChannelSettingsUI {
                 .catch(() => { /* stays hidden */ });
             this.initRotateEpochSection(currentChannel.streamId);
             this.initRekeyPublishSection(currentChannel.streamId);
+            this.initAbsorbModSection(currentChannel.streamId);
         }
 
         // Load members and permissions if gated channel (not in preview mode)
@@ -559,7 +560,7 @@ class ChannelSettingsUI {
 
         const { channelManager, showNotification } = this.deps;
         const clientBanned = Array.isArray(channel?.adminState?.bannedMembers)
-            ? channel.adminState.bannedMembers.map(a => String(a).toLowerCase())
+            ? channel.adminState.bannedMembers.map(e => String(e?.address ?? e).toLowerCase())
             : [];
         // The gate's own banned set — a different mechanism from the client
         // ban, so an address can carry either or both.
@@ -1048,6 +1049,43 @@ class ChannelSettingsUI {
         if (toggle._changeHandler) toggle.removeEventListener('change', toggle._changeHandler);
         toggle._changeHandler = () => keyResponder.setMarked(streamId, toggle.checked);
         toggle.addEventListener('change', toggle._changeHandler);
+    }
+
+    /**
+     * Gated channels, channel admin only: turn the moderators' pending deltas
+     * into the owner's own snapshot. Until this runs their actions hold only
+     * while they hold the role.
+     */
+    initAbsorbModSection(streamId) {
+        const section = document.getElementById('absorb-mod-section');
+        const button = document.getElementById('absorb-mod-btn');
+        const counter = document.getElementById('absorb-mod-count');
+        if (!section || !button) return;
+
+        const { channelManager, showNotification } = this.deps;
+        const channel = channelManager.channels.get(streamId);
+        const deltas = channelManager.modDeltas?.all?.(streamId) || [];
+        const show = !!channel?.gate?.address
+            && channelManager.isChannelOwner(streamId)
+            && deltas.length > 0;
+        section.classList.toggle('hidden', !show);
+        if (!show) return;
+        if (counter) counter.textContent = String(deltas.length);
+
+        if (button._clickHandler) button.removeEventListener('click', button._clickHandler);
+        button._clickHandler = async () => {
+            button.disabled = true;
+            try {
+                await channelManager.absorbModActions(streamId);
+                showNotification?.('Moderator actions confirmed', 'success');
+                this.initAbsorbModSection(streamId);
+            } catch (error) {
+                showNotification?.('Could not confirm: ' + error.message, 'error');
+            } finally {
+                button.disabled = false;
+            }
+        };
+        button.addEventListener('click', button._clickHandler);
     }
 
     /**

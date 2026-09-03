@@ -32,7 +32,29 @@ export class AdminState {
      * @private
      */
     _createEmptyAdminState() {
-        return { bannedMembers: [], hiddenMessageIds: [], pins: [] };
+        return { bannedMembers: [], hiddenMessageIds: [], pins: [], absorbedThrough: 0 };
+    }
+
+    /** The owner's own snapshot, which is what a publish must build on. */
+    _snapshot(channel) {
+        return channel?.adminSnapshot || channel?.adminState || this._createEmptyAdminState();
+    }
+
+    /**
+     * Rebuild `channel.adminState` from the owner's snapshot plus whatever
+     * moderator deltas are held. Everything that renders reads `adminState`,
+     * so composing into it keeps the moderators' work visible without every
+     * consumer having to know deltas exist; `adminSnapshot` stays the owner's
+     * own word, which is what the next publish must be built on.
+     */
+    recompose(channel) {
+        if (!channel) return;
+        const snapshot = channel.adminSnapshot
+            || channel.adminState
+            || this._createEmptyAdminState();
+        channel.adminSnapshot = snapshot;
+        const composed = this.manager.modDeltas?.effectiveState(channel);
+        channel.adminState = composed ? { ...snapshot, ...composed } : snapshot;
     }
 
     /**
@@ -57,9 +79,24 @@ export class AdminState {
         const hidden = Array.isArray(state.hiddenMessageIds) ? state.hiddenMessageIds : [];
         const pins = Array.isArray(state.pins) ? state.pins : [];
         return {
-            bannedMembers: banned.filter(a => typeof a === 'string').map(a => a.toLowerCase()),
+            // A ban entry is { address, sinceEpoch } — the epoch its hiding
+            // starts from. A bare address still reads as "hide everything",
+            // which is what a snapshot written before the stamp existed meant.
+            bannedMembers: banned
+                .map(entry => (typeof entry === 'string'
+                    ? { address: entry.toLowerCase(), sinceEpoch: null }
+                    : (entry && typeof entry.address === 'string'
+                        ? {
+                            address: entry.address.toLowerCase(),
+                            sinceEpoch: Number.isInteger(entry.sinceEpoch) ? entry.sinceEpoch : null
+                        }
+                        : null)))
+                .filter(Boolean),
             hiddenMessageIds: hidden.filter(id => typeof id === 'string'),
-            pins: pins.filter(p => p && typeof p === 'object' && typeof p.targetId === 'string')
+            pins: pins.filter(p => p && typeof p === 'object' && typeof p.targetId === 'string'),
+            // How far the owner has ratified the moderators' deltas. Only the
+            // owner moves it, and only to what they actually read.
+            absorbedThrough: Number(state.absorbedThrough) || 0
         };
     }
 
@@ -94,7 +131,8 @@ export class AdminState {
             if (adminMsg.rev === currentRev && incomingTs <= currentTs) return false;
         }
 
-        channel.adminState = this.manager._normalizeAdminState(adminMsg.state);
+        channel.adminSnapshot = this.manager._normalizeAdminState(adminMsg.state);
+        this.recompose(channel);
         channel.adminRev = adminMsg.rev;
         channel.adminTs = incomingTs;
         channel.adminLoaded = true;
@@ -267,14 +305,18 @@ export class AdminState {
             }
         }
 
-        // Compose new state: full replace if `state` provided, otherwise merge `patch`.
-        const current = channel.adminState || { bannedMembers: [], hiddenMessageIds: [], pins: [] };
+        // Compose new state: full replace if `state` provided, otherwise merge
+        // `patch`. The base is the owner's own snapshot, never the composed
+        // view: publishing the composition would silently ratify moderator
+        // deltas the owner never looked at.
+        const current = channel.adminSnapshot || channel.adminState || this._createEmptyAdminState();
         const next = update.state
             ? this.manager._normalizeAdminState(update.state)
             : this.manager._normalizeAdminState({
                 bannedMembers: update.patch?.bannedMembers ?? current.bannedMembers,
                 hiddenMessageIds: update.patch?.hiddenMessageIds ?? current.hiddenMessageIds,
-                pins: update.patch?.pins ?? current.pins
+                pins: update.patch?.pins ?? current.pins,
+                absorbedThrough: update.patch?.absorbedThrough ?? current.absorbedThrough
             });
 
         const newRev = (channel.adminRev || 0) + 1;
@@ -336,30 +378,57 @@ export class AdminState {
 
     // High-level convenience helpers built on top of publishAdminState ----------
 
-    /** @returns {Promise<{rev:number, state:Object}>} */
+    /**
+     * Ban an author from this point on. The stamp is the epoch in force, so
+     * what they wrote before the ban stays readable; a channel with no epoch
+     * (ungated) has nothing to stamp and hides everything.
+     * @returns {Promise<{rev:number, state:Object}>}
+     */
     async banMember(messageStreamId, address) {
         const channel = this.manager.channels.get(messageStreamId);
         if (!channel) throw new Error('Channel not found');
         const lower = String(address).toLowerCase();
-        const set = new Set((channel.adminState?.bannedMembers || []).map(a => a.toLowerCase()));
-        set.add(lower);
-        return this.manager.publishAdminState(messageStreamId, { patch: { bannedMembers: Array.from(set) } });
+        const { epochKeyManager } = await import('../epochKeyManager.js');
+        const sinceEpoch = epochKeyManager.currentEpoch(messageStreamId);
+        const kept = (this._snapshot(channel).bannedMembers || [])
+            .filter(e => String(e?.address ?? e).toLowerCase() !== lower);
+        return this.manager.publishAdminState(messageStreamId, {
+            patch: { bannedMembers: [...kept, { address: lower, sinceEpoch }] }
+        });
     }
 
-    /** @returns {Promise<{rev:number, state:Object}>} */
+    /**
+     * Lift a ban. When the ban came from a moderator's delta, removing it from
+     * the snapshot would not be enough — the delta would just re-apply — so
+     * the publish absorbs what the owner is looking at and leaves this one
+     * address out of it. Ratifying the rest is the honest reading: the
+     * composed list is what they had on screen when they decided.
+     * @returns {Promise<{rev:number, state:Object}>}
+     */
     async unbanMember(messageStreamId, address) {
         const channel = this.manager.channels.get(messageStreamId);
         if (!channel) throw new Error('Channel not found');
         const lower = String(address).toLowerCase();
-        const next = (channel.adminState?.bannedMembers || []).filter(a => a.toLowerCase() !== lower);
-        return this.manager.publishAdminState(messageStreamId, { patch: { bannedMembers: next } });
+        const deltas = this.manager.modDeltas?.all(messageStreamId) || [];
+        const base = deltas.length > 0
+            ? (channel.adminState || this._snapshot(channel))
+            : this._snapshot(channel);
+        const patch = {
+            bannedMembers: (base.bannedMembers || [])
+                .filter(e => String(e?.address ?? e).toLowerCase() !== lower)
+        };
+        if (deltas.length > 0) {
+            patch.hiddenMessageIds = base.hiddenMessageIds || [];
+            patch.absorbedThrough = deltas.reduce((max, d) => Math.max(max, Number(d.ts) || 0), 0);
+        }
+        return this.manager.publishAdminState(messageStreamId, { patch });
     }
 
     /** @returns {Promise<{rev:number, state:Object}>} */
     async hideMessage(messageStreamId, targetId) {
         const channel = this.manager.channels.get(messageStreamId);
         if (!channel) throw new Error('Channel not found');
-        const set = new Set(channel.adminState?.hiddenMessageIds || []);
+        const set = new Set(this._snapshot(channel).hiddenMessageIds || []);
         set.add(targetId);
         return this.manager.publishAdminState(messageStreamId, { patch: { hiddenMessageIds: Array.from(set) } });
     }
@@ -368,7 +437,7 @@ export class AdminState {
     async pinMessage(messageStreamId, targetId, snapshot = null) {
         const channel = this.manager.channels.get(messageStreamId);
         if (!channel) throw new Error('Channel not found');
-        const existing = (channel.adminState?.pins || []).filter(p => p.targetId !== targetId);
+        const existing = (this._snapshot(channel).pins || []).filter(p => p.targetId !== targetId);
         const msg = !snapshot ? channel.messages.find(m => m.id === targetId) : null;
         const pin = {
             targetId,
@@ -388,7 +457,7 @@ export class AdminState {
     async unpinMessage(messageStreamId, targetId) {
         const channel = this.manager.channels.get(messageStreamId);
         if (!channel) throw new Error('Channel not found');
-        const next = (channel.adminState?.pins || []).filter(p => p.targetId !== targetId);
+        const next = (this._snapshot(channel).pins || []).filter(p => p.targetId !== targetId);
         return this.manager.publishAdminState(messageStreamId, { patch: { pins: next } });
     }
 }

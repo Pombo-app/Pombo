@@ -189,6 +189,7 @@ class ChannelViewUI {
         
         // Pre-load DELETE permission
         channelManager.preloadDeletePermission(streamId);
+        channelManager.preloadModeratorPermission(streamId);
         
         // Mobile: navigate to chat view
         this.deps.openChatView();

@@ -66,6 +66,12 @@ export const STREAM_CONFIG = {
     // Snapshot is `latest-wins`; a small window is sufficient.
     ADMIN_HISTORY_COUNT: 10,
 
+    // Moderator deltas on -1/P2. Unlike the snapshot these accumulate one
+    // entry per action, and only those the owner has not absorbed still
+    // count — a wide window costs a single resend and keeps a moderator's
+    // work visible across a long owner absence.
+    MODERATION_HISTORY_COUNT: 300,
+
     // publishAs(): how long to wait for the stream partition topology before
     // broadcasting. Joining registers interest but does not imply anyone is
     // connected yet — the smoke test caught a message published from a cold

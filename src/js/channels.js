@@ -33,6 +33,7 @@ import { MessageOverrides } from './channels/MessageOverrides.js';
 import { MessageFlow } from './channels/MessageFlow.js';
 import { AdminState } from './channels/AdminState.js';
 import { Membership } from './channels/Membership.js';
+import { ModDeltas, MOD_ACTION_TYPE } from './channels/ModDeltas.js';
 
 class ChannelManager {
     constructor() {
@@ -63,6 +64,8 @@ class ChannelManager {
         this.messageFlow = new MessageFlow(this);
         this.adminState = new AdminState(this);
         this.membership = new Membership(this);
+        // Moderator deltas on -1/P2, composed over the owner's snapshot.
+        this.modDeltas = new ModDeltas(this);
     }
 
     /**
@@ -1359,6 +1362,8 @@ class ChannelManager {
     isChannelOwner(streamId) { return this.membership.isChannelOwner(streamId); }
     canAddMembers(streamId) { return this.membership.canAddMembers(streamId); }
     preloadDeletePermission(streamId) { return this.membership.preloadDeletePermission(streamId); }
+    preloadModeratorPermission(streamId) { return this.membership.preloadModeratorPermission(streamId); }
+    isCachedModerator(streamId) { return this.membership.isCachedModerator(streamId); }
     getCachedDeletePermission(streamId) { return this.membership.getCachedDeletePermission(streamId); }
 
     // ===== STORAGE MANAGEMENT (POST-CREATION) ========================================
@@ -1627,6 +1632,19 @@ class ChannelManager {
     hideMessage(messageStreamId, targetId) { return this.adminState.hideMessage(messageStreamId, targetId); }
     pinMessage(messageStreamId, targetId, snapshot = null) { return this.adminState.pinMessage(messageStreamId, targetId, snapshot); }
     unpinMessage(messageStreamId, targetId) { return this.adminState.unpinMessage(messageStreamId, targetId); }
+
+    // Moderator deltas on -1/P2 ------------------------------------------------
+
+    handleModerationDelta(messageStreamId, data) {
+        if (!data || data.t !== MOD_ACTION_TYPE) return;
+        this.modDeltas.ingest(messageStreamId, data);
+    }
+
+    publishModAction(messageStreamId, op, target, sinceEpoch = null) {
+        return this.modDeltas.publish(messageStreamId, op, target, sinceEpoch);
+    }
+
+    absorbModActions(messageStreamId) { return this.modDeltas.absorb(messageStreamId); }
 
     /**
      * Background loop that republishes the PASSWORD_CHALLENGE on -3/P2 until
@@ -2016,7 +2034,12 @@ class ChannelManager {
                         : null,
                     allowOverridesInContentPartition: !hasControlPartition,
                     onControl: (data) => this.handleControlMessage(messageStreamId, data),
-                    onMedia: (data, account) => this.handleMediaMessage(messageStreamId, data, account)
+                    onMedia: (data, account) => this.handleMediaMessage(messageStreamId, data, account),
+                    // Only gated channels have moderators; elsewhere P2 carries
+                    // nothing and the subscription would be dead weight.
+                    onModeration: channel?.gate?.address
+                        ? (data) => this.handleModerationDelta(messageStreamId, data)
+                        : null
                 },
                 pwd,
                 STREAM_CONFIG.INITIAL_MESSAGES,
@@ -2037,6 +2060,14 @@ class ChannelManager {
                 } catch (e) {
                     Logger.warn('Failed to subscribe to the interactions stream:', e.message);
                 }
+            }
+
+            // The moderator set gates which deltas count, so it has to be
+            // known before composing; the deltas that arrive meanwhile
+            // recompose against it as soon as it lands.
+            if (channel?.gate?.address) {
+                this.modDeltas.refreshModerators(channel).catch(e =>
+                    Logger.debug('Moderator set refresh failed:', e.message));
             }
         } catch (subscribeError) {
             // Release UI gate so the user is not stranded on the spinner.

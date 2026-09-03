@@ -2041,6 +2041,12 @@ class StreamrController {
                 return null;
             }
         }
+        // The epoch belongs to the envelope, so carry it onto the payload the
+        // caller keeps — the wrapper itself is discarded here.
+        if (opened.payload && typeof opened.payload === 'object'
+            && Number.isInteger(epochWrapper?._epoch)) {
+            opened.payload._epoch = epochWrapper._epoch;
+        }
         return opened;
     }
 
@@ -2472,7 +2478,7 @@ class StreamrController {
 
         const parsed = epochKeyCrypto.parseBinaryEpochEnvelope(content);
         if (!parsed) return null;
-        const messageStreamId = String(streamId).replace(/-[234]$/, '-1');
+        const messageStreamId = String(streamId).replace(/-[2345]$/, '-1');
         const { epochKeyManager } = await import('./epochKeyManager.js');
         const key = await epochKeyManager.getKeyForKid(messageStreamId, parsed.kid, { live: true });
         if (key === false) return null;
@@ -2550,7 +2556,7 @@ class StreamrController {
      * @returns {Promise<Object|null>}
      */
     async openEpochEnvelope(streamId, content, context = {}) {
-        const messageStreamId = String(streamId).replace(/-[234]$/, '-1');
+        const messageStreamId = String(streamId).replace(/-[2345]$/, '-1');
         const { epochKeyManager } = await import('./epochKeyManager.js');
         const key = await epochKeyManager.getKeyForKid(messageStreamId, content.k, context);
         if (key === false) {
@@ -2565,7 +2571,17 @@ class StreamrController {
         }
         const { epochKeyCrypto } = await import('./epochKeyCrypto.js');
         try {
-            return await epochKeyCrypto.decryptWithEpochKey({ ct: content.ct, iv: content.iv }, key);
+            const plain = await epochKeyCrypto.decryptWithEpochKey(
+                { ct: content.ct, iv: content.iv }, key);
+            // The epoch this was written under, read off the kid that travels
+            // in the clear. Moderation needs it to hide only what a banned
+            // author wrote from the ban onward, and unlike the payload
+            // timestamp the publisher does not get to choose it.
+            if (plain && typeof plain === 'object') {
+                const epoch = parseInt(String(content.k).split('.')[0], 10);
+                if (Number.isInteger(epoch)) plain._epoch = epoch;
+            }
+            return plain;
         } catch (e) {
             Logger.warn(`Epoch envelope failed to open (kid ${content.k}):`, e.message);
             return null;
@@ -4253,6 +4269,22 @@ class StreamrController {
                 } else {
                     await completeHistoryPartition(STREAM_CONFIG.MESSAGE_STREAM.CONTROL, 'messageStream P1 (already subscribed)');
                 }
+            }
+
+            // Partition 2: moderator deltas WITH history. Deliberately outside
+            // the history-complete accounting: the timeline must not wait on
+            // moderation to render, it re-filters when the deltas land.
+            if (handlers.onModeration && !msgSubs[STREAM_CONFIG.MESSAGE_STREAM.MODERATION]) {
+                Logger.debug('Subscribing to messageStream partition 2 (moderation) with history');
+                msgSubs[STREAM_CONFIG.MESSAGE_STREAM.MODERATION] = await this.subscribeWithHistory(
+                    messageStreamId,
+                    STREAM_CONFIG.MESSAGE_STREAM.MODERATION,
+                    handlers.onModeration,
+                    STREAM_CONFIG.MODERATION_HISTORY_COUNT,
+                    password,
+                    null,
+                    false
+                );
             }
 
             Logger.info('Subscribed to message stream:', messageStreamId);

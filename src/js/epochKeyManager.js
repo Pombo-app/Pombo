@@ -1762,6 +1762,17 @@ class EpochKeyManager {
     // ==================== KEY ACCESS (Passo 5) ====================
 
     /**
+     * The epoch in force, as a number. Moderation stamps a ban with it so the
+     * ban applies from that epoch onward and leaves the author's earlier
+     * messages alone.
+     * @returns {number|null} null when the channel has no epoch yet
+     */
+    currentEpoch(messageStreamId) {
+        const s = this.state.get(messageStreamId);
+        return s && s.currentEpoch > 0 ? s.currentEpoch : null;
+    }
+
+    /**
      * Key to encrypt with right now: the current epoch's.
      * @returns {Promise<{kid: string, cryptoKey: CryptoKey}|null>} null while waiting for a key
      */

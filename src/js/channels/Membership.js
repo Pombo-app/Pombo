@@ -208,7 +208,10 @@ export class Membership {
                 }
             }
         }
-        if ((channel.adminState?.bannedMembers || []).some(a => a.toLowerCase() === lower)) {
+        // Ban entries are { address, sinceEpoch }; older snapshots may still
+        // hold bare strings.
+        if ((channel.adminState?.bannedMembers || []).some(entry =>
+            String(entry?.address ?? entry).toLowerCase() === lower)) {
             await this.manager.unbanMember(messageStreamId, address);
         }
         return true;
@@ -485,6 +488,38 @@ export class Membership {
             .catch(err => {
                 Logger.warn('Failed to preload DELETE permission:', err.message);
             });
+    }
+
+    /**
+     * Pre-load whether this wallet moderates the channel's gate. Separate
+     * from the DELETE permission because a moderator holds no stream
+     * permission at all: their authority is on the gate, and what they
+     * publish is a signed delta, not the owner's snapshot.
+     */
+    preloadModeratorPermission(streamId) {
+        const channel = this.manager.channels.get(streamId);
+        const currentAddress = authManager.getAddress();
+        if (!channel?.gate?.address || !currentAddress) return;
+        if (channel._modPermCache?.address === currentAddress.toLowerCase()) return;
+
+        import('../gate.js')
+            .then(({ gateManager }) => gateManager._isModerator(channel.gate.address, currentAddress))
+            .then(isMod => {
+                const ch = this.manager.channels.get(streamId);
+                const addr = authManager.getAddress();
+                if (!ch || !addr) return;
+                ch._modPermCache = { isModerator: !!isMod, address: addr.toLowerCase() };
+            })
+            .catch(e => Logger.debug('Moderator preload failed:', e.message));
+    }
+
+    /** Whether this wallet moderates the channel, from the preloaded cache. */
+    isCachedModerator(streamId) {
+        const channel = this.manager.channels.get(streamId);
+        const currentAddress = authManager.getAddress();
+        if (!channel?._modPermCache || !currentAddress) return false;
+        return channel._modPermCache.address === currentAddress.toLowerCase()
+            && channel._modPermCache.isModerator;
     }
 
     /**

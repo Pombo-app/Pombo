@@ -16,6 +16,7 @@ import { escapeHtml, formatAddress } from './utils.js';
 import { getAvatarHtml } from './AvatarGenerator.js';
 import { identityManager } from '../identity.js';
 import { CONFIG } from '../config.js';
+import { banHidesMessage } from '../channels/modComposition.js';
 
 /**
  * Watchdog cap for a single pagination load. If `loadMoreHistory` (network +
@@ -547,13 +548,21 @@ class ChatAreaUI {
         const hiddenIds = adminState && Array.isArray(adminState.hiddenMessageIds)
             ? new Set(adminState.hiddenMessageIds)
             : null;
-        const bannedSet = adminState && Array.isArray(adminState.bannedMembers)
-            ? new Set(adminState.bannedMembers.map((a) => String(a).toLowerCase()))
-            : null;
+        // A ban hides from its epoch onward, so the lookup keeps the entry and
+        // the filter compares it against the epoch the message was written in.
+        const bannedBy = new Map();
+        for (const entry of (adminState?.bannedMembers || [])) {
+            const address = String(entry?.address ?? entry).toLowerCase();
+            bannedBy.set(address, typeof entry === 'string'
+                ? { address, sinceEpoch: null } : entry);
+        }
         const filteredSource = sourceMessages.filter((m) => {
             if (!m || m._deleted || ['edit', 'delete'].includes(m.type)) return false;
             if (hiddenIds && m.id && hiddenIds.has(m.id)) return false;
-            if (bannedSet && m.sender && bannedSet.has(String(m.sender).toLowerCase())) return false;
+            if (m.sender) {
+                const ban = bannedBy.get(String(m.sender).toLowerCase());
+                if (ban && banHidesMessage(ban, m._epoch)) return false;
+            }
             return true;
         });
         const messagesForRender = effectiveChannel?.initialLoadInProgress && filteredSource.length === 0

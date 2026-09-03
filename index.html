@@ -1995,6 +1995,17 @@
                                 Client bans hide the author's messages for everyone and cost nothing. Protocol bans cut access on the gate, so the member stops receiving keys, and take a transaction to apply and to lift.
                             </p>
 
+                            <!-- Owner only, gated channels: ratify the moderators' pending actions -->
+                            <div id="absorb-mod-section" class="hidden p-4 bg-white/[0.03] rounded-xl border border-white/5">
+                                <h4 class="text-sm font-medium text-white/90 mb-1">Confirm Moderator Actions</h4>
+                                <p class="text-sm text-white/40 mb-3">
+                                    <span id="absorb-mod-count">0</span> action(s) by your moderators are in effect but not yet yours. Confirming makes them permanent, even if you dismiss the moderator later. Free — no transaction.
+                                </p>
+                                <button id="absorb-mod-btn" class="w-full bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 px-4 py-2.5 rounded-xl text-sm transition">
+                                    Confirm Moderator Actions
+                                </button>
+                            </div>
+
                             <!-- Stream grantees: the technical view (owner only) -->
                             <div id="permissions-section" class="hidden">
                                 <div class="border-t border-white/5 pt-5">

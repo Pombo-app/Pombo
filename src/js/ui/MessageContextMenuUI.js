@@ -233,8 +233,13 @@ class MessageContextMenuUI {
         if (deleteBtn) deleteBtn.classList.toggle('hidden', !showDelete);
         if (editDivider) editDivider.classList.toggle('hidden', !showEdit && !showDelete);
 
+        // A moderator holds no stream permission — their authority is on the
+        // gate — so hide/ban are offered to them too and routed as deltas.
+        const isModeratorUser = !isDMChannel && !isPreview && currentChannel
+            && !!cm?.isCachedModerator?.(currentChannel.streamId);
+
         // Admin moderation: Pin / Unpin / Admin Delete / Ban
-        this._toggleAdminItems(currentChannel, senderAddress, isSelf, isAdminUser);
+        this._toggleAdminItems(currentChannel, senderAddress, isSelf, isAdminUser, isModeratorUser);
 
         this.showContextMenu(clientX, clientY);
     }
@@ -245,9 +250,10 @@ class MessageContextMenuUI {
      * @param {string} senderAddress  — message author address
      * @param {boolean} isSelf        — message authored by current user
      * @param {boolean} isAdminUser   — current user is the channel admin
+     * @param {boolean} isModeratorUser — current user moderates the gate
      * @private
      */
-    _toggleAdminItems(currentChannel, senderAddress, isSelf, isAdminUser) {
+    _toggleAdminItems(currentChannel, senderAddress, isSelf, isAdminUser, isModeratorUser = false) {
         const adminDivider = document.getElementById('context-menu-admin-divider');
         const pinBtn = document.getElementById('context-menu-pin-btn');
         const unpinBtn = document.getElementById('context-menu-unpin-btn');
@@ -264,9 +270,9 @@ class MessageContextMenuUI {
         // Admin delete hides the message for everyone via the admin stream.
         // Shown for ANY message (including the admin's own) so deletion is
         // always routed through the admin moderation surface for admins.
-        const showAdminDelete = isAdminUser && !!msgId;
+        const showAdminDelete = (isAdminUser || isModeratorUser) && !!msgId;
         // Cannot ban yourself or the channel admin.
-        const showBan = isAdminUser && !isSelf && !isCreator;
+        const showBan = (isAdminUser || isModeratorUser) && !isSelf && !isCreator;
 
         if (pinBtn) pinBtn.classList.toggle('hidden', !showPin);
         if (unpinBtn) unpinBtn.classList.toggle('hidden', !showUnpin);
@@ -395,7 +401,14 @@ class MessageContextMenuUI {
                 const ch = channelManager?.getCurrentChannel?.();
                 if (!ch) break;
                 try {
-                    await channelManager.hideMessage(ch.streamId, target.msgId);
+                    // The owner publishes their snapshot; a moderator has no
+                    // permission on the admin stream and signs a delta instead.
+                    if (channelManager.isCachedModerator?.(ch.streamId)
+                        && !channelManager.getCachedDeletePermission?.(ch.streamId)?.canDelete) {
+                        await channelManager.publishModAction(ch.streamId, 'hide', target.msgId);
+                    } else {
+                        await channelManager.hideMessage(ch.streamId, target.msgId);
+                    }
                     showNotification('Message hidden', 'success');
                 } catch (err) {
                     showNotification(err?.message || 'Failed to hide message', 'error');
@@ -406,6 +419,22 @@ class MessageContextMenuUI {
             case 'ban-user': {
                 const ch = channelManager?.getCurrentChannel?.();
                 if (!ch) break;
+                // A moderator's ban is a delta and has no on-chain half, so
+                // the two-level modal (which spends gas) is the owner's.
+                if (channelManager.isCachedModerator?.(ch.streamId)
+                    && !channelManager.getCachedDeletePermission?.(ch.streamId)?.canDelete) {
+                    if (!confirm(`Hide every message from ${address.slice(0, 10)}… from now on?`)) break;
+                    try {
+                        const { epochKeyManager } = await import('../epochKeyManager.js');
+                        await channelManager.publishModAction(
+                            ch.streamId, 'ban', address,
+                            epochKeyManager.currentEpoch(ch.streamId));
+                        showNotification('Member banned', 'success');
+                    } catch (err) {
+                        showNotification(err?.message || 'Failed to ban member', 'error');
+                    }
+                    break;
+                }
                 const { channelModalsUI } = await import('./ChannelModalsUI.js');
                 channelModalsUI.showBanMemberModal(address, ch);
                 break;
