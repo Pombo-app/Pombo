@@ -2331,14 +2331,18 @@ class StreamrController {
         // publish key or no wallet means NO publish, never a fallback to the
         // clone (which would put the account on the wire).
         const { usesSharedPublish } = await import('./epochKeyManager.js');
-        if (usesSharedPublish(channel)) {
+        // The -3 is the owner's alone: they publish it as the ACCOUNT, which
+        // is what the stream's on-chain permission enforces. A shared key
+        // holds nothing there, so routing it through the Members-only path
+        // below would hand the network a publisher it rejects — silently.
+        if (usesSharedPublish(channel) && !isAdminStream(streamId)) {
             // Which shared key carries this depends on the stream, not on the
             // author's role: the -1 is where you publish (content key, which
             // a read-only channel withholds from members) and the -2/-5 is
             // where you participate (interactions key, which every member
             // holds). That split is what keeps presence and reactions alive
             // in a read-only channel.
-            const participates = streamId !== channel.messageStreamId;
+            const participates = isEphemeralStream(streamId) || isInteractionsStream(streamId);
             const pubKey = participates
                 ? epochKeyManager.getInteractionsKey(channel.messageStreamId)
                     || await epochKeyManager.ensurePublishKey(channel)

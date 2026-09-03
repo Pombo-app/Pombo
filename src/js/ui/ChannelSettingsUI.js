@@ -1068,7 +1068,7 @@ class ChannelSettingsUI {
 
         const { channelManager, showNotification } = this.deps;
         const channel = channelManager.channels.get(streamId);
-        const deltas = channelManager.modDeltas?.all?.(streamId) || [];
+        const deltas = channel ? (channelManager.modDeltas?.pending?.(channel) || []) : [];
         const show = !!channel?.gate?.address
             && channelManager.isChannelOwner(streamId)
             && deltas.length > 0;

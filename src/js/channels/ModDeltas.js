@@ -106,6 +106,18 @@ export class ModDeltas {
     }
 
     /**
+     * Deltas the owner has not ratified yet. Absorbing does not delete
+     * anything — the -1/P2 is append-only and the snapshot's
+     * `absorbedThrough` is what stops them counting — so this is what the
+     * "confirm" surface has to measure, or it keeps offering work already done.
+     */
+    pending(channel) {
+        const absorbed = Number(channel?.adminSnapshot?.absorbedThrough
+            || channel?.adminState?.absorbedThrough) || 0;
+        return this.all(channel.messageStreamId).filter(d => Number(d.ts) > absorbed);
+    }
+
+    /**
      * The effective moderation state: the owner's snapshot with the
      * unabsorbed deltas of CURRENT moderators applied on top.
      */
@@ -171,7 +183,7 @@ export class ModDeltas {
     async absorb(messageStreamId) {
         const channel = this.manager.channels.get(messageStreamId);
         if (!channel) throw new Error('Channel not found');
-        const deltas = this.all(messageStreamId);
+        const deltas = this.pending(channel);
         if (deltas.length === 0) return null;
 
         const effective = this.effectiveState(channel);

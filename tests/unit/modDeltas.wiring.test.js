@@ -164,3 +164,26 @@ describe('MOD_ACTION deltas reaching the rendered state', () => {
         expect(manager.modDeltas.ingest(STREAM, delta)).toBe(false);
     });
 });
+
+describe('what the owner is still asked to confirm', () => {
+    beforeEach(() => { isModerator = async () => true; });
+
+    it('stops counting a delta once the snapshot has absorbed it', async () => {
+        const { manager, channel } = makeManager();
+        const delta = buildModAction({
+            streamId: STREAM, op: 'hide', target: 'msg-7',
+            privateKey: MOD.privateKey, ts: 1_700_000_000_000
+        });
+        manager.modDeltas.ingest(STREAM, delta);
+        await flush();
+        expect(manager.modDeltas.pending(channel)).toHaveLength(1);
+
+        // The owner ratified everything up to this delta.
+        channel.adminSnapshot = {
+            hiddenMessageIds: ['msg-7'], bannedMembers: [], pins: [],
+            absorbedThrough: 1_700_000_000_000
+        };
+        expect(manager.modDeltas.pending(channel)).toHaveLength(0);
+        expect(await manager.modDeltas.absorb(STREAM)).toBeNull();
+    });
+});

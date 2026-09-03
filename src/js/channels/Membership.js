@@ -10,6 +10,7 @@ import { streamrController } from '../streamr.js';
 import { authManager } from '../auth.js';
 import { parseChainError } from '../utils/chainErrors.js';
 import { epochKeyManager } from '../epochKeyManager.js';
+import { CONFIG } from '../config.js';
 
 export class Membership {
     /**
@@ -500,7 +501,13 @@ export class Membership {
         const channel = this.manager.channels.get(streamId);
         const currentAddress = authManager.getAddress();
         if (!channel?.gate?.address || !currentAddress) return;
-        if (channel._modPermCache?.address === currentAddress.toLowerCase()) return;
+        // Ages out like the gate access cache. Without a TTL the first answer
+        // stood for the whole session, so a member promoted while the app was
+        // open never got the moderation actions — the very case the promotion
+        // exists for.
+        const cached = channel._modPermCache;
+        if (cached?.address === currentAddress.toLowerCase()
+            && Date.now() - (cached.at || 0) < CONFIG.gate.checkAccessCacheMs) return;
 
         import('../gate.js')
             .then(({ gateManager }) => gateManager._isModerator(channel.gate.address, currentAddress))
@@ -508,7 +515,9 @@ export class Membership {
                 const ch = this.manager.channels.get(streamId);
                 const addr = authManager.getAddress();
                 if (!ch || !addr) return;
-                ch._modPermCache = { isModerator: !!isMod, address: addr.toLowerCase() };
+                ch._modPermCache = {
+                    isModerator: !!isMod, address: addr.toLowerCase(), at: Date.now()
+                };
             })
             .catch(e => Logger.debug('Moderator preload failed:', e.message));
     }
