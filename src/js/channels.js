@@ -564,8 +564,14 @@ class ChannelManager {
             // rides the creation permission batch. The private half is
             // adopted below and distributed to members via -4 wraps.
             let publishKey = null;
+            let interactionsKey = null;
             if (wireIdentity === 'sealed') {
                 publishKey = epochKeyManager.mintPublishKey();
+                // The second shared key: same mechanics, wider distribution.
+                // Every member holds it, read-only included — it carries the
+                // -5 (reactions) and the -2 (presence), so participating never
+                // depends on being allowed to post.
+                interactionsKey = epochKeyManager.mintInteractionsKey();
             }
 
             // Create dual-stream channel - streamrController handles on-chain operations
@@ -576,7 +582,8 @@ class ChannelManager {
                 type,
                 {
                     ...options, onProgress, gateAddress,
-                    wireIdentity, publishKeyAddress: publishKey?.address
+                    wireIdentity, publishKeyAddress: publishKey?.address,
+                    interactionsKeyAddress: interactionsKey?.address
                 }
             );
             Logger.debug('Triple-stream created:', { 
@@ -772,6 +779,9 @@ class ChannelManager {
 
             if (publishKey) {
                 await epochKeyManager.adoptPublishKey(channel, publishKey);
+            }
+            if (interactionsKey) {
+                await epochKeyManager.adoptInteractionsKey(channel, interactionsKey);
             }
             
             // Add to channel order (new channels go to top)

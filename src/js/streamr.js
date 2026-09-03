@@ -2312,10 +2312,20 @@ class StreamrController {
         // clone (which would put the account on the wire).
         const { usesSharedPublish } = await import('./epochKeyManager.js');
         if (usesSharedPublish(channel)) {
-            const pubKey = await epochKeyManager.ensurePublishKey(channel);
+            // Which shared key carries this depends on the stream, not on the
+            // author's role: the -1 is where you publish (content key, which
+            // a read-only channel withholds from members) and the -2/-5 is
+            // where you participate (interactions key, which every member
+            // holds). That split is what keeps presence and reactions alive
+            // in a read-only channel.
+            const participates = streamId !== channel.messageStreamId;
+            const pubKey = participates
+                ? epochKeyManager.getInteractionsKey(channel.messageStreamId)
+                    || await epochKeyManager.ensurePublishKey(channel)
+                : await epochKeyManager.ensurePublishKey(channel);
             if (!pubKey) {
                 throw new Error(
-                    `No publish key for ${channel.messageStreamId} — cannot publish on a Members-only channel without one (waiting for PUB_WRAP)`);
+                    `No ${participates ? 'interactions' : 'publish'} key for ${channel.messageStreamId} — cannot publish on a Members-only channel without one (waiting for the wrap)`);
             }
             const auth = epochKeyManager.getAuthorship(channel);
             if (!auth) {
@@ -2418,10 +2428,13 @@ class StreamrController {
         // stamp the sender's account onto every piece.
         const { usesSharedPublish } = await import('./epochKeyManager.js');
         if (usesSharedPublish(channel)) {
-            const pubKey = await epochKeyManager.ensurePublishKey(channel);
+            // The -2 is participation, so it rides the interactions key —
+            // media coordination keeps working for a member who may not post.
+            const pubKey = epochKeyManager.getInteractionsKey(channel.messageStreamId)
+                || await epochKeyManager.ensurePublishKey(channel);
             if (!pubKey) {
                 throw new Error(
-                    `No publish key for ${channel.messageStreamId} — cannot send media on a Members-only channel without one`);
+                    `No interactions key for ${channel.messageStreamId} — cannot send media on a Members-only channel without one`);
             }
             return this.publishAs(
                 this._sharedPublishIdentity(pubKey), ephemeralStreamId,
