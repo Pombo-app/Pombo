@@ -278,7 +278,12 @@ export const CONFIG = {
         previewPresenceIntervalMs: 20000, // Presence broadcast interval in preview
         initialPollDelayMs: 5000,      // Delay before first background poll
         maxPresenceFailures: 3,        // Stop preview presence after N consecutive failures
-        adminPollIntervalMs: 30000     // Poll interval for admin-state resend 
+        adminPollIntervalMs: 30000,    // Poll interval for admin-state resend
+        // Member catch-up on a gated channel: raw sweep of the keys and the
+        // message stream, which is how a member recovers what their live
+        // subscription and their key request could not get on their own.
+        memberCatchUpIntervalMs: 30000,
+        memberCatchUpCount: 30
     },
 
     // Push Notifications
