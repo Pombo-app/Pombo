@@ -51,6 +51,7 @@ import { gateManager } from './gate.js';
 import { dmCrypto } from './dmCrypto.js';
 import { authorship } from './authorship.js';
 import { keysRetentionDays } from './streamRetention.js';
+import { identityManager } from './identity.js';
 
 /**
  * Channels running the epoch-key protocol (gated, N-A/N-C): the gate clone
@@ -154,6 +155,10 @@ class EpochKeyManager {
                 // Epochs we already published a MEMBER_HELLO for — persisted,
                 // so reopening the channel does not re-hello.
                 helloEpochs: new Set(),
+                // Last hello this device published: the name it carried and
+                // its timestamp, which the next one chains as `prev`.
+                helloName: null,
+                helloTs: 0,
                 // -4 partition probe: null = unknown, 0 = no roster partition,
                 // 1 = the stream was created with P1
                 rosterPartition: null,
@@ -222,6 +227,8 @@ class EpochKeyManager {
                 s.pendingRequests.set(requestId, { fromEpoch: entry.fromEpoch, sentAt: entry.sentAt });
             }
         }
+        if (typeof persisted.helloName === 'string') s.helloName = persisted.helloName;
+        if (Number.isFinite(persisted.helloTs)) s.helloTs = persisted.helloTs;
         for (const epoch of persisted.helloEpochs || []) {
             if (Number.isInteger(epoch)) s.helloEpochs.add(epoch);
         }
@@ -269,6 +276,7 @@ class EpochKeyManager {
         await secureStorage.setEpochKeys(messageStreamId, {
             epochs, announces, currentEpoch: s.currentEpoch,
             pendingRequests, helloEpochs: Array.from(s.helloEpochs),
+            helloName: s.helloName || null, helloTs: s.helloTs || 0,
             seenRequesters: Array.from(s.seenRequesters),
             ...(s.pubKey ? { pubKey: { ...s.pubKey } } : {}),
             ...(s.pubAnnounce ? {
@@ -1610,17 +1618,26 @@ class EpochKeyManager {
     }
 
     /**
-     * One MEMBER_HELLO per epoch, sealed with that epoch's key and published
-     * on first adoption — never for past epochs (a backfilled hello would
-     * fake presence in a window the member did not live). The seal is what
-     * keeps the roster private: the -4 resend is publicly readable over HTTP.
+     * A MEMBER_HELLO per (epoch, name), sealed with that epoch's key and
+     * published on first adoption — never for past epochs (a backfilled hello
+     * would fake presence in a window the member did not live). The seal is
+     * what keeps the roster private: the -4 resend is publicly readable over
+     * HTTP.
+     *
+     * The name travels so a member who never wrote still has one. The old
+     * hello is not removed — the -4 is append-only and only the node's TTL
+     * deletes — but substitution is infeasible by construction: the roster
+     * only accepts a hello whose envelope signer equals the declared account.
+     * `prev` chains the previous hello's timestamp, which buys an auditable
+     * trail for free.
      */
     async _maybePublishHello(channel, s, keyId, epoch) {
         // A preview shadow channel receives keys (live-holding gates answer
         // its requests) but peeking must not enter the roster.
         if (channel.preview) return;
         if (epoch !== s.currentEpoch) return;
-        if (s.helloEpochs.has(epoch)) return;
+        const name = this._myDisplayName();
+        if (s.helloEpochs.has(epoch) && (s.helloName || null) === name) return;
         if (!(await this._rosterCapable(channel, s))) return;
         const account = (authManager.getAddress() || '').toLowerCase();
         const entry = s.epochs.get(keyId);
@@ -1631,7 +1648,9 @@ class EpochKeyManager {
             t: KEYS_MSG_TYPE.MEMBER_HELLO,
             account,
             ...(spk ? { spk } : {}),
-            ts: Date.now()
+            ts: Date.now(),
+            ...(name ? { name } : {}),
+            ...(s.helloTs ? { prev: s.helloTs } : {})
         };
         const sealed = await epochKeyCrypto.encryptWithEpochKey(
             hello, await this._cryptoKey(entry));
@@ -1640,9 +1659,55 @@ class EpochKeyManager {
             { e: 'epoch-aes-gcm', k: keyId, ct: sealed.ct, iv: sealed.iv },
             KEYS_STREAM.ROSTER);
         s.helloEpochs.add(epoch);
+        s.helloName = name;
+        s.helloTs = hello.ts;
+        s.rosterCache = null;
         await this._persist(channel.messageStreamId, s);
         Logger.debug(`epochKeys: member hello published for epoch ${epoch} on`,
             channel.keysStreamId.slice(-30));
+    }
+
+    /** The display name that travels in the hello, or null. */
+    _myDisplayName() {
+        const name = (identityManager.getUsername?.() || '').trim();
+        return name ? name.slice(0, 64) : null;
+    }
+
+    /**
+     * The name changed: republish the hello wherever this account is already
+     * in the roster. Without this a rename waited for the next rotation,
+     * which on a quiet channel is a week.
+     */
+    async republishHelloForRename(channels) {
+        const name = this._myDisplayName();
+        for (const channel of channels) {
+            if (!usesEpochKeys(channel) || channel.preview) continue;
+            const s = this.state.get(channel.messageStreamId);
+            if (!s || s.currentEpoch === 0) continue;
+            if ((s.helloName || null) === name) continue;
+            const announce = s.announces.get(s.currentEpoch);
+            if (!announce || !s.epochs.has(announce.keyId)) continue;
+            try {
+                await this._maybePublishHello(channel, s, announce.keyId, s.currentEpoch);
+            } catch (e) {
+                Logger.debug('epochKeys: hello republish failed:', e.message);
+            }
+        }
+    }
+
+    /**
+     * The roster as last read, without a network round trip — what the bubbles
+     * consult while rendering. Null when nothing has been read yet.
+     */
+    getCachedRoster(messageStreamId) {
+        return this.state.get(messageStreamId)?.rosterCache?.members || null;
+    }
+
+    /** The name this account announced in the roster, with when it said so. */
+    getRosterName(messageStreamId, account) {
+        const entry = this.getCachedRoster(messageStreamId)
+            ?.find(m => m.account === String(account).toLowerCase());
+        return entry?.name ? { name: entry.name, ts: entry.ts } : null;
     }
 
     /**
@@ -1685,20 +1750,26 @@ class EpochKeyManager {
                 const account = (hello.account || '').toLowerCase();
                 if (!/^0x[0-9a-f]{40}$/.test(account)) continue;
                 if (account !== (publisherId || '').toLowerCase()) continue;
+                const ts = hello.ts || timestamp || 0;
+                const spk = typeof hello.spk === 'string' ? hello.spk : null;
+                const name = typeof hello.name === 'string' && hello.name.trim()
+                    ? hello.name.trim().slice(0, 64) : null;
                 const prev = members.get(account);
-                if (!prev || (hello.ts || 0) > prev.ts) {
-                    members.set(account, {
-                        account,
-                        spk: typeof hello.spk === 'string' ? hello.spk : null,
-                        ts: hello.ts || timestamp || 0
-                    });
+                if (!prev) {
+                    members.set(account, { account, spk, ts, name, nameTs: name ? ts : 0 });
+                    continue;
                 }
+                if (ts > prev.ts) { prev.ts = ts; prev.spk = spk; }
+                // A hello without a name does not erase one: the name comes
+                // from the newest hello that actually carried it.
+                if (name && ts >= prev.nameTs) { prev.name = name; prev.nameTs = ts; }
             }
         } catch (e) {
             Logger.warn('epochKeys: roster read failed:', e.message);
             return s.rosterCache?.members || [];
         }
-        const list = Array.from(members.values());
+        const list = Array.from(members.values())
+            .map(({ account, spk, ts, name }) => ({ account, spk, ts, name: name || null }));
         s.rosterCache = { at: Date.now(), members: list };
         return list;
     }

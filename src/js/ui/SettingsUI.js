@@ -721,6 +721,16 @@ class SettingsUI {
 
                     this.deps.updateDisplayName?.(updatedUsername);
                     this.showNotification('Username updated!', 'success');
+
+                    // Gated channels carry the name in the roster hello, so a
+                    // rename has to be announced or it waits for the next
+                    // rotation — a week on a quiet channel.
+                    try {
+                        const { epochKeyManager } = await import('../epochKeyManager.js');
+                        const { channelManager } = await import('../channels.js');
+                        await epochKeyManager.republishHelloForRename(
+                            Array.from(channelManager.channels.values()));
+                    } catch { /* the next adoption republishes it */ }
                 } catch (err) {
                     this.showNotification('Failed to update username', 'error');
                 }

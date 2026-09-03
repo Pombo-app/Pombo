@@ -2068,6 +2068,10 @@ class ChannelManager {
             if (channel?.gate?.address) {
                 this.modDeltas.refreshModerators(channel).catch(e =>
                     Logger.debug('Moderator set refresh failed:', e.message));
+                // The roster carries the members' names, which the bubbles read
+                // synchronously while rendering — warm it before they do.
+                epochKeyManager.getRosterMembers(channel).catch(e =>
+                    Logger.debug('Roster warm-up failed:', e.message));
             }
         } catch (subscribeError) {
             // Release UI gate so the user is not stranded on the spinner.
