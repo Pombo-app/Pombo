@@ -764,7 +764,19 @@ class ChannelManager {
             }
 
             Logger.info('Dual-stream channel created successfully:', channel.messageStreamId);
-            
+
+            // The creator's device answers key requests by default — a gated
+            // channel whose owner never reopens it would otherwise leave new
+            // members waiting for keys. The Moderation toggle turns it off.
+            if (type === 'gated') {
+                try {
+                    const { keyResponder } = await import('./keyResponder.js');
+                    keyResponder.setMarked(channel.messageStreamId, true);
+                } catch (e) {
+                    Logger.warn('Could not enable the key responder by default:', e.message);
+                }
+            }
+
             // Auto-enable notifications for this channel if global notifications are enabled
             if (relayManager.enabled) {
                 try {
