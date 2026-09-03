@@ -58,3 +58,28 @@ describe('resend raw invariant', () => {
         expect(offenders).toEqual([]);
     });
 });
+
+/**
+ * Stream-suffix invariants. Every "which channel does this stream belong to"
+ * regex has to know about the -4 and the -5; the ones that stopped at -3 were
+ * why a reaction published on the -5 fell through to the ephemeral path the
+ * network rejects, and why nothing on the -5 ever opened.
+ */
+describe('stream suffix regexes cover every partition', () => {
+    const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
+
+    it('no base-id derivation stops before the -5', () => {
+        const sources = [
+            ['channelIdentity.js', read('../../src/js/channelIdentity.js')],
+            ['channels.js', read('../../src/js/channels.js')],
+            ['streamr.js', read('../../src/js/streamr.js')]
+        ];
+        const offenders = [];
+        for (const [name, src] of sources) {
+            for (const m of src.matchAll(/replace\(\/-\[([0-9]+)\]\$\//g)) {
+                if (!m[1].includes('5')) offenders.push(`${name}: -[${m[1]}]`);
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+});

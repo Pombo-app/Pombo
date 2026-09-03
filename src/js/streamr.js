@@ -3675,10 +3675,13 @@ class StreamrController {
         }
 
         // Safety check: only enable storage for streams that should persist
-        // (-1 message, -3 admin, -4 keys). The keys stream MUST persist — a
-        // joiner pulls KEY_ANNOUNCEs from storage, and requests/wraps survive
-        // there until the counterpart comes online. Only -2 stays unstored.
-        if (!isMessageStream(messageStreamId) && !isAdminStream(messageStreamId) && !isKeysStream(messageStreamId)) {
+        // (-1 message, -3 admin, -4 keys, -5 interactions). The keys stream
+        // MUST persist — a joiner pulls KEY_ANNOUNCEs from storage, and
+        // requests/wraps survive there until the counterpart comes online.
+        // The -5 must persist for the same reason reactions moved off the -2:
+        // a reopened channel has to render them. Only -2 stays unstored.
+        if (!isMessageStream(messageStreamId) && !isAdminStream(messageStreamId)
+            && !isKeysStream(messageStreamId) && !isInteractionsStream(messageStreamId)) {
             Logger.warn('enableStorage called on non-persistent stream, ignoring:', messageStreamId);
             return { success: false, provider: null, storageDays: null };
         }
@@ -3779,7 +3782,8 @@ class StreamrController {
             throw new Error('Client not initialized');
         }
 
-        if (!isMessageStream(streamId) && !isAdminStream(streamId) && !isKeysStream(streamId)) {
+        if (!isMessageStream(streamId) && !isAdminStream(streamId)
+            && !isKeysStream(streamId) && !isInteractionsStream(streamId)) {
             return { success: false, nodeAddress: null, error: 'Storage not allowed on this stream' };
         }
 

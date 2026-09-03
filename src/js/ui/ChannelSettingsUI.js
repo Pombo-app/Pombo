@@ -321,6 +321,7 @@ class ChannelSettingsUI {
         const list = this.elements.channelStorageNodesList;
         const POMBO_NODE = '0xae340e799e8151f6a4999d245e466197aa217667';
         const { enabled, nodes, storageDays, retention, retentionInSync, hasKeysStream } = info;
+        const hasInteractions = info.hasInteractionsStream === true;
         // A lookup that failed says nothing about that stream. Calling a node
         // missing on that basis sends the admin to pay for a repair that may
         // not be needed.
@@ -342,7 +343,8 @@ class ChannelSettingsUI {
                 const detail = [
                     `messages ${retention?.message ?? 'not set'}`,
                     `admin ${retention?.admin ?? 'not set'}`,
-                    ...(hasKeysStream ? [`keys ${retention?.keys ?? 'not set'}`] : [])
+                    ...(hasKeysStream ? [`keys ${retention?.keys ?? 'not set'}`] : []),
+                    ...(hasInteractions ? [`reactions ${retention?.interactions ?? 'not set'}`] : [])
                 ].join(', ');
                 const text = this.elements.channelStorageRetentionMixedText;
                 if (text) {
@@ -371,7 +373,9 @@ class ChannelSettingsUI {
             const isOfficial = addr.toLowerCase() === POMBO_NODE.toLowerCase();
             const label = isOfficial ? 'Pombo' : 'Custom';
             const divergent = allStreamsRead
-                && !(n.onMessage && n.onAdmin && (!hasKeysStream || n.onKeys));
+                && !(n.onMessage && n.onAdmin
+                    && (!hasKeysStream || n.onKeys)
+                    && (!hasInteractions || n.onInteractions));
             const divergentBadge = divergent
                 ? '<span class="text-[10px] text-amber-400/80 ml-1.5" title="This node is missing from some of the channel streams. Adding it again heals it, and only the streams that lack it are charged.">partial</span>'
                 : '';

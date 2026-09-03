@@ -405,6 +405,7 @@ class ChannelManager {
                 storageDays: ch.storageDays ?? null,
                 adminStorageDays: ch.adminStorageDays ?? null,
                 keysStorageDays: ch.keysStorageDays ?? null,
+                interactionsStorageDays: ch.interactionsStorageDays ?? null,
                 // Exposure and metadata
                 exposure: ch.exposure || 'hidden',
                 description: ch.description || '',
@@ -1383,11 +1384,11 @@ class ChannelManager {
      * @returns {Promise<{enabled: boolean, nodes: Array<{address:string,onMessage:boolean,onAdmin:boolean,onKeys:boolean}>, storageDays: number|null, retention: {message:number|null,admin:number|null,keys:number|null}, retentionInSync: boolean, hasKeysStream: boolean}>}
      */
     /**
-     * The stored streams of a channel: -1 message, -3 admin, and -4 keys on
-     * gated. Never the ephemeral -2, which has no storage by design, and
-     * never a DM inbox, which is an account-level stream.
+     * The stored streams of a channel: -1 message, -3 admin, and on gated
+     * also -4 keys and -5 interactions. Never the ephemeral -2, which has no
+     * storage by design, and never a DM inbox, which is account-level.
      *
-     * @returns {Array<{id: string, kind: 'message'|'admin'|'keys'}>}
+     * @returns {Array<{id: string, kind: 'message'|'admin'|'keys'|'interactions'}>}
      * @private
      */
     _storedStreamIds(messageStreamId, channel) {
@@ -1396,6 +1397,10 @@ class ChannelManager {
         if (adminStreamId) out.push({ id: adminStreamId, kind: 'admin' });
         if (channel?.type === 'gated') {
             out.push({ id: channel.keysStreamId || deriveKeysId(messageStreamId), kind: 'keys' });
+            out.push({
+                id: channel.interactionsStreamId || deriveInteractionsId(messageStreamId),
+                kind: 'interactions'
+            });
         }
         return out;
     }
@@ -1437,10 +1442,11 @@ class ChannelManager {
         const msgInfo = byKind('message');
         const adminInfo = byKind('admin');
         const keysInfo = byKind('keys');
+        const interactionsInfo = byKind('interactions');
         // A node's absence from a stream we could not read proves nothing.
         const allStreamsRead = streams.every(st => st.read);
 
-        const map = new Map(); // address(lower) -> { address, onMessage, onAdmin, onKeys }
+        const map = new Map(); // address(lower) -> per-stream presence flags
         const mark = (info, flag) => {
             for (const n of info.nodes || []) {
                 const key = String(n).toLowerCase();
@@ -1448,18 +1454,23 @@ class ChannelManager {
                 if (existing) {
                     existing[flag] = true;
                 } else {
-                    map.set(key, { address: n, onMessage: false, onAdmin: false, onKeys: false, [flag]: true });
+                    map.set(key, {
+                        address: n, onMessage: false, onAdmin: false,
+                        onKeys: false, onInteractions: false, [flag]: true
+                    });
                 }
             }
         };
         mark(msgInfo, 'onMessage');
         mark(adminInfo, 'onAdmin');
         mark(keysInfo, 'onKeys');
+        mark(interactionsInfo, 'onInteractions');
 
         const retention = {
             message: msgInfo.storageDays,
             admin: adminInfo.storageDays,
-            keys: keysStreamId ? keysInfo.storageDays : null
+            keys: keysStreamId ? keysInfo.storageDays : null,
+            interactions: keysStreamId ? interactionsInfo.storageDays : null
         };
         const nodes = Array.from(map.values());
 
@@ -1471,8 +1482,11 @@ class ChannelManager {
             // `retentionInSync` is what says the others do not match it.
             storageDays: retention.message,
             retention,
-            retentionInSync: retentionInSync([retention.message, retention.admin, retention.keys]),
-            hasKeysStream: !!keysStreamId
+            retentionInSync: retentionInSync([
+                retention.message, retention.admin, retention.keys, retention.interactions
+            ]),
+            hasKeysStream: !!keysStreamId,
+            hasInteractionsStream: !!keysStreamId
         };
     }
 
@@ -1605,6 +1619,7 @@ class ChannelManager {
             if (settled('message') && channel.storageDays !== days) { channel.storageDays = days; changed = true; }
             if (settled('admin') && channel.adminStorageDays !== days) { channel.adminStorageDays = days; changed = true; }
             if (settled('keys') && channel.keysStorageDays !== days) { channel.keysStorageDays = days; changed = true; }
+            if (settled('interactions') && channel.interactionsStorageDays !== days) { channel.interactionsStorageDays = days; changed = true; }
             if (changed) await this.saveChannels();
         }
 
@@ -2712,7 +2727,7 @@ class ChannelManager {
      */
     usesAccountPublish(streamId) {
         if (!streamId) return false;
-        const base = String(streamId).replace(/-[123]$/, '');
+        const base = String(streamId).replace(/-[12345]$/, '');
         const ch = this.channels.get(base + '-1');
         // Gated included: the ACCOUNT signs the envelope (that signature is
         // the authorship) even though the on-wire publisher is the gate clone.
