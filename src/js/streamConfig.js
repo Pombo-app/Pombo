@@ -11,7 +11,8 @@ import {
     MESSAGE_STREAM as MESSAGE_STREAM_CONSTANTS,
     EPHEMERAL_STREAM as EPHEMERAL_STREAM_CONSTANTS,
     ADMIN_STREAM as ADMIN_STREAM_CONSTANTS,
-    KEYS_STREAM as KEYS_STREAM_CONSTANTS
+    KEYS_STREAM as KEYS_STREAM_CONSTANTS,
+    INTERACTIONS_STREAM as INTERACTIONS_STREAM_CONSTANTS
 } from './streamConstants.js';
 
 // Protocol constants live in streamConstants.js; this object adds the
@@ -58,6 +59,8 @@ export const STREAM_CONFIG = {
     ADMIN_STREAM: ADMIN_STREAM_CONSTANTS,
 
     KEYS_STREAM: KEYS_STREAM_CONSTANTS,
+
+    INTERACTIONS_STREAM: INTERACTIONS_STREAM_CONSTANTS,
 
     // History count to fetch when bootstrapping admin state on channel open.
     // Snapshot is `latest-wins`; a small window is sufficient.

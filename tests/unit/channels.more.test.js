@@ -70,7 +70,8 @@ vi.mock('../../src/js/streamr.js', () => ({
     deriveEphemeralId: vi.fn((id) => `${id}-ephemeral`),
     deriveMessageId: vi.fn((id) => `${id}-message`),
     deriveAdminId: vi.fn((id) => `${id}-admin`),
-    deriveKeysId: vi.fn((id) => `${id}-keys`)
+    deriveKeysId: vi.fn((id) => `${id}-keys`),
+    deriveInteractionsId: vi.fn((id) => `${id}-interactions`)
 }));
 
 vi.mock('../../src/js/auth.js', () => ({

@@ -43,10 +43,12 @@ import {
     deriveMessageId as _deriveMessageId,
     deriveAdminId as _deriveAdminId,
     deriveKeysId as _deriveKeysId,
+    deriveInteractionsId as _deriveInteractionsId,
     isMessageStream as _isMessageStream,
     isEphemeralStream as _isEphemeralStream,
     isAdminStream as _isAdminStream,
-    isKeysStream as _isKeysStream
+    isKeysStream as _isKeysStream,
+    isInteractionsStream as _isInteractionsStream
 } from './streamConstants.js';
 
 // === STREAM CONFIG (DUAL-STREAM ARCHITECTURE) ===
@@ -61,10 +63,12 @@ const deriveEphemeralId = _deriveEphemeralId;
 const deriveMessageId = _deriveMessageId;
 const deriveAdminId = _deriveAdminId;
 const deriveKeysId = _deriveKeysId;
+const deriveInteractionsId = _deriveInteractionsId;
 const isMessageStream = _isMessageStream;
 const isEphemeralStream = _isEphemeralStream;
 const isAdminStream = _isAdminStream;
 const isKeysStream = _isKeysStream;
+const isInteractionsStream = _isInteractionsStream;
 
 const isIpLiteralHost = (hostname) => {
     if (!hostname) {
@@ -308,6 +312,9 @@ class StreamrController {
         const ephemeralStreamId = `${baseStreamPath}-2`;
         const adminStreamId = `${baseStreamPath}-3`;
         const keysStreamId = `${baseStreamPath}-4`;
+        // Interactions (-5): where members participate (reactions) without
+        // publishing on -1 — what lets a read-only channel still have them.
+        const interactionsStreamId = `${baseStreamPath}-5`;
 
         // Build metadata for The Graph indexing (abbreviated keys per MIGRATION_PLAN)
         // Channels default to hidden unless specified
@@ -361,6 +368,13 @@ class StreamrController {
             v: '1',               // version
             ln: messageStreamId,  // linkedTo (parentStream)
             k: 'keys'             // kind
+        });
+
+        const interactionsMetadata = JSON.stringify({
+            a: 'pombo',           // app
+            v: '1',               // version
+            ln: messageStreamId,  // linkedTo (parentStream)
+            k: 'interactions'     // kind
         });
 
         try {
@@ -424,9 +438,19 @@ class StreamrController {
             // Lives outside -3 on purpose: any member must be able to publish
             // KEY_REQUEST/KEY_WRAP here, while -3 stays owner-only publish.
             let keysStream = null;
+            let interactionsStream = null;
             if (type === 'gated') {
                 Logger.info('Creating keys stream...');
                 keysStream = await createStreamWithRetry(keysStreamId, keysMetadata, 'keys', STREAM_CONFIG.KEYS_STREAM.PARTITIONS);
+                try { onProgress(); } catch (_) { /* see above */ }
+
+                // Step 3c: INTERACTIONS STREAM (-5) — reactions, so a
+                // read-only channel can still offer them and the -1 stays
+                // conversation only.
+                Logger.info('Creating interactions stream...');
+                interactionsStream = await createStreamWithRetry(
+                    interactionsStreamId, interactionsMetadata, 'interactions',
+                    STREAM_CONFIG.INTERACTIONS_STREAM.PARTITIONS);
                 try { onProgress(); } catch (_) { /* see above */ }
             }
 
@@ -515,11 +539,22 @@ class StreamrController {
                         { userId: options.publishKeyAddress, permissions: ['publish'] }
                     ]
                     : gateMembers;
+                // Interactions (-5): in Sealed it carries its own shared key,
+                // handed to EVERY member (read-only included) — that is what
+                // makes reactions work where messages do not. Without one
+                // (Visible) the clone publishes, like the rest of that mode.
+                const interactionMembers = options.interactionsKeyAddress
+                    ? [
+                        { userId: options.gateAddress, permissions: ['subscribe'] },
+                        { userId: options.interactionsKeyAddress, permissions: ['publish'] }
+                    ]
+                    : gateMembers;
                 for (const [stream, label] of [
                     [messageStream, 'Message'],
                     [ephemeralStream, 'Ephemeral'],
                     [adminStream, 'Admin'],
-                    [keysStream, 'Keys']
+                    [keysStream, 'Keys'],
+                    [interactionsStream, 'Interactions']
                 ]) {
                     if (!stream) continue;
                     try {
@@ -538,7 +573,9 @@ class StreamrController {
                             : {
                                 public: false,
                                 members: (stream === messageStream || stream === ephemeralStream)
-                                    ? contentMembers : gateMembers
+                                    ? contentMembers
+                                    : (stream === interactionsStream
+                                        ? interactionMembers : gateMembers)
                             };
                         await this.setStreamPermissions(stream.id, perms);
                         Logger.info(`✓ ${label} stream: gate clone permissions set`);
@@ -561,6 +598,7 @@ class StreamrController {
                 ephemeralStreamId: ephemeralStream.id,
                 adminStreamId: adminStream.id,
                 keysStreamId: keysStream ? keysStream.id : null,
+                interactionsStreamId: interactionsStream ? interactionsStream.id : null,
                 type: type,
                 name: channelName
             };
@@ -4280,4 +4318,4 @@ class StreamrController {
 
 // Export singleton instance and config
 export const streamrController = new StreamrController();
-export { STREAM_CONFIG, deriveEphemeralId, deriveMessageId, deriveAdminId, deriveKeysId, isMessageStream, isEphemeralStream, isAdminStream, isKeysStream };
+export { STREAM_CONFIG, deriveEphemeralId, deriveMessageId, deriveAdminId, deriveKeysId, deriveInteractionsId, isMessageStream, isEphemeralStream, isAdminStream, isKeysStream, isInteractionsStream };

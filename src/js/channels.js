@@ -9,7 +9,7 @@
  */
 
 import { Logger } from './logger.js';
-import { streamrController, STREAM_CONFIG, deriveEphemeralId, deriveMessageId, deriveAdminId, deriveKeysId } from './streamr.js';
+import { streamrController, STREAM_CONFIG, deriveEphemeralId, deriveMessageId, deriveAdminId, deriveKeysId, deriveInteractionsId } from './streamr.js';
 import { authManager } from './auth.js';
 import { identityManager } from './identity.js';
 import { secureStorage } from './secureStorage.js';
@@ -118,6 +118,9 @@ class ChannelManager {
         }
         if (!target.keysStreamId && target.type === 'gated') {
             target.keysStreamId = deriveKeysId(target.messageStreamId);
+        }
+        if (!target.interactionsStreamId && target.type === 'gated') {
+            target.interactionsStreamId = deriveInteractionsId(target.messageStreamId);
         }
         target.adminState = preserved.adminState;
         target.adminRev = preserved.adminRev;
@@ -587,6 +590,7 @@ class ChannelManager {
             let storageResult = { success: false, provider: null, storageDays: null };
             let adminStorageResult = { success: false, storageDays: null };
             let keysStorageResult = { success: false, storageDays: null };
+            let interactionsStorageResult = { success: false, storageDays: null };
             try {
                 storageResult = await streamrController.enableStorage(streamInfo.messageStreamId, {
                     storageProvider: options.storageProvider,
@@ -630,6 +634,22 @@ class ChannelManager {
                 }
             }
 
+            // Interactions (-5, gated only): reactions must persist, which is
+            // exactly why they could not live on the storage-less -2.
+            if (streamInfo.interactionsStreamId) {
+                try {
+                    interactionsStorageResult = await streamrController.enableStorage(streamInfo.interactionsStreamId, {
+                        storageProvider: options.storageProvider,
+                        customStorageAddress: options.customStorageAddress,
+                        storageDays: options.storageDays,
+                        onProgress
+                    });
+                    Logger.debug('Interactions storage result:', interactionsStorageResult);
+                } catch (storageError) {
+                    Logger.warn('Failed to enable storage on interactions stream (reactions will not persist):', storageError.message);
+                }
+            }
+
             // A stream whose retention transaction never landed keeps the
             // storage node default, and the record must not claim otherwise:
             // both the TTL republish and the key re-announce time themselves
@@ -637,7 +657,8 @@ class ChannelManager {
             const missingRetention = [
                 storageResult.success && !storageResult.retentionApplied ? '-1' : null,
                 adminStorageResult.success && !adminStorageResult.retentionApplied ? '-3' : null,
-                keysStorageResult.success && !keysStorageResult.retentionApplied ? '-4' : null
+                keysStorageResult.success && !keysStorageResult.retentionApplied ? '-4' : null,
+                interactionsStorageResult.success && !interactionsStorageResult.retentionApplied ? '-5' : null
             ].filter(Boolean);
             if (missingRetention.length) {
                 Logger.warn('Retention not applied on', missingRetention.join(', '),
@@ -697,6 +718,9 @@ class ChannelManager {
                 keysStreamId: type === 'gated'
                     ? (streamInfo.keysStreamId || deriveKeysId(streamInfo.messageStreamId))
                     : null,
+                interactionsStreamId: type === 'gated'
+                    ? (streamInfo.interactionsStreamId || deriveInteractionsId(streamInfo.messageStreamId))
+                    : null,
                 streamId: streamInfo.messageStreamId,  // Alias for convenience
                 name: name,
                 type: type,
@@ -726,6 +750,7 @@ class ChannelManager {
                 storageDays: storageResult.storageDays,
                 adminStorageDays: adminStorageResult.storageDays,
                 keysStorageDays: keysStorageResult.storageDays,
+                interactionsStorageDays: interactionsStorageResult.storageDays,
                 // Exposure and metadata (for visible channels)
                 exposure: exposure,
                 description: exposure === 'visible' ? (options.description || '') : '',
@@ -998,6 +1023,9 @@ class ChannelManager {
                 keysStreamId: channelType === 'gated'
                     ? deriveKeysId(messageStreamId)
                     : null,
+                interactionsStreamId: channelType === 'gated'
+                    ? deriveInteractionsId(messageStreamId)
+                    : null,
                 streamId: messageStreamId,  // Alias for convenience
                 name: channelName,
                 type: channelType,
@@ -1150,6 +1178,8 @@ class ChannelManager {
                 adminStreamId: adminStreamId,
                 keysStreamId: channelType === 'gated'
                     ? deriveKeysId(messageStreamId) : null,
+                interactionsStreamId: channelType === 'gated'
+                    ? deriveInteractionsId(messageStreamId) : null,
                 streamId: messageStreamId,
                 name: channelName,
                 type: channelType,
