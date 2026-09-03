@@ -699,11 +699,21 @@ class GateManager {
         return `Paid · ${fmt(info.price)} ${paySymbol} / ${daysLabel} ${daysLabel === '1' ? 'day' : 'days'}`;
     }
 
-    /** Whether an address moderates this gate (v1 gates lack the getter → false). */
+    /** Whether an address moderates this gate (v1 gates lack the getter → false).
+     *  Cached with the access-cache TTL: the read-only reader cut consults it
+     *  per author on the message ingest path. */
     async _isModerator(gateAddress, userAddress) {
+        const key = `${gateAddress.toLowerCase()}|${userAddress.toLowerCase()}`;
+        this._modCache ??= new Map();
+        const cached = this._modCache.get(key);
+        if (cached && Date.now() - cached.at < CONFIG.gate.checkAccessCacheMs) {
+            return cached.value;
+        }
         try {
-            return await this._withProvider(() =>
+            const value = await this._withProvider(() =>
                 this._readContract(gateAddress).moderators(userAddress));
+            this._modCache.set(key, { value, at: Date.now() });
+            return value;
         } catch {
             return false;
         }

@@ -94,7 +94,9 @@ export const CONFIG = {
         // the read-only filter, so lapsed access cuts publishing at ingest.
         // No legacy: v1/v2 gates are not supported and their channels are
         // expected to be recreated.
-        factoryAddress: '0x7DeA564Acff815cc34aC79329a83A91244207253',
+        // v3.1: readOnly is a declaration — isValidSignature no longer
+        // filters on it; readers and the validating node enforce it.
+        factoryAddress: '0x38A42115B96A16079F2b0b31bba2Fa183E3f448F',
         // checkAccess eth_call cache — mirrors the SDK's own ERC-1271 TTL
         checkAccessCacheMs: 10 * 60 * 1000,
         // Live messages may use the previous epoch's kid for this long after

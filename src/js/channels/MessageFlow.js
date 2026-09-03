@@ -225,6 +225,28 @@ export class MessageFlow {
             return;
         }
 
+        // Read-only is enforced by READERS in Visible channels: the contract
+        // deliberately validates a member's signature (their reactions,
+        // presence and key requests must pass), so a member-authored MESSAGE
+        // is dropped here instead. Reactions never reach this point (routed
+        // to the control handler above) and stay allowed. In Sealed the
+        // content-key distribution already makes this unreachable.
+        if (channel.gate?.address && channel.readOnly) {
+            const author = (data.sender || '').toLowerCase();
+            const ownerAddr = (channel.createdBy
+                || streamId.split('/')[0] || '').toLowerCase();
+            if (author && author !== ownerAddr) {
+                const { gateManager } = await import('../gate.js');
+                const mod = await gateManager
+                    ._isModerator(channel.gate.address, author)
+                    .catch(() => false);
+                if (!mod) {
+                    Logger.debug('read-only: dropping member message', data.id);
+                    return;
+                }
+            }
+        }
+
         // Check if message already exists (deduplication)
         // This handles duplicates from network AND historical messages
         const messageExists = channel.messages.some(m => m.id === data.id);
