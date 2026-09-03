@@ -911,9 +911,12 @@ class DMManager {
         const { notificationManager } = await import('./notifications.js');
         const myAddress = authManager.getAddress()?.toLowerCase();
         try {
+            // Raw — inboxes are never gated; the envelope check replaces the
+            // SDK validation, and the sealed invite carries its own proof.
+            const { verifyEnvelopeAuthenticity } = await import('./envelopeSigner.js');
             const resend = await streamrController.client.resend(
                 { streamId: this.inboxMessageStreamId, partition: STREAM_CONFIG.MESSAGE_STREAM.NOTIFICATIONS },
-                { last: count }
+                { last: count, raw: true }
             );
             const iterator = resend[Symbol.asyncIterator]();
             for (;;) {
@@ -927,6 +930,7 @@ class DMManager {
                     continue;
                 }
                 try {
+                    if (!verifyEnvelopeAuthenticity(message)) continue;
                     let data = message.content ?? message;
                     data = await this.openDMEnvelope(data);
                     if (!data?.account) continue;

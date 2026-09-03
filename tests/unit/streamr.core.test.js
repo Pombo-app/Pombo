@@ -13,6 +13,14 @@ vi.mock('../../src/js/auth.js', () => ({
     }
 }));
 
+// Raw resends verify the envelope signature; these fixtures are plain
+// objects with no signature, so the check is stubbed to accept and the
+// real recovery keeps its own dedicated tests.
+vi.mock('../../src/js/envelopeSigner.js', async (importOriginal) => ({
+    ...(await importOriginal()),
+    verifyEnvelopeAuthenticity: () => true,
+}));
+
 vi.mock('../../src/js/crypto.js', () => ({
     cryptoManager: {
         encryptJSON: vi.fn(async (data) => JSON.stringify(data)),
@@ -365,7 +373,7 @@ describe('StreamrController Core', () => {
             await streamrController.resendAdminState('stream-3', { historyCount: 7 });
             expect(mockClient.resend).toHaveBeenCalledWith(
                 { streamId: 'stream-3', partition: STREAM_CONFIG.ADMIN_STREAM.MODERATION },
-                { last: 7 }
+                { last: 7, raw: true }
             );
         });
 
@@ -1085,7 +1093,7 @@ describe('StreamrController Core', () => {
             await streamrController.fetchHistory('stream-1', 0, 50);
             expect(mockClient.resend).toHaveBeenCalledWith(
                 { streamId: 'stream-1', partition: 0 },
-                { last: 50 }
+                { last: 50, raw: true }
             );
         });
 
@@ -1143,7 +1151,7 @@ describe('StreamrController Core', () => {
             await streamrController.fetchPartitionHistory('stream-1', 1, 5);
             expect(mockClient.resend).toHaveBeenCalledWith(
                 { streamId: 'stream-1', partition: 1 },
-                { last: 5 }
+                { last: 5, raw: true }
             );
         });
 
@@ -1220,7 +1228,8 @@ describe('StreamrController Core', () => {
                 partition: 0
             }, {
                 from: { timestamp: 0 },
-                to: { timestamp: 5000 }
+                to: { timestamp: 5000 },
+                raw: true
             });
         });
 

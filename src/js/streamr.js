@@ -32,7 +32,7 @@ import {
 import {
     getChannelIdentity, dropChannelIdentity, clearChannelIdentities
 } from './channelIdentity.js';
-import { recoverEnvelopeSigner } from './envelopeSigner.js';
+import { recoverEnvelopeSigner, verifyEnvelopeAuthenticity } from './envelopeSigner.js';
 import {
     MESSAGE_STREAM as MESSAGE_STREAM_CONSTANTS,
     EPHEMERAL_STREAM as EPHEMERAL_STREAM_CONSTANTS,
@@ -2963,7 +2963,7 @@ class StreamrController {
             const gatedChannel = await this._gatedChannelFor(adminStreamId);
             const resend = await this.client.resend(
                 { streamId: adminStreamId, partition },
-                { last, ...(gatedChannel ? { raw: true } : {}) }
+                { last, raw: true }
             );
 
             const iterator = resend[Symbol.asyncIterator]();
@@ -2985,6 +2985,7 @@ class StreamrController {
                 }
 
                 try {
+                    if (!gatedChannel && !verifyEnvelopeAuthenticity(message)) continue;
                     let content = message.content || message;
                     if (password && typeof content === 'string') {
                         try {
@@ -3124,7 +3125,7 @@ class StreamrController {
             const gatedChannel = await this._gatedChannelFor(adminStreamId);
             const resend = await this.client.resend(
                 { streamId: adminStreamId, partition },
-                { last: 1, ...(gatedChannel ? { raw: true } : {}) }
+                { last: 1, raw: true }
             );
 
             const iterator = resend[Symbol.asyncIterator]();
@@ -3146,6 +3147,7 @@ class StreamrController {
                 }
 
                 try {
+                    if (!gatedChannel && !verifyEnvelopeAuthenticity(message)) continue;
                     let content = message.content || message;
                     // Encrypted entries arrive as base64/JSON string; non-encrypted as object.
                     if (typeof content === 'string') {
@@ -3297,9 +3299,11 @@ class StreamrController {
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
             let rawContent = null;
             try {
+                // Raw — password channels are never gated, so the envelope
+                // check below is the authenticity the SDK validation gave.
                 const resend = await this.client.resend(
                     { streamId: adminStreamId, partition },
-                    { last: 1 }
+                    { last: 1, raw: true }
                 );
 
                 const iterator = resend[Symbol.asyncIterator]();
@@ -3316,6 +3320,7 @@ class StreamrController {
                         Logger.warn('verifyPasswordChallenge iteration error:', iterError.message);
                         continue;
                     }
+                    if (!verifyEnvelopeAuthenticity(message)) continue;
                     rawContent = message?.content ?? message;
                 }
             } catch (error) {
@@ -3830,22 +3835,25 @@ class StreamrController {
         
         try {
             // Streamr SDK resend for partitioned history:
-            // pass stream definition as first arg: { streamId, partition }
+            // pass stream definition as first arg: { streamId, partition }.
+            // Raw — non-gated callers only; the envelope check replaces the
+            // SDK validation raw turns off.
             const resend = await this.client.resend(
                 { streamId: messageStreamId, partition: partition },
-                { last: count }
+                { last: count, raw: true }
             );
-            
+
             // Manual iteration to catch decrypt errors per-message
             const iterator = resend[Symbol.asyncIterator]();
             let iteratorDone = false;
             let decryptErrors = 0;
-            
+
             while (!iteratorDone) {
                 try {
                     const result = await iterator.next();
                     iteratorDone = result.done;
                     if (!iteratorDone) {
+                        if (!verifyEnvelopeAuthenticity(result.value)) continue;
                         messages.push(result.value.content);
                     }
                 } catch (iterError) {
@@ -3888,10 +3896,12 @@ class StreamrController {
 
             Logger.info(`fetchPartitionHistory: resending from ${streamId} partition ${partition}, last ${limit}`);
 
-            // Streamr SDK v103+: first arg is { streamId, partition }, second is resend options
+            // Streamr SDK v103+: first arg is { streamId, partition }, second
+            // is resend options. Raw — sync streams are the account's own and
+            // never gated; the envelope check replaces the SDK validation.
             const resend = await this.client.resend(
                 { streamId: streamId, partition: partition },
-                { last: limit }
+                { last: limit, raw: true }
             );
 
             // Manual iteration to catch errors per-message
@@ -3905,6 +3915,7 @@ class StreamrController {
 
                     if (!iteratorDone && result.value) {
                         const msg = result.value;
+                        if (!verifyEnvelopeAuthenticity(msg)) continue;
                         // Get publisherId - v103+ uses getPublisherId() method
                         const publisherId = typeof msg.getPublisherId === 'function'
                             ? msg.getPublisherId()
