@@ -118,16 +118,15 @@ describe('channelLatestMessageManager', () => {
     it('get() awaits resend when nothing is cached and normalizes the result', async () => {
         resendMock.mockResolvedValueOnce([
             {
-                type: 'reaction',
-                emoji: '🔥',
-                action: 'add',
-                messageId: 'm1',
-                _publisherId: '0xPUB',
+                type: 'text',
+                id: 'm1',
+                text: 'hello',
+                sender: '0xa',
                 _timestamp: 10
             }
         ]);
         const entry = await channelLatestMessageManager.get(sid);
-        expect(entry).toMatchObject({ type: 'reaction', emoji: '🔥', sender: '0xPUB', targetId: 'm1' });
+        expect(entry).toMatchObject({ type: 'text', id: 'm1', text: 'hello', sender: '0xa' });
     });
 
     it('get() prefers a non-reaction entry over a newer reaction in the same window', async () => {
@@ -143,12 +142,17 @@ describe('channelLatestMessageManager', () => {
         expect(entry).toMatchObject({ type: 'text', id: 'm10', text: 'hello' });
     });
 
-    it('get() falls back to the reaction when no content message is in the window', async () => {
+    /**
+     * A window with nothing but reactions leaves the preview empty rather
+     * than promoting one: an emoji is not what was said here last, and on a
+     * channel with a -5 the refresh would never see it again anyway.
+     */
+    it('get() never promotes a reaction, even when the window holds only that', async () => {
         resendMock.mockResolvedValueOnce([
             { type: 'reaction', emoji: '🔥', action: 'add', messageId: 'mX', _publisherId: '0xR', _timestamp: 20 }
         ]);
         const entry = await channelLatestMessageManager.get(sid);
-        expect(entry?.type).toBe('reaction');
+        expect(entry).toBeNull();
     });
 
     it('get() dedupes concurrent cold-start fetches', async () => {

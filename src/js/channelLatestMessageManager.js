@@ -208,23 +208,16 @@ class ChannelLatestMessageManager {
             if (!Array.isArray(entries) || entries.length === 0) {
                 return this.cache.get(messageStreamId) || null;
             }
-            // Reactions live in the same P0 partition as messages, so a
-            // recent reaction can sit on top of older content messages.
-            // Prefer the newest *non-reaction* entry; fall back to a
-            // reaction only when the window contains no content messages
-            // (keeps near-empty channels from showing a blank preview).
-            // Entries are newest-first.
+            // Reactions never make a preview line. They live on the -5 now, so
+            // this window holds none — except on channels created before that
+            // stream existed, which still carry them on P0. Entries are
+            // newest-first; the first content one wins, and a window with
+            // nothing but reactions leaves the previous preview standing.
             let normalized = null;
             for (const raw of entries) {
                 if (raw?.type === 'reaction') continue;
                 const n = this._normalizeRemoteEntry(raw);
                 if (n) { normalized = n; break; }
-            }
-            if (!normalized) {
-                for (const raw of entries) {
-                    const n = this._normalizeRemoteEntry(raw);
-                    if (n) { normalized = n; break; }
-                }
             }
             if (!normalized) {
                 return this.cache.get(messageStreamId) || null;

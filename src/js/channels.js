@@ -2780,7 +2780,7 @@ class ChannelManager {
      * @private
      * Update the latest-message preview cache from notifyHandlers events.
      * - 'message'         → straight setFromLocal with the incoming payload.
-     * - 'reaction'        → synthesize a reaction-shape entry.
+     * - 'reaction'        → DMs only: synthesize a reaction-shape entry.
      * - 'message_edited'  → re-feed the (now mutated) message from
      *                       channel.messages so the cache picks up the new text.
      * - 'message_deleted' → walk channel.messages backwards for the next
@@ -2798,11 +2798,19 @@ class ChannelManager {
             return;
         }
         if (event === 'reaction') {
+            // In a room, the preview answers "what was said here last", and an
+            // emoji is not that. It also could not survive a reload: the
+            // refresh reads the -1, where reactions no longer live, so the
+            // line said one thing live and another after a restart.
+            //
+            // A DM is the exception and keeps them: two people, no -5, and no
+            // remote refresh to disagree with — the local path is the only one
+            // there, so a reaction IS the last thing that happened.
+            if (channel.type !== 'dm') return;
             // data: { streamId, messageId, emoji, user, action, senderName?, timestamp? }
-            // The reaction's real timestamp is required \u2014 without it an
-            // OLD reaction replayed during history backfill would appear
-            // "newer" than the actual latest message. Drop the event when
-            // it's missing rather than masking the bug with Date.now().
+            // The reaction's real timestamp is required: without it an OLD
+            // reaction replayed during history backfill would appear "newer"
+            // than the actual latest message.
             if (!data.timestamp) return;
             channelLatestMessageManager.setFromLocal(streamId, {
                 type: 'reaction',
