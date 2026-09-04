@@ -10,6 +10,7 @@ import { sanitizeText } from './sanitizer.js';
 import { relayManager } from '../relayManager.js';
 import { graphAPI } from '../graph.js';
 import { identityManager } from '../identity.js';
+import { epochKeyManager } from '../epochKeyManager.js';
 import { mediaController } from '../media.js';
 import { channelImageManager } from '../channelImageManager.js';
 import { deriveAdminId } from '../streamConstants.js';
@@ -1420,14 +1421,28 @@ class ChannelSettingsUI {
         if (ens) return { label: ens, isAddress: false };
         const nickname = identityManager.getTrustedContact?.(lower)?.nickname;
         if (nickname) return { label: nickname, isAddress: false };
+        // Same chain the bubbles use: the roster name and the one declared on
+        // a message are the same kind of claim, so the most recent wins. The
+        // roster is what names a member who has never posted here.
         const declared = this._declaredNames(channel).get(lower);
-        if (declared) return { label: declared, isAddress: false };
+        const roster = channel?.gate?.address
+            ? epochKeyManager.getRosterName?.(channel.messageStreamId, lower)
+            : null;
+        if (roster && declared) {
+            return {
+                label: roster.ts >= declared.ts ? roster.name : declared.name,
+                isAddress: false
+            };
+        }
+        if (roster) return { label: roster.name, isAddress: false };
+        if (declared) return { label: declared.name, isAddress: false };
         return { label: address, isAddress: true };
     }
 
     /**
-     * Display names seen on this channel's loaded messages, newest wins. The
-     * roster carries no name, so a member who never posted has none.
+     * Display names seen on this channel's loaded messages, with when they
+     * were claimed — the roster name is compared against them by recency.
+     * @returns {Map<string, {name: string, ts: number}>}
      */
     _declaredNames(channel) {
         const names = new Map();
@@ -1435,7 +1450,9 @@ class ChannelSettingsUI {
             const sender = (msg?.sender || '').toLowerCase();
             const name = (msg?.senderName || '').trim();
             if (!sender || !name) continue;
-            names.set(sender, name);
+            const ts = Number(msg?.timestamp) || 0;
+            const held = names.get(sender);
+            if (!held || ts >= held.ts) names.set(sender, { name, ts });
         }
         return names;
     }

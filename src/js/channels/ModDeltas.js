@@ -67,13 +67,14 @@ export class ModDeltas {
         const address = String(signer).toLowerCase();
         let known = this.moderators.get(messageStreamId);
         if (!known) {
-            known = { mods: new Set(), asked: new Set() };
+            known = { mods: new Set(), asked: new Set(), settled: new Set() };
             this.moderators.set(messageStreamId, known);
         }
         const channel = this.manager.channels.get(messageStreamId);
         if (!channel?.gate?.address) return;
         if ((channel.createdBy || '').toLowerCase() === address) {
             known.mods.add(address);
+            known.settled.add(address);
             return;
         }
         if (known.asked.has(address)) return;
@@ -81,11 +82,23 @@ export class ModDeltas {
         import('../gate.js')
             .then(({ gateManager }) => gateManager._isModerator(channel.gate.address, address))
             .then(isMod => {
+                known.settled.add(address);
                 if (!isMod) return;
                 known.mods.add(address);
                 this._recompose(messageStreamId);
             })
             .catch(() => known.asked.delete(address));
+    }
+
+    /**
+     * Signers of these deltas the gate has not answered for yet. An empty
+     * list is what makes an absorb safe.
+     */
+    _unsettled(messageStreamId, deltas) {
+        const known = this.moderators.get(messageStreamId);
+        const settled = known?.settled || new Set();
+        return [...new Set(deltas.map(d => String(d.mod).toLowerCase()))]
+            .filter(signer => !settled.has(signer));
     }
 
     /** Fold the deltas back into the channel's rendered state. */
@@ -185,6 +198,17 @@ export class ModDeltas {
         if (!channel) throw new Error('Channel not found');
         const deltas = this.pending(channel);
         if (deltas.length === 0) return null;
+
+        // Every pending delta needs a settled verdict on its author first.
+        // Absorbing while the gate has not answered writes absorbedThrough
+        // over a composition that still counts nobody: the ratification
+        // lands, the moderation it was ratifying disappears, and the delta
+        // stops counting for good.
+        const unsettled = this._unsettled(messageStreamId, deltas);
+        if (unsettled.length > 0) {
+            for (const signer of unsettled) this._resolveModerator(messageStreamId, signer);
+            throw new Error('Still checking who moderates this channel — try again in a moment');
+        }
 
         const effective = this.effectiveState(channel);
         if (!effective) return null;

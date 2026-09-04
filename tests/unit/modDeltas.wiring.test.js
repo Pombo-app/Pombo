@@ -187,3 +187,41 @@ describe('what the owner is still asked to confirm', () => {
         expect(await manager.modDeltas.absorb(STREAM)).toBeNull();
     });
 });
+
+describe('absorbing waits for the gate to answer', () => {
+    it('refuses while a delta author has no verdict, and never writes absorbedThrough', async () => {
+        // The failure this guards is silent and permanent: absorbing with an
+        // unresolved author publishes the ratification over a composition
+        // that counts nobody, so the moderation vanishes and the delta stops
+        // counting for good.
+        let release;
+        isModerator = () => new Promise(r => { release = r; });
+
+        const { manager, channel } = makeManager();
+        manager.modDeltas.ingest(STREAM, buildModAction({
+            streamId: STREAM, op: 'hide', target: 'msg-8', privateKey: MOD.privateKey
+        }));
+        await flush();
+
+        await expect(manager.modDeltas.absorb(STREAM)).rejects.toThrow(/checking who moderates/i);
+        expect(manager.published).toHaveLength(0);
+
+        release(true);
+        await flush();
+        await manager.modDeltas.absorb(STREAM);
+        expect(manager.published[0].patch).toMatchObject({ hiddenMessageIds: ['msg-8'] });
+    });
+
+    it('absorbs once the gate has said no, without hiding anything', async () => {
+        isModerator = async () => false;
+        const { manager, channel } = makeManager();
+        manager.modDeltas.ingest(STREAM, buildModAction({
+            streamId: STREAM, op: 'hide', target: 'msg-9', privateKey: STRANGER.privateKey
+        }));
+        await flush();
+
+        await manager.modDeltas.absorb(STREAM);
+        expect(manager.published[0].patch.hiddenMessageIds).toEqual([]);
+        expect(manager.published[0].patch.absorbedThrough).toBeGreaterThan(0);
+    });
+});
