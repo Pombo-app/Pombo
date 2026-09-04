@@ -7,11 +7,12 @@
  * explicit and prevent accidental edits.
  *
  * ARCHITECTURE:
- *   Each regular channel uses up to 4 streams, derived from a base ID by appending:
- *     -1  → Message stream   (WITH storage) — content (text, reactions, media announces, edit/delete overrides)
+ *   Each regular channel uses up to 5 streams, derived from a base ID by appending:
+ *     -1  → Message stream   (WITH storage) — content (text, media announces, edit/delete overrides)
  *     -2  → Ephemeral stream (NO storage)   — presence, typing, P2P media coordination
  *     -3  → Admin stream     (WITH storage) — admin-only writes (moderation state)
  *     -4  → Keys stream      (WITH storage) — epoch-key distribution (gated channels only)
+ *     -5  → Interactions     (WITH storage) — reactions, where members participate
  *
  * MESSAGE STREAM (-1):
  *   Regular channels use 11 partitions:

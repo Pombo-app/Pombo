@@ -1246,13 +1246,14 @@ class ChannelModalsUI {
         }
 
         try {
-            // Total on-chain steps:
-            //   public/password: 3× createStream + 3× setPermissions + 2× addToStorageNode + 2× setStorageDayCount = 10
-            //   native adds the keys stream (-4): 4× create + 4× permissions + 3× addToStorageNode + 3× setStorageDayCount = 14
-            // gated: gate deploy + 4× createStream + 4× setPermissions
-            //        + 3× addToStorageNode + 3× setStorageDayCount = 15
-            const streamCount = isGated ? 4 : 3;
-            const totalSteps = isGated ? 15 : 10;
+            // Total on-chain steps. Every type has the -5, and the -2 is the
+            // only stream with no storage:
+            //   public/password: 4× createStream + 4× setPermissions
+            //        + 3× addToStorageNode + 3× setStorageDayCount = 14
+            //   gated: gate deploy + 5× createStream + 5× setPermissions
+            //        + 4× addToStorageNode + 4× setStorageDayCount = 19
+            const streamCount = isGated ? 5 : 4;
+            const totalSteps = isGated ? 19 : 14;
             this.notificationUI?.showLoadingToast(
                 'Creating channel...',
                 'This may take a minute',
