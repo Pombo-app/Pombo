@@ -554,8 +554,17 @@ class EpochKeyManager {
 
         // Reconcile with -4 storage (announces are public; the storage node is
         // their system of record — persisted copies are a warm-start cache).
-        const entries = await streamrController.resendKeysMessages(
-            channel.keysStreamId, { last: KEYS_HISTORY_COUNT });
+        // Two partitions, two cadences: P0 holds the announces, P1 the
+        // requests and the wraps that answer them.
+        const [announces, exchange] = await Promise.all([
+            streamrController.resendKeysMessages(
+                channel.keysStreamId,
+                { last: KEYS_HISTORY_COUNT, partition: KEYS_STREAM.KEY_EXCHANGE }),
+            streamrController.resendKeysMessages(
+                channel.keysStreamId,
+                { last: KEYS_HISTORY_COUNT, partition: KEYS_STREAM.REQUESTS })
+        ]);
+        const entries = [...announces, ...exchange];
         let changed = false;
         const storedRequests = [];
         const storedV2Wraps = [];
@@ -782,7 +791,8 @@ class EpochKeyManager {
                 await new Promise(r => setTimeout(r, delayMs));
                 if (!this.state.has(channel.messageStreamId)) return;    // left/deleted
                 try {
-                    const entries = await streamrController.resendKeysMessages(keysStreamId, { last: 100 });
+                    const entries = await streamrController.resendKeysMessages(keysStreamId,
+                        { last: 100, partition: KEYS_STREAM.KEY_EXCHANGE });
                     const found = entries.some(({ data }) =>
                         data?.t === announce.t && data.keyId === announce.keyId);
                     if (found) {

@@ -38,6 +38,7 @@ import {
     EPHEMERAL_STREAM as EPHEMERAL_STREAM_CONSTANTS,
     ADMIN_STREAM as ADMIN_STREAM_CONSTANTS,
     KEYS_STREAM as KEYS_STREAM_CONSTANTS,
+    KEYS_MSG_TYPE,
     PASSWORD_CHALLENGE_MAGIC,
     deriveEphemeralId as _deriveEphemeralId,
     deriveMessageId as _deriveMessageId,
@@ -2265,10 +2266,19 @@ class StreamrController {
      * @param {Object} data - Protocol message ({ t: KEYS_MSG_TYPE.*, ... })
      * @returns {Promise<Object>} The published StreamMessage
      */
-    async publishKeysMessage(keysStreamId, data, partition = STREAM_CONFIG.KEYS_STREAM.KEY_EXCHANGE) {
+    async publishKeysMessage(keysStreamId, data, partition = null) {
         if (!isKeysStream(keysStreamId)) {
             throw new Error(`publishKeysMessage expects a keys stream (-4), got: ${keysStreamId}`);
         }
+        // Split by CADENCE, not by key type: announces (one per rotation)
+        // stay on P0, requests and the wraps that answer them (one per member
+        // per rotation, and retried) go to P1. Sharing one partition let the
+        // churn push the announces out of the thousand-message read window,
+        // which left a new device unable to learn the anchor it needs.
+        partition ??= (data?.t === KEYS_MSG_TYPE.KEY_ANNOUNCE
+            || data?.t === KEYS_MSG_TYPE.PUB_ANNOUNCE)
+            ? STREAM_CONFIG.KEYS_STREAM.KEY_EXCHANGE
+            : STREAM_CONFIG.KEYS_STREAM.REQUESTS;
         if (!this._accountIdentity) {
             throw new Error('Account identity unavailable — EthereumKeyPairIdentity not exposed, check streamr-bundle.js');
         }
@@ -2703,13 +2713,17 @@ class StreamrController {
             partitionSubs = {};
             this.subscriptions.set(keysStreamId, partitionSubs);
         }
-        const partition = STREAM_CONFIG.KEYS_STREAM.KEY_EXCHANGE;
+        // Both cadences are subscribed: P0 for announces, P1 for the
+        // request/answer traffic.
+        const gatedChannel = await this._gatedChannelFor(keysStreamId);
+        for (const partition of [
+            STREAM_CONFIG.KEYS_STREAM.KEY_EXCHANGE, STREAM_CONFIG.KEYS_STREAM.REQUESTS
+        ]) {
         if (partitionSubs[partition]) {
-            Logger.debug('Already subscribed to keys stream:', keysStreamId);
-            return partitionSubs[partition];
+            Logger.debug('Already subscribed to keys stream partition', partition, keysStreamId);
+            continue;
         }
 
-        const gatedChannel = await this._gatedChannelFor(keysStreamId);
         partitionSubs[partition] = await this.client.subscribe(
             {
                 streamId: keysStreamId, partition,
@@ -2739,8 +2753,9 @@ class StreamrController {
             }
         );
 
+        }
         Logger.debug('Subscribed to keys stream:', keysStreamId);
-        return partitionSubs[partition];
+        return partitionSubs[STREAM_CONFIG.KEYS_STREAM.KEY_EXCHANGE];
     }
 
     /**

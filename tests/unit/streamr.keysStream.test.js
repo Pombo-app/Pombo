@@ -143,12 +143,16 @@ describe('subscribeToKeysStream', () => {
         expect(subscribeArgs.options.erc1271Contract).toBe(GATE);
     });
 
-    it('subscribes once and hands the same subscription back afterwards', async () => {
+    it('subscribes both cadences once, and is idempotent afterwards', async () => {
+        // P0 carries the announces and P1 the request/answer traffic, so a
+        // channel opens two subscriptions on the -4 and neither is repeated.
         const first = await streamrController.subscribeToKeysStream(KEYS, () => {});
         const again = await streamrController.subscribeToKeysStream(KEYS, () => {});
 
         expect(again).toBe(first);
-        expect(streamrController.client.subscribe).toHaveBeenCalledTimes(1);
+        expect(streamrController.client.subscribe).toHaveBeenCalledTimes(2);
+        const partitions = streamrController.client.subscribe.mock.calls.map(c => c[0].partition);
+        expect(partitions.sort()).toEqual([0, 1]);
     });
 
     it('delivers the message with its author and timestamp', async () => {
