@@ -1689,7 +1689,10 @@
                 <h3 class="text-lg font-medium text-white/90 md:order-1">Channel Details</h3>
             </div>
 
-            <div class="flex min-h-[420px]">
+            <!-- Capped so a long panel scrolls inside the modal instead of
+                 stretching it past the viewport. Desktop only: under 768px the
+                 modal is already full-screen and owns its own height. -->
+            <div class="flex min-h-[420px] md:max-h-[75vh]">
                 <!-- Sidebar Tabs -->
                 <div class="w-44 bg-[#0a0a0a] border-r border-white/5 py-2 flex flex-col">
 
@@ -1990,23 +1993,19 @@
                         <div class="space-y-5">
                             <div>
                                 <div class="flex items-center justify-between mb-3">
-                                    <label class="text-sm font-medium text-white/80 uppercase tracking-wider">Banned Members</label>
+                                    <label class="text-sm font-medium text-white/80 uppercase tracking-wider">Banned Members
+                                        <button type="button" data-hint="ban-levels-hint" title="Client bans hide the author's messages for everyone and cost nothing. Protocol bans cut access on the gate, so the member stops receiving keys, and take a transaction to apply and to lift." class="align-middle p-1 -m-1 text-white/25 hover:text-white/60 transition" aria-label="About ban levels">
+                                            <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
+                                        </button>
+                                    </label>
                                     <span id="banned-members-count" class="text-xs text-white/30">0</span>
                                 </div>
+                                <p id="ban-levels-hint" class="hidden text-xs text-white/40 leading-relaxed mb-3">
+                                    Client bans hide the author's messages for everyone and cost nothing. Protocol bans cut access on the gate, so the member stops receiving keys, and take a transaction to apply and to lift.
+                                </p>
                                 <div id="banned-members-list" class="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                                     <div class="text-center text-white/30 py-6 text-sm">No banned members</div>
                                 </div>
-                            </div>
-                            <div>
-                            <p class="text-sm text-white/30 leading-relaxed">
-                                Client bans hide messages, free. Protocol bans cut access, one transaction.
-                                <button type="button" data-hint="ban-levels-hint" title="Protocol bans cut access on the gate, so the member stops receiving keys, and take a transaction to apply and to lift." class="align-text-bottom text-white/25 hover:text-white/60 transition" aria-label="More about ban levels">
-                                    <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
-                                </button>
-                            </p>
-                            <p id="ban-levels-hint" class="hidden text-xs text-white/25 leading-relaxed mt-1">
-                                Protocol bans cut access on the gate, so the member stops receiving keys, and take a transaction to apply and to lift.
-                            </p>
                             </div>
 
                             <!-- Owner only, gated channels: ratify the moderators' pending actions -->
@@ -2020,56 +2019,64 @@
                                 </button>
                             </div>
 
-                            <!-- Stream grantees: the technical view (owner only) -->
-                            <div id="permissions-section" class="hidden">
-                                <div class="border-t border-white/5 pt-5">
-                                    <div class="flex items-center justify-between mb-3">
-                                        <label class="text-sm font-medium text-white/40 uppercase tracking-wider">Stream Grantees</label>
-                                        <button id="refresh-permissions-btn" class="text-sm text-white/60 hover:text-white transition">
-                                            ↻ Refresh
-                                        </button>
-                                    </div>
-                                    <!-- A gated channel's grantees are the clone, the storage node and
-                                         the owner: three rows and the legend must fit without scrolling. -->
-                                    <div id="permissions-list" class="text-sm space-y-1 max-h-[220px] overflow-y-auto pr-1">
-                                        <div class="text-white/30">Loading...</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- Gated channels, admin only: manual epoch rotation. Free, unlike the re-key below. -->
+                            <!-- Gated channels, admin only: manual epoch rotation. Free, unlike the re-key. -->
                             <div id="rotate-epoch-section" class="hidden p-4 bg-white/[0.03] rounded-xl border border-white/5">
-                                <h4 class="text-sm font-medium text-white/90 mb-1">Rotate Channel Key</h4>
-                                <p class="text-sm text-white/40 mb-1">
-                                    New encryption key now. Free.
-                                    <button type="button" data-hint="rotate-epoch-hint" title="Anyone without current access stops reading new messages." class="align-text-bottom text-white/25 hover:text-white/60 transition" aria-label="More about rotating the channel key">
-                                        <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
+                                <div class="flex items-center justify-between mb-1">
+                                    <h4 class="text-sm font-medium text-white/90">Rotate Channel Key</h4>
+                                    <button type="button" data-hint="rotate-epoch-hint" title="Issues a new encryption key now. Anyone without current access stops reading new messages. Free — no transaction." class="p-1 -m-1 text-white/25 hover:text-white/60 transition" aria-label="About rotating the channel key">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
                                     </button>
+                                </div>
+                                <p id="rotate-epoch-hint" class="hidden text-xs text-white/40 leading-relaxed mb-3">
+                                    Issues a new encryption key now. Anyone without current access stops reading new messages. Free — no transaction.
                                 </p>
-                                <p id="rotate-epoch-hint" class="hidden text-xs text-white/30 leading-relaxed mb-3">
-                                    Anyone without current access stops reading new messages.
-                                </p>
+                                <p id="rotate-epoch-next" class="text-sm text-white/40 mb-3"></p>
                                 <button id="rotate-epoch-btn" class="w-full bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 px-4 py-2.5 rounded-xl text-sm transition">
-                                    Rotate Channel Key
+                                    Rotate Now
                                 </button>
                                 <p id="rotate-epoch-status" class="hidden mt-2 text-xs text-white/40"></p>
                             </div>
-                            <!-- Members-only channels, admin only: the escape valve against ex-key-holder abuse -->
-                            <div id="rekey-publish-section" class="hidden p-4 bg-amber-500/5 rounded-xl border border-amber-500/10">
-                                <h4 class="text-sm font-medium text-white/90 mb-1">Reset Publish Key</h4>
-                                <p class="text-sm text-white/40 mb-1">
-                                    New shared publish key. 2 transactions.
-                                    <button type="button" data-hint="rekey-publish-hint" title="Former members who kept the old key lose the ability to write. Current members pick up the new key automatically." class="align-text-bottom text-white/25 hover:text-white/60 transition" aria-label="More about resetting the publish key">
-                                        <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
-                                    </button>
-                                </p>
-                                <p id="rekey-publish-hint" class="hidden text-xs text-white/30 leading-relaxed mb-3">
-                                    Former members who kept the old key lose the ability to write. Current members pick up the new key automatically.
-                                </p>
-                                <button id="rekey-publish-btn" class="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 px-4 py-2.5 rounded-xl text-sm transition">
-                                    Reset Publish Key
-                                </button>
-                                <p id="rekey-publish-status" class="hidden mt-2 text-xs text-white/40"></p>
-                            </div>
+
+                            <!-- The technical surfaces: grantees and the re-key, folded away
+                                 because neither belongs in a routine visit. -->
+                            <details id="mod-advanced-section" class="hidden group border-t border-white/5 pt-5">
+                                <summary class="text-sm text-white/40 hover:text-white/60 cursor-pointer transition list-none">
+                                    <span class="group-open:hidden">▸ Advanced</span>
+                                    <span class="hidden group-open:inline">▾ Advanced</span>
+                                </summary>
+                                <div class="mt-4 space-y-5">
+                                    <!-- Stream grantees: the technical view (owner only) -->
+                                    <div id="permissions-section" class="hidden">
+                                        <div class="flex items-center justify-between mb-3">
+                                            <label class="text-sm font-medium text-white/40 uppercase tracking-wider">Stream Grantees</label>
+                                            <button id="refresh-permissions-btn" class="text-sm text-white/60 hover:text-white transition">
+                                                ↻ Refresh
+                                            </button>
+                                        </div>
+                                        <!-- A gated channel's grantees are the clone, the storage node and
+                                             the owner: three rows and the legend must fit without scrolling. -->
+                                        <div id="permissions-list" class="text-sm space-y-1 max-h-[220px] overflow-y-auto pr-1">
+                                            <div class="text-white/30">Loading...</div>
+                                        </div>
+                                    </div>
+                                    <!-- Members-only channels, admin only: the escape valve against ex-key-holder abuse -->
+                                    <div id="rekey-publish-section" class="hidden p-4 bg-amber-500/5 rounded-xl border border-amber-500/10">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <h4 class="text-sm font-medium text-white/90">Reset Publish Key</h4>
+                                            <button type="button" data-hint="rekey-publish-hint" title="Last resort, for cutting off an ex-member who is flooding storage. Two transactions. It revokes the old shared key, so every message published before the reset stops verifying for anyone reading this channel outside Pombo." class="p-1 -m-1 text-white/25 hover:text-white/60 transition" aria-label="About resetting the publish key">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
+                                            </button>
+                                        </div>
+                                        <p id="rekey-publish-hint" class="hidden text-xs text-white/40 leading-relaxed mb-3">
+                                            Last resort, for cutting off an ex-member who is flooding storage. Two transactions. Ex-members who kept the old key lose the ability to write and current members pick up the new one automatically, but revoking the old key also stops every message published before the reset from verifying for anyone reading this channel outside Pombo.
+                                        </p>
+                                        <button id="rekey-publish-btn" class="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 px-4 py-2.5 rounded-xl text-sm transition">
+                                            Reset Publish Key
+                                        </button>
+                                        <p id="rekey-publish-status" class="hidden mt-2 text-xs text-white/40"></p>
+                                    </div>
+                                </div>
+                            </details>
                         </div>
                     </div>
 

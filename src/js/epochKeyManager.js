@@ -1864,6 +1864,18 @@ class EpochKeyManager {
     }
 
     /**
+     * When the scheduled rotation is due, in epoch millis. A due date in the
+     * past is honest: the timer only fires while the admin is here, so an
+     * absent admin leaves the epoch standing until the next channel open.
+     * @returns {number|null} null when there is no announce to count from
+     */
+    nextRotationAt(messageStreamId) {
+        const s = this.state.get(messageStreamId);
+        const validFrom = s?.announces?.get(s.currentEpoch)?.validFrom;
+        return validFrom ? validFrom + ROTATION_INTERVAL_MS : null;
+    }
+
+    /**
      * Key to encrypt with right now: the current epoch's.
      * @returns {Promise<{kid: string, cryptoKey: CryptoKey}|null>} null while waiting for a key
      */

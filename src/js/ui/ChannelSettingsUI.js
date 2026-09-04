@@ -15,6 +15,7 @@ import { mediaController } from '../media.js';
 import { channelImageManager } from '../channelImageManager.js';
 import { deriveAdminId } from '../streamConstants.js';
 import { getAvatarHtml } from './AvatarGenerator.js';
+import { formatRemaining } from './SubscriptionBannerUI.js';
 
 class ChannelSettingsUI {
     constructor() {
@@ -276,6 +277,7 @@ class ChannelSettingsUI {
             this.initRotateEpochSection(currentChannel.streamId);
             this.initRekeyPublishSection(currentChannel.streamId);
             this.initAbsorbModSection(currentChannel.streamId);
+            this._applyAdvancedSection();
         }
 
         // Load members and permissions if gated channel (not in preview mode)
@@ -1125,6 +1127,7 @@ class ChannelSettingsUI {
             && channelManager.isChannelOwner(streamId);
         section.classList.toggle('hidden', !show);
         if (!show) return;
+        this._applyNextRotation(streamId);
 
         if (button._clickHandler) button.removeEventListener('click', button._clickHandler);
         button._clickHandler = async () => {
@@ -1137,6 +1140,7 @@ class ChannelSettingsUI {
             try {
                 const { epochKeyManager } = await import('../epochKeyManager.js');
                 await epochKeyManager.rotateEpoch(channel);
+                this._applyNextRotation(streamId);
                 if (status) status.textContent = 'New key issued. Members pick it up automatically.';
                 showNotification?.('Channel key rotated', 'success');
             } catch (error) {
@@ -1147,6 +1151,40 @@ class ChannelSettingsUI {
             }
         };
         button.addEventListener('click', button._clickHandler);
+    }
+
+    /**
+     * The channel rotates on its own weekly; the button is for not waiting.
+     * Saying when the next one falls is what makes that legible — and a due
+     * date in the past is the truth, since the timer only runs while the
+     * admin's client is open.
+     */
+    _applyNextRotation(streamId) {
+        const line = document.getElementById('rotate-epoch-next');
+        if (!line) return;
+        const due = epochKeyManager.nextRotationAt(streamId);
+        if (!due) {
+            line.textContent = '';
+            return;
+        }
+        const msLeft = due - Date.now();
+        line.textContent = msLeft > 0
+            ? `Next auto-rotate: ${formatRemaining(msLeft)}`
+            : 'Next auto-rotate: due';
+    }
+
+    /**
+     * Advanced holds the surfaces nobody needs on a routine visit. It exists
+     * only when something inside it does.
+     */
+    _applyAdvancedSection() {
+        const wrapper = document.getElementById('mod-advanced-section');
+        if (!wrapper) return;
+        const anyVisible = ['permissions-section', 'rekey-publish-section']
+            .map(id => document.getElementById(id))
+            .some(el => el && !el.classList.contains('hidden'));
+        wrapper.classList.toggle('hidden', !anyVisible);
+        if (!anyVisible) wrapper.open = false;
     }
 
     /**
