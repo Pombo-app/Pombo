@@ -122,7 +122,10 @@ class ChannelManager {
         if (!target.keysStreamId && target.type === 'gated') {
             target.keysStreamId = deriveKeysId(target.messageStreamId);
         }
-        if (!target.interactionsStreamId && target.type === 'gated') {
+        // Every channel type owns a -5 now. A record from before that still
+        // gets the id: publishing there fails once on a channel that never
+        // created it, and the reaction falls back to the -1 for the session.
+        if (!target.interactionsStreamId && target.type !== 'dm') {
             target.interactionsStreamId = deriveInteractionsId(target.messageStreamId);
         }
         target.adminState = preserved.adminState;
@@ -645,8 +648,8 @@ class ChannelManager {
                 }
             }
 
-            // Interactions (-5, gated only): reactions must persist, which is
-            // exactly why they could not live on the storage-less -2.
+            // Interactions (-5, every channel type): reactions must persist,
+            // which is exactly why they could not live on the storage-less -2.
             if (streamInfo.interactionsStreamId) {
                 try {
                     interactionsStorageResult = await streamrController.enableStorage(streamInfo.interactionsStreamId, {
@@ -729,9 +732,8 @@ class ChannelManager {
                 keysStreamId: type === 'gated'
                     ? (streamInfo.keysStreamId || deriveKeysId(streamInfo.messageStreamId))
                     : null,
-                interactionsStreamId: type === 'gated'
-                    ? (streamInfo.interactionsStreamId || deriveInteractionsId(streamInfo.messageStreamId))
-                    : null,
+                interactionsStreamId: streamInfo.interactionsStreamId
+                    || deriveInteractionsId(streamInfo.messageStreamId),
                 streamId: streamInfo.messageStreamId,  // Alias for convenience
                 name: name,
                 type: type,
@@ -1037,9 +1039,7 @@ class ChannelManager {
                 keysStreamId: channelType === 'gated'
                     ? deriveKeysId(messageStreamId)
                     : null,
-                interactionsStreamId: channelType === 'gated'
-                    ? deriveInteractionsId(messageStreamId)
-                    : null,
+                interactionsStreamId: deriveInteractionsId(messageStreamId),
                 streamId: messageStreamId,  // Alias for convenience
                 name: channelName,
                 type: channelType,
@@ -1192,8 +1192,7 @@ class ChannelManager {
                 adminStreamId: adminStreamId,
                 keysStreamId: channelType === 'gated'
                     ? deriveKeysId(messageStreamId) : null,
-                interactionsStreamId: channelType === 'gated'
-                    ? deriveInteractionsId(messageStreamId) : null,
+                interactionsStreamId: deriveInteractionsId(messageStreamId),
                 streamId: messageStreamId,
                 name: channelName,
                 type: channelType,
@@ -1384,9 +1383,9 @@ class ChannelManager {
      * @returns {Promise<{enabled: boolean, nodes: Array<{address:string,onMessage:boolean,onAdmin:boolean,onKeys:boolean}>, storageDays: number|null, retention: {message:number|null,admin:number|null,keys:number|null}, retentionInSync: boolean, hasKeysStream: boolean}>}
      */
     /**
-     * The stored streams of a channel: -1 message, -3 admin, and on gated
-     * also -4 keys and -5 interactions. Never the ephemeral -2, which has no
-     * storage by design, and never a DM inbox, which is account-level.
+     * The stored streams of a channel: -1 message, -3 admin, -5 interactions,
+     * and on gated also -4 keys. Never the ephemeral -2, which has no storage
+     * by design, and never a DM inbox, which is account-level.
      *
      * @returns {Array<{id: string, kind: 'message'|'admin'|'keys'|'interactions'}>}
      * @private
@@ -1397,10 +1396,9 @@ class ChannelManager {
         if (adminStreamId) out.push({ id: adminStreamId, kind: 'admin' });
         if (channel?.type === 'gated') {
             out.push({ id: channel.keysStreamId || deriveKeysId(messageStreamId), kind: 'keys' });
-            out.push({
-                id: channel.interactionsStreamId || deriveInteractionsId(messageStreamId),
-                kind: 'interactions'
-            });
+        }
+        if (channel?.interactionsStreamId) {
+            out.push({ id: channel.interactionsStreamId, kind: 'interactions' });
         }
         return out;
     }
@@ -1470,7 +1468,7 @@ class ChannelManager {
             message: msgInfo.storageDays,
             admin: adminInfo.storageDays,
             keys: keysStreamId ? keysInfo.storageDays : null,
-            interactions: keysStreamId ? interactionsInfo.storageDays : null
+            interactions: channel?.interactionsStreamId ? interactionsInfo.storageDays : null
         };
         const nodes = Array.from(map.values());
 
@@ -1486,7 +1484,7 @@ class ChannelManager {
                 retention.message, retention.admin, retention.keys, retention.interactions
             ]),
             hasKeysStream: !!keysStreamId,
-            hasInteractionsStream: !!keysStreamId
+            hasInteractionsStream: !!channel?.interactionsStreamId
         };
     }
 
@@ -1988,9 +1986,9 @@ class ChannelManager {
             }
             if (!channel || !channel.initialLoadInProgress) return;
 
-            // Reactions live on the -5 for gated channels — their history is
-            // a separate read, awaited here so the first render already has
-            // them instead of popping in after.
+            // Reactions live on the -5 — their history is a separate read,
+            // awaited here so the first render already has them instead of
+            // popping in after.
             if (channel.interactionsStreamId) {
                 await streamrController.fetchHistoryAsync(
                     channel.interactionsStreamId,
@@ -2061,9 +2059,9 @@ class ChannelManager {
                 onHistoryComplete
             );
 
-            // Reactions live on the -5 for gated channels (that is what lets
-            // a read-only channel have them). Same handler as before: they
-            // arrive as control messages either way.
+            // Reactions live on the -5 in every channel type (that is what
+            // lets a read-only channel have them). Same handler as before:
+            // they arrive as control messages either way.
             if (channel?.interactionsStreamId) {
                 try {
                     await streamrController.subscribeToPartition(

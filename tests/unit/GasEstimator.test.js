@@ -170,9 +170,9 @@ describe('GasEstimator', () => {
         it('should calculate public channel cost', async () => {
             const costs = await GasEstimator.estimateCosts();
             
-            // Public = 3× createStream + 3× setPublicPermissions
-            //        + 2× addStorageNode + 2× setStorageDayCount
-            const expectedGas = 3 * 420000 + 3 * 80000 + 2 * 165000 + 2 * 50000;
+            // Public = four streams (-1, -2, -3, -5), permissions on all
+            // four, storage on the three that keep history.
+            const expectedGas = 4 * 420000 + 4 * 80000 + 3 * 165000 + 3 * 50000;
             const expectedCost = 30 * 1e9 * expectedGas;
             
             expect(costs.public).toBe(expectedCost);

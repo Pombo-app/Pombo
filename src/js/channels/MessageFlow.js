@@ -790,7 +790,43 @@ export class MessageFlow {
                     : Promise.resolve({ messages: [], hasMore: false })
             );
 
-            let [contentResult, overrideResult] = await Promise.all([fetchContent(), fetchOverrides()]);
+            // Reactions moved to the -5, so paging only the -1 brings back
+            // older messages with their reactions missing. Same window, same
+            // handler: they arrive as control messages either way. A channel
+            // whose -5 was never created reads as empty and costs one call.
+            const interactionsId = channel?.interactionsStreamId;
+            const fetchReactions = () => (
+                interactionsId
+                    ? streamrController.fetchOlderHistory(
+                        interactionsId,
+                        STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS,
+                        beforeTimestamp,
+                        STREAM_CONFIG.LOAD_MORE_COUNT,
+                        channel.password,
+                        signal,
+                        false
+                    ).catch(e => {
+                        Logger.debug('loadMoreHistory: interactions page failed:', e?.message || e);
+                        return { messages: [], hasMore: false };
+                    })
+                    : Promise.resolve({ messages: [], hasMore: false })
+            );
+
+            let [contentResult, overrideResult, reactionResult] = await Promise.all([
+                fetchContent(), fetchOverrides(), fetchReactions()
+            ]);
+
+            // Older reactions never gate "is there more history": that is the
+            // -1's question, and a reaction page that runs dry says nothing
+            // about the conversation behind it.
+            for (const msg of reactionResult.messages || []) {
+                if (msg?.type !== 'reaction') continue;
+                const reactionUser = msg.account || msg.user;
+                if (reactionUser && msg.messageId && msg.emoji) {
+                    this.manager.storeReaction(
+                        channel, msg.messageId, msg.emoji, reactionUser, msg.action || 'add');
+                }
+            }
 
             // Storage race mitigation: a {from:0, to:before} resend that returns
             // zero messages can mean either (a) true exhaustion, or (b) the

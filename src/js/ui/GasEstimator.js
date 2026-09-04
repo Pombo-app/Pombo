@@ -112,14 +112,14 @@ export const GasEstimator = {
     async estimateCosts() {
         const gasPrice = await this.getGasPrice();
         
-        // Public and password channels own three streams (-1 messages, -2
-        // ephemeral, -3 admin) with permissions on all three; storage goes on
-        // the two that keep history, never on the -2.
+        // Public and password channels own four streams (-1 messages, -2
+        // ephemeral, -3 admin, -5 interactions) with permissions on all four;
+        // storage goes on the three that keep history, never on the -2.
         const publicCost = gasPrice * (
-            3 * this.GAS_UNITS.createStream
-            + 3 * this.GAS_UNITS.setPublicPermissions
-            + 2 * this.GAS_UNITS.addStorageNode
-            + 2 * this.GAS_UNITS.setStorageDayCount
+            4 * this.GAS_UNITS.createStream
+            + 4 * this.GAS_UNITS.setPublicPermissions
+            + 3 * this.GAS_UNITS.addStorageNode
+            + 3 * this.GAS_UNITS.setStorageDayCount
         );
         // Gated: the gate contract plus five streams (-1, -2, -3 as above,
         // -4 keys and -5 interactions), permissions on all five, and storage

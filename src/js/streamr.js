@@ -442,21 +442,23 @@ class StreamrController {
             // Lives outside -3 on purpose: any member must be able to publish
             // KEY_REQUEST/KEY_WRAP here, while -3 stays owner-only publish.
             let keysStream = null;
-            let interactionsStream = null;
             if (type === 'gated') {
                 Logger.info('Creating keys stream...');
                 keysStream = await createStreamWithRetry(keysStreamId, keysMetadata, 'keys', STREAM_CONFIG.KEYS_STREAM.PARTITIONS);
                 try { onProgress(); } catch (_) { /* see above */ }
-
-                // Step 3c: INTERACTIONS STREAM (-5) — reactions, so a
-                // read-only channel can still offer them and the -1 stays
-                // conversation only.
-                Logger.info('Creating interactions stream...');
-                interactionsStream = await createStreamWithRetry(
-                    interactionsStreamId, interactionsMetadata, 'interactions',
-                    STREAM_CONFIG.INTERACTIONS_STREAM.PARTITIONS);
-                try { onProgress(); } catch (_) { /* see above */ }
             }
+
+            // Step 3c: INTERACTIONS STREAM (-5) — every channel type. Reactions
+            // need a stream of their own because permissions are per stream:
+            // a read-only channel closes the -1 to members, and without this
+            // they would lose reactions along with the ability to post. It
+            // also keeps the -1 conversation-only, which is what lets a
+            // `last: N` read come back with messages instead of emoji.
+            Logger.info('Creating interactions stream...');
+            const interactionsStream = await createStreamWithRetry(
+                interactionsStreamId, interactionsMetadata, 'interactions',
+                STREAM_CONFIG.INTERACTIONS_STREAM.PARTITIONS);
+            try { onProgress(); } catch (_) { /* see above */ }
 
             const createTime = ((Date.now() - startTime) / 1000).toFixed(1);
             Logger.info(`✓ All streams created in ${createTime}s`);
@@ -507,7 +509,20 @@ class StreamrController {
                 } finally {
                     try { onProgress(); } catch (_) { /* ignore */ }
                 }
-                
+
+                // Interactions (-5): public publish EVEN when the channel is
+                // read-only. Read-only means members do not post messages, not
+                // that they cannot react — the whole reason reactions have a
+                // stream of their own.
+                try {
+                    await this.grantPublicPermissions(interactionsStream);
+                    Logger.info('✓ Interactions stream: public permissions set');
+                } catch (e) {
+                    Logger.error('✗ Interactions stream permissions failed:', e.message);
+                } finally {
+                    try { onProgress(); } catch (_) { /* ignore */ }
+                }
+
                 const permTime = ((Date.now() - permStartTime) / 1000).toFixed(1);
                 Logger.info(`Permissions configured in ${permTime}s`);
                 
@@ -1940,6 +1955,20 @@ class StreamrController {
      * @param {string} streamId - Any of the channel's streams (-1..-4)
      * @returns {Promise<Object|null>} The channel object when it has a gate
      */
+    /**
+     * The channel record for any of its streams, gated or not. Lazy import
+     * for the same reason as _gatedChannelFor: a static one is circular.
+     */
+    async _channelRecordFor(streamId) {
+        try {
+            const { channelManager } = await import('./channels.js');
+            const base = String(streamId).replace(/-[12345]$/, '');
+            return channelManager?.channels?.get(base + '-1') ?? null;
+        } catch {
+            return null;
+        }
+    }
+
     async _gatedChannelFor(streamId) {
         try {
             const { channelManager } = await import('./channels.js');
@@ -2963,18 +2992,26 @@ class StreamrController {
      * @param {string} password - Password for encrypted channels (optional)
      */
     async publishReaction(messageStreamId, reaction, password = null) {
-        // Gated channels react on the -5: it is where members participate, so
-        // a read-only channel still has reactions, and the -1 stops carrying
-        // emoji the preview scanners had to skip. Everywhere else the -1/P0
-        // stays the reaction stream — those channels have no -5.
-        const channel = await this._gatedChannelFor(messageStreamId);
-        if (channel) {
-            const interactionsId = deriveInteractionsId(messageStreamId);
-            Logger.debug('publishReaction → interactions stream:', { interactionsId, messageId: reaction?.messageId });
-            return await this.publishAsChannel(
-                interactionsId, STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS, reaction, password);
+        // Reactions live on the -5 in every channel type: it is where members
+        // participate, so a read-only channel still has them, and the -1 stays
+        // conversation only. A channel created before the -5 existed has none;
+        // the publish fails once, falls back to the -1/P0 it used to use, and
+        // remembers for the session.
+        const record = await this._channelRecordFor(messageStreamId);
+        const interactionsId = record?._interactionsMissing
+            ? null
+            : (record?.interactionsStreamId || null);
+        if (interactionsId) {
+            try {
+                return await this.publishAsChannel(
+                    interactionsId, STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS, reaction, password);
+            } catch (error) {
+                if (!/not found|does not exist|NOT_FOUND/i.test(error?.message || '')) throw error;
+                if (record) record._interactionsMissing = true;
+                Logger.warn('No interactions stream on this channel — reacting on the -1:',
+                    messageStreamId.slice(-20));
+            }
         }
-        Logger.debug('publishReaction called - sending to messageStream partition 0:', { messageStreamId, messageId: reaction?.messageId });
         return await this.publishAsChannel(
             messageStreamId, STREAM_CONFIG.MESSAGE_STREAM.MESSAGES, reaction, password);
     }
