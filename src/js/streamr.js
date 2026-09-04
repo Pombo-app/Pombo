@@ -2343,9 +2343,15 @@ class StreamrController {
             // holds). That split is what keeps presence and reactions alive
             // in a read-only channel.
             const participates = isEphemeralStream(streamId) || isInteractionsStream(streamId);
+            // The -5 grants publish to the interactions key ALONE, so there
+            // is no falling back to the content key there: the network would
+            // drop the message and the reaction would vanish with no error.
+            // The -2 still accepts both, which is what keeps channels created
+            // before the split working.
+            const interactionsOnly = isInteractionsStream(streamId);
             const pubKey = participates
                 ? epochKeyManager.getInteractionsKey(channel.messageStreamId)
-                    || await epochKeyManager.ensurePublishKey(channel)
+                    || (interactionsOnly ? null : await epochKeyManager.ensurePublishKey(channel))
                 : await epochKeyManager.ensurePublishKey(channel);
             if (!pubKey) {
                 throw new Error(
