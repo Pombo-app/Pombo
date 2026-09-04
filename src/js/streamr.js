@@ -1700,9 +1700,9 @@ class StreamrController {
     }
 
     /**
-     * Delete a stream (only owner can delete)
-     * For dual-stream architecture, deletes message stream (-1), ephemeral stream (-2)
-     * and admin stream (-3) so no orphan streams are left on the network.
+     * Delete a channel's streams (owner only): -1 message, -2 ephemeral,
+     * -3 admin, and on gated channels -4 keys and -5 interactions. Every one
+     * of them, so the network is left with no orphan holding paid storage.
      * @param {string} streamId - Stream ID (can be either messageStreamId or ephemeralStreamId)
      * @param {number} retries - Number of retry attempts per stream
      * @returns {Promise<void>}
@@ -1712,8 +1712,8 @@ class StreamrController {
             throw new Error('Streamr client not initialized');
         }
 
-        // Derive all stream IDs (message + ephemeral + admin + keys)
-        let messageStreamId, ephemeralStreamId, adminStreamId, keysStreamId;
+        // Derive all stream IDs (message + ephemeral + admin + keys + interactions)
+        let messageStreamId, ephemeralStreamId, adminStreamId, keysStreamId, interactionsStreamId;
 
         if (isMessageStream(streamId)) {
             messageStreamId = streamId;
@@ -1726,6 +1726,7 @@ class StreamrController {
         ephemeralStreamId = deriveEphemeralId(messageStreamId);
         adminStreamId = deriveAdminId(messageStreamId);
         keysStreamId = deriveKeysId(messageStreamId);
+        interactionsStreamId = deriveInteractionsId(messageStreamId);
 
         // Helper: detect "stream does not exist" — idempotent success case.
         // The stream may have been deleted in a previous attempt or never existed
@@ -1780,9 +1781,15 @@ class StreamrController {
                     Logger.warn('Keys unsubscribe warning:', e.message)
                 );
             }
+            // Same for the interactions stream (-5).
+            if (interactionsStreamId) {
+                await this.unsubscribe(interactionsStreamId).catch(e =>
+                    Logger.warn('Interactions unsubscribe warning:', e.message)
+                );
+            }
 
             // Delete sequentially (preserves wallet nonce ordering):
-            // message (primary) → ephemeral → admin → keys.
+            // message (primary) → ephemeral → admin → keys → interactions.
             const msgResult = await deleteWithRetry(messageStreamId, 'message stream');
 
             if (ephemeralStreamId) {
@@ -1799,6 +1806,13 @@ class StreamrController {
                 // Keys stream exists only on gated channels; the idempotent
                 // "already gone" path absorbs every other type.
                 await deleteWithRetry(keysStreamId, 'keys stream');
+            }
+
+            if (interactionsStreamId) {
+                // Interactions stream, gated only — same idempotent path.
+                // Skipping it left the reactions and their paid storage
+                // standing after the channel was gone.
+                await deleteWithRetry(interactionsStreamId, 'interactions stream');
             }
 
             // Throw if message stream failed (primary stream)

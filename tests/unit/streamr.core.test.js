@@ -1589,17 +1589,18 @@ describe('StreamrController Core', () => {
             expect(retryCallNames.some(name => name.includes('message'))).toBe(true);
         });
 
-        it('should delete all four streams (message -1, ephemeral -2, admin -3, keys -4)', async () => {
-            // -4 exists only on gated channels, but deletion is
+        it('deletes every stream of the channel (-1, -2, -3, -4, -5)', async () => {
+            // -4 and -5 exist only on gated channels, but deletion is
             // unconditional: the idempotent "already gone" path absorbs the
-            // other types, and skipping it is what used to orphan -4 streams.
+            // other types, and skipping one is what orphans it — with its
+            // paid storage — after the channel is gone.
             await streamrController.deleteStream('owner/stream-1');
             const deletedIds = mockClient.deleteStream.mock.calls.map(c => c[0]);
-            expect(deletedIds).toContain('owner/stream-1');
-            expect(deletedIds).toContain('owner/stream-2');
-            expect(deletedIds).toContain('owner/stream-3');
-            expect(deletedIds).toContain('owner/stream-4');
-            expect(mockClient.deleteStream).toHaveBeenCalledTimes(4);
+            expect(deletedIds).toEqual(expect.arrayContaining([
+                'owner/stream-1', 'owner/stream-2', 'owner/stream-3',
+                'owner/stream-4', 'owner/stream-5'
+            ]));
+            expect(mockClient.deleteStream).toHaveBeenCalledTimes(5);
         });
 
         it('should treat streamDoesNotExist as idempotent success (no throw)', async () => {
