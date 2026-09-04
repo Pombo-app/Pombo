@@ -626,7 +626,7 @@ class EpochKeyManager {
             const me = (authManager.getAddress() || '').toLowerCase();
             const now = Date.now();
             for (const { data, publisherId, timestamp } of storedRequests) {
-                if ((publisherId || '').toLowerCase() === me) continue;
+                if (this._isOwnRequest(s, data.requestId)) continue;
                 const hasStatic = typeof data.spk === 'string';
                 if (!hasStatic && now - (timestamp || 0) > REQUEST_ANSWER_WINDOW_MS) continue;
                 if (typeof data.pubkey !== 'string' || typeof data.requestId !== 'string') continue;
@@ -1182,10 +1182,20 @@ class EpochKeyManager {
      * (§7.10). The clone's permission is everyone's, so the CURRENT gate is
      * checked against the requester (envelope signer) just before wrapping.
      */
+    /** A request this session sent: answering it would be talking to itself. */
+    _isOwnRequest(s, requestId) {
+        if (typeof requestId !== 'string' || !requestId) return false;
+        return s.pendingRequests?.has(requestId) === true
+            || s.pendingRequest?.requestId === requestId;
+    }
+
     async _handleRequest(channel, s, data, publisherId) {
         this._recordRequester(s, publisherId, channel.messageStreamId);
-        const myAddress = (authManager.getAddress() || '').toLowerCase();
-        if ((publisherId || '').toLowerCase() === myAddress) return;      // our own request
+        // Skip only what THIS session asked for, by requestId. Skipping
+        // every request from our own account left a second device of the
+        // same account unable to ever get the keys: nobody else answers a
+        // request that names an address they can see is not theirs.
+        if (this._isOwnRequest(s, data.requestId)) return;
         if (typeof data.pubkey !== 'string' || typeof data.requestId !== 'string') return;
         if (s.epochs.size === 0) return;                                  // nothing to offer
 
