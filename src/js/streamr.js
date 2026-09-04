@@ -287,9 +287,12 @@ class StreamrController {
     }
 
     /**
-     * Create a new channel with triple-stream architecture
-     * Creates 3 streams: Message stream (with storage), Ephemeral stream (no storage), Admin stream (with storage, owner-only writes)
-     * 
+     * Create a new channel and the streams it owns.
+     *
+     * Every channel gets three: messages (-1, stored), ephemeral (-2, never
+     * stored) and admin (-3, stored, owner-only writes). A gated channel adds
+     * two more: keys (-4) and interactions (-5), both stored.
+     *
      * @param {string} channelName - Name of the channel
      * @param {string} creatorAddress - Creator's Ethereum address
      * @param {string} type - Channel type: 'public', 'password', 'gated'

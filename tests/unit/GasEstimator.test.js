@@ -181,10 +181,10 @@ describe('GasEstimator', () => {
         it('should calculate gated channel cost', async () => {
             const costs = await GasEstimator.estimateCosts();
             
-            // Gated adds the keys stream (-4, with storage):
-            // 4× createStream + 4× setPermissionsBatch
-            // + 3× addStorageNode + 3× setStorageDayCount
-            const expectedGas = 4 * 420000 + 4 * 210000 + 3 * 165000 + 3 * 50000;
+            // Gated: the gate contract, five streams, permissions on
+            // all five, and storage on the four that keep history.
+            const expectedGas = 220000
+                + 5 * 420000 + 5 * 210000 + 4 * 165000 + 4 * 50000;
             const expectedCost = 30 * 1e9 * expectedGas;
             
             expect(costs.gated).toBe(expectedCost);
