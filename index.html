@@ -1799,6 +1799,12 @@
                             <label class="block text-xs font-medium text-white/80 uppercase tracking-wider mb-1.5">Access</label>
                             <div id="channel-settings-type" class="text-sm text-white/70"></div>
                         </div>
+
+                        <!-- Identity on the wire: a property of the gate, so gated only -->
+                        <div id="channel-settings-wire-section" class="hidden">
+                            <label class="block text-xs font-medium text-white/80 uppercase tracking-wider mb-1.5">Identity on the wire</label>
+                            <div id="channel-settings-wire" class="text-sm text-white/70"></div>
+                        </div>
                     </div>
 
                     <!-- Members Panel -->
@@ -1991,9 +1997,17 @@
                                     <div class="text-center text-white/30 py-6 text-sm">No banned members</div>
                                 </div>
                             </div>
+                            <div>
                             <p class="text-sm text-white/30 leading-relaxed">
-                                Client bans hide the author's messages for everyone and cost nothing. Protocol bans cut access on the gate, so the member stops receiving keys, and take a transaction to apply and to lift.
+                                Client bans hide messages, free. Protocol bans cut access, one transaction.
+                                <button type="button" data-hint="ban-levels-hint" title="Protocol bans cut access on the gate, so the member stops receiving keys, and take a transaction to apply and to lift." class="align-text-bottom text-white/25 hover:text-white/60 transition" aria-label="More about ban levels">
+                                    <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
+                                </button>
                             </p>
+                            <p id="ban-levels-hint" class="hidden text-xs text-white/25 leading-relaxed mt-1">
+                                Protocol bans cut access on the gate, so the member stops receiving keys, and take a transaction to apply and to lift.
+                            </p>
+                            </div>
 
                             <!-- Owner only, gated channels: ratify the moderators' pending actions -->
                             <div id="absorb-mod-section" class="hidden p-4 bg-white/[0.03] rounded-xl border border-white/5">
@@ -2025,8 +2039,14 @@
                             <!-- Gated channels, admin only: manual epoch rotation. Free, unlike the re-key below. -->
                             <div id="rotate-epoch-section" class="hidden p-4 bg-white/[0.03] rounded-xl border border-white/5">
                                 <h4 class="text-sm font-medium text-white/90 mb-1">Rotate Channel Key</h4>
-                                <p class="text-sm text-white/40 mb-3">
-                                    Issues a new encryption key now. Anyone without current access stops reading new messages. Free — no transaction.
+                                <p class="text-sm text-white/40 mb-1">
+                                    New encryption key now. Free.
+                                    <button type="button" data-hint="rotate-epoch-hint" title="Anyone without current access stops reading new messages." class="align-text-bottom text-white/25 hover:text-white/60 transition" aria-label="More about rotating the channel key">
+                                        <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
+                                    </button>
+                                </p>
+                                <p id="rotate-epoch-hint" class="hidden text-xs text-white/30 leading-relaxed mb-3">
+                                    Anyone without current access stops reading new messages.
                                 </p>
                                 <button id="rotate-epoch-btn" class="w-full bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 px-4 py-2.5 rounded-xl text-sm transition">
                                     Rotate Channel Key
@@ -2036,8 +2056,14 @@
                             <!-- Members-only channels, admin only: the escape valve against ex-key-holder abuse -->
                             <div id="rekey-publish-section" class="hidden p-4 bg-amber-500/5 rounded-xl border border-amber-500/10">
                                 <h4 class="text-sm font-medium text-white/90 mb-1">Reset Publish Key</h4>
-                                <p class="text-sm text-white/40 mb-3">
-                                    Replaces the channel's shared publish key (2 transactions). Former members who kept the old key lose the ability to write. Current members pick up the new key automatically.
+                                <p class="text-sm text-white/40 mb-1">
+                                    New shared publish key. 2 transactions.
+                                    <button type="button" data-hint="rekey-publish-hint" title="Former members who kept the old key lose the ability to write. Current members pick up the new key automatically." class="align-text-bottom text-white/25 hover:text-white/60 transition" aria-label="More about resetting the publish key">
+                                        <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
+                                    </button>
+                                </p>
+                                <p id="rekey-publish-hint" class="hidden text-xs text-white/30 leading-relaxed mb-3">
+                                    Former members who kept the old key lose the ability to write. Current members pick up the new key automatically.
                                 </p>
                                 <button id="rekey-publish-btn" class="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 px-4 py-2.5 rounded-xl text-sm transition">
                                     Reset Publish Key

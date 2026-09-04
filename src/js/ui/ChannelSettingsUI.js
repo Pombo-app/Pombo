@@ -5,7 +5,7 @@
 
 import { Logger } from '../logger.js';
 import { modalManager } from './ModalManager.js';
-import { escapeHtml, escapeAttr } from './utils.js';
+import { escapeHtml, escapeAttr, wireIdentitySpec, wireIdentityIcon } from './utils.js';
 import { sanitizeText } from './sanitizer.js';
 import { relayManager } from '../relayManager.js';
 import { graphAPI } from '../graph.js';
@@ -42,6 +42,22 @@ class ChannelSettingsUI {
         this.elements = elements;
         // Initialize channel name edit handlers after elements are set
         this.initChannelNameEdit();
+        this._wireHints();
+    }
+
+    /**
+     * One delegated listener for every ⓘ in the modal: the caption states the
+     * effect and the cost, the detail stays a tap away. Touch has no hover,
+     * so the toggle carries what the title attribute alone would hide.
+     */
+    _wireHints() {
+        if (this._hintsWired) return;
+        this._hintsWired = true;
+        document.addEventListener('click', (event) => {
+            const trigger = event.target?.closest?.('[data-hint]');
+            if (!trigger) return;
+            document.getElementById(trigger.dataset.hint)?.classList.toggle('hidden');
+        });
     }
 
     /**
@@ -68,6 +84,7 @@ class ChannelSettingsUI {
         // Update channel info
         this.elements.channelSettingsType.innerHTML = this.deps.getChannelTypeLabel(currentChannel.type, effectiveReadOnly, true);
         this._applyGateAccessLabel(currentChannel);
+        this._applyWireIdentityLine(currentChannel);
         this.elements.channelSettingsId.textContent = currentChannel.streamId;
 
         // Populate channel name (network name, local name, or display fallback)
@@ -2090,6 +2107,24 @@ class ChannelSettingsUI {
         } catch (e) {
             Logger.debug('Gate access label failed (keeping default):', e?.message);
         }
+    }
+
+    /**
+     * Identity on the wire, under Access and in the same anatomy. Gated only:
+     * the mode is the gate's, and it is immutable for its lifetime. The field
+     * is reconciled against the contract once per session, so no read here;
+     * without it (preview) the line stays hidden rather than guessing.
+     */
+    _applyWireIdentityLine(channel) {
+        const section = document.getElementById('channel-settings-wire-section');
+        const value = document.getElementById('channel-settings-wire');
+        if (!section || !value) return;
+        const mode = channel?.type === 'gated' ? channel.wireIdentity : null;
+        section.classList.toggle('hidden', !mode);
+        if (!mode) return;
+        value.innerHTML = `<span class="inline-flex items-center gap-1.5">`
+            + wireIdentityIcon(mode, 'w-3 h-3 md:w-4 md:h-4')
+            + `${wireIdentitySpec(mode).name}</span>`;
     }
 
     async _applyPaidClock(channel, gate, gateManager, GATE_MODE) {
