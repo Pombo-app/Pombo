@@ -1253,7 +1253,9 @@ class ChannelModalsUI {
             //   gated: gate deploy + 5× createStream + 5× setPermissions
             //        + 4× addToStorageNode + 4× setStorageDayCount = 19
             const streamCount = isGated ? 5 : 4;
-            const totalSteps = isGated ? 19 : 14;
+            // A closed channel created with an initial member list allows them
+            // in one extra transaction (gate allowBatch).
+            const totalSteps = isGated ? (members.length ? 20 : 19) : 14;
             this.notificationUI?.showLoadingToast(
                 'Creating channel...',
                 'This may take a minute',
