@@ -2020,12 +2020,19 @@ class StreamrController {
         const gateAddress = channel.gate.address.toLowerCase();
         if ((publisherId || '').toLowerCase() !== gateAddress) {
             // -3 as the ACCOUNT: the owner publishes the admin stream under
-            // their own address — the transport already validated the plain
-            // EVM signature, and the namespace prefix IS the authority.
+            // their own address, and the namespace prefix IS the authority.
+            // The signature is recovered rather than taken on trust: a raw
+            // read skips the SDK validation, and this branch is on the gated
+            // path, where the envelope-authenticity check does not run.
             // (Clone-published -3 below stays for pre-switch history.)
             if (isAdminStream(streamId)) {
                 const admin = (channel.messageStreamId?.split('/')[0] || '').toLowerCase();
-                if ((publisherId || '').toLowerCase() === admin) return admin;
+                if ((publisherId || '').toLowerCase() === admin) {
+                    const signer = recoverEnvelopeSigner(streamMessage);
+                    if (signer === admin) return admin;
+                    Logger.warn('resolveAuthor: -3 envelope not signed by the admin — dropping');
+                    return null;
+                }
             }
             // Not published through the clone — a foreign publisher on a gated
             // stream has no business here (permissions are clone-only).
@@ -4318,24 +4325,6 @@ class StreamrController {
                 this.subscriptions.set(messageStreamId, msgSubs);
             }
 
-            // Partition 0: Content messages WITH history
-            if (handlers.onMessage) {
-                if (!msgSubs[STREAM_CONFIG.MESSAGE_STREAM.MESSAGES]) {
-                    Logger.debug('Subscribing to messageStream partition 0 (content) with history');
-                    msgSubs[STREAM_CONFIG.MESSAGE_STREAM.MESSAGES] = await this.subscribeWithHistory(
-                        messageStreamId,
-                        STREAM_CONFIG.MESSAGE_STREAM.MESSAGES,
-                        handlers.onMessage,
-                        historyCount,
-                        password,
-                        makePartitionHistoryCallback(STREAM_CONFIG.MESSAGE_STREAM.MESSAGES, 'messageStream P0'),
-                        handlers.allowOverridesInContentPartition === true
-                    );
-                } else {
-                    await completeHistoryPartition(STREAM_CONFIG.MESSAGE_STREAM.MESSAGES, 'messageStream P0 (already subscribed)');
-                }
-            }
-
             // Partition 1: Control overrides WITH history
             if (handlers.onOverride) {
                 if (!msgSubs[STREAM_CONFIG.MESSAGE_STREAM.CONTROL]) {
@@ -4368,6 +4357,31 @@ class StreamrController {
                     null,
                     false
                 );
+            }
+
+            // Partition 0 LAST, after the control partition and the moderator
+            // deltas: the timeline renders progressively as content batches
+            // land, so anything read after them shows its pre-override state
+            // until the next render — a deleted message appears and then
+            // vanishes. Read in this order the overrides are already parked
+            // (applyPendingOverrides runs per batch) and the deltas already
+            // compose, so the first paint is the final one.
+            // Partition 0: Content messages WITH history
+            if (handlers.onMessage) {
+                if (!msgSubs[STREAM_CONFIG.MESSAGE_STREAM.MESSAGES]) {
+                    Logger.debug('Subscribing to messageStream partition 0 (content) with history');
+                    msgSubs[STREAM_CONFIG.MESSAGE_STREAM.MESSAGES] = await this.subscribeWithHistory(
+                        messageStreamId,
+                        STREAM_CONFIG.MESSAGE_STREAM.MESSAGES,
+                        handlers.onMessage,
+                        historyCount,
+                        password,
+                        makePartitionHistoryCallback(STREAM_CONFIG.MESSAGE_STREAM.MESSAGES, 'messageStream P0'),
+                        handlers.allowOverridesInContentPartition === true
+                    );
+                } else {
+                    await completeHistoryPartition(STREAM_CONFIG.MESSAGE_STREAM.MESSAGES, 'messageStream P0 (already subscribed)');
+                }
             }
 
             Logger.info('Subscribed to message stream:', messageStreamId);

@@ -67,8 +67,9 @@ describe('resolveAuthor', () => {
 
     it('still judges the admin stream on a members-only channel', async () => {
         streamrController._gatedChannelFor.mockResolvedValue(gated({ wireIdentity: 'sealed' }));
+        signerMock.recover = vi.fn(() => OWNER.toLowerCase());
 
-        // Published under the owner's own account: accepted by namespace.
+        // Published under the owner's own account and signed by it.
         expect(await streamrController.resolveAuthor(ADMIN, {}, OWNER)).toBe(OWNER.toLowerCase());
     });
 
@@ -80,8 +81,22 @@ describe('resolveAuthor', () => {
 
     it('accepts the owner publishing the admin stream as themselves', async () => {
         streamrController._gatedChannelFor.mockResolvedValue(gated());
+        signerMock.recover = vi.fn(() => OWNER.toLowerCase());
 
         expect(await streamrController.resolveAuthor(ADMIN, {}, OWNER)).toBe(OWNER.toLowerCase());
+    });
+
+    /**
+     * The claim is not the proof. Gated reads are raw and skip the
+     * envelope-authenticity check, so an envelope that merely NAMES the owner
+     * as publisher would otherwise hand a forged snapshot full moderation
+     * authority — bans, hidden messages and pins for everyone who reads it.
+     */
+    it('drops an admin message that names the owner but is signed by someone else', async () => {
+        streamrController._gatedChannelFor.mockResolvedValue(gated());
+        signerMock.recover = vi.fn(() => MEMBER.toLowerCase());
+
+        expect(await streamrController.resolveAuthor(ADMIN, {}, OWNER)).toBeNull();
     });
 
     it('recovers the envelope signer when the channel identity published', async () => {

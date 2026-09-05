@@ -114,8 +114,14 @@ export class AdminState {
         // Only the channel creator (admin) is allowed to mutate admin state.
         // Stream-level permissions already enforce this on the network, but we
         // double-check locally in case storage is replayed for any reason.
-        if (channel.createdBy && adminMsg.createdBy
-            && adminMsg.createdBy.toLowerCase() !== channel.createdBy.toLowerCase()) {
+        // A joined record can carry no createdBy, so the owner falls back to
+        // the stream's namespace — the on-chain truth about who could have
+        // created it (isChannelOwner reads it the same way). Without the
+        // fallback the check simply did not run on those channels.
+        const owner = (channel.createdBy
+            || channel.messageStreamId?.split('/')[0] || '').toLowerCase();
+        if (owner && adminMsg.createdBy
+            && adminMsg.createdBy.toLowerCase() !== owner) {
             Logger.warn('Ignoring ADMIN_STATE from non-admin:', adminMsg.createdBy);
             return false;
         }
