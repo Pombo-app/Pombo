@@ -493,6 +493,18 @@ class ChannelManager {
                 continue;
             }
 
+            // Exposure comes from the chain too, and it decides real things:
+            // whether a rename costs gas, warns about it and reaches everyone
+            // else. A record that says hidden about a channel the registry
+            // lists turns the owner's rename into a local one, silently — and
+            // that is the state every channel created before the flag is in.
+            if (info.exposure && info.exposure !== channel.exposure) {
+                Logger.info('Metadata refresh: exposure corrected from chain:',
+                    channel.exposure, '→', info.exposure);
+                channel.exposure = info.exposure;
+                changed = true;
+            }
+
             // Name: on-chain name is authoritative for non-DM channels (admin-managed)
             if (info.name && info.name !== channel.name) {
                 Logger.info('Metadata refresh: channel renamed on-chain:', channel.name, '→', info.name);

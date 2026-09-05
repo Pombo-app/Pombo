@@ -111,6 +111,7 @@ vi.mock('../../src/js/secureStorage.js', () => ({
 vi.mock('../../src/js/graph.js', () => ({
     graphAPI: {
         getPublicPomboChannels: vi.fn().mockResolvedValue([]),
+        getChannelInfo: vi.fn(),
         getStreamMetadata: vi.fn()
     }
 }));
@@ -2466,6 +2467,48 @@ describe('ChannelManager', () => {
 
             expect(dmManager.sendDelete).toHaveBeenCalledWith(streamId, 'msg-1');
             expect(streamrController.publishAsChannel).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('refreshChannelMetadataFromGraph()', () => {
+        /**
+         * Exposure decides whether a rename costs gas, warns about it and
+         * reaches anyone else. A record that says hidden about a channel the
+         * registry lists turns the owner's rename into a local one, in
+         * silence — and that is the state channels created before the flag
+         * are in.
+         */
+        it('adopts the exposure the chain reports', async () => {
+            const streamId = '0xowner/listed-1';
+            channelManager.channels.set(streamId, {
+                messageStreamId: streamId, streamId, type: 'public',
+                name: 'Listed', exposure: 'hidden', description: ''
+            });
+            graphAPI.getChannelInfo.mockResolvedValue({
+                name: 'Listed', description: 'from the chain',
+                exposure: 'visible', updatedAt: Date.now()
+            });
+
+            const changed = await channelManager.refreshChannelMetadataFromGraph();
+
+            expect(changed).toBe(true);
+            expect(channelManager.channels.get(streamId).exposure).toBe('visible');
+            expect(channelManager.channels.get(streamId).description).toBe('from the chain');
+        });
+
+        it('leaves a genuinely hidden channel alone', async () => {
+            const streamId = '0xowner/hidden-1';
+            channelManager.channels.set(streamId, {
+                messageStreamId: streamId, streamId, type: 'public',
+                name: 'Hidden', exposure: 'hidden', description: ''
+            });
+            graphAPI.getChannelInfo.mockResolvedValue({
+                name: null, description: '', exposure: 'hidden', updatedAt: Date.now()
+            });
+
+            await channelManager.refreshChannelMetadataFromGraph();
+
+            expect(channelManager.channels.get(streamId).exposure).toBe('hidden');
         });
     });
 });
