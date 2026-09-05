@@ -2356,7 +2356,7 @@ class SettingsUI {
                 .find(r => r.checked)?.value || 'streamr';
             const customAddress = customInput?.value.trim() || '';
             if (provider === 'custom' && !/^0x[a-fA-F0-9]{40}$/.test(customAddress)) {
-                this.showNotification('Invalid custom storage node address', 'error');
+                this.showNotification('Invalid custom storage provider address', 'error');
                 return;
             }
             const daysRaw = parseInt(daysInput?.value, 10);
@@ -2364,7 +2364,7 @@ class SettingsUI {
 
             confirmBtn.disabled = true;
             confirmBtn.textContent = 'Adding…';
-            this.showNotification('Adding storage node…', 'info');
+            this.showNotification('Adding storage provider…', 'info');
             try {
                 const result = await this.streamrController.addStorageNodeToStream(streamId, {
                     storageProvider: provider,
@@ -2372,14 +2372,14 @@ class SettingsUI {
                     storageDays
                 });
                 if (result.success) {
-                    this.showNotification('Storage node added', 'success');
+                    this.showNotification('Storage provider added', 'success');
                     form?.classList.add('hidden');
                     if (customInput) customInput.value = '';
                 } else {
-                    this.showNotification(`Failed to add storage node: ${result.error || 'unknown error'}`, 'error');
+                    this.showNotification(`Failed to add storage provider: ${result.error || 'unknown error'}`, 'error');
                 }
             } catch (err) {
-                this.showNotification(`Failed to add storage node: ${err.message}`, 'error');
+                this.showNotification(`Failed to add storage provider: ${err.message}`, 'error');
             } finally {
                 confirmBtn.disabled = false;
                 confirmBtn.textContent = 'Add';
@@ -2424,19 +2424,19 @@ class SettingsUI {
             const addr = btn.dataset.storageRemove;
             const streamId = this.dmManager?.inboxMessageStreamId;
             if (!addr || !streamId) return;
-            if (!confirm(`Remove storage node ${addr.slice(0, 6)}…${addr.slice(-4)} from your inbox?\n\nThis is an on-chain transaction.`)) return;
+            if (!confirm(`Remove storage provider ${addr.slice(0, 6)}…${addr.slice(-4)} from your inbox?\n\nThis is an on-chain transaction.`)) return;
             btn.disabled = true;
             btn.classList.add('opacity-50');
-            this.showNotification('Removing storage node…', 'info');
+            this.showNotification('Removing storage provider…', 'info');
             try {
                 const result = await this.streamrController.removeStorageFromStream(streamId, addr);
                 if (result.success) {
-                    this.showNotification('Storage node removed', 'success');
+                    this.showNotification('Storage provider removed', 'success');
                 } else {
-                    this.showNotification(`Failed to remove storage node: ${result.error || 'unknown error'}`, 'error');
+                    this.showNotification(`Failed to remove storage provider: ${result.error || 'unknown error'}`, 'error');
                 }
             } catch (err) {
-                this.showNotification(`Failed to remove storage node: ${err.message}`, 'error');
+                this.showNotification(`Failed to remove storage provider: ${err.message}`, 'error');
             } finally {
                 await this._refreshInboxStorage();
             }
@@ -2471,7 +2471,7 @@ class SettingsUI {
             }
 
             if (!info.enabled || !info.nodes?.length) {
-                list.innerHTML = '<div class="text-sm text-white/40 px-1">No storage nodes</div>';
+                list.innerHTML = '<div class="text-sm text-white/40 px-1">No storage provider</div>';
                 return;
             }
 

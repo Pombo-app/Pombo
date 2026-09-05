@@ -319,7 +319,7 @@ class DMModalsUI {
             try {
                 await streamrController.validateCustomStorageNodeAddress(customStorageAddress);
             } catch (error) {
-                this.showCustomAddressError(error.message || 'Custom storage node is not compatible with Pombo web.');
+                this.showCustomAddressError(error.message || 'Custom storage provider is not compatible with Pombo web.');
                 return;
             }
 

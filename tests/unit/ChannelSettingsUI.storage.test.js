@@ -196,7 +196,7 @@ describe('_reportStorageResult()', () => {
     it('reports success when every write landed and the read-back agrees', () => {
         channelSettingsUI._reportStorageResult(
             outcome({ message: 'applied', admin: 'applied', keys: 'applied' }, 3, true), 'add');
-        expect(notify).toHaveBeenCalledWith('Storage node added', 'success');
+        expect(notify).toHaveBeenCalledWith('Storage provider added', 'success');
     });
 
     // Nothing to pay for is a success, not a silent no-op.

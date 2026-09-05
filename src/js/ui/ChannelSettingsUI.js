@@ -384,7 +384,7 @@ class ChannelSettingsUI {
 
         // Nodes
         if (!enabled || nodes.length === 0) {
-            list.innerHTML = '<div class="text-sm text-white/40 px-1">No storage nodes</div>';
+            list.innerHTML = '<div class="text-sm text-white/40 px-1">No storage provider</div>';
             return;
         }
 
@@ -435,15 +435,15 @@ class ChannelSettingsUI {
                 if (!btn) return;
                 const addr = btn.dataset.storageRemove;
                 if (!addr) return;
-                if (!confirm(`Remove storage node ${addr.slice(0, 6)}…${addr.slice(-4)} from this channel?\n\nThis is an on-chain transaction.`)) return;
+                if (!confirm(`Remove storage provider ${addr.slice(0, 6)}…${addr.slice(-4)} from this channel?\n\nThis is an on-chain transaction.`)) return;
                 btn.disabled = true;
                 btn.classList.add('opacity-50');
-                showNotification?.('Removing storage node…', 'info');
+                showNotification?.('Removing storage provider…', 'info');
                 try {
                     const result = await channelManager.removeChannelStorageNode(channel.streamId, addr);
                     this._reportStorageResult(result, 'remove');
                 } catch (err) {
-                    showNotification?.(`Failed to remove storage node: ${err.message}`, 'error');
+                    showNotification?.(`Failed to remove storage provider: ${err.message}`, 'error');
                 } finally {
                     await this.populateStorageInfo(channel);
                 }
@@ -488,14 +488,14 @@ class ChannelSettingsUI {
                     .find(r => r.checked)?.value || 'streamr';
                 const customAddress = customInput?.value.trim() || '';
                 if (provider === 'custom' && !/^0x[a-fA-F0-9]{40}$/.test(customAddress)) {
-                    showNotification?.('Invalid custom storage node address', 'error');
+                    showNotification?.('Invalid custom storage provider address', 'error');
                     return;
                 }
 
                 // New nodes inherit the channel's retention period (stream-level TTL)
                 confirmBtn.disabled = true;
                 confirmBtn.textContent = 'Adding…';
-                showNotification?.('Adding storage node…', 'info');
+                showNotification?.('Adding storage provider…', 'info');
                 try {
                     const result = await channelManager.addChannelStorageNode(channel.streamId, {
                         storageProvider: provider,
@@ -505,7 +505,7 @@ class ChannelSettingsUI {
                     form?.classList.add('hidden');
                     if (customInput) customInput.value = '';
                 } catch (err) {
-                    showNotification?.(`Failed to add storage node: ${err.message}`, 'error');
+                    showNotification?.(`Failed to add storage provider: ${err.message}`, 'error');
                 } finally {
                     confirmBtn.disabled = false;
                     confirmBtn.textContent = 'Add';
@@ -561,14 +561,14 @@ class ChannelSettingsUI {
         const failed = states.filter(v => v === 'failed').length;
 
         if (result?.sent === 0) {
-            showNotification?.(`Storage node already ${verb === 'added' ? 'on every stream' : 'off every stream'}`, 'success');
+            showNotification?.(`Storage provider already ${verb === 'added' ? 'on every stream' : 'off every stream'}`, 'success');
         } else if (failed === 0 && result?.verified !== false) {
-            showNotification?.(`Storage node ${verb}`, 'success');
+            showNotification?.(`Storage provider ${verb}`, 'success');
         } else if (failed === states.length) {
-            showNotification?.(`Failed to ${op} storage node`, 'error');
+            showNotification?.(`Failed to ${op} storage provider`, 'error');
         } else {
             // Either a write failed or the read-back still disagrees.
-            showNotification?.(`Storage node partially ${verb}. Try again to sync.`, 'error');
+            showNotification?.(`Storage provider partially ${verb}. Try again to sync.`, 'error');
         }
     }
 
