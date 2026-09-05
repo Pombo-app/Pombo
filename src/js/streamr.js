@@ -138,6 +138,15 @@ class StreamrController {
         const publisherId = typeof message?.getPublisherId === 'function'
             ? message.getPublisherId()
             : (message?.messageId?.publisherId ?? message?.publisherId);
+        return this.mayPublishAs(streamId, publisherId);
+    }
+
+    /**
+     * The same question asked of a bare address, for the publish side.
+     * `refreshOnDeny` skips the TTL: a publish is one call, and a grant written
+     * seconds ago (a member just added) must not read as a forgery.
+     */
+    async mayPublishAs(streamId, publisherId, { refreshOnDeny = false } = {}) {
         if (!streamId || !publisherId) return false;
         const who = String(publisherId).toLowerCase();
         try {
@@ -145,7 +154,7 @@ class StreamrController {
             if (entry.public || entry.writers.has(who)) return true;
             // A grant made after this cache was filled reads as a forgery.
             // One refresh settles it; the TTL keeps that from being per message.
-            if (Date.now() - entry.ts > WRITER_CACHE_TTL_MS) {
+            if (refreshOnDeny || Date.now() - entry.ts > WRITER_CACHE_TTL_MS) {
                 this._writers.delete(streamId);
                 const fresh = await this._streamWriters(streamId);
                 return fresh.public || fresh.writers.has(who);
@@ -2308,12 +2317,22 @@ class StreamrController {
         const isBinary = data instanceof Uint8Array;
         const content = isBinary ? data : new TextEncoder().encode(JSON.stringify(data));
 
+        const onWirePublisher = options.publisherId ?? await identity.getUserId();
+        // client.publish() asks the registry before signing anything; building
+        // the message by hand skipped that, and the network relays regardless —
+        // so a publish nobody may make still reaches storage, where only a
+        // validating reader ever refuses it. Ask here, as the SDK would.
+        if (!await this.mayPublishAs(streamId, onWirePublisher, { refreshOnDeny: true })) {
+            throw new Error(
+                `Refusing to publish to ${streamId}: ${onWirePublisher} holds no PUBLISH permission`);
+        }
+
         const messageId = new MessageID(
             streamId,
             partition,
             options.timestamp ?? Date.now(),
             0,
-            options.publisherId ?? await identity.getUserId(),
+            onWirePublisher,
             options.msgChainId ?? cryptoManager.generateRandomHex(10)
         );
 

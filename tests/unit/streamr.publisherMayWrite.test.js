@@ -92,4 +92,21 @@ describe('publisherMayWrite', () => {
         withPermissions([{ public: true, permissions: ['subscribe', 'publish'] }]);
         expect(await streamrController.publisherMayWrite(STREAM, {})).toBe(false);
     });
+    it('refreshes on a publish denial, so a grant written seconds ago counts', async () => {
+        streamrController._writers = new Map();
+        streamrController._writerFetches = new Map();
+        const stale = [{ public: true, permissions: ['subscribe'] }];
+        const granted = [
+            { public: true, permissions: ['subscribe'] },
+            { userId: STRANGER, permissions: ['publish'] }
+        ];
+        streamrController.getStreamPermissions = vi.fn()
+            .mockResolvedValueOnce(stale)
+            .mockResolvedValue(granted);
+
+        // Cached answer says no...
+        expect(await streamrController.mayPublishAs(STREAM, STRANGER)).toBe(false);
+        // ...but the publish side re-reads before calling it a forgery.
+        expect(await streamrController.mayPublishAs(STREAM, STRANGER, { refreshOnDeny: true })).toBe(true);
+    });
 });
