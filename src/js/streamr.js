@@ -1719,11 +1719,11 @@ class StreamrController {
 
     /**
      * Delete a channel's streams (owner only): -1 message, -2 ephemeral,
-     * -3 admin, and on gated channels -4 keys and -5 interactions. Every one
+     * -3 admin, -5 interactions, and on gated channels -4 keys. Every one
      * of them, so the network is left with no orphan holding paid storage.
      * @param {string} streamId - Stream ID (can be either messageStreamId or ephemeralStreamId)
      * @param {number} retries - Number of retry attempts per stream
-     * @returns {Promise<void>}
+     * @returns {Promise<string[]>} the streams still standing; empty means done
      */
     async deleteStream(streamId, retries = 7) {
         if (!this.client) {
@@ -1806,37 +1806,23 @@ class StreamrController {
                 );
             }
 
-            // Delete sequentially (preserves wallet nonce ordering):
-            // message (primary) → ephemeral → admin → keys → interactions.
-            const msgResult = await deleteWithRetry(messageStreamId, 'message stream');
-
-            if (ephemeralStreamId) {
-                await deleteWithRetry(ephemeralStreamId, 'ephemeral stream');
+            // Delete sequentially (preserves wallet nonce ordering), with the
+            // message stream LAST: while it stands the channel still opens, so
+            // a run that dies halfway leaves something to come back to. A
+            // stream that never existed answers as already gone.
+            const failed = [];
+            for (const [sid, label] of [
+                [ephemeralStreamId, 'ephemeral stream'],
+                [adminStreamId, 'admin stream'],
+                [keysStreamId, 'keys stream'],
+                [interactionsStreamId, 'interactions stream'],
+                [messageStreamId, 'message stream']
+            ]) {
+                if (!sid) continue;
+                const result = await deleteWithRetry(sid, label);
+                if (!result.success) failed.push(sid);
             }
-
-            if (adminStreamId) {
-                // Admin stream may not exist on legacy channels created before
-                // the -3 feature; failures here are non-critical (logged, not thrown).
-                await deleteWithRetry(adminStreamId, 'admin stream');
-            }
-
-            if (keysStreamId) {
-                // Keys stream exists only on gated channels; the idempotent
-                // "already gone" path absorbs every other type.
-                await deleteWithRetry(keysStreamId, 'keys stream');
-            }
-
-            if (interactionsStreamId) {
-                // Interactions stream, gated only — same idempotent path.
-                // Skipping it left the reactions and their paid storage
-                // standing after the channel was gone.
-                await deleteWithRetry(interactionsStreamId, 'interactions stream');
-            }
-
-            // Throw if message stream failed (primary stream)
-            if (!msgResult.success) {
-                throw msgResult.error;
-            }
+            return failed;
 
         } catch (error) {
             Logger.error('Failed to delete streams:', error);

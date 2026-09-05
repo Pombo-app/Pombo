@@ -1312,7 +1312,19 @@ class ChannelSettingsUI {
             // Remove from subscription manager tracking first
             await subscriptionManager.removeChannel(streamId);
 
-            await channelManager.deleteChannel(streamId);
+            const failed = await channelManager.deleteChannel(streamId) || [];
+            if (failed.length) {
+                // The channel stays in the list precisely so this is
+                // retryable, and the retry only pays for what is left.
+                showNotification(
+                    `${failed.length} stream(s) could not be deleted. `
+                    + 'The channel is still here — delete it again to retry.',
+                    'error'
+                );
+                renderChannelList();
+                await selectChannel(streamId);
+                return;
+            }
 
             showNotification(`Channel "${channelName}" deleted successfully`, 'success');
 

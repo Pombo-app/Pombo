@@ -1608,7 +1608,8 @@ describe('StreamrController Core', () => {
             mockClient.deleteStream.mockRejectedValue(
                 Object.assign(new Error('error_streamDoesNotExist'), { reason: 'error_streamDoesNotExist' })
             );
-            await expect(streamrController.deleteStream('owner/stream-1')).resolves.toBeUndefined();
+            // Already gone counts as deleted: nothing is left standing.
+            await expect(streamrController.deleteStream('owner/stream-1')).resolves.toEqual([]);
         });
 
         it('should not throw when admin stream (-3) does not exist (legacy channels)', async () => {
@@ -1621,7 +1622,20 @@ describe('StreamrController Core', () => {
                 }
                 return undefined;
             });
-            await expect(streamrController.deleteStream('owner/stream-1')).resolves.toBeUndefined();
+            await expect(streamrController.deleteStream('owner/stream-1')).resolves.toEqual([]);
+        });
+
+        /**
+         * A stream the network refused is reported back, not swallowed: it is
+         * what keeps the channel on the device as the handle for a retry.
+         */
+        it('reports the streams that could not be deleted', async () => {
+            mockClient.deleteStream.mockImplementation(async (sid) => {
+                if (sid.endsWith('-3')) throw new Error('RPC down');
+                return undefined;
+            });
+            await expect(streamrController.deleteStream('owner/stream-1'))
+                .resolves.toEqual(['owner/stream-3']);
         });
     });
 

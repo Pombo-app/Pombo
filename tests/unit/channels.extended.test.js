@@ -682,6 +682,18 @@ describe('ChannelManager Extended', () => {
             // Should still remove locally
             expect(channelManager.channels.has(streamId)).toBe(false);
         });
+
+        /**
+         * A stream left standing keeps the channel here: forgetting it locally
+         * is what makes the leftovers unreachable, and the delete screen is
+         * the only retry there is.
+         */
+        it('keeps the channel when a stream could not be deleted', async () => {
+            streamrController.deleteStream.mockResolvedValue([`${streamId}-3`]);
+            const failed = await channelManager.deleteChannel(streamId);
+            expect(failed).toEqual([`${streamId}-3`]);
+            expect(channelManager.channels.has(streamId)).toBe(true);
+        });
     });
 
     // ==================== leaveChannel (non-DM path) ====================

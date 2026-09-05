@@ -2609,6 +2609,9 @@ class ChannelManager {
      * Delete a channel completely (deletes the stream from Streamr network)
      * Only the channel owner can delete a channel
      * @param {string} streamId - Stream ID
+     * @returns {Promise<string[]>} the streams still standing — empty means the
+     *   channel is gone. While that list is non-empty the channel stays on this
+     *   device, because it is the only handle left for deleting the rest.
      */
     async deleteChannel(streamId) {
         try {
@@ -2616,23 +2619,31 @@ class ChannelManager {
                 throw new Error('Only the channel owner can delete a channel');
             }
 
-            // Try to delete the stream from Streamr network
+            // Try to delete the streams from the Streamr network
+            let failed = [];
             try {
-                await streamrController.deleteStream(streamId);
-                Logger.debug('Stream deleted from Streamr network:', streamId);
+                failed = await streamrController.deleteStream(streamId) || [];
+                Logger.debug('Streams deleted from Streamr network:', streamId);
             } catch (networkError) {
                 const chainError = parseChainError(networkError);
-                
+
                 // Gas/transaction errors should stop the delete and inform user
                 if (chainError.isGasError) {
                     throw new Error(chainError.message);
                 }
-                
+
                 // Stream might not exist on network or other non-critical error
                 // - that's OK, proceed to remove locally
                 Logger.warn('Could not delete from network (may not exist):', networkError.message);
             }
-            
+            // Anything left standing keeps the channel here: dropping it
+            // locally is what makes the leftovers unreachable, and deleting
+            // again only pays for what is still there.
+            if (failed.length) {
+                Logger.warn('Delete incomplete, channel kept for a retry:', failed);
+                return failed;
+            }
+
             // Remove from local storage
             this.channels.delete(streamId);
             await epochKeyManager.forgetChannel(streamId);
@@ -2651,6 +2662,7 @@ class ChannelManager {
             }
 
             Logger.info('Channel removed:', streamId);
+            return [];
         } catch (error) {
             Logger.error('Failed to delete channel:', error);
             throw error;
