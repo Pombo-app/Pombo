@@ -5,7 +5,7 @@
 
 import { Logger } from '../logger.js';
 import { modalManager } from './ModalManager.js';
-import { escapeHtml, escapeAttr, wireIdentitySpec, wireIdentityIcon } from './utils.js';
+import { escapeHtml, escapeAttr, wireIdentitySpec, wireIdentityIcon, formatAddress, formatStreamId } from './utils.js';
 import { sanitizeText } from './sanitizer.js';
 import { relayManager } from '../relayManager.js';
 import { graphAPI } from '../graph.js';
@@ -16,6 +16,11 @@ import { channelImageManager } from '../channelImageManager.js';
 import { deriveAdminId } from '../streamConstants.js';
 import { getAvatarHtml } from './AvatarGenerator.js';
 import { formatRemaining } from './SubscriptionBannerUI.js';
+
+const CHIP_CLASS = 'inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs '
+    + 'text-white/55 bg-white/5 border border-white/[0.08]';
+/** Must track the w-[88px] of #channel-image-preview. */
+const AVATAR_PX = 88;
 
 class ChannelSettingsUI {
     constructor() {
@@ -84,9 +89,10 @@ class ChannelSettingsUI {
 
         // Update channel info
         this.elements.channelSettingsType.innerHTML = this.deps.getChannelTypeLabel(currentChannel.type, effectiveReadOnly, true);
+        this._applyTypeChips();
         this._applyGateAccessLabel(currentChannel);
         this._applyWireIdentityLine(currentChannel);
-        this.elements.channelSettingsId.textContent = currentChannel.streamId;
+        this._applyIdentifierRow(currentChannel);
 
         // Populate channel name (network name, local name, or display fallback)
         const channelName = currentChannel.channelInfo?.name || currentChannel.name || currentChannel.channelInfo?.displayName || '';
@@ -2163,25 +2169,56 @@ class ChannelSettingsUI {
     }
 
     /**
-     * Identity on the wire, under Access and in the same anatomy. Gated only:
-     * the mode is the gate's, and it is immutable for its lifetime. The field
-     * is reconciled against the contract once per session, so no read here;
-     * without it (preview) the line stays hidden rather than guessing.
+     * What the channel is, as chips under its name. The lines come from
+     * getChannelTypeLabel so the icons and wording stay shared with the header;
+     * only their dress changes here.
+     */
+    _applyTypeChips() {
+        const wrap = this.elements.channelSettingsType?.firstElementChild;
+        if (!wrap) return;
+        wrap.className = 'flex flex-wrap gap-1.5';
+        wrap.querySelectorAll(':scope > span').forEach(s => { s.className = CHIP_CLASS; });
+    }
+
+    /**
+     * Identity on the wire, as one more chip. Gated only: the mode is the
+     * gate's, and it is immutable for its lifetime. The field is reconciled
+     * against the contract once per session, so no read here; without it
+     * (preview) no chip is added rather than guessing.
      */
     _applyWireIdentityLine(channel) {
-        const section = document.getElementById('channel-settings-wire-section');
-        const value = document.getElementById('channel-settings-wire');
-        if (!section || !value) return;
+        const wrap = this.elements.channelSettingsType?.firstElementChild;
+        if (!wrap) return;
+        wrap.querySelector('#channel-settings-wire')?.remove();
         const mode = channel?.type === 'gated' ? channel.wireIdentity : null;
-        section.classList.toggle('hidden', !mode);
         if (!mode) return;
-        value.innerHTML = `<span class="inline-flex items-center gap-1.5">`
-            + wireIdentityIcon(mode, 'w-3 h-3 md:w-4 md:h-4')
-            + `${wireIdentitySpec(mode).name}</span>`;
+        const chip = document.createElement('span');
+        chip.id = 'channel-settings-wire';
+        chip.className = CHIP_CLASS;
+        chip.innerHTML = wireIdentityIcon(mode, 'w-3 h-3') + wireIdentitySpec(mode).name;
+        wrap.appendChild(chip);
+    }
+
+    /**
+     * The identifier row of the facts card. A DM's stream id is the peer's
+     * address with the inbox suffix, so the address is the fact and the id is
+     * noise; the click copies whatever is named.
+     */
+    _applyIdentifierRow(channel) {
+        const code = this.elements.channelSettingsId;
+        const label = document.getElementById('channel-id-label');
+        if (!code) return;
+        const peer = channel?.type === 'dm' ? (channel.peerAddress || channel.streamId.split('/')[0]) : null;
+        code.textContent = peer ? formatAddress(peer) : formatStreamId(channel.streamId);
+        code.dataset.copy = peer || channel.streamId;
+        code.dataset.copyLabel = peer ? 'Address' : 'Channel ID';
+        if (label) label.textContent = peer ? 'Address' : 'ID';
+        document.getElementById('channel-facts')
+            ?.querySelector('#channel-settings-paid-left')?.remove();
     }
 
     async _applyPaidClock(channel, gate, gateManager, GATE_MODE) {
-        const container = this.elements.channelSettingsType;
+        const container = document.getElementById('channel-facts');
         if (!container) return;
         container.querySelector('#channel-settings-paid-left')?.remove();
         const me = this.deps.authManager?.getAddress?.();
@@ -2194,16 +2231,15 @@ class ChannelSettingsUI {
         if (current?.messageStreamId !== channel.messageStreamId) return;
         const { formatRemaining, WARNING_MS } = await import('./SubscriptionBannerUI.js');
         const msLeft = until * 1000 - Date.now();
-        const line = document.createElement('div');
-        line.id = 'channel-settings-paid-left';
-        if (msLeft > 0) {
-            line.className = msLeft < WARNING_MS ? 'text-xs text-yellow-400/80 mt-1' : 'text-xs text-white/40 mt-1';
-            line.textContent = `${formatRemaining(msLeft)} left`;
-        } else {
-            line.className = 'text-xs text-red-400/80 mt-1';
-            line.textContent = 'Subscription expired';
-        }
-        container.appendChild(line);
+        const row = document.createElement('div');
+        row.id = 'channel-settings-paid-left';
+        row.className = 'flex items-center gap-3';
+        const tone = msLeft <= 0 ? 'text-red-400/80' : (msLeft < WARNING_MS ? 'text-yellow-400/80' : 'text-white/70');
+        row.innerHTML = `<span class="text-xs text-white/35 flex-shrink-0">Subscription</span>`
+            + `<span class="flex-1 min-w-0 text-xs text-right ${tone}">`
+            + (msLeft > 0 ? `${formatRemaining(msLeft)} left` : 'Expired')
+            + `</span><span class="w-3.5 flex-shrink-0"></span>`;
+        container.appendChild(row);
     }
 
     /**
@@ -2422,11 +2458,6 @@ class ChannelSettingsUI {
         const section = document.getElementById('channel-image-section');
         if (!section) return;
 
-        const isDM = channel.type === 'dm';
-        if (isDM) {
-            section.classList.add('hidden');
-            return;
-        }
         section.classList.remove('hidden');
 
         const previewEl = document.getElementById('channel-image-preview');
@@ -2434,6 +2465,23 @@ class ChannelSettingsUI {
         const fileInput = document.getElementById('channel-image-input');
         const uploadBtn = document.getElementById('channel-image-upload-btn');
         const status = document.getElementById('channel-image-status');
+
+        // A DM has no room identity: the face is the PEER's, ENS picture when
+        // they have one, exactly as in the chat header.
+        const isDM = channel.type === 'dm';
+        if (isDM) {
+            controls?.classList.add('hidden');
+            status?.classList.add('hidden');
+            const peer = channel.peerAddress || channel.streamId.split('/')[0];
+            const draw = (url) => {
+                if (previewEl) previewEl.innerHTML = getAvatarHtml(peer, AVATAR_PX, 0.5, url);
+            };
+            draw(identityManager.getCachedENSAvatar?.(peer) || null);
+            identityManager.resolveENSAvatar?.(peer)
+                .then(url => { if (url) draw(url); })
+                .catch(() => {});
+            return;
+        }
 
         const adminStreamId = channel.adminStreamId || deriveAdminId(channel.streamId);
         // Same authority source as the moderation menu (pin/hide/ban): the
@@ -2453,7 +2501,7 @@ class ChannelSettingsUI {
                 previewEl.innerHTML = `<img src="${escapeAttr(entry.dataUrl)}" alt="Channel image" class="w-full h-full object-cover" />`;
             } else {
                 // Fallback: deterministic avatar from streamId
-                previewEl.innerHTML = getAvatarHtml(channel.streamId, 80, 0.5, null);
+                previewEl.innerHTML = getAvatarHtml(channel.streamId, AVATAR_PX, 0.5, null);
             }
         };
 

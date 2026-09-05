@@ -56,17 +56,19 @@ export function attachChannelSettings(ui) {
         });
     }
 
-    // Copy channel ID by clicking the ID field itself
-    if (ui.elements.channelSettingsId) {
-        ui.elements.channelSettingsId.addEventListener('click', async () => {
-            const currentChannel = ui.getActiveChannel();
-            if (currentChannel) {
-                try {
-                    await navigator.clipboard.writeText(currentChannel.streamId);
-                    ui.showNotification('Channel ID copied!', 'success');
-                } catch {
-                    ui.showNotification('Failed to copy', 'error');
-                }
+    // Copy the identifier by clicking its row — a DM names an address there,
+    // every other channel its stream id.
+    const idRow = document.getElementById('channel-id-row') || ui.elements.channelSettingsId;
+    if (idRow) {
+        idRow.addEventListener('click', async () => {
+            const code = ui.elements.channelSettingsId;
+            const value = code?.dataset.copy || ui.getActiveChannel()?.streamId;
+            if (!value) return;
+            try {
+                await navigator.clipboard.writeText(value);
+                ui.showNotification(`${code?.dataset.copyLabel || 'Channel ID'} copied!`, 'success');
+            } catch {
+                ui.showNotification('Failed to copy', 'error');
             }
         });
     }
