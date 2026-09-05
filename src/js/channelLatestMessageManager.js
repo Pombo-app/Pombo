@@ -110,6 +110,11 @@ class ChannelLatestMessageManager {
             let merged = 0;
             for (const row of entries) {
                 if (!row?.messageStreamId || !row?.entry) continue;
+                // Reactions stopped being a preview line outside DMs, and a
+                // channel with no new message would never replace the row it
+                // was stored with.
+                if (row.entry.type === 'reaction'
+                    && !row.messageStreamId.endsWith(`/${CONFIG.dm.streamPrefix}-1`)) continue;
                 const prev = this.cache.get(row.messageStreamId);
                 if (prev) {
                     // Stale guard — never let an IDB row clobber a

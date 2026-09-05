@@ -213,4 +213,26 @@ describe('channelLatestMessageManager', () => {
         await channelLatestMessageManager.init();
         expect(channelLatestMessageManager.getCached(sid)).toMatchObject({ id: 'm1', text: 'persisted' });
     });
+
+    /**
+     * Rows written while reactions still made a preview line outlive the rule
+     * that ended it: a channel with no new message never replaces its row.
+     * A DM keeps its own, which is the one surface where the line is right.
+     */
+    it('hydrate drops a stored reaction preview, except on a DM inbox', async () => {
+        const dmId = '0xpeer/Pombo-DM-1';
+        await channelLatestMessageManager.init();
+        await channelLatestMessageManager._persistToIDB(sid,
+            { id: 'r1', ts: 50, type: 'reaction', emoji: '👍', sender: '0xa' });
+        await channelLatestMessageManager._persistToIDB(dmId,
+            { id: 'r2', ts: 60, type: 'reaction', emoji: '🔥', sender: '0xb' });
+
+        channelLatestMessageManager.cache.clear();
+        channelLatestMessageManager.db = null;
+        channelLatestMessageManager._initPromise = null;
+
+        await channelLatestMessageManager.init();
+        expect(channelLatestMessageManager.getCached(sid)).toBeNull();
+        expect(channelLatestMessageManager.getCached(dmId)).toMatchObject({ type: 'reaction', emoji: '🔥' });
+    });
 });
