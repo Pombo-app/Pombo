@@ -225,3 +225,40 @@ describe('_reportStorageResult()', () => {
         expect(notify).toHaveBeenCalledWith(expect.stringContaining('Failed to add'), 'error');
     });
 });
+
+describe('mobile notification chip', () => {
+    const chipHtml = `
+        <button id="mobile-notif-chip" class="hidden items-center border">
+            <svg class="w-4 h-4"></svg>
+            <span id="mobile-notif-chip-label">Notifications Off</span>
+        </button>`;
+
+    const render = (subscribed, pushEnabled = true) => {
+        document.body.innerHTML = chipHtml;
+        const chip = document.getElementById('mobile-notif-chip');
+        const label = document.getElementById('mobile-notif-chip-label');
+        channelSettingsUI.updateNotifChipState(chip, label, subscribed, pushEnabled);
+        return { chip, label, bell: chip.querySelector('svg') };
+    };
+
+    it('subscribed: white label, accent bell', () => {
+        const { chip, label, bell } = render(true);
+        expect(chip.className).toContain('text-white');
+        expect(chip.className).not.toContain('text-[#F6851B] ');
+        // An SVG's className is not a string; the attribute is.
+        expect(bell.getAttribute('class')).toContain('text-[#F6851B]');
+        expect(label.textContent).toBe('Notifications On');
+    });
+
+    it('unsubscribed: the muted chip keeps a muted bell', () => {
+        const { chip, label, bell } = render(false);
+        expect(chip.className).toContain('text-white/40');
+        expect(bell.getAttribute('class')).not.toContain('text-[#F6851B]');
+        expect(label.textContent).toBe('Notifications Off');
+    });
+
+    it('dims the chip while push is off', () => {
+        const { chip } = render(true, false);
+        expect(chip.className).toContain('opacity-50');
+    });
+});

@@ -851,11 +851,14 @@ class ChannelSettingsUI {
      */
     updateNotifChipState(chip, label, isSubscribed, pushEnabled) {
         if (!chip) return;
+        const bell = chip.querySelector('svg');
         if (isSubscribed) {
-            chip.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition border border-[#F6851B]/30 bg-[#F6851B]/10 text-[#F6851B]';
+            chip.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition border border-[#F6851B]/30 bg-[#F6851B]/10 text-white';
+            if (bell) bell.classList.add('text-[#F6851B]');
             if (label) label.textContent = 'Notifications On';
         } else {
             chip.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition border border-white/10 bg-white/5 text-white/40';
+            if (bell) bell.classList.remove('text-[#F6851B]');
             if (label) label.textContent = 'Notifications Off';
         }
         if (!pushEnabled) {
