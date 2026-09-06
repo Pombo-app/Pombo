@@ -1,7 +1,4 @@
 {
-  "generator": "Pombo Web tests/vectors/gen_authorship_vectors.mjs",
-  "generatedAt": "2026-08-26",
-  "scheme": "Members-only authorship wrapper {v:1, p, pk, sig, bp}: sig = secp256k1 raw-digest signature by the pseudonym key over keccak256(utf8('POMBO_MSG_V1|' + streamId + '|' + p)); bp = account signature over keccak256(utf8('POMBO_BIND_V1|' + streamId + '|' + pk)); verification recovers sig -> address(pk) and bp -> author",
   "accountPriv": "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
   "author": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
   "pseudonymPriv": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e01",
