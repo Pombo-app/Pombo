@@ -182,7 +182,7 @@ export const INTERACTIONS_STREAM = Object.freeze({
  *                 { account, spk, ts } — published on first adoption of each
  *                 CURRENT epoch's key; readers require the envelope signer to
  *                 equal `account` (no planting hellos for someone else)
- *   PUB_ANNOUNCE  admin only (Members-only channels): the SHARED publish key
+ *   PUB_ANNOUNCE  admin only (Sealed channels): the SHARED publish key
  *                 anchor { keyId, keyHash, addr, rev }. Static — never
  *                 rotates by routine; a re-key (admin escape valve against
  *                 ex-key-holder abuse) bumps `rev`. Conflict rule: higher

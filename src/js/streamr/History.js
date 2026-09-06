@@ -282,7 +282,7 @@ export class History {
                         }
                         content = opened;
 
-                        // Members-only: the author comes from the wrapper
+                        // Sealed: the author comes from the wrapper
                         // inside the seal, never from the transport. History
                         // is exempt from the access cut (retention is the
                         // proof of past membership), but never from
@@ -676,7 +676,7 @@ export class History {
                         }
                         content = opened;
 
-                        // Members-only: the author comes from the wrapper
+                        // Sealed: the author comes from the wrapper
                         // inside the seal, never from the transport.
                         const modeChannel = await this.controller._gatedChannelFor(streamId);
                         if (modeChannel?.wireIdentity === 'sealed') {

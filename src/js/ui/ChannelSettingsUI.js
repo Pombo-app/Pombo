@@ -1197,7 +1197,7 @@ class ChannelSettingsUI {
     }
 
     /**
-     * Members-only channels, channel admin only: the escape valve that
+     * Sealed channels, channel admin only: the escape valve that
      * replaces the shared publish key when ex-key-holders abuse it.
      */
     initRekeyPublishSection(streamId) {

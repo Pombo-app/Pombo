@@ -95,9 +95,9 @@ class ChannelModalsUI {
         this.paidTokenPreset = 'usdc';
         this.switchGateAssetTab('token');   // reapplies the gate token preset
         this.switchTokenPresetTab('paid', 'usdc');
-        // Reset author visibility to the Members only default
-        const authorMembers = document.getElementById('gate-wire-identity-sealed');
-        if (authorMembers) authorMembers.checked = true;
+        // Reset author visibility to the Sealed default
+        const sealedRadio = document.getElementById('gate-wire-identity-sealed');
+        if (sealedRadio) sealedRadio.checked = true;
         this._wireAuthorVisibilityCaption();
         this._updateAuthorVisibilityCaption();
         // Reset read-only toggle

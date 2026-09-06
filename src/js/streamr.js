@@ -417,9 +417,9 @@ class StreamrController {
             // The Graph read the gate from here; everything else about the
             // gate (mode, token, price) is read from the chain.
             g: type === 'gated' ? options.gateAddress : undefined,
-            // Author visibility: 1 = Members only (messages publish under the
+            // Author visibility: 1 = Sealed (messages publish under the
             // channel's shared key; authorship sealed inside the epoch
-            // envelope). Absent = Everyone — which is what every channel
+            // envelope). absent = Visible — which is what every channel
             // created before the flag existed is. IMMUTABLE post-creation:
             // flipping it would break validation of the mixed history.
             m: type === 'gated' && options.wireIdentity === 'sealed' ? 1 : undefined,
@@ -619,7 +619,7 @@ class StreamrController {
                 // writes. The owner publishes -3 as the ACCOUNT; their address
                 // is the streamId prefix, so this leaks nothing new.
                 const gateMembers = [options.gateAddress];
-                // Members-only author visibility: -1/-2 additionally grant
+                // Sealed: -1/-2 additionally grant
                 // the SHARED publish key's address — every member publishes
                 // under it, so the transport carries no authorship. -4 keeps
                 // clone-only (KEY_REQUESTs must name the requester so the
@@ -2086,7 +2086,7 @@ class StreamrController {
         const channel = await this._gatedChannelFor(streamId);
         if (!channel) return publisherId ?? null;
 
-        // Members-only author visibility (-1/-2 only; -3 stays the owner's
+        // Sealed (-1/-2 only; -3 stays the owner's
         // account and -4 must name the requester): the transport asserts
         // NOTHING about authorship — it is the shared publish key for
         // everyone. The author comes from the wrapper inside the epoch seal
@@ -2152,19 +2152,19 @@ class StreamrController {
     }
 
     /**
-     * Members-only ingest, the half that runs AFTER the epoch seal opens:
+     * Sealed ingest, the half that runs AFTER the epoch seal opens:
      * verify the authorship wrapper (pseudonym signature per message + bind
      * proof to the account) and hand back the payload with its author. Null
      * means drop — a sealed message without a valid wrapper has no author.
      *
      * `live: true` additionally drops authors whose CURRENT gate access has
      * lapsed — the shared key accepts an expired member's publishes until a
-     * re-key, so honest clients cut them here, exactly like the Everyone
+     * re-key, so honest clients cut them here, exactly like the Visible
      * mode cuts them in resolveAuthor. Fail-OPEN on an unreachable chain,
      * same stance. History is exempt — retention is the proof (G6 applies to
      * both modes).
      *
-     * @param {Object} channel - The gated Members-only channel
+     * @param {Object} channel - The gated Sealed channel
      * @param {Object} epochWrapper - The decrypted epoch plaintext (the wrapper)
      * @param {Object} [options]
      * @param {boolean} [options.live=false]
@@ -2473,7 +2473,7 @@ class StreamrController {
 
         const payload = stripLocalFields(data);
 
-        // Members-only author visibility: the plaintext becomes an authorship
+        // Sealed: the plaintext becomes an authorship
         // wrapper (pseudonym signature per message + account bind proof) and
         // the transport publisher becomes the channel's SHARED key — the wire
         // says nothing about who wrote this. Fail-closed on both halves: no
@@ -2482,7 +2482,7 @@ class StreamrController {
         const { usesSharedPublish } = await import('./epochKeyManager.js');
         // The -3 is the owner's alone: they publish it as the ACCOUNT, which
         // is what the stream's on-chain permission enforces. A shared key
-        // holds nothing there, so routing it through the Members-only path
+        // holds nothing there, so routing it through the Sealed path
         // below would hand the network a publisher it rejects — silently.
         if (usesSharedPublish(channel) && !isAdminStream(streamId)) {
             // Which shared key carries this depends on the stream, not on the
@@ -2504,7 +2504,7 @@ class StreamrController {
                 : await epochKeyManager.ensurePublishKey(channel);
             if (!pubKey) {
                 throw new Error(
-                    `No ${participates ? 'interactions' : 'publish'} key for ${channel.messageStreamId} — cannot publish on a Members-only channel without one (waiting for the wrap)`);
+                    `No ${participates ? 'interactions' : 'publish'} key for ${channel.messageStreamId} — cannot publish on a Sealed channel without one (waiting for the wrap)`);
             }
             const auth = epochKeyManager.getAuthorship(channel);
             if (!auth) {
@@ -2531,7 +2531,7 @@ class StreamrController {
     }
 
     /**
-     * Re-key a Members-only channel's shared publish grants: the new key's
+     * Re-key a Sealed channel's shared publish grants: the new key's
      * address gains publish+subscribe on -1/-2 and the old one loses
      * everything — one setPermissions tx per stream (an assignment with an
      * empty permission list clears that user). The admin escape valve
@@ -2601,7 +2601,7 @@ class StreamrController {
 
         const sealed = await epochKeyCrypto.sealBinaryWithEpochKey(data, key.cryptoKey, key.kid);
 
-        // Members-only: binary frames carry no authorship wrapper (their
+        // Sealed: binary frames carry no authorship wrapper (their
         // trust anchor is the content hash from an AUTHORED announce), but
         // the transport must still be the shared key — the clone path would
         // stamp the sender's account onto every piece.
@@ -2613,7 +2613,7 @@ class StreamrController {
                 || await epochKeyManager.ensurePublishKey(channel);
             if (!pubKey) {
                 throw new Error(
-                    `No interactions key for ${channel.messageStreamId} — cannot send media on a Members-only channel without one`);
+                    `No interactions key for ${channel.messageStreamId} — cannot send media on a Sealed channel without one`);
             }
             return this.publishAs(
                 this._sharedPublishIdentity(pubKey), ephemeralStreamId,
@@ -3010,14 +3010,14 @@ class StreamrController {
             const base = String(messageStreamId).replace(/-[12345]$/, '');
             const channel = channelManager.channels?.get(base + '-1');
             if (channel?.type === 'gated' || channel?.gate?.address) {
-                // Members-only: chunks travel under the shared key too — the
+                // Sealed: chunks travel under the shared key too — the
                 // clone path would stamp the uploader's account onto them.
                 const { epochKeyManager, usesSharedPublish } = await import('./epochKeyManager.js');
                 if (usesSharedPublish(channel)) {
                     const pubKey = await epochKeyManager.ensurePublishKey(channel);
                     if (!pubKey) {
                         throw new Error(
-                            `No publish key for ${channel.messageStreamId} — cannot upload on a Members-only channel without one`);
+                            `No publish key for ${channel.messageStreamId} — cannot upload on a Sealed channel without one`);
                     }
                     const msg = await this.publishAs(
                         this._sharedPublishIdentity(pubKey), messageStreamId, partition, data);

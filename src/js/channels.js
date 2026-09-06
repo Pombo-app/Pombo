@@ -379,7 +379,7 @@ class ChannelManager {
                 // silently degrades after a reload — the publish falls back to
                 // an ephemeral key the network rejects (MISSING_PERMISSION).
                 gate: ch.gate || null,
-                // Author visibility — losing it would flip a Members-only
+                // Author visibility — losing it would flip a Sealed
                 // channel back to clone publishes (account on the wire).
                 wireIdentity: ch.wireIdentity || null,
                 createdAt: ch.createdAt,
@@ -578,8 +578,8 @@ class ChannelManager {
                 try { onProgress?.(); } catch (_) { /* ignore */ }
             }
 
-            // Members-only author visibility (Sealed, the default for new
-            // gated channels): mint the SHARED publish key now so its address
+            // Sealed, the default for new gated channels: mint the SHARED
+            // publish key now so its address
             // rides the creation permission batch. The private half is
             // adopted below and distributed to members via -4 wraps.
             let publishKey = null;
@@ -1029,8 +1029,8 @@ class ChannelManager {
             const classification = options.classification || null;
 
             // Author visibility from the -1 metadata (`m`, immutable). It has
-            // to be right BEFORE the first publish — a Members-only channel
-            // joined as Everyone would put the account on the wire.
+            // to be right BEFORE the first publish — a Sealed channel
+            // joined as Visible would put the account on the wire.
             let wireIdentity = null;
             if (channelType === 'gated') {
                 wireIdentity = options.wireIdentity || null;

@@ -62,9 +62,9 @@ export const usesEpochKeys = (channel) =>
     !!channel?.gate?.address && !!channel?.keysStreamId;
 
 /**
- * Members-only author visibility: -1/-2 publish under the channel's SHARED
+ * Sealed: -1/-2 publish under the channel's SHARED
  * publish key (the transport says nothing about authorship; identity lives
- * inside the epoch seal). Everyone-mode channels — and every channel created
+ * inside the epoch seal). Visible channels — and every channel created
  * before the mode existed — publish via the gate clone as always.
  */
 export const usesSharedPublish = (channel) =>
@@ -167,7 +167,7 @@ class EpochKeyManager {
                 rosterPartition: null,
                 // { at, members } — getRosterMembers result cache
                 rosterCache: null,
-                // Members-only mode: the channel's SHARED publish key.
+                // Sealed: the channel's SHARED publish key.
                 // { keyId, keyHex, address, rev } — persisted + synced (it is
                 // channel key material, like the epoch keys). Never rotates
                 // by routine; a re-key bumps rev.
@@ -338,10 +338,10 @@ class EpochKeyManager {
         return !!(announce && s.epochs.has(announce.keyId));
     }
 
-    // ==================== SHARED PUBLISH KEY (Members-only) ====================
+    // ==================== SHARED PUBLISH KEY (Sealed) ====================
 
     /**
-     * Fresh publish keypair for a new Members-only channel. Its ADDRESS gets
+     * Fresh publish keypair for a new Sealed channel. Its ADDRESS gets
      * the PUBLISH grants in the creation batch; the private half is
      * distributed to members via PUB_WRAPs on -4.
      */
@@ -414,7 +414,7 @@ class EpochKeyManager {
     }
 
     /**
-     * The admin escape valve (Members-only): replace the shared publish key
+     * The admin escape valve (Sealed): replace the shared publish key
      * when ex-key-holders abuse it. Exceptional, never routine — rotation
      * stays zero-tx. The new key announces at rev+1, which supersedes
      * everywhere (state, persistence, sync); the old address loses its
@@ -424,7 +424,7 @@ class EpochKeyManager {
      */
     async rekeyPublishKey(channel) {
         if (!usesSharedPublish(channel)) {
-            throw new Error('rekeyPublishKey: not a Members-only channel');
+            throw new Error('rekeyPublishKey: not a Sealed channel');
         }
         if (!this.isOwnAdmin(channel)) {
             throw new Error('rekeyPublishKey: only the channel admin can re-key');
@@ -462,7 +462,7 @@ class EpochKeyManager {
     }
 
     /**
-     * Session authorship material for our own publishes in a Members-only
+     * Session authorship material for our own publishes in a Sealed
      * channel: pseudonym keypair + account bind proof, minted lazily once
      * per session per channel. Memory only — members resolve the ACCOUNT
      * from the bind proof, so pseudonym churn across sessions is invisible.
@@ -672,7 +672,7 @@ class EpochKeyManager {
         }
     }
 
-    /** A Members-only channel is not writable until the announced publish
+    /** A Sealed channel is not writable until the announced publish
      *  key (at its announced rev) is held. In a read-only channel a plain
      *  member never qualifies for that key, so once the role is known
      *  (channels.js reconciles it from the gate) they stop asking for a
@@ -996,7 +996,7 @@ class EpochKeyManager {
     }
 
     /**
-     * Validate and apply a publish-key announce (Members-only channels).
+     * Validate and apply a publish-key announce (Sealed channels).
      * Higher rev wins — a re-key is the admin's escape valve against
      * ex-key-holder abuse and must supersede everywhere; within the same rev
      * the epoch-announce conflict rule applies.
@@ -1348,7 +1348,7 @@ class EpochKeyManager {
             }
         }
 
-        // Members-only: the shared publish key rides along with the epochs —
+        // Sealed: the shared publish key rides along with the epochs —
         // a joiner needs both before the channel is writable for them. In a
         // read-only channel that key IS the write capability, so it only goes
         // to the owner and the moderators; everyone else reads with the epoch
