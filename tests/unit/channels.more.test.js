@@ -131,6 +131,15 @@ vi.mock('../../src/js/graph.js', () => ({
     }
 }));
 
+vi.mock('../../src/js/gate.js', () => ({
+    gateManager: {
+        checkAccess: vi.fn().mockResolvedValue(true),
+        getGateInfo: vi.fn().mockResolvedValue({ readOnly: false, wireIdentityName: 'visible' }),
+        canModerate: vi.fn().mockResolvedValue(false)
+    },
+    GATE_MODE: { NONE: 0, TOKEN: 1, NFT: 2, PAID: 3 }
+}));
+
 vi.mock('../../src/js/relayManager.js', () => ({
     relayManager: {
         sendPushNotification: vi.fn(),
@@ -267,6 +276,46 @@ describe('ChannelManager - Additional Coverage', () => {
             await channelManager.joinChannel(streamId);
 
             expect(secureStorage.addToChannelOrder).toHaveBeenCalledWith(streamId);
+        });
+
+        it('reads readOnly off the stream when the caller does not know it', async () => {
+            streamrController.checkPermissions.mockResolvedValue({
+                canSubscribe: true, canPublish: false, isOwner: false
+            });
+            graphAPI.detectStreamType.mockResolvedValue('public');
+            vi.spyOn(channelManager, 'saveChannels').mockResolvedValue(undefined);
+            vi.spyOn(channelManager, 'subscribeToChannel').mockResolvedValue(undefined);
+
+            const channel = await channelManager.joinChannel(streamId);
+
+            expect(channel.readOnly).toBe(true);
+        });
+
+        it('keeps readOnly false for a writable channel', async () => {
+            streamrController.checkPermissions.mockResolvedValue({
+                canSubscribe: true, canPublish: true, isOwner: false
+            });
+            graphAPI.detectStreamType.mockResolvedValue('public');
+            vi.spyOn(channelManager, 'saveChannels').mockResolvedValue(undefined);
+            vi.spyOn(channelManager, 'subscribeToChannel').mockResolvedValue(undefined);
+
+            const channel = await channelManager.joinChannel(streamId);
+
+            expect(channel.readOnly).toBe(false);
+        });
+
+        it('does not mark a gated channel read-only: the grants belong to the clone', async () => {
+            streamrController.checkPermissions.mockResolvedValue({
+                canSubscribe: false, canPublish: false, isOwner: false
+            });
+            vi.spyOn(channelManager, 'saveChannels').mockResolvedValue(undefined);
+            vi.spyOn(channelManager, 'subscribeToChannel').mockResolvedValue(undefined);
+
+            const channel = await channelManager.joinChannel(streamId, null, {
+                type: 'gated', gateAddress: '0xGATE'
+            });
+
+            expect(channel.readOnly).toBe(false);
         });
 
         it('rejects when Graph fails and no password identifies the type', async () => {

@@ -436,6 +436,7 @@ class PreviewModeUI {
             if (!canPublish) {
                 const messageInput = elements.messageInput;
                 const sendBtn = document.querySelector('#send-btn');
+                elements.messageInputContainer?.classList.add('hidden');
                 if (messageInput) {
                     messageInput.disabled = true;
                     messageInput.placeholder = 'This channel is read-only';

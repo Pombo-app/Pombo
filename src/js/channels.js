@@ -1072,7 +1072,13 @@ class ChannelManager {
                 adminRev: 0,
                 adminLoaded: false,
                 classification: classification,
-                readOnly: options.readOnly || false,
+                // Callers that know the flag pass it; the rest (a pasted stream
+                // id, a gate retry) would store `false` on an announcements
+                // channel and offer a composer the network refuses. Gated
+                // channels are excluded: their grants belong to the clone, so
+                // every member reads as unable to publish.
+                readOnly: options.readOnly
+                    || (channelType !== 'gated' && !permissions.canPublish && permissions.canSubscribe),
                 writeOnly: permissions.canPublish && !permissions.canSubscribe,
                 // Lazy loading state (not persisted)
                 historyLoaded: false,

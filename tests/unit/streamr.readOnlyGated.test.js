@@ -1,10 +1,10 @@
 /**
- * Read-only gated channels, Everyone mode.
+ * Read-only gated channels, Visible identity.
  *
  * The gate hands the same publish grant to every member — its contract sees a
  * hash, never a stream, so readOnly cannot be enforced there and is a
  * declaration. "Members do not post" therefore holds only if readers cut it,
- * which is what resolveAuthor does here. Members-only mode needs no cut: the
+ * which is what resolveAuthor does here. Sealed identity needs no cut: the
  * publish key never reaches a plain member.
  */
 
