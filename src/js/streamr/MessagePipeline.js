@@ -69,7 +69,7 @@ export class MessagePipeline {
                     if (opened === null) return;
                     data = opened;
 
-                    // Members-only: the seal held an authorship wrapper —
+                    // Sealed: the seal held an authorship wrapper —
                     // verify it, swap the author in, and cut lapsed members.
                     const gatedChannel = await this.controller._gatedChannelFor(streamId);
                     if (gatedChannel?.wireIdentity === 'sealed') {

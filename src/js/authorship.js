@@ -1,8 +1,8 @@
 /**
- * Members-only authorship — per-message identity that never touches the
+ * Sealed authorship — per-message identity that never touches the
  * transport.
  *
- * In a Members-only channel every message is published under the channel's
+ * In a Sealed channel every message is published under the channel's
  * SHARED publish key, so the network learns nothing about who wrote what.
  * Authorship lives INSIDE the epoch-sealed plaintext instead, as a wrapper:
  *

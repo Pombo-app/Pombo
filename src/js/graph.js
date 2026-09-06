@@ -415,7 +415,7 @@ class GraphAPI {
                     // Gated (N-D): the PomboGate clone — routes the Explore tap
                     gateAddress: /^0x[0-9a-f]{40}$/.test(String(pomboMetadata.g || '').toLowerCase())
                         ? String(pomboMetadata.g).toLowerCase() : null,
-                    // Author visibility (`m: 1` = Members only; absent = Everyone)
+                    // Author visibility (`m: 1` = Sealed; absent = Visible)
                     wireIdentity: pomboMetadata.m === 1 ? 'sealed' : 'visible'
                 };
             } catch (error) {
@@ -505,7 +505,7 @@ class GraphAPI {
                                 // Gated (N-D): routes the Explore tap by mode
                                 gateAddress: /^0x[0-9a-f]{40}$/.test(String(pomboMetadata.g || '').toLowerCase())
                                     ? String(pomboMetadata.g).toLowerCase() : null,
-                                // Author visibility (`m: 1` = Members only)
+                                // Author visibility (`m: 1` = Sealed)
                                 wireIdentity: pomboMetadata.m === 1 ? 'sealed' : 'visible'
                             });
                         }

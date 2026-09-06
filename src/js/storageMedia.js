@@ -1616,13 +1616,13 @@ class StorageMediaController {
                     dmCrypto.generateEphemeralPrivateKey());
                 chunkPublisher = await chunkIdentity.getUserId();
             } else if (channel?.wireIdentity === 'sealed') {
-                // Members-only: chunks travel under the SHARED publish key —
+                // Sealed: chunks travel under the SHARED publish key —
                 // that address is what the verify reads must match.
                 const { epochKeyManager } = await import('./epochKeyManager.js');
                 const pubKey = await epochKeyManager.ensurePublishKey(channel);
                 if (!pubKey) {
                     throw new Error(
-                        `No publish key for ${channel.messageStreamId} — cannot store media on a Members-only channel`);
+                        `No publish key for ${channel.messageStreamId} — cannot store media on a Sealed channel`);
                 }
                 chunkPublisher = pubKey.address;
             } else if (channel?.gate?.address) {
