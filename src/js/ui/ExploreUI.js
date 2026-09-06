@@ -682,9 +682,6 @@ class ExploreUI {
                         </div>
                     </div>
                     ${accessDesktop}
-                    <svg class="w-4 h-4 text-white/15 group-hover:text-white/30 flex-shrink-0 mt-0.5 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                    </svg>
                 </div>
                 <div class="relative">
                     ${accessMobile}
