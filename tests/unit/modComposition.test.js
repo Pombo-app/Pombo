@@ -8,7 +8,7 @@ import { dirname, join } from 'path';
 import { composeModeration, banHidesMessage } from '../../src/js/channels/modComposition.js';
 
 const vectors = JSON.parse(readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..',
+    join(dirname(fileURLToPath(import.meta.url)), '..', '..',
         'docs', 'GATED-CHANNELS-mod-composition-vectors.json'), 'utf8'));
 
 describe('moderation composition (parity vectors)', () => {

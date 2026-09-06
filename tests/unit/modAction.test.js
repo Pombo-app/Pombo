@@ -10,7 +10,7 @@ import { ethers } from 'ethers';
 globalThis.ethers = ethers;
 
 const vectors = JSON.parse(readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..',
+    join(dirname(fileURLToPath(import.meta.url)), '..', '..',
         'docs', 'GATED-CHANNELS-mod-action-vectors.json'), 'utf8'));
 
 let modActionDigest, buildModAction, verifyModAction;
