@@ -5,9 +5,11 @@ vi.mock('../../src/js/logger.js', () => ({
 }));
 
 const resendMock = vi.fn();
+const mayPublishAsMock = vi.fn();
 vi.mock('../../src/js/streamr.js', () => ({
     streamrController: {
-        resendLatestContentMessages: (...args) => resendMock(...args)
+        resendLatestContentMessages: (...args) => resendMock(...args),
+        mayPublishAs: (...args) => mayPublishAsMock(...args)
     }
 }));
 
@@ -24,6 +26,7 @@ describe('channelLatestMessageManager', () => {
         channelLatestMessageManager.db = null;
         channelLatestMessageManager._initPromise = null;
         resendMock.mockReset();
+        mayPublishAsMock.mockReset().mockResolvedValue(true);
     });
 
     it('setFromLocal preserves sender casing for display fallbacks', () => {
@@ -234,5 +237,49 @@ describe('channelLatestMessageManager', () => {
         await channelLatestMessageManager.init();
         expect(channelLatestMessageManager.getCached(sid)).toBeNull();
         expect(channelLatestMessageManager.getCached(dmId)).toMatchObject({ type: 'reaction', emoji: '🔥' });
+    });
+
+    /**
+     * A message the readers refuse — a stranger's post on a read-only channel
+     * — is newer than every legitimate one, so the freshness guard kept
+     * choosing it and the card kept showing what the channel itself no longer
+     * does. Only a local echo may legitimately outlive storage.
+     */
+    it('replaces a stale preview that the stream no longer serves', async () => {
+        channelLatestMessageManager.cache.set(sid, {
+            type: 'text', id: 'junk', text: 'Jb', sender: null, ts: Date.now() - 24 * 3600 * 1000
+        });
+        resendMock.mockResolvedValue([
+            { type: 'text', id: 'real', text: 'Update', sender: '0xowner', timestamp: 1000 }
+        ]);
+
+        const entry = await channelLatestMessageManager._fetch(sid, null, 10);
+
+        expect(entry.text).toBe('Update');
+        expect(channelLatestMessageManager.getCached(sid).text).toBe('Update');
+    });
+
+    it('keeps a just-sent message storage has not served yet', async () => {
+        channelLatestMessageManager.cache.set(sid, {
+            type: 'text', id: 'mine', text: 'just sent', sender: '0xme', ts: Date.now() - 3000
+        });
+        resendMock.mockResolvedValue([
+            { type: 'text', id: 'older', text: 'older', sender: '0xowner', timestamp: 1000 }
+        ]);
+
+        expect((await channelLatestMessageManager._fetch(sid, null, 10)).text).toBe('just sent');
+    });
+
+    it('keeps an older preview that the window still serves', async () => {
+        const old = Date.now() - 24 * 3600 * 1000;
+        channelLatestMessageManager.cache.set(sid, {
+            type: 'text', id: 'same', text: 'newest', sender: '0xowner', ts: old + 5000
+        });
+        resendMock.mockResolvedValue([
+            { type: 'text', id: 'same', text: 'newest', sender: '0xowner', timestamp: old + 5000 },
+            { type: 'text', id: 'older', text: 'older', sender: '0xowner', timestamp: old }
+        ]);
+
+        expect((await channelLatestMessageManager._fetch(sid, null, 10)).text).toBe('newest');
     });
 });

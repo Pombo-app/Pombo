@@ -668,7 +668,7 @@ class ExploreUI {
             }
 
             return `
-            <div class="relative p-3.5 md:w-[70%] md:mx-auto bg-white/[0.03] border border-white/[0.05] rounded-2xl hover:bg-white/[0.06] hover:border-white/[0.1] transition-all duration-200 cursor-pointer explore-channel-item group" data-stream-id="${escapeAttr(ch.streamId)}" data-type="${escapeAttr(ch.type || 'public')}">
+            <div class="relative p-4 md:w-[70%] md:mx-auto bg-white/[0.03] border border-white/[0.05] rounded-2xl hover:bg-white/[0.06] hover:border-white/[0.1] transition-all duration-200 cursor-pointer explore-channel-item group" data-stream-id="${escapeAttr(ch.streamId)}" data-type="${escapeAttr(ch.type || 'public')}">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex items-start gap-3 flex-1 min-w-0">
                         ${thumb}
@@ -688,7 +688,7 @@ class ExploreUI {
                 </div>
                 <div class="relative">
                     ${accessMobile}
-                    <div class="flex items-end justify-end gap-1.5 mt-2.5${accessAttr ? ' absolute bottom-0 right-0 md:static' : ''}">
+                    <div class="flex items-end justify-end gap-1.5 mt-3${accessAttr ? ' absolute bottom-0 right-0 md:static' : ''}">
                         ${(() => {
                             // The audience icon centers over the LAST tag
                             // (language when present), not over the group.

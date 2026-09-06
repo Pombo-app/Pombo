@@ -45,6 +45,9 @@ import { streamrController } from './streamr.js';
 import { isMessageStream } from './streamConstants.js';
 import { CONFIG } from './config.js';
 
+/** How long a preview may be newer than storage before it stops being an echo. */
+const PREVIEW_ECHO_GRACE_MS = 5 * 60 * 1000;
+
 const DB_NAME = 'PomboChannelLastMessages';
 const STORE_NAME = 'messages';
 const DB_VERSION = 1;
@@ -229,9 +232,18 @@ class ChannelLatestMessageManager {
             }
 
             const prev = this.cache.get(messageStreamId);
-            // Stale guard: never overwrite a fresher local entry
+            // Stale guard: never overwrite a fresher local entry. Being newer
+            // than everything the stream serves is only legitimate for a local
+            // echo storage has not caught up with — a message the readers
+            // refuse (a stranger's post on a read-only channel) is newer than
+            // every real one too, and that used to pin it here for good.
             if (prev && (prev.ts || 0) > (normalized.ts || 0)) {
-                return prev;
+                const inWindow = !!prev.id && entries.some((e) => e?.id === prev.id);
+                const couldBeLocalEcho = Date.now() - (prev.ts || 0) < PREVIEW_ECHO_GRACE_MS;
+                if (inWindow || couldBeLocalEcho) return prev;
+                Logger.info(
+                    'Preview outlived what the stream serves — replacing:',
+                    messageStreamId.slice(-20));
             }
             // Same id + same type → no-op, UNLESS the new fetch enriches
             // missing metadata (e.g. payloads from older sessions stored

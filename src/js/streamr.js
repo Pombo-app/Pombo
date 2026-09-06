@@ -2130,6 +2130,23 @@ class StreamrController {
                 return null;
             }
         }
+        // Read-only, Everyone mode: the gate hands the same publish grant to
+        // every member (readOnly is a declaration the contract cannot enforce
+        // on a hash), so "members do not post" only holds if readers cut here.
+        // Members-only mode needs nothing: there the publish key never reaches
+        // a plain member.
+        //
+        // Applied to history too, unlike the access check below: a channel
+        // where only the owner speaks has no legitimate member messages to
+        // preserve, and the cost — a demoted moderator's past posts going with
+        // them — is narrower than serving what the network already refuses.
+        if (channel.readOnly && !isAdminStream(streamId) && !isKeysStream(streamId)) {
+            const { gateManager } = await import('./gate.js');
+            if (!await gateManager.canModerate(channel.gate.address, signer)) {
+                Logger.info(`resolveAuthor: ${signer} is not a writer on read-only ${streamId} — dropping`);
+                return null;
+            }
+        }
         if (live && !isAdminStream(streamId) && !isKeysStream(streamId)) {
             const { gateManager } = await import('./gate.js');
             const access = await gateManager.checkAccessOrNull(channel.gate.address, signer);
