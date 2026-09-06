@@ -1,7 +1,8 @@
 /**
- * Channel Details, "Identity on the wire": the line under Access that says
- * who can read authorship. It belongs to the gate, so it never shows on a
- * channel that has none, and it never guesses a mode it was not told.
+ * Channel Details, "Identity on the wire": the chip beside the access type
+ * that says who can read authorship. It belongs to the gate, so it never
+ * shows on a channel that has none, and it never guesses a mode it was not
+ * told.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -18,40 +19,51 @@ vi.mock('../../src/js/channelImageManager.js', () => ({ channelImageManager: {} 
 
 const { channelSettingsUI } = await import('../../src/js/ui/ChannelSettingsUI.js');
 
-describe('identity on the wire line', () => {
-    let section;
-    let value;
+describe('identity on the wire chip', () => {
+    let chips;
+
+    const wire = () => document.getElementById('channel-settings-wire');
 
     beforeEach(() => {
         document.body.innerHTML = `
-            <div id="channel-settings-wire-section" class="hidden">
-                <div id="channel-settings-wire"></div>
+            <div id="channel-settings-type">
+                <div class="flex flex-col gap-1.5"><span>Verified Membership</span></div>
             </div>
         `;
-        section = document.getElementById('channel-settings-wire-section');
-        value = document.getElementById('channel-settings-wire');
+        chips = document.getElementById('channel-settings-type');
+        channelSettingsUI.elements = { channelSettingsType: chips };
     });
 
     it('names the Sealed mode', () => {
         channelSettingsUI._applyWireIdentityLine({ type: 'gated', wireIdentity: 'sealed' });
-        expect(section.classList.contains('hidden')).toBe(false);
-        expect(value.textContent).toBe('Sealed');
+        expect(wire()?.textContent).toBe('Sealed');
     });
 
     it('names the Visible mode', () => {
         channelSettingsUI._applyWireIdentityLine({ type: 'gated', wireIdentity: 'visible' });
-        expect(section.classList.contains('hidden')).toBe(false);
-        expect(value.textContent).toBe('Visible');
+        expect(wire()?.textContent).toBe('Visible');
     });
 
-    it('stays hidden on a channel with no gate', () => {
+    it('adds no chip on a channel with no gate', () => {
         channelSettingsUI._applyWireIdentityLine({ type: 'public' });
-        expect(section.classList.contains('hidden')).toBe(true);
+        expect(wire()).toBeNull();
     });
 
-    it('stays hidden rather than guessing when the mode is unknown', () => {
+    it('adds no chip rather than guessing when the mode is unknown', () => {
         channelSettingsUI._applyWireIdentityLine({ type: 'gated' });
-        expect(section.classList.contains('hidden')).toBe(true);
-        expect(value.textContent).toBe('');
+        expect(wire()).toBeNull();
+    });
+
+    it('replaces the chip instead of stacking one per open', () => {
+        channelSettingsUI._applyWireIdentityLine({ type: 'gated', wireIdentity: 'sealed' });
+        channelSettingsUI._applyWireIdentityLine({ type: 'gated', wireIdentity: 'visible' });
+        expect(chips.querySelectorAll('#channel-settings-wire').length).toBe(1);
+        expect(wire()?.textContent).toBe('Visible');
+    });
+
+    it('leaves no stale chip when the next channel has no gate', () => {
+        channelSettingsUI._applyWireIdentityLine({ type: 'gated', wireIdentity: 'sealed' });
+        channelSettingsUI._applyWireIdentityLine({ type: 'public' });
+        expect(wire()).toBeNull();
     });
 });

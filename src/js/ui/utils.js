@@ -41,6 +41,19 @@ export function formatAddress(address) {
 }
 
 /**
+ * Stream id with the owner address abbreviated — the path is what identifies
+ * a channel, the address only says whose it is.
+ * @param {string} streamId
+ * @returns {string} - e.g. "0xae34...7667/9862eb7bd898f338-1"
+ */
+export function formatStreamId(streamId) {
+    if (!streamId) return '';
+    const slash = streamId.indexOf('/');
+    if (slash < 12) return streamId;
+    return formatAddress(streamId.slice(0, slash)) + streamId.slice(slash);
+}
+
+/**
  * Validate URL for safe use in src/href attributes
  * Prevents javascript: and other dangerous protocols
  * @param {string} url - URL to validate

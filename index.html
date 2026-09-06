@@ -1728,29 +1728,15 @@
                 <!-- Content Panels -->
                 <div class="flex-1 p-6 overflow-y-auto">
                     <!-- Info Panel -->
-                    <div id="channel-panel-info" class="channel-settings-panel hidden space-y-6">
-                        <div class="space-y-6">
+                    <div id="channel-panel-info" class="channel-settings-panel hidden space-y-5">
+                        <div class="space-y-5">
                             <!-- Channel Name + Image (image on the right, like Settings/Account) -->
                             <div id="channel-name-section" class="hidden">
-                                <!-- Gas fee warning (edit mode, non-DM only) -->
-                                <div id="channel-edit-gas-warning" class="hidden p-3 bg-amber-500/5 rounded-xl border border-amber-500/10 mb-3">
-                                    <p class="text-xs text-amber-400/80 flex items-center gap-2">
-                                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
-                                        <span>Changes require on-chain transactions and gas fees.</span>
-                                    </p>
-                                </div>
-                                <!-- Mobile notification bell chip (managed by JS) — sits above the row on mobile, left-aligned -->
-                                <div class="flex justify-start mb-3">
-                                    <button id="mobile-notif-chip" class="hidden items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition border" aria-label="Toggle notifications">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/></svg>
-                                        <span id="mobile-notif-chip-label">Notifications Off</span>
-                                    </button>
-                                </div>
                                 <div class="flex items-center gap-4">
                                     <!-- Channel Image (left of the name — proximity principle) -->
                                     <div id="channel-image-section" class="hidden flex-shrink-0 flex flex-col items-center">
-                                        <div class="relative w-20 h-20">
-                                            <div id="channel-image-preview" class="w-20 h-20 rounded-full overflow-hidden border border-white/[0.08] bg-white/[0.04] flex items-center justify-center"></div>
+                                        <div class="relative w-[88px] h-[88px]">
+                                            <div id="channel-image-preview" class="w-[88px] h-[88px] rounded-full overflow-hidden border border-white/[0.08] bg-white/[0.04] flex items-center justify-center"></div>
                                             <div id="channel-image-controls" class="hidden absolute bottom-0 right-0">
                                                 <input type="file" id="channel-image-input" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden" />
                                                 <button id="channel-image-upload-btn" type="button" class="w-7 h-7 rounded-full bg-[#16161b] border border-white/20 shadow-lg flex items-center justify-center text-white/60 hover:text-white hover:border-white/40 transition" title="Upload image" aria-label="Upload image">
@@ -1771,17 +1757,25 @@
                                         <div id="channel-name-edit-container" class="hidden mt-2">
                                             <input type="text" id="channel-settings-name-input" class="w-full bg-white/5 border border-white/10 text-white px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-white/30 transition" placeholder="Enter name">
                                         </div>
+                                        <!-- What the channel is: access, announcements, identity on the wire -->
+                                        <div id="channel-settings-type" class="mt-2"></div>
                                     </div>
                                 </div>
                             </div>
                             <!-- Channel Description -->
                             <div id="channel-description-section" class="hidden">
-                                <label class="block text-xs font-medium text-white/80 uppercase tracking-wider mb-1.5">Description</label>
                                 <div id="channel-description-display" class="text-sm text-white/70 bg-white/5 px-3 py-2.5 rounded-lg leading-relaxed"></div>
                                 <textarea id="channel-settings-description-input" rows="3" class="hidden w-full bg-white/5 border border-white/10 text-white px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-white/30 transition resize-none" placeholder="Enter description"></textarea>
                             </div>
                             <!-- Edit actions (shown in edit mode, below the description field) -->
                             <div id="channel-edit-actions" class="hidden">
+                                <!-- Gas fee warning (edit mode, non-DM only) -->
+                                <div id="channel-edit-gas-warning" class="hidden p-3 bg-amber-500/5 rounded-xl border border-amber-500/10 mb-3">
+                                    <p class="text-xs text-amber-400/80 flex items-center gap-2">
+                                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                                        <span>Changes require on-chain transactions and gas fees.</span>
+                                    </p>
+                                </div>
                                 <div class="flex items-center justify-end gap-2">
                                     <button id="save-channel-name-btn" class="p-2 bg-[#F6851B] hover:bg-[#F6851B]/80 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed" title="Save">
                                         <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -1791,22 +1785,21 @@
                                     </button>
                                 </div>
                             </div>
-                            <div>
-                                <label class="block text-xs font-medium text-white/80 uppercase tracking-wider mb-1.5">ID</label>
-                                <code id="channel-settings-id" class="block text-sm font-mono text-white/60 bg-white/5 px-3 py-2 rounded-lg break-all cursor-pointer hover:bg-white/10 transition" title="Click to copy"></code>
+                        </div>
+
+                        <!-- Mobile notification bell chip (managed by JS) -->
+                        <button id="mobile-notif-chip" class="hidden items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition border" aria-label="Toggle notifications">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/></svg>
+                            <span id="mobile-notif-chip-label">Notifications Off</span>
+                        </button>
+
+                        <!-- Facts: the identifier, plus the subscription clock on paid gates -->
+                        <div id="channel-facts" class="rounded-xl bg-white/[0.03] border border-white/5 px-3.5 py-3 space-y-2.5">
+                            <div id="channel-id-row" class="flex items-center gap-3 cursor-pointer" title="Click to copy">
+                                <span id="channel-id-label" class="text-xs text-white/35 flex-shrink-0">ID</span>
+                                <code id="channel-settings-id" class="flex-1 min-w-0 text-xs font-mono text-white/70 text-right truncate"></code>
+                                <svg class="w-3.5 h-3.5 text-white/30 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"/></svg>
                             </div>
-                        </div>
-
-                        <!-- Access type -->
-                        <div>
-                            <label class="block text-xs font-medium text-white/80 uppercase tracking-wider mb-1.5">Access</label>
-                            <div id="channel-settings-type" class="text-sm text-white/70"></div>
-                        </div>
-
-                        <!-- Identity on the wire: a property of the gate, so gated only -->
-                        <div id="channel-settings-wire-section" class="hidden">
-                            <label class="block text-xs font-medium text-white/80 uppercase tracking-wider mb-1.5">Identity on the wire</label>
-                            <div id="channel-settings-wire" class="text-sm text-white/70"></div>
                         </div>
                     </div>
 
@@ -2106,7 +2099,7 @@
                         <!-- Info section is shown inline above -->
                         
                         <!-- Navigation items -->
-                        <div class="border-t border-white/5 mt-6 pt-4 space-y-2">
+                        <div class="border-t border-white/5 mt-5 pt-5 space-y-2">
                             <button data-mobile-nav="members" class="channel-mobile-nav-item w-full flex items-center justify-between px-4 py-4 text-sm text-white/70 bg-white/[0.03] hover:bg-white/[0.06] transition rounded-xl border border-white/5">
                                 <span class="flex items-center gap-3">
                                     <svg class="w-[18px] h-[18px] text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
@@ -2128,12 +2121,12 @@
                                 </span>
                                 <svg class="w-4 h-4 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
                             </button>
-                            <button data-mobile-nav="danger" class="channel-mobile-nav-item w-full flex items-center justify-between px-4 py-4 text-sm text-white/70 bg-white/[0.03] hover:bg-white/[0.06] transition rounded-xl border border-white/5">
+                            <button data-mobile-nav="danger" class="channel-mobile-nav-item w-full flex items-center justify-between px-4 py-4 text-sm text-red-400/90 bg-red-500/[0.06] hover:bg-red-500/[0.10] transition rounded-xl border border-red-500/20">
                                 <span class="flex items-center gap-3">
-                                    <svg class="w-[18px] h-[18px] text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                                    <svg class="w-[18px] h-[18px] text-red-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
                                     <span>Delete Channel</span>
                                 </span>
-                                <svg class="w-4 h-4 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+                                <svg class="w-4 h-4 text-red-400/35" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
                             </button>
                         </div>
                     </div>
