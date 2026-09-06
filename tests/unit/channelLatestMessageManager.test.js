@@ -118,16 +118,15 @@ describe('channelLatestMessageManager', () => {
     it('get() awaits resend when nothing is cached and normalizes the result', async () => {
         resendMock.mockResolvedValueOnce([
             {
-                type: 'reaction',
-                emoji: '🔥',
-                action: 'add',
-                messageId: 'm1',
-                _publisherId: '0xPUB',
+                type: 'text',
+                id: 'm1',
+                text: 'hello',
+                sender: '0xa',
                 _timestamp: 10
             }
         ]);
         const entry = await channelLatestMessageManager.get(sid);
-        expect(entry).toMatchObject({ type: 'reaction', emoji: '🔥', sender: '0xPUB', targetId: 'm1' });
+        expect(entry).toMatchObject({ type: 'text', id: 'm1', text: 'hello', sender: '0xa' });
     });
 
     it('get() prefers a non-reaction entry over a newer reaction in the same window', async () => {
@@ -143,12 +142,17 @@ describe('channelLatestMessageManager', () => {
         expect(entry).toMatchObject({ type: 'text', id: 'm10', text: 'hello' });
     });
 
-    it('get() falls back to the reaction when no content message is in the window', async () => {
+    /**
+     * A window with nothing but reactions leaves the preview empty rather
+     * than promoting one: an emoji is not what was said here last, and on a
+     * channel with a -5 the refresh would never see it again anyway.
+     */
+    it('get() never promotes a reaction, even when the window holds only that', async () => {
         resendMock.mockResolvedValueOnce([
             { type: 'reaction', emoji: '🔥', action: 'add', messageId: 'mX', _publisherId: '0xR', _timestamp: 20 }
         ]);
         const entry = await channelLatestMessageManager.get(sid);
-        expect(entry?.type).toBe('reaction');
+        expect(entry).toBeNull();
     });
 
     it('get() dedupes concurrent cold-start fetches', async () => {
@@ -208,5 +212,27 @@ describe('channelLatestMessageManager', () => {
 
         await channelLatestMessageManager.init();
         expect(channelLatestMessageManager.getCached(sid)).toMatchObject({ id: 'm1', text: 'persisted' });
+    });
+
+    /**
+     * Rows written while reactions still made a preview line outlive the rule
+     * that ended it: a channel with no new message never replaces its row.
+     * A DM keeps its own, which is the one surface where the line is right.
+     */
+    it('hydrate drops a stored reaction preview, except on a DM inbox', async () => {
+        const dmId = '0xpeer/Pombo-DM-1';
+        await channelLatestMessageManager.init();
+        await channelLatestMessageManager._persistToIDB(sid,
+            { id: 'r1', ts: 50, type: 'reaction', emoji: '👍', sender: '0xa' });
+        await channelLatestMessageManager._persistToIDB(dmId,
+            { id: 'r2', ts: 60, type: 'reaction', emoji: '🔥', sender: '0xb' });
+
+        channelLatestMessageManager.cache.clear();
+        channelLatestMessageManager.db = null;
+        channelLatestMessageManager._initPromise = null;
+
+        await channelLatestMessageManager.init();
+        expect(channelLatestMessageManager.getCached(sid)).toBeNull();
+        expect(channelLatestMessageManager.getCached(dmId)).toMatchObject({ type: 'reaction', emoji: '🔥' });
     });
 });

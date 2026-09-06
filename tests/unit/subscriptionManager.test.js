@@ -41,7 +41,12 @@ vi.mock('../../src/js/streamr.js', () => ({
     deriveAdminId: vi.fn((id) => `${id}/admin`)
 }));
 
+vi.mock('../../src/js/memberCatchUp.js', () => ({
+    memberCatchUp: { start: vi.fn(), stop: vi.fn(), getStreamId: vi.fn().mockReturnValue(null) }
+}));
+
 vi.mock('../../src/js/adminStatePoller.js', () => ({
+    ResendPoller: class { start() {} stop() {} pollNow() {} getStreamId() { return null; } },
     adminStatePoller: {
         start: vi.fn(),
         stop: vi.fn(),

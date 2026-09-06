@@ -9,7 +9,7 @@
  */
 
 import { Logger } from './logger.js';
-import { streamrController, STREAM_CONFIG, deriveEphemeralId, deriveMessageId, deriveAdminId, deriveKeysId } from './streamr.js';
+import { streamrController, STREAM_CONFIG, deriveEphemeralId, deriveMessageId, deriveAdminId, deriveKeysId, deriveInteractionsId } from './streamr.js';
 import { authManager } from './auth.js';
 import { identityManager } from './identity.js';
 import { secureStorage } from './secureStorage.js';
@@ -33,6 +33,7 @@ import { MessageOverrides } from './channels/MessageOverrides.js';
 import { MessageFlow } from './channels/MessageFlow.js';
 import { AdminState } from './channels/AdminState.js';
 import { Membership } from './channels/Membership.js';
+import { ModDeltas, MOD_ACTION_TYPE } from './channels/ModDeltas.js';
 
 class ChannelManager {
     constructor() {
@@ -63,6 +64,8 @@ class ChannelManager {
         this.messageFlow = new MessageFlow(this);
         this.adminState = new AdminState(this);
         this.membership = new Membership(this);
+        // Moderator deltas on -1/P2, composed over the owner's snapshot.
+        this.modDeltas = new ModDeltas(this);
     }
 
     /**
@@ -119,6 +122,12 @@ class ChannelManager {
         if (!target.keysStreamId && target.type === 'gated') {
             target.keysStreamId = deriveKeysId(target.messageStreamId);
         }
+        // Every channel type owns a -5 now. A record from before that still
+        // gets the id: publishing there fails once on a channel that never
+        // created it, and the reaction falls back to the -1 for the session.
+        if (!target.interactionsStreamId && target.type !== 'dm') {
+            target.interactionsStreamId = deriveInteractionsId(target.messageStreamId);
+        }
         target.adminState = preserved.adminState;
         target.adminRev = preserved.adminRev;
         target.adminLoaded = preserved.adminLoaded;
@@ -126,12 +135,19 @@ class ChannelManager {
         target.initialLoadInProgress = preserved.initialLoadInProgress;
         target._publishPermCache = preserved._publishPermCache;
 
-        // Author visibility: a gated channel persisted without the field is
-        // from before the mode existed — Everyone by definition. Channels
-        // created with the mode always persist it, and the gate repair below
-        // re-reads it from the on-chain metadata whenever it runs.
-        if (target.type === 'gated' && !target.authorMode) {
-            target.authorMode = 'everyone';
+        // Wire identity: records persisted (or synced) before the rename
+        // carry authorMode 'members'/'everyone' — same axis, old names.
+        if (!target.wireIdentity && target.authorMode) {
+            target.wireIdentity = target.authorMode === 'members' ? 'sealed' : 'visible';
+        }
+        if (target.wireIdentity === 'members') target.wireIdentity = 'sealed';
+        if (target.wireIdentity === 'everyone') target.wireIdentity = 'visible';
+        // A gated channel persisted without the field is from before the mode
+        // existed — Visible by definition. Channels created with the mode
+        // always persist it, and the gate repair below re-reads it from the
+        // on-chain metadata whenever it runs.
+        if (target.type === 'gated' && !target.wireIdentity) {
+            target.wireIdentity = 'visible';
         }
 
         // Gated channel without its gate address — persisted by an old build
@@ -144,7 +160,48 @@ class ChannelManager {
                 Logger.warn('Gate repair failed for', target.messageStreamId?.slice(-20), '—', e.message));
         }
 
+        // The CONTRACT is the authority on the identity mode and the
+        // read-only flag; the stream-metadata copies are mutable and even
+        // erasable by a failed rename. Reconcile once per session — a
+        // mismatch only ever means the metadata copy drifted.
+        if (target.type === 'gated' && target.gate?.address) {
+            this._reconcileGateAuthority(target).catch(e =>
+                Logger.warn('Gate authority read failed for', target.messageStreamId?.slice(-20), '—', e.message));
+        }
+
         return target;
+    }
+
+    async _reconcileGateAuthority(channel) {
+        this._gateAuthorityChecked ??= new Set();
+        if (this._gateAuthorityChecked.has(channel.messageStreamId)) return;
+        this._gateAuthorityChecked.add(channel.messageStreamId);
+        const { gateManager } = await import('./gate.js');
+        const info = await gateManager.getGateInfo(channel.gate.address);
+        const mode = info.wireIdentityName === 'sealed' ? 'sealed' : 'visible';
+        let changed = false;
+        if (channel.wireIdentity !== mode) {
+            channel.wireIdentity = mode;
+            changed = true;
+        }
+        if (!!channel.readOnly !== info.readOnly) {
+            channel.readOnly = info.readOnly;
+            changed = true;
+        }
+        // Session cache of "may I write here": _needsPubKey consults it so a
+        // plain member of a read-only channel stops requesting the shared
+        // publish key nobody may hand them.
+        if (info.readOnly) {
+            const self = authManager.getAddress();
+            channel._selfMayPublishReadOnly = self
+                ? await gateManager.canModerate(channel.gate.address, self)
+                : false;
+        }
+        if (changed) {
+            Logger.info('Gate authority corrected the local record:',
+                channel.messageStreamId?.slice(-20), '→', mode, info.readOnly ? '(read-only)' : '');
+            await this.saveChannels();
+        }
     }
 
     /**
@@ -198,7 +255,7 @@ class ChannelManager {
         const flags = await this.readGateFromMetadata(channel.messageStreamId, { withMode: true });
         if (!flags?.gateAddress) throw new Error('no gate address in stream metadata');
         channel.gate = { address: flags.gateAddress };
-        channel.authorMode = flags.authorMode;
+        channel.wireIdentity = flags.wireIdentity;
         await this.saveChannels();
         Logger.info('Gate address repaired from metadata:', channel.messageStreamId?.slice(-20), '→', flags.gateAddress);
     }
@@ -206,7 +263,7 @@ class ChannelManager {
     /**
      * The gate clone address from a stream's on-chain metadata (`g`, written
      * at creation), or null when the stream is not a gated channel. With
-     * `withMode`, returns { gateAddress, authorMode } — the `m` flag lives in
+     * `withMode`, returns { gateAddress, wireIdentity } — the `m` flag lives in
      * the same metadata JSON and is immutable, like the gate.
      */
     async readGateFromMetadata(messageStreamId, { withMode = false } = {}) {
@@ -219,7 +276,7 @@ class ChannelManager {
             const valid = /^0x[0-9a-f]{40}$/.test(gateAddress || '') ? gateAddress : null;
             if (!withMode) return valid;
             return valid
-                ? { gateAddress: valid, authorMode: pombo.m === 1 ? 'members' : 'everyone' }
+                ? { gateAddress: valid, wireIdentity: pombo.m === 1 ? 'sealed' : 'visible' }
                 : null;
         } catch {
             return null;
@@ -324,7 +381,7 @@ class ChannelManager {
                 gate: ch.gate || null,
                 // Author visibility — losing it would flip a Members-only
                 // channel back to clone publishes (account on the wire).
-                authorMode: ch.authorMode || null,
+                wireIdentity: ch.wireIdentity || null,
                 createdAt: ch.createdAt,
                 createdBy: ch.createdBy,
                 // Local membership timestamp — drives per-channel latest-wins
@@ -332,9 +389,13 @@ class ChannelManager {
                 joinedAt: ch.joinedAt || ch.createdAt || null,
                 password: ch.password,
                 members: ch.members || [],
-                // Bans this device has already rotated the epoch for; without
-                // it every admin open would rotate again for the same ban.
-                rotatedForBanned: ch.rotatedForBanned || [],
+                // Access losses this device has already rotated the epoch for;
+                // without it every admin open would rotate again for the same
+                // cut. (rotatedForBanned is the older, narrower name of the same set.)
+                rotatedForNoAccess: ch.rotatedForNoAccess || ch.rotatedForBanned || [],
+                // Who had gate access at the last sweep — losing it is what
+                // triggers the deferred rotation.
+                accessSnapshot: ch.accessSnapshot || [],
                 // Addresses banned from here, kept as gate-read candidates so
                 // Moderation can still list them after a reload.
                 knownBanned: ch.knownBanned || [],
@@ -347,6 +408,7 @@ class ChannelManager {
                 storageDays: ch.storageDays ?? null,
                 adminStorageDays: ch.adminStorageDays ?? null,
                 keysStorageDays: ch.keysStorageDays ?? null,
+                interactionsStorageDays: ch.interactionsStorageDays ?? null,
                 // Exposure and metadata
                 exposure: ch.exposure || 'hidden',
                 description: ch.description || '',
@@ -431,6 +493,18 @@ class ChannelManager {
                 continue;
             }
 
+            // Exposure comes from the chain too, and it decides real things:
+            // whether a rename costs gas, warns about it and reaches everyone
+            // else. A record that says hidden about a channel the registry
+            // lists turns the owner's rename into a local one, silently — and
+            // that is the state every channel created before the flag is in.
+            if (info.exposure && info.exposure !== channel.exposure) {
+                Logger.info('Metadata refresh: exposure corrected from chain:',
+                    channel.exposure, '→', info.exposure);
+                channel.exposure = info.exposure;
+                changed = true;
+            }
+
             // Name: on-chain name is authoritative for non-DM channels (admin-managed)
             if (info.name && info.name !== channel.name) {
                 Logger.info('Metadata refresh: channel renamed on-chain:', channel.name, '→', info.name);
@@ -481,31 +555,42 @@ class ChannelManager {
 
             // Gated channels (N-C): the gate clone comes FIRST — its address
             // goes into the stream metadata and receives every permission
-            // grant. One factory tx; the creator becomes the gate owner and
-            // is everMember from block one.
+            // grant. One factory tx; the creator becomes the gate owner. The
+            // identity mode and the read-only flag are immutable fields of
+            // the clone — the contract is the authority on both, and the
+            // stream-metadata flags written below are cached copies.
+            const wireIdentity = type === 'gated' ? (options.wireIdentity || 'sealed') : null;
             let gateAddress = null;
             if (type === 'gated') {
-                const { gateManager, GATE_MODE } = await import('./gate.js');
+                const { gateManager, GATE_MODE, WIRE_IDENTITY } = await import('./gate.js');
                 const gateMode = options.gateMode ?? GATE_MODE.NONE;
                 gateAddress = await gateManager.createGate({
                     mode: gateMode,
                     token: options.gateToken,
                     minBalance: options.gateMinBalance,
                     price: options.gatePrice,
-                    duration: options.gateDuration
+                    duration: options.gateDuration,
+                    wireIdentity: wireIdentity === 'sealed'
+                        ? WIRE_IDENTITY.SEALED : WIRE_IDENTITY.VISIBLE,
+                    readOnly: !!options.readOnly
                 });
                 Logger.info('Gate clone created:', gateAddress);
                 try { onProgress?.(); } catch (_) { /* ignore */ }
             }
 
-            // Members-only author visibility (the default for new gated
-            // channels): mint the SHARED publish key now so its address rides
-            // the creation permission batch. The private half is adopted
-            // below and distributed to members via -4 wraps.
+            // Members-only author visibility (Sealed, the default for new
+            // gated channels): mint the SHARED publish key now so its address
+            // rides the creation permission batch. The private half is
+            // adopted below and distributed to members via -4 wraps.
             let publishKey = null;
-            const authorMode = type === 'gated' ? (options.authorMode || 'members') : null;
-            if (authorMode === 'members') {
+            let interactionsKey = null;
+            if (wireIdentity === 'sealed') {
                 publishKey = epochKeyManager.mintPublishKey();
+                // The second shared key: same mechanics, wider distribution.
+                // Every member holds it, read-only included — it carries the
+                // -5 (reactions) and the -2 (presence), so participating never
+                // depends on being allowed to post.
+                interactionsKey = epochKeyManager.mintInteractionsKey();
             }
 
             // Create dual-stream channel - streamrController handles on-chain operations
@@ -516,7 +601,8 @@ class ChannelManager {
                 type,
                 {
                     ...options, onProgress, gateAddress,
-                    authorMode, publishKeyAddress: publishKey?.address
+                    wireIdentity, publishKeyAddress: publishKey?.address,
+                    interactionsKeyAddress: interactionsKey?.address
                 }
             );
             Logger.debug('Triple-stream created:', { 
@@ -530,6 +616,7 @@ class ChannelManager {
             let storageResult = { success: false, provider: null, storageDays: null };
             let adminStorageResult = { success: false, storageDays: null };
             let keysStorageResult = { success: false, storageDays: null };
+            let interactionsStorageResult = { success: false, storageDays: null };
             try {
                 storageResult = await streamrController.enableStorage(streamInfo.messageStreamId, {
                     storageProvider: options.storageProvider,
@@ -573,6 +660,22 @@ class ChannelManager {
                 }
             }
 
+            // Interactions (-5, every channel type): reactions must persist,
+            // which is exactly why they could not live on the storage-less -2.
+            if (streamInfo.interactionsStreamId) {
+                try {
+                    interactionsStorageResult = await streamrController.enableStorage(streamInfo.interactionsStreamId, {
+                        storageProvider: options.storageProvider,
+                        customStorageAddress: options.customStorageAddress,
+                        storageDays: options.storageDays,
+                        onProgress
+                    });
+                    Logger.debug('Interactions storage result:', interactionsStorageResult);
+                } catch (storageError) {
+                    Logger.warn('Failed to enable storage on interactions stream (reactions will not persist):', storageError.message);
+                }
+            }
+
             // A stream whose retention transaction never landed keeps the
             // storage node default, and the record must not claim otherwise:
             // both the TTL republish and the key re-announce time themselves
@@ -580,7 +683,8 @@ class ChannelManager {
             const missingRetention = [
                 storageResult.success && !storageResult.retentionApplied ? '-1' : null,
                 adminStorageResult.success && !adminStorageResult.retentionApplied ? '-3' : null,
-                keysStorageResult.success && !keysStorageResult.retentionApplied ? '-4' : null
+                keysStorageResult.success && !keysStorageResult.retentionApplied ? '-4' : null,
+                interactionsStorageResult.success && !interactionsStorageResult.retentionApplied ? '-5' : null
             ].filter(Boolean);
             if (missingRetention.length) {
                 Logger.warn('Retention not applied on', missingRetention.join(', '),
@@ -640,6 +744,8 @@ class ChannelManager {
                 keysStreamId: type === 'gated'
                     ? (streamInfo.keysStreamId || deriveKeysId(streamInfo.messageStreamId))
                     : null,
+                interactionsStreamId: streamInfo.interactionsStreamId
+                    || deriveInteractionsId(streamInfo.messageStreamId),
                 streamId: streamInfo.messageStreamId,  // Alias for convenience
                 name: name,
                 type: type,
@@ -647,10 +753,10 @@ class ChannelManager {
                 // is what flips every gated code path (transport, epoch keys,
                 // authorship) — keep it null elsewhere.
                 gate: type === 'gated' ? { address: gateAddress } : null,
-                // Author visibility ('members' | 'everyone'), IMMUTABLE:
-                // 'members' publishes -1/-2 under the shared key with
+                // Identity on the wire ('sealed' | 'visible'), IMMUTABLE:
+                // 'sealed' publishes -1/-2 under the shared key with
                 // authorship sealed inside the epoch envelope.
-                authorMode: authorMode,
+                wireIdentity: wireIdentity,
                 createdAt: Date.now(),
                 joinedAt: Date.now(),
                 createdBy: realAddress,
@@ -669,6 +775,7 @@ class ChannelManager {
                 storageDays: storageResult.storageDays,
                 adminStorageDays: adminStorageResult.storageDays,
                 keysStorageDays: keysStorageResult.storageDays,
+                interactionsStorageDays: interactionsStorageResult.storageDays,
                 // Exposure and metadata (for visible channels)
                 exposure: exposure,
                 description: exposure === 'visible' ? (options.description || '') : '',
@@ -691,6 +798,9 @@ class ChannelManager {
             if (publishKey) {
                 await epochKeyManager.adoptPublishKey(channel, publishKey);
             }
+            if (interactionsKey) {
+                await epochKeyManager.adoptInteractionsKey(channel, interactionsKey);
+            }
             
             // Add to channel order (new channels go to top)
             await secureStorage.addToChannelOrder(channel.messageStreamId);
@@ -707,7 +817,19 @@ class ChannelManager {
             }
 
             Logger.info('Dual-stream channel created successfully:', channel.messageStreamId);
-            
+
+            // The creator's device answers key requests by default — a gated
+            // channel whose owner never reopens it would otherwise leave new
+            // members waiting for keys. The Moderation toggle turns it off.
+            if (type === 'gated') {
+                try {
+                    const { keyResponder } = await import('./keyResponder.js');
+                    keyResponder.setMarked(channel.messageStreamId, true);
+                } catch (e) {
+                    Logger.warn('Could not enable the key responder by default:', e.message);
+                }
+            }
+
             // Auto-enable notifications for this channel if global notifications are enabled
             if (relayManager.enabled) {
                 try {
@@ -909,15 +1031,15 @@ class ChannelManager {
             // Author visibility from the -1 metadata (`m`, immutable). It has
             // to be right BEFORE the first publish — a Members-only channel
             // joined as Everyone would put the account on the wire.
-            let authorMode = null;
+            let wireIdentity = null;
             if (channelType === 'gated') {
-                authorMode = options.authorMode || null;
-                if (!authorMode) {
+                wireIdentity = options.wireIdentity || null;
+                if (!wireIdentity) {
                     try {
                         const flags = await this.readGateFromMetadata(messageStreamId, { withMode: true });
-                        authorMode = flags?.authorMode || 'everyone';
+                        wireIdentity = flags?.wireIdentity || 'visible';
                     } catch {
-                        authorMode = 'everyone';
+                        wireIdentity = 'visible';
                     }
                 }
             }
@@ -929,6 +1051,7 @@ class ChannelManager {
                 keysStreamId: channelType === 'gated'
                     ? deriveKeysId(messageStreamId)
                     : null,
+                interactionsStreamId: deriveInteractionsId(messageStreamId),
                 streamId: messageStreamId,  // Alias for convenience
                 name: channelName,
                 type: channelType,
@@ -936,7 +1059,7 @@ class ChannelManager {
                 gate: channelType === 'gated' && options.gateAddress
                     ? { address: options.gateAddress.toLowerCase() }
                     : null,
-                authorMode: authorMode,
+                wireIdentity: wireIdentity,
                 createdAt: Date.now(),
                 joinedAt: Date.now(),
                 createdBy: createdBy,
@@ -1081,6 +1204,7 @@ class ChannelManager {
                 adminStreamId: adminStreamId,
                 keysStreamId: channelType === 'gated'
                     ? deriveKeysId(messageStreamId) : null,
+                interactionsStreamId: deriveInteractionsId(messageStreamId),
                 streamId: messageStreamId,
                 name: channelName,
                 type: channelType,
@@ -1250,6 +1374,8 @@ class ChannelManager {
     isChannelOwner(streamId) { return this.membership.isChannelOwner(streamId); }
     canAddMembers(streamId) { return this.membership.canAddMembers(streamId); }
     preloadDeletePermission(streamId) { return this.membership.preloadDeletePermission(streamId); }
+    preloadModeratorPermission(streamId) { return this.membership.preloadModeratorPermission(streamId); }
+    isCachedModerator(streamId) { return this.membership.isCachedModerator(streamId); }
     getCachedDeletePermission(streamId) { return this.membership.getCachedDeletePermission(streamId); }
 
     // ===== STORAGE MANAGEMENT (POST-CREATION) ========================================
@@ -1269,11 +1395,11 @@ class ChannelManager {
      * @returns {Promise<{enabled: boolean, nodes: Array<{address:string,onMessage:boolean,onAdmin:boolean,onKeys:boolean}>, storageDays: number|null, retention: {message:number|null,admin:number|null,keys:number|null}, retentionInSync: boolean, hasKeysStream: boolean}>}
      */
     /**
-     * The stored streams of a channel: -1 message, -3 admin, and -4 keys on
-     * gated. Never the ephemeral -2, which has no storage by design, and
-     * never a DM inbox, which is an account-level stream.
+     * The stored streams of a channel: -1 message, -3 admin, -5 interactions,
+     * and on gated also -4 keys. Never the ephemeral -2, which has no storage
+     * by design, and never a DM inbox, which is account-level.
      *
-     * @returns {Array<{id: string, kind: 'message'|'admin'|'keys'}>}
+     * @returns {Array<{id: string, kind: 'message'|'admin'|'keys'|'interactions'}>}
      * @private
      */
     _storedStreamIds(messageStreamId, channel) {
@@ -1282,6 +1408,9 @@ class ChannelManager {
         if (adminStreamId) out.push({ id: adminStreamId, kind: 'admin' });
         if (channel?.type === 'gated') {
             out.push({ id: channel.keysStreamId || deriveKeysId(messageStreamId), kind: 'keys' });
+        }
+        if (channel?.interactionsStreamId) {
+            out.push({ id: channel.interactionsStreamId, kind: 'interactions' });
         }
         return out;
     }
@@ -1323,10 +1452,11 @@ class ChannelManager {
         const msgInfo = byKind('message');
         const adminInfo = byKind('admin');
         const keysInfo = byKind('keys');
+        const interactionsInfo = byKind('interactions');
         // A node's absence from a stream we could not read proves nothing.
         const allStreamsRead = streams.every(st => st.read);
 
-        const map = new Map(); // address(lower) -> { address, onMessage, onAdmin, onKeys }
+        const map = new Map(); // address(lower) -> per-stream presence flags
         const mark = (info, flag) => {
             for (const n of info.nodes || []) {
                 const key = String(n).toLowerCase();
@@ -1334,18 +1464,23 @@ class ChannelManager {
                 if (existing) {
                     existing[flag] = true;
                 } else {
-                    map.set(key, { address: n, onMessage: false, onAdmin: false, onKeys: false, [flag]: true });
+                    map.set(key, {
+                        address: n, onMessage: false, onAdmin: false,
+                        onKeys: false, onInteractions: false, [flag]: true
+                    });
                 }
             }
         };
         mark(msgInfo, 'onMessage');
         mark(adminInfo, 'onAdmin');
         mark(keysInfo, 'onKeys');
+        mark(interactionsInfo, 'onInteractions');
 
         const retention = {
             message: msgInfo.storageDays,
             admin: adminInfo.storageDays,
-            keys: keysStreamId ? keysInfo.storageDays : null
+            keys: keysStreamId ? keysInfo.storageDays : null,
+            interactions: channel?.interactionsStreamId ? interactionsInfo.storageDays : null
         };
         const nodes = Array.from(map.values());
 
@@ -1357,8 +1492,11 @@ class ChannelManager {
             // `retentionInSync` is what says the others do not match it.
             storageDays: retention.message,
             retention,
-            retentionInSync: retentionInSync([retention.message, retention.admin, retention.keys]),
-            hasKeysStream: !!keysStreamId
+            retentionInSync: retentionInSync([
+                retention.message, retention.admin, retention.keys, retention.interactions
+            ]),
+            hasKeysStream: !!keysStreamId,
+            hasInteractionsStream: !!channel?.interactionsStreamId
         };
     }
 
@@ -1491,6 +1629,7 @@ class ChannelManager {
             if (settled('message') && channel.storageDays !== days) { channel.storageDays = days; changed = true; }
             if (settled('admin') && channel.adminStorageDays !== days) { channel.adminStorageDays = days; changed = true; }
             if (settled('keys') && channel.keysStorageDays !== days) { channel.keysStorageDays = days; changed = true; }
+            if (settled('interactions') && channel.interactionsStorageDays !== days) { channel.interactionsStorageDays = days; changed = true; }
             if (changed) await this.saveChannels();
         }
 
@@ -1518,6 +1657,19 @@ class ChannelManager {
     hideMessage(messageStreamId, targetId) { return this.adminState.hideMessage(messageStreamId, targetId); }
     pinMessage(messageStreamId, targetId, snapshot = null) { return this.adminState.pinMessage(messageStreamId, targetId, snapshot); }
     unpinMessage(messageStreamId, targetId) { return this.adminState.unpinMessage(messageStreamId, targetId); }
+
+    // Moderator deltas on -1/P2 ------------------------------------------------
+
+    handleModerationDelta(messageStreamId, data) {
+        if (!data || data.t !== MOD_ACTION_TYPE) return;
+        this.modDeltas.ingest(messageStreamId, data);
+    }
+
+    publishModAction(messageStreamId, op, target, sinceEpoch = null) {
+        return this.modDeltas.publish(messageStreamId, op, target, sinceEpoch);
+    }
+
+    absorbModActions(messageStreamId) { return this.modDeltas.absorb(messageStreamId); }
 
     /**
      * Background loop that republishes the PASSWORD_CHALLENGE on -3/P2 until
@@ -1787,7 +1939,7 @@ class ChannelManager {
                 Logger.warn('Epoch key setup failed (messages will wait for key):', e.message);
                 this._scheduleEpochSetupRetry(channel);
             }
-            this._rotateForPendingBans(channel).catch(() => {});
+            this._rotateForLostAccess(channel).catch(() => {});
         }
 
         // Fire-and-forget: pull latest-message preview (-1/P0). Sidebar
@@ -1845,7 +1997,23 @@ class ChannelManager {
                 initialHistorySafetyTimer = null;
             }
             if (!channel || !channel.initialLoadInProgress) return;
-            
+
+            // Reactions live on the -5 — their history is a separate read,
+            // awaited here so the first render already has them instead of
+            // popping in after.
+            if (channel.interactionsStreamId) {
+                await streamrController.fetchHistoryAsync(
+                    channel.interactionsStreamId,
+                    STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS,
+                    STREAM_CONFIG.INITIAL_MESSAGES,
+                    (data) => this.handleControlMessage(messageStreamId, data),
+                    pwd,
+                    null,
+                    false,
+                    { quiet: true }
+                ).catch(e => Logger.warn('Interactions history failed:', e.message));
+            }
+
             // Flush any remaining batch verifications
             await this.flushBatchVerification(messageStreamId);
             
@@ -1891,12 +2059,45 @@ class ChannelManager {
                         : null,
                     allowOverridesInContentPartition: !hasControlPartition,
                     onControl: (data) => this.handleControlMessage(messageStreamId, data),
-                    onMedia: (data, account) => this.handleMediaMessage(messageStreamId, data, account)
+                    onMedia: (data, account) => this.handleMediaMessage(messageStreamId, data, account),
+                    // Only gated channels have moderators; elsewhere P2 carries
+                    // nothing and the subscription would be dead weight.
+                    onModeration: channel?.gate?.address
+                        ? (data) => this.handleModerationDelta(messageStreamId, data)
+                        : null
                 },
                 pwd,
                 STREAM_CONFIG.INITIAL_MESSAGES,
                 onHistoryComplete
             );
+
+            // Reactions live on the -5 in every channel type (that is what
+            // lets a read-only channel have them). Same handler as before:
+            // they arrive as control messages either way.
+            if (channel?.interactionsStreamId) {
+                try {
+                    await streamrController.subscribeToPartition(
+                        channel.interactionsStreamId,
+                        STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS,
+                        (data) => this.handleControlMessage(messageStreamId, data),
+                        pwd
+                    );
+                } catch (e) {
+                    Logger.warn('Failed to subscribe to the interactions stream:', e.message);
+                }
+            }
+
+            // The moderator set gates which deltas count, so it has to be
+            // known before composing; the deltas that arrive meanwhile
+            // recompose against it as soon as it lands.
+            if (channel?.gate?.address) {
+                this.modDeltas.refreshModerators(channel).catch(e =>
+                    Logger.debug('Moderator set refresh failed:', e.message));
+                // The roster carries the members' names, which the bubbles read
+                // synchronously while rendering — warm it before they do.
+                epochKeyManager.getRosterMembers(channel).catch(e =>
+                    Logger.debug('Roster warm-up failed:', e.message));
+            }
         } catch (subscribeError) {
             // Release UI gate so the user is not stranded on the spinner.
             if (initialHistorySafetyTimer) {
@@ -2011,34 +2212,59 @@ class ChannelManager {
     }
 
     /**
-     * Rotate the epoch for bans this device never rotated for.
+     * Rotate the epoch for anyone who LOST access since the last sweep —
+     * bans made while the admin was away, expired PAID subscriptions, sold
+     * tokens/NFTs, Closed revokes.
      *
-     * Only the channel admin can announce an epoch, so a moderator's ban cuts
-     * key distribution immediately but leaves the banned member holding the
-     * current key until an admin shows up. Comparing the gate's banned set
-     * with the one we last rotated for closes that window on the admin's next
-     * open, whoever did the banning and whenever. No event scan: free RPCs cap
-     * eth_getLogs at 10k blocks, and the flags read is one we already make.
+     * Only the channel admin can announce an epoch, so a cut elsewhere leaves
+     * the ex-member holding the current key until an admin shows up. The
+     * flags read is the one the members panel already makes; comparing it
+     * with the previous sweep's snapshot closes the window on the admin's
+     * next open. No event scan: free RPCs cap eth_getLogs at 10k blocks.
+     *
+     * Two triggers, deliberately different:
+     * - banned now and never rotated for: rotate even without a snapshot
+     *   (the original pending-bans semantics — a ban is explicit intent);
+     * - in the last snapshot with access, now without: rotate (lost access).
+     * A candidate who never had access (refused requester) never triggers.
      */
-    async _rotateForPendingBans(channel) {
+    async _rotateForLostAccess(channel) {
         if (!channel?.gate?.address) return;
         if (!epochKeyManager.isOwnAdmin(channel)) return;
 
-        const banned = (await this.getGateBannedMembers(channel.messageStreamId))
-            .map(a => a.toLowerCase());
-        if (banned.length === 0) return;
+        const flags = await this.getGateMemberFlags(channel.messageStreamId);
+        if (flags.length === 0) return;   // unreadable gate — judge nothing
 
-        const covered = new Set((channel.rotatedForBanned || []).map(a => a.toLowerCase()));
-        if (banned.every(a => covered.has(a))) return;
+        const lower = a => a.toLowerCase();
+        const withAccess = new Set(flags.filter(m => m.access).map(m => lower(m.address)));
+        const noAccessNow = new Set(flags.filter(m => !m.access && !m.isOwner).map(m => lower(m.address)));
+        const bannedNow = flags.filter(m => m.banned).map(m => lower(m.address));
+        const previously = new Set((channel.accessSnapshot || []).map(lower));
+
+        // Regained access clears the cover, so losing it AGAIN rotates again.
+        const covered = new Set(
+            (channel.rotatedForNoAccess || channel.rotatedForBanned || [])
+                .map(lower).filter(a => !withAccess.has(a)));
+
+        const pending = [...new Set([
+            ...[...noAccessNow].filter(a => previously.has(a)),
+            ...bannedNow
+        ])].filter(a => !covered.has(a));
 
         try {
-            await epochKeyManager.rotateEpoch(channel);
-            channel.rotatedForBanned = banned;
+            if (pending.length > 0) {
+                await epochKeyManager.rotateEpoch(channel);
+                Logger.info('Rotated the epoch for lost access:',
+                    pending.length, 'address(es) on', channel.messageStreamId.slice(-20));
+            }
+            // Persist the PRUNED cover even when nothing is pending — a member
+            // who regained access must leave the cover now, or the record of
+            // the regain is lost and their next loss never rotates.
+            channel.rotatedForNoAccess = [...covered, ...pending];
+            channel.accessSnapshot = [...withAccess];
             await this.saveChannels();
-            Logger.info('Rotated the epoch for bans made while the admin was away:',
-                channel.messageStreamId.slice(-20));
         } catch (e) {
-            Logger.warn('Deferred rotation for pending bans failed (will retry next open):', e.message);
+            Logger.warn('Deferred rotation for lost access failed (will retry next open):', e.message);
         }
     }
 
@@ -2124,6 +2350,21 @@ class ChannelManager {
                     false,
                     { quiet: true }
                 );
+            }
+
+            // Reactions moved to the -5: pull their history too, or a
+            // reopened channel would render messages with no reactions.
+            if (channel.interactionsStreamId) {
+                await streamrController.fetchHistoryAsync(
+                    channel.interactionsStreamId,
+                    STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS,
+                    STREAM_CONFIG.INITIAL_MESSAGES,
+                    (data) => this.handleControlMessage(messageStreamId, data),
+                    channel.password || null,
+                    null,
+                    false,
+                    { quiet: true }
+                ).catch(e => Logger.warn('Interactions history failed:', e.message));
             }
 
             await this.flushBatchVerification(messageStreamId);
@@ -2380,6 +2621,9 @@ class ChannelManager {
      * Delete a channel completely (deletes the stream from Streamr network)
      * Only the channel owner can delete a channel
      * @param {string} streamId - Stream ID
+     * @returns {Promise<string[]>} the streams still standing — empty means the
+     *   channel is gone. While that list is non-empty the channel stays on this
+     *   device, because it is the only handle left for deleting the rest.
      */
     async deleteChannel(streamId) {
         try {
@@ -2387,23 +2631,31 @@ class ChannelManager {
                 throw new Error('Only the channel owner can delete a channel');
             }
 
-            // Try to delete the stream from Streamr network
+            // Try to delete the streams from the Streamr network
+            let failed = [];
             try {
-                await streamrController.deleteStream(streamId);
-                Logger.debug('Stream deleted from Streamr network:', streamId);
+                failed = await streamrController.deleteStream(streamId) || [];
+                Logger.debug('Streams deleted from Streamr network:', streamId);
             } catch (networkError) {
                 const chainError = parseChainError(networkError);
-                
+
                 // Gas/transaction errors should stop the delete and inform user
                 if (chainError.isGasError) {
                     throw new Error(chainError.message);
                 }
-                
+
                 // Stream might not exist on network or other non-critical error
                 // - that's OK, proceed to remove locally
                 Logger.warn('Could not delete from network (may not exist):', networkError.message);
             }
-            
+            // Anything left standing keeps the channel here: dropping it
+            // locally is what makes the leftovers unreachable, and deleting
+            // again only pays for what is still there.
+            if (failed.length) {
+                Logger.warn('Delete incomplete, channel kept for a retry:', failed);
+                return failed;
+            }
+
             // Remove from local storage
             this.channels.delete(streamId);
             await epochKeyManager.forgetChannel(streamId);
@@ -2422,6 +2674,7 @@ class ChannelManager {
             }
 
             Logger.info('Channel removed:', streamId);
+            return [];
         } catch (error) {
             Logger.error('Failed to delete channel:', error);
             throw error;
@@ -2496,7 +2749,7 @@ class ChannelManager {
      */
     usesAccountPublish(streamId) {
         if (!streamId) return false;
-        const base = String(streamId).replace(/-[123]$/, '');
+        const base = String(streamId).replace(/-[12345]$/, '');
         const ch = this.channels.get(base + '-1');
         // Gated included: the ACCOUNT signs the envelope (that signature is
         // the authorship) even though the on-wire publisher is the gate clone.
@@ -2551,7 +2804,7 @@ class ChannelManager {
      * @private
      * Update the latest-message preview cache from notifyHandlers events.
      * - 'message'         → straight setFromLocal with the incoming payload.
-     * - 'reaction'        → synthesize a reaction-shape entry.
+     * - 'reaction'        → DMs only: synthesize a reaction-shape entry.
      * - 'message_edited'  → re-feed the (now mutated) message from
      *                       channel.messages so the cache picks up the new text.
      * - 'message_deleted' → walk channel.messages backwards for the next
@@ -2569,11 +2822,19 @@ class ChannelManager {
             return;
         }
         if (event === 'reaction') {
+            // In a room, the preview answers "what was said here last", and an
+            // emoji is not that. It also could not survive a reload: the
+            // refresh reads the -1, where reactions no longer live, so the
+            // line said one thing live and another after a restart.
+            //
+            // A DM is the exception and keeps them: two people, no -5, and no
+            // remote refresh to disagree with — the local path is the only one
+            // there, so a reaction IS the last thing that happened.
+            if (channel.type !== 'dm') return;
             // data: { streamId, messageId, emoji, user, action, senderName?, timestamp? }
-            // The reaction's real timestamp is required \u2014 without it an
-            // OLD reaction replayed during history backfill would appear
-            // "newer" than the actual latest message. Drop the event when
-            // it's missing rather than masking the bug with Date.now().
+            // The reaction's real timestamp is required: without it an OLD
+            // reaction replayed during history backfill would appear "newer"
+            // than the actual latest message.
             if (!data.timestamp) return;
             channelLatestMessageManager.setFromLocal(streamId, {
                 type: 'reaction',

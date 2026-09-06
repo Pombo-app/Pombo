@@ -16,6 +16,8 @@ import { escapeHtml, formatAddress } from './utils.js';
 import { getAvatarHtml } from './AvatarGenerator.js';
 import { identityManager } from '../identity.js';
 import { CONFIG } from '../config.js';
+import { banHidesMessage } from '../channels/modComposition.js';
+import { epochKeyManager } from '../epochKeyManager.js';
 
 /**
  * Watchdog cap for a single pagination load. If `loadMoreHistory` (network +
@@ -547,13 +549,21 @@ class ChatAreaUI {
         const hiddenIds = adminState && Array.isArray(adminState.hiddenMessageIds)
             ? new Set(adminState.hiddenMessageIds)
             : null;
-        const bannedSet = adminState && Array.isArray(adminState.bannedMembers)
-            ? new Set(adminState.bannedMembers.map((a) => String(a).toLowerCase()))
-            : null;
+        // A ban hides from its epoch onward, so the lookup keeps the entry and
+        // the filter compares it against the epoch the message was written in.
+        const bannedBy = new Map();
+        for (const entry of (adminState?.bannedMembers || [])) {
+            const address = String(entry?.address ?? entry).toLowerCase();
+            bannedBy.set(address, typeof entry === 'string'
+                ? { address, sinceEpoch: null } : entry);
+        }
         const filteredSource = sourceMessages.filter((m) => {
             if (!m || m._deleted || ['edit', 'delete'].includes(m.type)) return false;
             if (hiddenIds && m.id && hiddenIds.has(m.id)) return false;
-            if (bannedSet && m.sender && bannedSet.has(String(m.sender).toLowerCase())) return false;
+            if (m.sender) {
+                const ban = bannedBy.get(String(m.sender).toLowerCase());
+                if (ban && banHidesMessage(ban, m._epoch)) return false;
+            }
             return true;
         });
         const messagesForRender = effectiveChannel?.initialLoadInProgress && filteredSource.length === 0
@@ -677,11 +687,7 @@ class ChatAreaUI {
             // below. `msg.verified.ensName` is filled once, at verification —
             // if the cache was cold then, it stays null on the object forever,
             // so relying on it alone loses the name on every re-render.
-            let displayName = identityManager.getCachedENS?.(msg.sender)
-                || msg.verified?.ensName || msg.senderName;
-            if (!displayName) {
-                displayName = formatAddress(msg.sender);
-            }
+            let displayName = this._displayNameFor(msg, effectiveChannel);
 
             const groupClass = getGroupPositionClass(groupPositions[index]);
             const spacingClass = getSpacingClass(spacingTypes[index]);
@@ -907,6 +913,36 @@ class ChatAreaUI {
     }
 
     /**
+     * The name on a bubble:
+     *
+     *   ENS  >  contact nickname  >  roster name  >  senderName  >  address
+     *
+     * ENS is read from the cache at render time, not from `msg.verified`: that
+     * field is filled once, at verification, so a cold cache back then would
+     * lose the name on every later render.
+     *
+     * The roster name and `senderName` are the same kind of claim — a display
+     * name the account chose — so between those two the most RECENT wins,
+     * which is deterministic and avoids an arbitrary order. A gated channel's
+     * roster is what gives a name to a member who never wrote.
+     */
+    _displayNameFor(msg, channel) {
+        const sender = msg?.sender || '';
+        const ens = identityManager.getCachedENS?.(sender) || msg?.verified?.ensName;
+        if (ens) return ens;
+        const nickname = identityManager.getTrustedContact?.(sender.toLowerCase())?.nickname;
+        if (nickname) return nickname;
+
+        const roster = channel?.gate?.address
+            ? epochKeyManager.getRosterName?.(channel.messageStreamId, sender)
+            : null;
+        if (roster && msg?.senderName) {
+            return roster.ts >= (msg.timestamp || 0) ? roster.name : msg.senderName;
+        }
+        return roster?.name || msg?.senderName || formatAddress(sender);
+    }
+
+    /**
      * Rebuild only a single message entry in the DOM (used when a message is edited).
      * Avoids the cost of re-rendering the entire conversation.
      * Falls back to a full render if the target node cannot be found.
@@ -930,10 +966,8 @@ class ChatAreaUI {
         const msgDate = new Date(msg.timestamp);
         const time = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const badge = this.getVerificationBadge(msg, isOwn);
-        // Cache-first, same reason as in renderMessages
-        let displayName = identityManager.getCachedENS?.(msg.sender)
-            || msg.verified?.ensName || msg.senderName;
-        if (!displayName) displayName = formatAddress(msg.sender);
+        const displayName = this._displayNameFor(
+            msg, this.deps.getActiveChannel?.() || null);
 
         // Preserve existing grouping/spacing classes from the DOM so we don't
         // need to re-analyze the whole conversation for a single edit.

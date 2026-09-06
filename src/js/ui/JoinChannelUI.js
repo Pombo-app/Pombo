@@ -234,7 +234,7 @@ class JoinChannelUI {
                     createdBy: channelInfo?.createdBy,
                     // Author-visibility hint from the Explore card; the join
                     // re-reads the -1 metadata when absent
-                    authorMode: channelInfo?.authorMode || undefined
+                    wireIdentity: channelInfo?.wireIdentity || undefined
                 });
             }
             

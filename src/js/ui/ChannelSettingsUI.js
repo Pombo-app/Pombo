@@ -5,15 +5,17 @@
 
 import { Logger } from '../logger.js';
 import { modalManager } from './ModalManager.js';
-import { escapeHtml, escapeAttr } from './utils.js';
+import { escapeHtml, escapeAttr, wireIdentitySpec, wireIdentityIcon } from './utils.js';
 import { sanitizeText } from './sanitizer.js';
 import { relayManager } from '../relayManager.js';
 import { graphAPI } from '../graph.js';
 import { identityManager } from '../identity.js';
+import { epochKeyManager } from '../epochKeyManager.js';
 import { mediaController } from '../media.js';
 import { channelImageManager } from '../channelImageManager.js';
 import { deriveAdminId } from '../streamConstants.js';
 import { getAvatarHtml } from './AvatarGenerator.js';
+import { formatRemaining } from './SubscriptionBannerUI.js';
 
 class ChannelSettingsUI {
     constructor() {
@@ -41,6 +43,22 @@ class ChannelSettingsUI {
         this.elements = elements;
         // Initialize channel name edit handlers after elements are set
         this.initChannelNameEdit();
+        this._wireHints();
+    }
+
+    /**
+     * One delegated listener for every ⓘ in the modal: the caption states the
+     * effect and the cost, the detail stays a tap away. Touch has no hover,
+     * so the toggle carries what the title attribute alone would hide.
+     */
+    _wireHints() {
+        if (this._hintsWired) return;
+        this._hintsWired = true;
+        document.addEventListener('click', (event) => {
+            const trigger = event.target?.closest?.('[data-hint]');
+            if (!trigger) return;
+            document.getElementById(trigger.dataset.hint)?.classList.toggle('hidden');
+        });
     }
 
     /**
@@ -67,6 +85,7 @@ class ChannelSettingsUI {
         // Update channel info
         this.elements.channelSettingsType.innerHTML = this.deps.getChannelTypeLabel(currentChannel.type, effectiveReadOnly, true);
         this._applyGateAccessLabel(currentChannel);
+        this._applyWireIdentityLine(currentChannel);
         this.elements.channelSettingsId.textContent = currentChannel.streamId;
 
         // Populate channel name (network name, local name, or display fallback)
@@ -255,7 +274,10 @@ class ChannelSettingsUI {
             this.initChannelNotificationsToggle(currentChannel.streamId);
             this.initKeyResponderToggle(currentChannel.streamId)
                 .catch(() => { /* stays hidden */ });
+            this.initRotateEpochSection(currentChannel.streamId);
             this.initRekeyPublishSection(currentChannel.streamId);
+            this.initAbsorbModSection(currentChannel.streamId);
+            this._applyAdvancedSection();
         }
 
         // Load members and permissions if gated channel (not in preview mode)
@@ -319,6 +341,7 @@ class ChannelSettingsUI {
         const list = this.elements.channelStorageNodesList;
         const POMBO_NODE = '0xae340e799e8151f6a4999d245e466197aa217667';
         const { enabled, nodes, storageDays, retention, retentionInSync, hasKeysStream } = info;
+        const hasInteractions = info.hasInteractionsStream === true;
         // A lookup that failed says nothing about that stream. Calling a node
         // missing on that basis sends the admin to pay for a repair that may
         // not be needed.
@@ -340,7 +363,8 @@ class ChannelSettingsUI {
                 const detail = [
                     `messages ${retention?.message ?? 'not set'}`,
                     `admin ${retention?.admin ?? 'not set'}`,
-                    ...(hasKeysStream ? [`keys ${retention?.keys ?? 'not set'}`] : [])
+                    ...(hasKeysStream ? [`keys ${retention?.keys ?? 'not set'}`] : []),
+                    ...(hasInteractions ? [`reactions ${retention?.interactions ?? 'not set'}`] : [])
                 ].join(', ');
                 const text = this.elements.channelStorageRetentionMixedText;
                 if (text) {
@@ -360,7 +384,7 @@ class ChannelSettingsUI {
 
         // Nodes
         if (!enabled || nodes.length === 0) {
-            list.innerHTML = '<div class="text-sm text-white/40 px-1">No storage nodes</div>';
+            list.innerHTML = '<div class="text-sm text-white/40 px-1">No storage provider</div>';
             return;
         }
 
@@ -369,7 +393,9 @@ class ChannelSettingsUI {
             const isOfficial = addr.toLowerCase() === POMBO_NODE.toLowerCase();
             const label = isOfficial ? 'Pombo' : 'Custom';
             const divergent = allStreamsRead
-                && !(n.onMessage && n.onAdmin && (!hasKeysStream || n.onKeys));
+                && !(n.onMessage && n.onAdmin
+                    && (!hasKeysStream || n.onKeys)
+                    && (!hasInteractions || n.onInteractions));
             const divergentBadge = divergent
                 ? '<span class="text-[10px] text-amber-400/80 ml-1.5" title="This node is missing from some of the channel streams. Adding it again heals it, and only the streams that lack it are charged.">partial</span>'
                 : '';
@@ -409,15 +435,15 @@ class ChannelSettingsUI {
                 if (!btn) return;
                 const addr = btn.dataset.storageRemove;
                 if (!addr) return;
-                if (!confirm(`Remove storage node ${addr.slice(0, 6)}…${addr.slice(-4)} from this channel?\n\nThis is an on-chain transaction.`)) return;
+                if (!confirm(`Remove storage provider ${addr.slice(0, 6)}…${addr.slice(-4)} from this channel?\n\nThis is an on-chain transaction.`)) return;
                 btn.disabled = true;
                 btn.classList.add('opacity-50');
-                showNotification?.('Removing storage node…', 'info');
+                showNotification?.('Removing storage provider…', 'info');
                 try {
                     const result = await channelManager.removeChannelStorageNode(channel.streamId, addr);
                     this._reportStorageResult(result, 'remove');
                 } catch (err) {
-                    showNotification?.(`Failed to remove storage node: ${err.message}`, 'error');
+                    showNotification?.(`Failed to remove storage provider: ${err.message}`, 'error');
                 } finally {
                     await this.populateStorageInfo(channel);
                 }
@@ -462,14 +488,14 @@ class ChannelSettingsUI {
                     .find(r => r.checked)?.value || 'streamr';
                 const customAddress = customInput?.value.trim() || '';
                 if (provider === 'custom' && !/^0x[a-fA-F0-9]{40}$/.test(customAddress)) {
-                    showNotification?.('Invalid custom storage node address', 'error');
+                    showNotification?.('Invalid custom storage provider address', 'error');
                     return;
                 }
 
                 // New nodes inherit the channel's retention period (stream-level TTL)
                 confirmBtn.disabled = true;
                 confirmBtn.textContent = 'Adding…';
-                showNotification?.('Adding storage node…', 'info');
+                showNotification?.('Adding storage provider…', 'info');
                 try {
                     const result = await channelManager.addChannelStorageNode(channel.streamId, {
                         storageProvider: provider,
@@ -479,7 +505,7 @@ class ChannelSettingsUI {
                     form?.classList.add('hidden');
                     if (customInput) customInput.value = '';
                 } catch (err) {
-                    showNotification?.(`Failed to add storage node: ${err.message}`, 'error');
+                    showNotification?.(`Failed to add storage provider: ${err.message}`, 'error');
                 } finally {
                     confirmBtn.disabled = false;
                     confirmBtn.textContent = 'Add';
@@ -535,14 +561,14 @@ class ChannelSettingsUI {
         const failed = states.filter(v => v === 'failed').length;
 
         if (result?.sent === 0) {
-            showNotification?.(`Storage node already ${verb === 'added' ? 'on every stream' : 'off every stream'}`, 'success');
+            showNotification?.(`Storage provider already ${verb === 'added' ? 'on every stream' : 'off every stream'}`, 'success');
         } else if (failed === 0 && result?.verified !== false) {
-            showNotification?.(`Storage node ${verb}`, 'success');
+            showNotification?.(`Storage provider ${verb}`, 'success');
         } else if (failed === states.length) {
-            showNotification?.(`Failed to ${op} storage node`, 'error');
+            showNotification?.(`Failed to ${op} storage provider`, 'error');
         } else {
             // Either a write failed or the read-back still disagrees.
-            showNotification?.(`Storage node partially ${verb}. Try again to sync.`, 'error');
+            showNotification?.(`Storage provider partially ${verb}. Try again to sync.`, 'error');
         }
     }
 
@@ -558,7 +584,7 @@ class ChannelSettingsUI {
 
         const { channelManager, showNotification } = this.deps;
         const clientBanned = Array.isArray(channel?.adminState?.bannedMembers)
-            ? channel.adminState.bannedMembers.map(a => String(a).toLowerCase())
+            ? channel.adminState.bannedMembers.map(e => String(e?.address ?? e).toLowerCase())
             : [];
         // The gate's own banned set — a different mechanism from the client
         // ban, so an address can carry either or both.
@@ -825,11 +851,14 @@ class ChannelSettingsUI {
      */
     updateNotifChipState(chip, label, isSubscribed, pushEnabled) {
         if (!chip) return;
+        const bell = chip.querySelector('svg');
         if (isSubscribed) {
-            chip.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition border border-[#F6851B]/30 bg-[#F6851B]/10 text-[#F6851B]';
+            chip.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition border border-[#F6851B]/30 bg-[#F6851B]/10 text-white';
+            if (bell) bell.classList.add('text-[#F6851B]');
             if (label) label.textContent = 'Notifications On';
         } else {
             chip.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition border border-white/10 bg-white/5 text-white/40';
+            if (bell) bell.classList.remove('text-[#F6851B]');
             if (label) label.textContent = 'Notifications Off';
         }
         if (!pushEnabled) {
@@ -1050,6 +1079,118 @@ class ChannelSettingsUI {
     }
 
     /**
+     * Gated channels, channel admin only: turn the moderators' pending deltas
+     * into the owner's own snapshot. Until this runs their actions hold only
+     * while they hold the role.
+     */
+    initAbsorbModSection(streamId) {
+        const section = document.getElementById('absorb-mod-section');
+        const button = document.getElementById('absorb-mod-btn');
+        const counter = document.getElementById('absorb-mod-count');
+        if (!section || !button) return;
+
+        const { channelManager, showNotification } = this.deps;
+        const channel = channelManager.channels.get(streamId);
+        const deltas = channel ? (channelManager.modDeltas?.pending?.(channel) || []) : [];
+        const show = !!channel?.gate?.address
+            && channelManager.isChannelOwner(streamId)
+            && deltas.length > 0;
+        section.classList.toggle('hidden', !show);
+        if (!show) return;
+        if (counter) counter.textContent = String(deltas.length);
+
+        if (button._clickHandler) button.removeEventListener('click', button._clickHandler);
+        button._clickHandler = async () => {
+            button.disabled = true;
+            try {
+                await channelManager.absorbModActions(streamId);
+                showNotification?.('Moderator actions confirmed', 'success');
+                this.initAbsorbModSection(streamId);
+            } catch (error) {
+                showNotification?.('Could not confirm: ' + error.message, 'error');
+            } finally {
+                button.disabled = false;
+            }
+        };
+        button.addEventListener('click', button._clickHandler);
+    }
+
+    /**
+     * Gated channels, channel admin only: manual epoch rotation. Free,
+     * unlike the publish-key re-key below — the UI keeps them apart.
+     */
+    initRotateEpochSection(streamId) {
+        const section = document.getElementById('rotate-epoch-section');
+        const button = document.getElementById('rotate-epoch-btn');
+        if (!section || !button) return;
+
+        const { channelManager, showNotification } = this.deps;
+        const channel = channelManager.channels.get(streamId);
+        const show = !!channel?.gate?.address
+            && channelManager.isChannelOwner(streamId);
+        section.classList.toggle('hidden', !show);
+        if (!show) return;
+        this._applyNextRotation(streamId);
+
+        if (button._clickHandler) button.removeEventListener('click', button._clickHandler);
+        button._clickHandler = async () => {
+            const status = document.getElementById('rotate-epoch-status');
+            button.disabled = true;
+            if (status) {
+                status.textContent = 'Rotating…';
+                status.classList.remove('hidden');
+            }
+            try {
+                const { epochKeyManager } = await import('../epochKeyManager.js');
+                await epochKeyManager.rotateEpoch(channel);
+                this._applyNextRotation(streamId);
+                if (status) status.textContent = 'New key issued. Members pick it up automatically.';
+                showNotification?.('Channel key rotated', 'success');
+            } catch (error) {
+                if (status) status.textContent = '';
+                showNotification?.('Rotation failed: ' + error.message, 'error');
+            } finally {
+                button.disabled = false;
+            }
+        };
+        button.addEventListener('click', button._clickHandler);
+    }
+
+    /**
+     * The channel rotates on its own weekly; the button is for not waiting.
+     * Saying when the next one falls is what makes that legible — and a due
+     * date in the past is the truth, since the timer only runs while the
+     * admin's client is open.
+     */
+    _applyNextRotation(streamId) {
+        const line = document.getElementById('rotate-epoch-next');
+        if (!line) return;
+        const due = epochKeyManager.nextRotationAt(streamId);
+        if (!due) {
+            line.textContent = '';
+            return;
+        }
+        const msLeft = due - Date.now();
+        line.textContent = msLeft > 0
+            ? `Next auto-rotate: ${formatRemaining(msLeft)}`
+            : 'Next auto-rotate: due';
+    }
+
+    /**
+     * Advanced holds the surfaces nobody needs on a routine visit. It exists
+     * only when something inside it does.
+     */
+    _applyAdvancedSection() {
+        const wrapper = document.getElementById('mod-advanced-section');
+        if (!wrapper) return;
+        const anyVisible = ['permissions-section', 'rekey-publish-section']
+            .map(id => document.getElementById(id))
+            .some(el => el && !el.classList.contains('hidden'));
+        wrapper.classList.toggle('hidden', !anyVisible);
+        if (!anyVisible) wrapper.open = false;
+    }
+
+    /**
      * Members-only channels, channel admin only: the escape valve that
      * replaces the shared publish key when ex-key-holders abuse it.
      */
@@ -1060,7 +1201,7 @@ class ChannelSettingsUI {
 
         const { channelManager, showNotification } = this.deps;
         const channel = channelManager.channels.get(streamId);
-        const show = channel?.authorMode === 'members'
+        const show = channel?.wireIdentity === 'sealed'
             && channelManager.isChannelOwner(streamId);
         section.classList.toggle('hidden', !show);
         if (!show) return;
@@ -1174,7 +1315,19 @@ class ChannelSettingsUI {
             // Remove from subscription manager tracking first
             await subscriptionManager.removeChannel(streamId);
 
-            await channelManager.deleteChannel(streamId);
+            const failed = await channelManager.deleteChannel(streamId) || [];
+            if (failed.length) {
+                // The channel stays in the list precisely so this is
+                // retryable, and the retry only pays for what is left.
+                showNotification(
+                    `${failed.length} stream(s) could not be deleted. `
+                    + 'The channel is still here — delete it again to retry.',
+                    'error'
+                );
+                renderChannelList();
+                await selectChannel(streamId);
+                return;
+            }
 
             showNotification(`Channel "${channelName}" deleted successfully`, 'success');
 
@@ -1338,14 +1491,28 @@ class ChannelSettingsUI {
         if (ens) return { label: ens, isAddress: false };
         const nickname = identityManager.getTrustedContact?.(lower)?.nickname;
         if (nickname) return { label: nickname, isAddress: false };
+        // Same chain the bubbles use: the roster name and the one declared on
+        // a message are the same kind of claim, so the most recent wins. The
+        // roster is what names a member who has never posted here.
         const declared = this._declaredNames(channel).get(lower);
-        if (declared) return { label: declared, isAddress: false };
+        const roster = channel?.gate?.address
+            ? epochKeyManager.getRosterName?.(channel.messageStreamId, lower)
+            : null;
+        if (roster && declared) {
+            return {
+                label: roster.ts >= declared.ts ? roster.name : declared.name,
+                isAddress: false
+            };
+        }
+        if (roster) return { label: roster.name, isAddress: false };
+        if (declared) return { label: declared.name, isAddress: false };
         return { label: address, isAddress: true };
     }
 
     /**
-     * Display names seen on this channel's loaded messages, newest wins. The
-     * roster carries no name, so a member who never posted has none.
+     * Display names seen on this channel's loaded messages, with when they
+     * were claimed — the roster name is compared against them by recency.
+     * @returns {Map<string, {name: string, ts: number}>}
      */
     _declaredNames(channel) {
         const names = new Map();
@@ -1353,7 +1520,9 @@ class ChannelSettingsUI {
             const sender = (msg?.sender || '').toLowerCase();
             const name = (msg?.senderName || '').trim();
             if (!sender || !name) continue;
-            names.set(sender, name);
+            const ts = Number(msg?.timestamp) || 0;
+            const held = names.get(sender);
+            if (!held || ts >= held.ts) names.set(sender, { name, ts });
         }
         return names;
     }
@@ -1991,6 +2160,24 @@ class ChannelSettingsUI {
         } catch (e) {
             Logger.debug('Gate access label failed (keeping default):', e?.message);
         }
+    }
+
+    /**
+     * Identity on the wire, under Access and in the same anatomy. Gated only:
+     * the mode is the gate's, and it is immutable for its lifetime. The field
+     * is reconciled against the contract once per session, so no read here;
+     * without it (preview) the line stays hidden rather than guessing.
+     */
+    _applyWireIdentityLine(channel) {
+        const section = document.getElementById('channel-settings-wire-section');
+        const value = document.getElementById('channel-settings-wire');
+        if (!section || !value) return;
+        const mode = channel?.type === 'gated' ? channel.wireIdentity : null;
+        section.classList.toggle('hidden', !mode);
+        if (!mode) return;
+        value.innerHTML = `<span class="inline-flex items-center gap-1.5">`
+            + wireIdentityIcon(mode, 'w-3 h-3 md:w-4 md:h-4')
+            + `${wireIdentitySpec(mode).name}</span>`;
     }
 
     async _applyPaidClock(channel, gate, gateManager, GATE_MODE) {

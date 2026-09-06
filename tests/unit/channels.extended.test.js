@@ -159,6 +159,7 @@ vi.mock('../../src/js/media.js', () => ({
 
 vi.mock('../../src/js/gate.js', () => ({
     GATE_MODE: Object.freeze({ NONE: 0, TOKEN_BALANCE: 1, NFT_OWNERSHIP: 2, PAID: 3 }),
+    WIRE_IDENTITY: Object.freeze({ VISIBLE: 0, SEALED: 1 }),
     gateManager: {
         createGate: vi.fn().mockResolvedValue('0xgate'),
         allow: vi.fn().mockResolvedValue(true),
@@ -167,6 +168,12 @@ vi.mock('../../src/js/gate.js', () => ({
         ban: vi.fn().mockResolvedValue(true),
         unban: vi.fn().mockResolvedValue(true),
         checkAccess: vi.fn().mockResolvedValue(true),
+        getGateInfo: vi.fn().mockResolvedValue({
+            owner: '0xowner', mode: 0, modeName: 'none', token: null,
+            minBalance: 0n, price: 0n, duration: 0n,
+            wireIdentity: 0, wireIdentityName: 'visible', readOnly: false
+        }),
+        listMembers: vi.fn().mockResolvedValue([]),
         getGateMembers: vi.fn().mockResolvedValue([]),
         setModerator: vi.fn().mockResolvedValue(true),
         canModerate: vi.fn().mockResolvedValue(false)
@@ -391,7 +398,7 @@ describe('ChannelManager Extended', () => {
             epochKeyManager.rotateEpoch.mockClear();
 
             await channelManager.banMemberLevels(streamId, '0xmember1', { protocol: true });
-            expect(gateManager.ban).toHaveBeenCalledWith('0xgate', '0xmember1', false);
+            expect(gateManager.ban).toHaveBeenCalledWith('0xgate', '0xmember1');
             expect(epochKeyManager.rotateEpoch).toHaveBeenCalled();
 
             gateManager.ban.mockClear();
@@ -405,7 +412,7 @@ describe('ChannelManager Extended', () => {
 
         it('records the rotation so the deferred pass does not repeat it', async () => {
             await channelManager.banMemberLevels(streamId, '0xmember1', { protocol: true });
-            expect(channelManager.channels.get(streamId).rotatedForBanned).toContain('0xmember1');
+            expect(channelManager.channels.get(streamId).rotatedForNoAccess).toContain('0xmember1');
         });
 
         it('refuses to ban the channel creator', async () => {
@@ -674,6 +681,18 @@ describe('ChannelManager Extended', () => {
             await channelManager.deleteChannel(streamId);
             // Should still remove locally
             expect(channelManager.channels.has(streamId)).toBe(false);
+        });
+
+        /**
+         * A stream left standing keeps the channel here: forgetting it locally
+         * is what makes the leftovers unreachable, and the delete screen is
+         * the only retry there is.
+         */
+        it('keeps the channel when a stream could not be deleted', async () => {
+            streamrController.deleteStream.mockResolvedValue([`${streamId}-3`]);
+            const failed = await channelManager.deleteChannel(streamId);
+            expect(failed).toEqual([`${streamId}-3`]);
+            expect(channelManager.channels.has(streamId)).toBe(true);
         });
     });
 

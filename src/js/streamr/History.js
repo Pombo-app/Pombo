@@ -14,6 +14,7 @@ import { cryptoManager } from '../crypto.js';
 import { CONFIG } from '../config.js';
 import { STREAM_CONFIG } from '../streamConfig.js';
 import { isMessageStream } from '../streamConstants.js';
+import { verifyEnvelopeAuthenticity } from '../envelopeSigner.js';
 
 export class History {
     /**
@@ -59,11 +60,16 @@ export class History {
         const fetchLast = Math.max(1, last || CONFIG.channels?.latestMessageFetchLast || 2);
         const partition = STREAM_CONFIG.MESSAGE_STREAM.MESSAGES;
         const entries = [];
+        const gatedChannel = await this.controller._gatedChannelFor(messageStreamId);
 
         try {
+            // Raw: skips the SDK's validation/ordering pipeline — resilience
+            // on half-connected nodes. Authenticity is re-established below:
+            // gated entries never render here (epoch envelopes carry no
+            // preview type), non-gated ones must pass the envelope check.
             const resend = await this.controller.client.resend(
                 { streamId: messageStreamId, partition },
-                { last: fetchLast }
+                { last: fetchLast, raw: true }
             );
 
             const iterator = resend[Symbol.asyncIterator]();
@@ -85,6 +91,7 @@ export class History {
                 }
 
                 try {
+                    if (!gatedChannel && !verifyEnvelopeAuthenticity(message)) continue;
                     let content = message.content || message;
                     // Encrypted entries arrive as base64/JSON string when password channel
                     if (typeof content === 'string') {
@@ -207,7 +214,7 @@ export class History {
                 {
                     from: { timestamp: 0 },
                     to: { timestamp: beforeTimestamp },
-                    ...(gatedChannel ? { raw: true } : {})
+                    raw: true
                 }
             );
             
@@ -243,6 +250,10 @@ export class History {
                 }
                 
                 try {
+                    // Non-gated raw: the envelope check replaces the SDK
+                    // validation raw turned off (gated authorship comes from
+                    // resolveAuthor below).
+                    if (!gatedChannel && !verifyEnvelopeAuthenticity(message)) continue;
                     let content = message.content || message;
 
                     // Decrypt if password provided
@@ -275,7 +286,7 @@ export class History {
                         // proof of past membership), but never from
                         // verification.
                         const modeChannel = await this.controller._gatedChannelFor(messageStreamId);
-                        if (modeChannel?.authorMode === 'members') {
+                        if (modeChannel?.wireIdentity === 'sealed') {
                             const authored = await this.controller._openAuthorship(modeChannel, content);
                             if (!authored) continue;
                             content = authored.payload;
@@ -427,11 +438,15 @@ export class History {
         try {
             Logger.debug(`fetchOlderHistoryWindowed: ${new Date(windowStart).toISOString()} → ${new Date(windowEnd).toISOString()}`);
 
+            // Raw — DM inboxes are never gated, so every entry must pass the
+            // envelope-authenticity check below (the sealed DM adds its own
+            // proof downstream; this is the replay defence raw turned off).
             const resend = await this.controller.client.resend(
                 { streamId, partition },
                 {
                     from: { timestamp: windowStart },
-                    to: { timestamp: windowEnd }
+                    to: { timestamp: windowEnd },
+                    raw: true
                 }
             );
 
@@ -459,6 +474,7 @@ export class History {
                 }
 
                 try {
+                    if (!verifyEnvelopeAuthenticity(message)) continue;
                     let content = message.content || message;
 
                     // Decrypt payload for password-encrypted channels. DM inbox
@@ -527,10 +543,11 @@ export class History {
             // stale-key spam. Live subscriptions stay strictly validated.
             const gatedChannel = await this.controller._gatedChannelFor(streamId);
 
-            // Streamr SDK resend: must await before iterating
+            // Streamr SDK resend: must await before iterating. Raw on every
+            // channel kind — non-gated entries pass the envelope check below.
             const resend = await this.controller.client.resend(
                 { streamId, partition },
-                { last: count, ...(gatedChannel ? { raw: true } : {}) }
+                { last: count, raw: true }
             );
             
             Logger.debug(`Resend object received for partition ${partition}:`, typeof resend);
@@ -617,8 +634,15 @@ export class History {
                 
                 rawCount++;
                 try {
+                    // Non-gated raw: the envelope check replaces the SDK
+                    // validation raw turned off (gated authorship comes from
+                    // resolveAuthor below).
+                    if (!gatedChannel && !verifyEnvelopeAuthenticity(message)) {
+                        skippedCount++;
+                        continue;
+                    }
                     let content = message.content || message;
-                    
+
                     // Decrypt if password provided (for encrypted channels)
                     if (password && typeof content === 'string') {
                         try {
@@ -651,7 +675,7 @@ export class History {
                         // Members-only: the author comes from the wrapper
                         // inside the seal, never from the transport.
                         const modeChannel = await this.controller._gatedChannelFor(streamId);
-                        if (modeChannel?.authorMode === 'members') {
+                        if (modeChannel?.wireIdentity === 'sealed') {
                             const authored = await this.controller._openAuthorship(modeChannel, content);
                             if (!authored) {
                                 skippedCount++;

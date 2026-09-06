@@ -10,6 +10,7 @@ import { streamrController } from '../streamr.js';
 import { authManager } from '../auth.js';
 import { parseChainError } from '../utils/chainErrors.js';
 import { epochKeyManager } from '../epochKeyManager.js';
+import { CONFIG } from '../config.js';
 
 export class Membership {
     /**
@@ -46,9 +47,8 @@ export class Membership {
             throw new Error('Address is already a member');
         }
 
-        // Membership is ONE gate transaction — allow() on the Closed gate
-        // marks the address allowlisted + everMember. No stream grants:
-        // access is proven per-message via ERC-1271.
+        // Membership is ONE gate transaction — allow() on the Closed gate.
+        // No stream grants: access is proven per-message via ERC-1271.
         try {
             const { gateManager } = await import('../gate.js');
             await gateManager.allow(channel.gate.address, address);
@@ -120,9 +120,10 @@ export class Membership {
         // never minted, and they must be removable like any other.
         //
         // Removing takes them off the allowlist WITHOUT the ban mark, so a
-        // later allow() readmits them; the epoch rotation cuts their reads from
-        // here on, and the sticky isValidSignature keeps their history readable
-        // for everyone else (Q10). Only Closed gates have an allowlist.
+        // later allow() readmits them. The single gate cuts their transport at
+        // ingest, the epoch rotation cuts their reads, and their history stays
+        // readable in Pombo clients because reads validate at ingest and never
+        // revalidate. Only Closed gates have an allowlist.
         try {
             const { gateManager } = await import('../gate.js');
             await gateManager.revokeAllow(channel.gate.address, address);
@@ -147,8 +148,8 @@ export class Membership {
      * Ban with its two enforcement levels (see the Android twin).
      * CLIENT is the ADMIN_STATE ban: every client hides the author's messages,
      * free, reversible, creator-only. PROTOCOL is the gate ban: checkAccess
-     * goes false so no responder hands out keys, and the rotation that follows
-     * cuts reads. Costs gas.
+     * goes false so no responder hands out keys, the single gate cuts their
+     * transport at ingest, and the rotation that follows cuts reads. Costs gas.
      */
     async banMemberLevels(messageStreamId, address, { client = false, protocol = false } = {}) {
         const channel = this.manager.channels.get(messageStreamId);
@@ -161,7 +162,7 @@ export class Membership {
             if (!channel.gate?.address) throw new Error('Only gated channels have a protocol-level ban');
             const { gateManager } = await import('../gate.js');
             try {
-                await gateManager.ban(channel.gate.address, address, false);
+                await gateManager.ban(channel.gate.address, address);
             } catch (error) {
                 throw new Error(parseChainError(error).message);
             }
@@ -174,8 +175,9 @@ export class Membership {
             try {
                 await epochKeyManager.rotateEpoch(channel);
                 // Covered: the deferred pass must not rotate again for this one.
-                channel.rotatedForBanned = [
-                    ...new Set([...(channel.rotatedForBanned || []), address.toLowerCase()])
+                channel.rotatedForNoAccess = [
+                    ...new Set([...(channel.rotatedForNoAccess || channel.rotatedForBanned || []),
+                        address.toLowerCase()])
                 ];
                 await this.manager.saveChannels();
             } catch (rotateError) {
@@ -207,7 +209,10 @@ export class Membership {
                 }
             }
         }
-        if ((channel.adminState?.bannedMembers || []).some(a => a.toLowerCase() === lower)) {
+        // Ban entries are { address, sinceEpoch }; older snapshots may still
+        // hold bare strings.
+        if ((channel.adminState?.bannedMembers || []).some(entry =>
+            String(entry?.address ?? entry).toLowerCase() === lower)) {
             await this.manager.unbanMember(messageStreamId, address);
         }
         return true;
@@ -220,9 +225,11 @@ export class Membership {
      */
     /**
      * Candidate membership answered by the gate: the local cache, the
-     * KEY_REQUEST authors seen on -4 and the -4/P1 roster, with every contract
-     * flag intact. Empty on failure — each caller picks its own fallback.
-     * @returns {Promise<Array>} - [{ address, isOwner, moderator, access, banned, everMember, erased, paidUntil }]
+     * KEY_REQUEST authors seen on -4, the -4/P1 roster and, on Closed gates,
+     * the contract's own enumeration — which makes the candidate set complete
+     * there instead of limited to what this client happened to see. Empty on
+     * failure — each caller picks its own fallback.
+     * @returns {Promise<Array>} - [{ address, isOwner, moderator, access, banned, allowed, paidUntil }]
      */
     async getGateMemberFlags(streamId) {
         const channel = this.manager.channels.get(streamId);
@@ -230,6 +237,10 @@ export class Membership {
         try {
             const { gateManager } = await import('../gate.js');
             const roster = await epochKeyManager.getRosterMembers(channel).catch(() => []);
+            const onChain = await gateManager.getGateInfo(channel.gate.address)
+                .then(info => info.modeName === 'none'
+                    ? gateManager.listMembers(channel.gate.address) : [])
+                .catch(() => []);
             const candidates = [
                 ...(channel.members || []),
                 // Banning drops them from the members cache and the roster
@@ -238,7 +249,8 @@ export class Membership {
                 // one entry it exists to show.
                 ...(channel.knownBanned || []),
                 ...epochKeyManager.getSeenRequesters(channel.messageStreamId),
-                ...roster.map(m => m.account)
+                ...roster.map(m => m.account),
+                ...onChain
             ];
             const flags = await gateManager.getGateMembers(channel.gate.address, candidates);
             this.manager._rememberBanned(channel, flags);
@@ -312,10 +324,15 @@ export class Membership {
             // created before the roster partition existed.
             const roster = await epochKeyManager.getRosterMembers(channel)
                 .catch(() => []);
+            const onChain = await gateManager.getGateInfo(channel.gate.address)
+                .then(info => info.modeName === 'none'
+                    ? gateManager.listMembers(channel.gate.address) : [])
+                .catch(() => []);
             const candidates = [
                 ...(channel.members || []),
                 ...epochKeyManager.getSeenRequesters(channel.messageStreamId),
-                ...roster.map(m => m.account)
+                ...roster.map(m => m.account),
+                ...onChain
             ];
             const gateMembers = await gateManager.getGateMembers(
                 channel.gate.address, candidates);
@@ -472,6 +489,46 @@ export class Membership {
             .catch(err => {
                 Logger.warn('Failed to preload DELETE permission:', err.message);
             });
+    }
+
+    /**
+     * Pre-load whether this wallet moderates the channel's gate. Separate
+     * from the DELETE permission because a moderator holds no stream
+     * permission at all: their authority is on the gate, and what they
+     * publish is a signed delta, not the owner's snapshot.
+     */
+    preloadModeratorPermission(streamId) {
+        const channel = this.manager.channels.get(streamId);
+        const currentAddress = authManager.getAddress();
+        if (!channel?.gate?.address || !currentAddress) return;
+        // Ages out like the gate access cache. Without a TTL the first answer
+        // stood for the whole session, so a member promoted while the app was
+        // open never got the moderation actions — the very case the promotion
+        // exists for.
+        const cached = channel._modPermCache;
+        if (cached?.address === currentAddress.toLowerCase()
+            && Date.now() - (cached.at || 0) < CONFIG.gate.checkAccessCacheMs) return;
+
+        import('../gate.js')
+            .then(({ gateManager }) => gateManager._isModerator(channel.gate.address, currentAddress))
+            .then(isMod => {
+                const ch = this.manager.channels.get(streamId);
+                const addr = authManager.getAddress();
+                if (!ch || !addr) return;
+                ch._modPermCache = {
+                    isModerator: !!isMod, address: addr.toLowerCase(), at: Date.now()
+                };
+            })
+            .catch(e => Logger.debug('Moderator preload failed:', e.message));
+    }
+
+    /** Whether this wallet moderates the channel, from the preloaded cache. */
+    isCachedModerator(streamId) {
+        const channel = this.manager.channels.get(streamId);
+        const currentAddress = authManager.getAddress();
+        if (!channel?._modPermCache || !currentAddress) return false;
+        return channel._modPermCache.address === currentAddress.toLowerCase()
+            && channel._modPermCache.isModerator;
     }
 
     /**

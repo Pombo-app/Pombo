@@ -1,0 +1,80 @@
+﻿{
+  "generator": "@streamr/sdk MessageSigner (v103.3.1) via Pombo Web node_modules",
+  "generatedAt": "2026-08-18",
+  "digest": "keccak256(\"\\x19Ethereum Signed Message:\\n\" + len(payload) + payload); payload = utf8(streamId+partition+timestamp+seqNo+publisherId+msgChainId[+prevTs+prevSeq]) || contentBytes",
+  "vectors": [
+    {
+      "name": "erc1271-json-message",
+      "streamId": "0x7ea24eb97d400a76f8d96be92c4e7fce576aedb9/fb7c17ec3991a4ed-1",
+      "streamPartition": 0,
+      "timestamp": 1786996592132,
+      "sequenceNumber": 0,
+      "publisherId": "0xf7ad70759e314f89fa150c60968df74a2550fac8",
+      "msgChainId": "chain-erc1271-1",
+      "prevMsgRef": null,
+      "signatureType": 2,
+      "contentHex": "0x7b2265223a2265706f63682d6165732d67636d222c226b223a226b69642d31222c226374223a2259574a6a222c226976223a225a47566d227d",
+      "signatureHex": "0x2dac16ce118f80d6f7f27b58382f7eb3dcd9a5b4f0941fe3c085ece14908e85a5a9069ae0af60261514a0c71bff014afe0381c8f31aae17a974a38f9632109f01b",
+      "expectedSigner": "0x1563915e194d8cfba1943570603f7606a3115508"
+    },
+    {
+      "name": "erc1271-with-prevref",
+      "streamId": "0x7ea24eb97d400a76f8d96be92c4e7fce576aedb9/fb7c17ec3991a4ed-1",
+      "streamPartition": 0,
+      "timestamp": 1786996600000,
+      "sequenceNumber": 3,
+      "publisherId": "0xf7ad70759e314f89fa150c60968df74a2550fac8",
+      "msgChainId": "chain-erc1271-1",
+      "prevMsgRef": {
+        "timestamp": 1786996592132,
+        "sequenceNumber": 0
+      },
+      "signatureType": 2,
+      "contentHex": "0x7b2270726f6265223a227365636f6e6420696e20636861696e227d",
+      "signatureHex": "0x59c6d094b1a507a8b6512b372aeed3a2852badcba273d11449d1268e2230e3362534bb6ab69419b68fec7c173bbdc8404d3fe6edec3b9f57a7605be901c3d2841c",
+      "expectedSigner": "0x1563915e194d8cfba1943570603f7606a3115508"
+    },
+    {
+      "name": "erc1271-keys-stream-announce",
+      "streamId": "0x7ea24eb97d400a76f8d96be92c4e7fce576aedb9/fb7c17ec3991a4ed-4",
+      "streamPartition": 0,
+      "timestamp": 1786995726000,
+      "sequenceNumber": 0,
+      "publisherId": "0xf7ad70759e314f89fa150c60968df74a2550fac8",
+      "msgChainId": "chain-keys-1",
+      "prevMsgRef": null,
+      "signatureType": 2,
+      "contentHex": "0x7b2274223a224b45595f414e4e4f554e4345222c2265706f6368223a312c226b65794964223a226b69642d31222c226b657948617368223a2230303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030222c2276616c696446726f6d223a313738363939353732363030307d",
+      "signatureHex": "0x98f2553436885aeab5ef2713654bb57676cbcd1c7bd67b6acaef5b7e443211c313dab9b10a7a5f426961c171f4bcc07424aa439978e9d9f5db3f89f03db7cf5c1c",
+      "expectedSigner": "0x5cbdd86a2fa8dc4bddd8a8f69dba48572eec07fb"
+    },
+    {
+      "name": "erc1271-binary-content",
+      "streamId": "0x7ea24eb97d400a76f8d96be92c4e7fce576aedb9/fb7c17ec3991a4ed-1",
+      "streamPartition": 2,
+      "timestamp": 1786996700001,
+      "sequenceNumber": 0,
+      "publisherId": "0xf7ad70759e314f89fa150c60968df74a2550fac8",
+      "msgChainId": "chain-bin-1",
+      "prevMsgRef": null,
+      "signatureType": 2,
+      "contentHex": "0x00010203fffefd804020",
+      "signatureHex": "0x8d2c5f2f4736d1573be9f025e0cdfa64f8401952fbaa6d71babbdb4f2fc675e37fec5757ff0d415db4fdaca6b24ab7b4f3e9c780dab34be012cecaaa3a24591f1c",
+      "expectedSigner": "0x7564105e977516c53be337314c7e53838967bdac"
+    },
+    {
+      "name": "plain-evm-own-publisher",
+      "streamId": "0x7ea24eb97d400a76f8d96be92c4e7fce576aedb9/fb7c17ec3991a4ed-1",
+      "streamPartition": 0,
+      "timestamp": 1786996800000,
+      "sequenceNumber": 0,
+      "publisherId": "0xe1fae9b4fab2f5726677ecfa912d96b0b683e6a9",
+      "msgChainId": "chain-evm-1",
+      "prevMsgRef": null,
+      "signatureType": 1,
+      "contentHex": "0x7b22706c61696e223a227472616e73706f72742d7369676e6564227d",
+      "signatureHex": "0xcb637a6d5636605b2d47f282505936d1d7eec1b399940a73948ebade47c7194644c62e928dd55410dce6865a29e83d833a137caf82af7da5c23a3f3f7514505f1c",
+      "expectedSigner": "0xe1fae9b4fab2f5726677ecfa912d96b0b683e6a9"
+    }
+  ]
+}

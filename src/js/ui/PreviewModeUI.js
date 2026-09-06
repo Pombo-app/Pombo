@@ -163,6 +163,7 @@ class PreviewModeUI {
                 streamId,
                 // Mirror messageStreamId so channelManager.applyAdminState() can be reused
                 messageStreamId: streamId,
+                preview: true,
                 channelInfo,
                 name: this._getChannelDisplayName(streamId, channelInfo),
                 type: channelInfo?.type || 'public',

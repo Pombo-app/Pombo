@@ -920,7 +920,11 @@ async function sdkFetchWindow(sid, partition, fromTime, toTime, onMessage, idleT
             finish();
         }, HARD_CAP_MS);
         armIdle();
-        client.resend({ streamId: sid, partition }, { from: { timestamp: fromTime }, to: { timestamp: toTime } })
+        // Raw, no envelope guard — this is the SDK fallback for the direct
+        // HTTP window read above, which never validated either: chunk windows
+        // are self-verifying downstream (per-file seal + assembled digest),
+        // and on gated channels the publisher is the clone anyway.
+        client.resend({ streamId: sid, partition }, { from: { timestamp: fromTime }, to: { timestamp: toTime }, raw: true })
             .then(sub => {
                 armIdle();
                 (async () => {
@@ -1611,7 +1615,7 @@ class StorageMediaController {
                 chunkIdentity = EthereumKeyPairIdentity.fromPrivateKey(
                     dmCrypto.generateEphemeralPrivateKey());
                 chunkPublisher = await chunkIdentity.getUserId();
-            } else if (channel?.authorMode === 'members') {
+            } else if (channel?.wireIdentity === 'sealed') {
                 // Members-only: chunks travel under the SHARED publish key —
                 // that address is what the verify reads must match.
                 const { epochKeyManager } = await import('./epochKeyManager.js');

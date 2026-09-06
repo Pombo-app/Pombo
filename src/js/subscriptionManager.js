@@ -14,6 +14,7 @@ import { streamrController, STREAM_CONFIG, deriveEphemeralId, deriveAdminId } fr
 import { channelManager } from './channels.js';
 import { channelLatestMessageManager } from './channelLatestMessageManager.js';
 import { adminStatePoller } from './adminStatePoller.js';
+import { memberCatchUp } from './memberCatchUp.js';
 import { secureStorage } from './secureStorage.js';
 import { authManager } from './auth.js';
 import { identityManager } from './identity.js';
@@ -131,6 +132,17 @@ class SubscriptionManager {
         } catch (e) {
             Logger.debug('Admin poller start failed (non-fatal):', e?.message || e);
         }
+
+        // A member's keys and messages need a raw sweep the owner does not.
+        try {
+            const channel = channelManager.getChannel(messageStreamId);
+            if (channel) {
+                memberCatchUp.start(channel,
+                    (data) => channelManager.handleTextMessage(messageStreamId, data));
+            }
+        } catch (e) {
+            Logger.debug('Member catch-up start failed (non-fatal):', e?.message || e);
+        }
     }
 
     /**
@@ -145,6 +157,7 @@ class SubscriptionManager {
             if (adminStatePoller.getStreamId() === messageStreamId) {
                 adminStatePoller.stop();
             }
+            memberCatchUp.stop(messageStreamId);
         } catch (e) { /* ignore */ }
 
         try {
@@ -354,6 +367,7 @@ class SubscriptionManager {
                     if (adminStatePoller.getStreamId() === messageStreamId) {
                         adminStatePoller.stop();
                     }
+                    memberCatchUp.stop(messageStreamId);
                 } catch (e) { /* ignore */ }
                 return;
             }
@@ -675,6 +689,7 @@ class SubscriptionManager {
             if (adminStatePoller.getStreamId() === streamId) {
                 adminStatePoller.stop();
             }
+            memberCatchUp.stop(streamId);
         } catch (e) { /* ignore */ }
 
         try {
@@ -711,6 +726,7 @@ class SubscriptionManager {
             if (adminStatePoller.getStreamId() === messageStreamId) {
                 adminStatePoller.stop();
             }
+            memberCatchUp.stop(messageStreamId);
         } catch (e) { /* ignore */ }
 
         // Transfer state - keep MESSAGE subscription alive!

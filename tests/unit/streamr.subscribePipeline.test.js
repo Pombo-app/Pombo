@@ -150,7 +150,7 @@ describe('subscribeWithHistory', () => {
         it('takes the author from inside the seal on a members-only channel', async () => {
             streamrController.isEpochEnvelope.mockReturnValue(true);
             vi.spyOn(streamrController, 'openEpochEnvelope').mockResolvedValue({ type: 'text', text: 'sealed' });
-            streamrController._gatedChannelFor.mockResolvedValue({ gate: { address: GATE }, authorMode: 'members' });
+            streamrController._gatedChannelFor.mockResolvedValue({ gate: { address: GATE }, wireIdentity: 'sealed' });
             vi.spyOn(streamrController, '_openAuthorship')
                 .mockResolvedValue({ payload: { type: 'text', text: 'sealed' }, author: OTHER });
             const state = wire();
@@ -168,7 +168,7 @@ describe('subscribeWithHistory', () => {
         it('drops a members-only message whose authorship does not verify', async () => {
             streamrController.isEpochEnvelope.mockReturnValue(true);
             vi.spyOn(streamrController, 'openEpochEnvelope').mockResolvedValue({ type: 'text' });
-            streamrController._gatedChannelFor.mockResolvedValue({ gate: { address: GATE }, authorMode: 'members' });
+            streamrController._gatedChannelFor.mockResolvedValue({ gate: { address: GATE }, wireIdentity: 'sealed' });
             vi.spyOn(streamrController, '_openAuthorship').mockResolvedValue(null);
             const state = wire();
             const handler = vi.fn();

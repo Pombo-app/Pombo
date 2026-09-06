@@ -1,0 +1,350 @@
+{
+  "cases": [
+    {
+      "what": "hide and epoch-stamped ban compose over the snapshot",
+      "snapshot": {
+        "rev": 7,
+        "ts": 1789000000000,
+        "absorbedThrough": 1789000000000,
+        "hiddenMessageIds": [
+          "msg-owner-hid"
+        ],
+        "bannedMembers": [
+          {
+            "address": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+            "sinceEpoch": 3
+          }
+        ]
+      },
+      "modsNow": [
+        "0x59c6995e998f97a5a0044966f0945389dc9e86da"
+      ],
+      "deltas": [
+        {
+          "t": "MOD_ACTION",
+          "op": "hide",
+          "target": "msg-0002",
+          "ts": 1789000001000,
+          "mod": "0x59c6995e998f97a5a0044966f0945389dc9e86da"
+        },
+        {
+          "t": "MOD_ACTION",
+          "op": "ban",
+          "target": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+          "ts": 1789000002000,
+          "mod": "0x59c6995e998f97a5a0044966f0945389dc9e86da",
+          "sinceEpoch": 5
+        }
+      ],
+      "effective": {
+        "hiddenMessageIds": [
+          "msg-0002",
+          "msg-owner-hid"
+        ],
+        "bannedMembers": [
+          {
+            "address": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+            "sinceEpoch": 5
+          },
+          {
+            "address": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+            "sinceEpoch": 3
+          }
+        ]
+      }
+    },
+    {
+      "what": "mods undo each other among deltas; arrival order is irrelevant",
+      "snapshot": {
+        "rev": 7,
+        "ts": 1789000000000,
+        "absorbedThrough": 1789000000000,
+        "hiddenMessageIds": [
+          "msg-owner-hid"
+        ],
+        "bannedMembers": [
+          {
+            "address": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+            "sinceEpoch": 3
+          }
+        ]
+      },
+      "modsNow": [
+        "0x59c6995e998f97a5a0044966f0945389dc9e86da",
+        "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+      ],
+      "deltas": [
+        {
+          "t": "MOD_ACTION",
+          "op": "unhide",
+          "target": "msg-0002",
+          "ts": 1789000003000,
+          "mod": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+        },
+        {
+          "t": "MOD_ACTION",
+          "op": "hide",
+          "target": "msg-0002",
+          "ts": 1789000001000,
+          "mod": "0x59c6995e998f97a5a0044966f0945389dc9e86da"
+        }
+      ],
+      "effective": {
+        "hiddenMessageIds": [
+          "msg-owner-hid"
+        ],
+        "bannedMembers": [
+          {
+            "address": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+            "sinceEpoch": 3
+          }
+        ]
+      }
+    },
+    {
+      "what": "a delta never overrides the snapshot: unhide and unban of owner entries are no-ops",
+      "snapshot": {
+        "rev": 7,
+        "ts": 1789000000000,
+        "absorbedThrough": 1789000000000,
+        "hiddenMessageIds": [
+          "msg-owner-hid"
+        ],
+        "bannedMembers": [
+          {
+            "address": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+            "sinceEpoch": 3
+          }
+        ]
+      },
+      "modsNow": [
+        "0x59c6995e998f97a5a0044966f0945389dc9e86da"
+      ],
+      "deltas": [
+        {
+          "t": "MOD_ACTION",
+          "op": "unhide",
+          "target": "msg-owner-hid",
+          "ts": 1789000001000,
+          "mod": "0x59c6995e998f97a5a0044966f0945389dc9e86da"
+        },
+        {
+          "t": "MOD_ACTION",
+          "op": "unban",
+          "target": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+          "ts": 1789000002000,
+          "mod": "0x59c6995e998f97a5a0044966f0945389dc9e86da"
+        }
+      ],
+      "effective": {
+        "hiddenMessageIds": [
+          "msg-owner-hid"
+        ],
+        "bannedMembers": [
+          {
+            "address": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+            "sinceEpoch": 3
+          }
+        ]
+      }
+    },
+    {
+      "what": "ts at absorbedThrough is already absorbed; strictly-greater participates",
+      "snapshot": {
+        "rev": 7,
+        "ts": 1789000000000,
+        "absorbedThrough": 1789000000000,
+        "hiddenMessageIds": [
+          "msg-owner-hid"
+        ],
+        "bannedMembers": [
+          {
+            "address": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+            "sinceEpoch": 3
+          }
+        ]
+      },
+      "modsNow": [
+        "0x59c6995e998f97a5a0044966f0945389dc9e86da"
+      ],
+      "deltas": [
+        {
+          "t": "MOD_ACTION",
+          "op": "hide",
+          "target": "msg-late",
+          "ts": 1789000000000,
+          "mod": "0x59c6995e998f97a5a0044966f0945389dc9e86da"
+        },
+        {
+          "t": "MOD_ACTION",
+          "op": "hide",
+          "target": "msg-new",
+          "ts": 1789000000001,
+          "mod": "0x59c6995e998f97a5a0044966f0945389dc9e86da"
+        }
+      ],
+      "effective": {
+        "hiddenMessageIds": [
+          "msg-new",
+          "msg-owner-hid"
+        ],
+        "bannedMembers": [
+          {
+            "address": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+            "sinceEpoch": 3
+          }
+        ]
+      }
+    },
+    {
+      "what": "a dismissed moderator loses the pending deltas",
+      "snapshot": {
+        "rev": 7,
+        "ts": 1789000000000,
+        "absorbedThrough": 1789000000000,
+        "hiddenMessageIds": [
+          "msg-owner-hid"
+        ],
+        "bannedMembers": [
+          {
+            "address": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+            "sinceEpoch": 3
+          }
+        ]
+      },
+      "modsNow": [
+        "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+      ],
+      "deltas": [
+        {
+          "t": "MOD_ACTION",
+          "op": "hide",
+          "target": "msg-0009",
+          "ts": 1789000001000,
+          "mod": "0x59c6995e998f97a5a0044966f0945389dc9e86da"
+        },
+        {
+          "t": "MOD_ACTION",
+          "op": "hide",
+          "target": "msg-0010",
+          "ts": 1789000002000,
+          "mod": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+        }
+      ],
+      "effective": {
+        "hiddenMessageIds": [
+          "msg-0010",
+          "msg-owner-hid"
+        ],
+        "bannedMembers": [
+          {
+            "address": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+            "sinceEpoch": 3
+          }
+        ]
+      }
+    },
+    {
+      "what": "a later ban replaces the epoch stamp; null means hide everything",
+      "snapshot": {
+        "rev": 7,
+        "ts": 1789000000000,
+        "absorbedThrough": 1789000000000,
+        "hiddenMessageIds": [
+          "msg-owner-hid"
+        ],
+        "bannedMembers": [
+          {
+            "address": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+            "sinceEpoch": 3
+          }
+        ]
+      },
+      "modsNow": [
+        "0x59c6995e998f97a5a0044966f0945389dc9e86da"
+      ],
+      "deltas": [
+        {
+          "t": "MOD_ACTION",
+          "op": "ban",
+          "target": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+          "ts": 1789000001000,
+          "mod": "0x59c6995e998f97a5a0044966f0945389dc9e86da",
+          "sinceEpoch": 5
+        },
+        {
+          "t": "MOD_ACTION",
+          "op": "ban",
+          "target": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+          "ts": 1789000002000,
+          "mod": "0x59c6995e998f97a5a0044966f0945389dc9e86da",
+          "sinceEpoch": null
+        }
+      ],
+      "effective": {
+        "hiddenMessageIds": [
+          "msg-owner-hid"
+        ],
+        "bannedMembers": [
+          {
+            "address": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+            "sinceEpoch": null
+          },
+          {
+            "address": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+            "sinceEpoch": 3
+          }
+        ]
+      }
+    },
+    {
+      "what": "same ts orders by (mod, op, target): ban applies before unban removes it",
+      "snapshot": {
+        "rev": 7,
+        "ts": 1789000000000,
+        "absorbedThrough": 1789000000000,
+        "hiddenMessageIds": [
+          "msg-owner-hid"
+        ],
+        "bannedMembers": [
+          {
+            "address": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+            "sinceEpoch": 3
+          }
+        ]
+      },
+      "modsNow": [
+        "0x59c6995e998f97a5a0044966f0945389dc9e86da",
+        "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+      ],
+      "deltas": [
+        {
+          "t": "MOD_ACTION",
+          "op": "unban",
+          "target": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+          "ts": 1789000001000,
+          "mod": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+        },
+        {
+          "t": "MOD_ACTION",
+          "op": "ban",
+          "target": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+          "ts": 1789000001000,
+          "mod": "0x59c6995e998f97a5a0044966f0945389dc9e86da",
+          "sinceEpoch": 2
+        }
+      ],
+      "effective": {
+        "hiddenMessageIds": [
+          "msg-owner-hid"
+        ],
+        "bannedMembers": [
+          {
+            "address": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+            "sinceEpoch": 3
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -26,8 +26,14 @@
 import { Logger } from './logger.js';
 import { CONFIG } from './config.js';
 
-class AdminStatePoller {
-    constructor() {
+export class ResendPoller {
+    /**
+     * @param {string} label - what shows up in the logs
+     * @param {() => number} intervalMs - read per tick, so a config change lands
+     */
+    constructor(label = 'ResendPoller', intervalMs = () => 30000) {
+        this._label = label;
+        this._configuredMs = intervalMs;
         this._streamId = null;          // active streamId (active OR preview)
         this._refreshFn = null;         // async () => void supplied at start()
         this._intervalHandle = null;
@@ -48,7 +54,7 @@ class AdminStatePoller {
      */
     start(streamId, refreshFn) {
         if (!streamId || typeof refreshFn !== 'function') {
-            Logger.warn('AdminStatePoller.start: invalid args');
+            Logger.warn(`${this._label}.start: invalid args`);
             return;
         }
         // If switching channels, stop previous timer first.
@@ -64,7 +70,7 @@ class AdminStatePoller {
         if (!this._paused) {
             this._startInterval();
         }
-        Logger.debug('AdminStatePoller started for', String(streamId).slice(-30), {
+        Logger.debug(`${this._label} started for`, String(streamId).slice(-30), {
             paused: this._paused,
             intervalMs: this._intervalMs()
         });
@@ -81,7 +87,7 @@ class AdminStatePoller {
         this._paused = false;
         this._pollPending = false;
         this._inFlight = false;
-        Logger.debug('AdminStatePoller stopped');
+        Logger.debug(`${this._label} stopped`);
     }
 
     /**
@@ -119,7 +125,7 @@ class AdminStatePoller {
     // -- internals ---------------------------------------------------------
 
     _intervalMs() {
-        const v = CONFIG?.subscriptions?.adminPollIntervalMs;
+        const v = this._configuredMs();
         return typeof v === 'number' && v > 0 ? v : 30000;
     }
 
@@ -157,7 +163,7 @@ class AdminStatePoller {
         try {
             await this._refreshFn();
         } catch (e) {
-            Logger.debug(`AdminStatePoller refresh failed (${reason}):`, e?.message || e);
+            Logger.debug(`${this._label} refresh failed (${reason}):`, e?.message || e);
         } finally {
             this._inFlight = false;
         }
@@ -172,11 +178,11 @@ class AdminStatePoller {
             if (document.hidden) {
                 this._paused = true;
                 this._clearInterval();
-                Logger.debug('AdminStatePoller paused (document hidden)');
+                Logger.debug(`${this._label} paused (document hidden)`);
             } else {
                 if (!this._paused) return;
                 this._paused = false;
-                Logger.debug('AdminStatePoller resumed (document visible) — pollNow');
+                Logger.debug(`${this._label} resumed (document visible) — pollNow`);
                 this._startInterval();
                 this.pollNow();
             }
@@ -193,4 +199,5 @@ class AdminStatePoller {
     }
 }
 
-export const adminStatePoller = new AdminStatePoller();
+export const adminStatePoller = new ResendPoller(
+    'AdminStatePoller', () => CONFIG?.subscriptions?.adminPollIntervalMs);

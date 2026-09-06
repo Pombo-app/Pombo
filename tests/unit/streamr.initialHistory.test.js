@@ -14,6 +14,14 @@ import { ethers } from 'ethers';
 
 globalThis.ethers = ethers;
 
+// Raw resends verify the envelope signature; these fixtures are plain
+// objects with no signature, so the check is stubbed to accept and the
+// real recovery keeps its own dedicated tests.
+vi.mock('../../src/js/envelopeSigner.js', async (importOriginal) => ({
+    ...(await importOriginal()),
+    verifyEnvelopeAuthenticity: () => true,
+}));
+
 const { streamrController } = await import('../../src/js/streamr.js');
 const { cryptoManager } = await import('../../src/js/crypto.js');
 

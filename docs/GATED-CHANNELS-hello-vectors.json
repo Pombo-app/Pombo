@@ -1,0 +1,77 @@
+{
+  "vectors": [
+    {
+      "what": "newest ts wins per account; a name-less hello keeps the older name",
+      "hellos": [
+        {
+          "t": "member_hello",
+          "account": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "spk": "0x02aa",
+          "ts": 1789000000000,
+          "name": "Alice"
+        },
+        {
+          "t": "member_hello",
+          "account": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "spk": "0x02aa",
+          "ts": 1789000005000,
+          "prev": 1789000000000
+        },
+        {
+          "t": "member_hello",
+          "account": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "ts": 1789000002000
+        }
+      ],
+      "roster": [
+        {
+          "account": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "spk": "0x02aa",
+          "ts": 1789000005000,
+          "name": "Alice"
+        },
+        {
+          "account": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "spk": null,
+          "ts": 1789000002000,
+          "name": null
+        }
+      ]
+    },
+    {
+      "what": "a rename replaces the name; order of arrival must not matter",
+      "hellos": [
+        {
+          "t": "member_hello",
+          "account": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "spk": "0x02aa",
+          "ts": 1789000009000,
+          "name": "Alice Renamed",
+          "prev": 1789000005000
+        },
+        {
+          "t": "member_hello",
+          "account": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "spk": "0x02aa",
+          "ts": 1789000000000,
+          "name": "Alice"
+        },
+        {
+          "t": "member_hello",
+          "account": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "spk": "0x02aa",
+          "ts": 1789000005000,
+          "prev": 1789000000000
+        }
+      ],
+      "roster": [
+        {
+          "account": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "spk": "0x02aa",
+          "ts": 1789000009000,
+          "name": "Alice Renamed"
+        }
+      ]
+    }
+  ]
+}

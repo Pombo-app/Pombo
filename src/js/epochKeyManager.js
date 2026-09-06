@@ -51,6 +51,7 @@ import { gateManager } from './gate.js';
 import { dmCrypto } from './dmCrypto.js';
 import { authorship } from './authorship.js';
 import { keysRetentionDays } from './streamRetention.js';
+import { identityManager } from './identity.js';
 
 /**
  * Channels running the epoch-key protocol (gated, N-A/N-C): the gate clone
@@ -67,7 +68,7 @@ export const usesEpochKeys = (channel) =>
  * before the mode existed — publish via the gate clone as always.
  */
 export const usesSharedPublish = (channel) =>
-    usesEpochKeys(channel) && channel?.authorMode === 'members';
+    usesEpochKeys(channel) && channel?.wireIdentity === 'sealed';
 
 // Re-request backoff: a pending request younger than this is not superseded.
 const REQUEST_MIN_INTERVAL_MS = 60 * 1000;
@@ -154,6 +155,10 @@ class EpochKeyManager {
                 // Epochs we already published a MEMBER_HELLO for — persisted,
                 // so reopening the channel does not re-hello.
                 helloEpochs: new Set(),
+                // Last hello this device published: the name it carried and
+                // its timestamp, which the next one chains as `prev`.
+                helloName: null,
+                helloTs: 0,
                 // -4 partition probe: null = unknown, 0 = no roster partition,
                 // 1 = the stream was created with P1
                 rosterPartition: null,
@@ -222,6 +227,8 @@ class EpochKeyManager {
                 s.pendingRequests.set(requestId, { fromEpoch: entry.fromEpoch, sentAt: entry.sentAt });
             }
         }
+        if (typeof persisted.helloName === 'string') s.helloName = persisted.helloName;
+        if (Number.isFinite(persisted.helloTs)) s.helloTs = persisted.helloTs;
         for (const epoch of persisted.helloEpochs || []) {
             if (Number.isInteger(epoch)) s.helloEpochs.add(epoch);
         }
@@ -239,6 +246,12 @@ class EpochKeyManager {
         }
         if (persisted.pubAnnounce && (persisted.pubAnnounce.rev || 0) > (s.pubAnnounce?.rev || 0)) {
             s.pubAnnounce = { ...persisted.pubAnnounce };
+        }
+        if (persisted.intKey && (persisted.intKey.rev || 0) > (s.intKey?.rev || 0)) {
+            s.intKey = { ...persisted.intKey };
+        }
+        if (persisted.intAnnounce && (persisted.intAnnounce.rev || 0) > (s.intAnnounce?.rev || 0)) {
+            s.intAnnounce = { ...persisted.intAnnounce };
         }
     }
 
@@ -263,6 +276,7 @@ class EpochKeyManager {
         await secureStorage.setEpochKeys(messageStreamId, {
             epochs, announces, currentEpoch: s.currentEpoch,
             pendingRequests, helloEpochs: Array.from(s.helloEpochs),
+            helloName: s.helloName || null, helloTs: s.helloTs || 0,
             seenRequesters: Array.from(s.seenRequesters),
             ...(s.pubKey ? { pubKey: { ...s.pubKey } } : {}),
             ...(s.pubAnnounce ? {
@@ -270,6 +284,14 @@ class EpochKeyManager {
                     keyId: s.pubAnnounce.keyId, keyHash: s.pubAnnounce.keyHash,
                     address: s.pubAnnounce.address, rev: s.pubAnnounce.rev,
                     publisher: s.pubAnnounce.publisher, timestamp: s.pubAnnounce.timestamp
+                }
+            } : {}),
+            ...(s.intKey ? { intKey: { ...s.intKey } } : {}),
+            ...(s.intAnnounce ? {
+                intAnnounce: {
+                    keyId: s.intAnnounce.keyId, keyHash: s.intAnnounce.keyHash,
+                    address: s.intAnnounce.address, rev: s.intAnnounce.rev,
+                    publisher: s.intAnnounce.publisher, timestamp: s.intAnnounce.timestamp
                 }
             } : {})
         });
@@ -319,6 +341,34 @@ class EpochKeyManager {
         const keyHex = dmCrypto.generateEphemeralPrivateKey();
         const address = ethers.computeAddress(new ethers.SigningKey(keyHex).publicKey).toLowerCase();
         return { keyId: `p${rev}.${cryptoManager.generateRandomHex(6)}`, keyHex, address, rev };
+    }
+
+    /**
+     * Fresh interactions keypair (Sealed channels). Same mechanics as the
+     * publish key, different POLICY: it goes to every member with access,
+     * read-only included — reactions and presence are theirs even where
+     * messages are not.
+     */
+    mintInteractionsKey(rev = 1) {
+        const keyHex = dmCrypto.generateEphemeralPrivateKey();
+        const address = ethers.computeAddress(new ethers.SigningKey(keyHex).publicKey).toLowerCase();
+        return { keyId: `i${rev}.${cryptoManager.generateRandomHex(6)}`, keyHex, address, rev };
+    }
+
+    /** Creation-time adopt of a freshly minted interactions key. */
+    async adoptInteractionsKey(channel, intKey) {
+        const s = this._getState(channel.messageStreamId);
+        if (!s.loaded) {
+            this._loadPersisted(channel.messageStreamId, s);
+            s.loaded = true;
+        }
+        s.intKey = { ...intKey };
+        await this._persist(channel.messageStreamId, s);
+    }
+
+    /** The held interactions key ({keyId, keyHex, address, rev}) or null. */
+    getInteractionsKey(messageStreamId) {
+        return this.state.get(messageStreamId)?.intKey || null;
     }
 
     /** Creation-time adopt of a freshly minted publish key (admin device). */
@@ -504,8 +554,17 @@ class EpochKeyManager {
 
         // Reconcile with -4 storage (announces are public; the storage node is
         // their system of record — persisted copies are a warm-start cache).
-        const entries = await streamrController.resendKeysMessages(
-            channel.keysStreamId, { last: KEYS_HISTORY_COUNT });
+        // Two partitions, two cadences: P0 holds the announces, P1 the
+        // requests and the wraps that answer them.
+        const [announces, exchange] = await Promise.all([
+            streamrController.resendKeysMessages(
+                channel.keysStreamId,
+                { last: KEYS_HISTORY_COUNT, partition: KEYS_STREAM.KEY_EXCHANGE }),
+            streamrController.resendKeysMessages(
+                channel.keysStreamId,
+                { last: KEYS_HISTORY_COUNT, partition: KEYS_STREAM.REQUESTS })
+        ]);
+        const entries = [...announces, ...exchange];
         let changed = false;
         const storedRequests = [];
         const storedV2Wraps = [];
@@ -567,7 +626,7 @@ class EpochKeyManager {
             const me = (authManager.getAddress() || '').toLowerCase();
             const now = Date.now();
             for (const { data, publisherId, timestamp } of storedRequests) {
-                if ((publisherId || '').toLowerCase() === me) continue;
+                if (this._isOwnRequest(s, data.requestId)) continue;
                 const hasStatic = typeof data.spk === 'string';
                 if (!hasStatic && now - (timestamp || 0) > REQUEST_ANSWER_WINDOW_MS) continue;
                 if (typeof data.pubkey !== 'string' || typeof data.requestId !== 'string') continue;
@@ -584,6 +643,7 @@ class EpochKeyManager {
                 await this._bootstrapFirstEpoch(channel, s);
                 this._armScheduledRotation(channel, s);
                 await this._maybeAnnouncePub(channel, s);
+                await this._maybeAnnounceInteractions(channel, s);
             } else {
                 Logger.info('epochKeys: no announce yet on', channel.keysStreamId.slice(-30),
                     '— waiting for the admin');
@@ -595,18 +655,33 @@ class EpochKeyManager {
             await this._maybeReannounceAging(channel, s);
             this._armScheduledRotation(channel, s);
             await this._maybeAnnouncePub(channel, s);
+            await this._maybeAnnounceInteractions(channel, s);
         }
 
-        if (this._missingEpochs(s).length > 0 || this._needsPubKey(channel, s)) {
+        if (this._missingEpochs(s).length > 0 || this._needsPubKey(channel, s)
+                || this._needsInteractionsKey(channel, s)) {
             await this._sendKeyRequest(channel, s);
         }
     }
 
     /** A Members-only channel is not writable until the announced publish
-     *  key (at its announced rev) is held. */
+     *  key (at its announced rev) is held. In a read-only channel a plain
+     *  member never qualifies for that key, so once the role is known
+     *  (channels.js reconciles it from the gate) they stop asking for a
+     *  wrap nobody may answer. Unknown role keeps asking — harmless, the
+     *  responders refuse. */
     _needsPubKey(channel, s) {
+        if (channel?.readOnly && channel._selfMayPublishReadOnly === false) return false;
         return usesSharedPublish(channel) && !!s.pubAnnounce
             && s.pubKey?.keyId !== s.pubAnnounce.keyId;
+    }
+
+    /** The interactions key has no read-only exemption: every member with
+     *  access holds it, which is what makes reactions and presence work in a
+     *  channel where they cannot post. */
+    _needsInteractionsKey(channel, s) {
+        return usesSharedPublish(channel) && !!s.intAnnounce
+            && s.intKey?.keyId !== s.intAnnounce.keyId;
     }
 
     /**
@@ -614,6 +689,29 @@ class EpochKeyManager {
      * whenever storage has no fresh copy — idempotent by construction (same
      * keyId/keyHash/addr/rev), exactly like the epoch re-announce.
      */
+    async _maybeAnnounceInteractions(channel, s) {
+        if (!usesSharedPublish(channel) || !s.intKey) return;
+        if (s.intAnnounce && s.intAnnounce.rev > s.intKey.rev) return;
+        const retentionMs = keysRetentionDays(channel) * 86_400_000;
+        const freshest = s.intAnnounceFreshness || 0;
+        if (freshest && Date.now() - freshest < retentionMs * CONFIG.storage.ttlRepublishAgeFraction) return;
+
+        const announce = {
+            t: KEYS_MSG_TYPE.PUB_ANNOUNCE,
+            k: 'i',
+            keyId: s.intKey.keyId,
+            keyHash: await epochKeyCrypto.computeKeyHash(s.intKey.keyHex),
+            addr: s.intKey.address,
+            rev: s.intKey.rev
+        };
+        await streamrController.publishKeysMessage(channel.keysStreamId, announce);
+        this._applyPubAnnounce(channel, s, announce, authManager.getAddress(), Date.now());
+        s.intAnnounceFreshness = Date.now();
+        await this._persist(channel.messageStreamId, s);
+        Logger.info('epochKeys: interactions key announced on', channel.keysStreamId.slice(-30));
+        this._ensureAnnounceRetained(channel, announce).catch(() => {});
+    }
+
     async _maybeAnnouncePub(channel, s) {
         if (!usesSharedPublish(channel) || !s.pubKey) return;
         if (s.pubAnnounce && s.pubAnnounce.rev > s.pubKey.rev) return;   // we hold the superseded key
@@ -693,7 +791,8 @@ class EpochKeyManager {
                 await new Promise(r => setTimeout(r, delayMs));
                 if (!this.state.has(channel.messageStreamId)) return;    // left/deleted
                 try {
-                    const entries = await streamrController.resendKeysMessages(keysStreamId, { last: 100 });
+                    const entries = await streamrController.resendKeysMessages(keysStreamId,
+                        { last: 100, partition: KEYS_STREAM.KEY_EXCHANGE });
                     const found = entries.some(({ data }) =>
                         data?.t === announce.t && data.keyId === announce.keyId);
                     if (found) {
@@ -909,11 +1008,19 @@ class EpochKeyManager {
         // copy of a superseded announce must not mask a re-key announce that
         // storage lost, or no session would ever republish it and members
         // would stay unable to write until retention aged the old copy out.
-        if (rev > (s.pubAnnounce?.rev ?? 0)) {
-            s.pubAnnounceFreshness = timestamp || 0;
-        } else if (rev === (s.pubAnnounce?.rev ?? 0)
-                && (timestamp || 0) > (s.pubAnnounceFreshness || 0)) {
-            s.pubAnnounceFreshness = timestamp || 0;
+        // Two shared keys travel on the same announce type, told apart by
+        // `k`: content ('p', the default) and interactions ('i'). Same
+        // mechanics, different distribution — see _answerRequest.
+        const isInteractions = data.k === 'i';
+        const slot = isInteractions ? 'intAnnounce' : 'pubAnnounce';
+        const freshSlot = isInteractions ? 'intAnnounceFreshness' : 'pubAnnounceFreshness';
+        const keySlot = isInteractions ? 'intKey' : 'pubKey';
+
+        if (rev > (s[slot]?.rev ?? 0)) {
+            s[freshSlot] = timestamp || 0;
+        } else if (rev === (s[slot]?.rev ?? 0)
+                && (timestamp || 0) > (s[freshSlot] || 0)) {
+            s[freshSlot] = timestamp || 0;
         }
 
         const incoming = {
@@ -924,7 +1031,7 @@ class EpochKeyManager {
             publisher: (publisherId || '').toLowerCase(),
             timestamp: timestamp ?? 0
         };
-        const existing = s.pubAnnounce;
+        const existing = s[slot];
         if (existing) {
             if (existing.rev > rev) return false;
             if (existing.rev === rev) {
@@ -934,11 +1041,11 @@ class EpochKeyManager {
                 if (keep) return false;
             }
         }
-        s.pubAnnounce = incoming;
+        s[slot] = incoming;
         // A held key of an older keyId is superseded — stop publishing under
         // it and let the request cycle fetch the new one.
-        if (s.pubKey && s.pubKey.keyId !== incoming.keyId && (s.pubKey.rev || 0) < rev) {
-            s.pubKey = null;
+        if (s[keySlot] && s[keySlot].keyId !== incoming.keyId && (s[keySlot].rev || 0) < rev) {
+            s[keySlot] = null;
         }
         return true;
     }
@@ -954,9 +1061,13 @@ class EpochKeyManager {
         if (typeof data.requestId === 'string' && typeof data.keyId === 'string') {
             this._recordSeenWrap(s, data.requestId, data.keyId);
         }
-        const announce = s.pubAnnounce;
+        // Route by which announce claims this keyId — the wrap carries the
+        // same `k` marker the announce did.
+        const isInteractions = data.k === 'i';
+        const announce = isInteractions ? s.intAnnounce : s.pubAnnounce;
+        const keySlot = isInteractions ? 'intKey' : 'pubKey';
         if (!announce || data.keyId !== announce.keyId) return;
-        if (s.pubKey?.keyId === data.keyId) return;                       // already held
+        if (s[keySlot]?.keyId === data.keyId) return;                     // already held
         if (typeof data.tag !== 'string') return;
 
         let keyHex;
@@ -1005,10 +1116,11 @@ class EpochKeyManager {
             return;
         }
 
-        s.pubKey = { keyId: data.keyId, keyHex, address: announce.address, rev: announce.rev };
+        s[keySlot] = { keyId: data.keyId, keyHex, address: announce.address, rev: announce.rev };
         await this._persist(channel.messageStreamId, s);
         this._notifyAdopted(channel.messageStreamId, data.keyId);
-        Logger.info('epochKeys: adopted the publish key on', channel.messageStreamId.slice(-30));
+        Logger.info(`epochKeys: adopted the ${isInteractions ? 'interactions' : 'publish'} key on`,
+            channel.messageStreamId.slice(-30));
     }
 
     async _handleAnnounce(channel, s, data, publisherId, timestamp) {
@@ -1070,10 +1182,20 @@ class EpochKeyManager {
      * (§7.10). The clone's permission is everyone's, so the CURRENT gate is
      * checked against the requester (envelope signer) just before wrapping.
      */
+    /** A request this session sent: answering it would be talking to itself. */
+    _isOwnRequest(s, requestId) {
+        if (typeof requestId !== 'string' || !requestId) return false;
+        return s.pendingRequests?.has(requestId) === true
+            || s.pendingRequest?.requestId === requestId;
+    }
+
     async _handleRequest(channel, s, data, publisherId) {
         this._recordRequester(s, publisherId, channel.messageStreamId);
-        const myAddress = (authManager.getAddress() || '').toLowerCase();
-        if ((publisherId || '').toLowerCase() === myAddress) return;      // our own request
+        // Skip only what THIS session asked for, by requestId. Skipping
+        // every request from our own account left a second device of the
+        // same account unable to ever get the keys: nobody else answers a
+        // request that names an address they can see is not theirs.
+        if (this._isOwnRequest(s, data.requestId)) return;
         if (typeof data.pubkey !== 'string' || typeof data.requestId !== 'string') return;
         if (s.epochs.size === 0) return;                                  // nothing to offer
 
@@ -1143,7 +1265,9 @@ class EpochKeyManager {
         try {
             await gateManager.getGateInfo(channel.gate.address);
         } catch (e) {
-            Logger.warn('epochKeys: gate unreadable, answering current epoch only:', e.message);
+            // debug, not warn: this fires on every answered request of a
+            // dead pre-v3 channel and would flood the console
+            Logger.debug('epochKeys: gate unreadable, answering current epoch only:', e.message);
             currentEpochOnly = true;
         }
 
@@ -1199,8 +1323,24 @@ class EpochKeyManager {
         }
 
         // Members-only: the shared publish key rides along with the epochs —
-        // a joiner needs both before the channel is writable for them.
-        if (usesSharedPublish(channel) && s.pubKey
+        // a joiner needs both before the channel is writable for them. In a
+        // read-only channel that key IS the write capability, so it only goes
+        // to the owner and the moderators; everyone else reads with the epoch
+        // keys alone. An unreadable gate fails closed for the capability.
+        let mayHoldPublishKey = true;
+        if (usesSharedPublish(channel)) {
+            try {
+                const info = await gateManager.getGateInfo(channel.gate.address);
+                if (info.readOnly) {
+                    mayHoldPublishKey = await gateManager.canModerate(
+                        channel.gate.address, request.requester);
+                }
+            } catch (e) {
+                Logger.debug('epochKeys: gate unreadable for the publish-key check — withholding it:', e.message);
+                mayHoldPublishKey = false;
+            }
+        }
+        if (mayHoldPublishKey && usesSharedPublish(channel) && s.pubKey
                 && s.pubAnnounce?.keyId === s.pubKey.keyId
                 && !covered.has(s.pubKey.keyId)) {
             try {
@@ -1225,6 +1365,39 @@ class EpochKeyManager {
                 sent += 1;
             } catch (e) {
                 Logger.warn(`epochKeys: failed to wrap the publish key for request ${request.requestId}:`, e.message);
+            }
+        }
+        // The interactions key goes to EVERY member with access — no
+        // read-only role check. That asymmetry with the publish key above is
+        // the whole point: in a read-only channel members react and show
+        // presence, they just do not post.
+        if (usesSharedPublish(channel) && s.intKey
+                && s.intAnnounce?.keyId === s.intKey.keyId
+                && !covered.has(s.intKey.keyId)) {
+            try {
+                const envelope = staticKey
+                    ? {
+                        t: KEYS_MSG_TYPE.PUB_WRAP,
+                        k: 'i',
+                        v: 2,
+                        requestId: request.requestId,
+                        keyId: s.intKey.keyId,
+                        tag: await epochKeyCrypto.computeWrapTagV2(request.requestId, s.intKey.keyId),
+                        ...await epochKeyCrypto.wrapEpochKeyToStatic(s.intKey.keyHex, staticKey)
+                    }
+                    : {
+                        t: KEYS_MSG_TYPE.PUB_WRAP,
+                        k: 'i',
+                        requestId: request.requestId,
+                        keyId: s.intKey.keyId,
+                        tag: await epochKeyCrypto.computeWrapTag(request.pubkey, s.intKey.keyId),
+                        ...await epochKeyCrypto.wrapEpochKey(s.intKey.keyHex, request.pubkey)
+                    };
+                await streamrController.publishKeysMessage(channel.keysStreamId, envelope);
+                this._recordSeenWrap(s, request.requestId, s.intKey.keyId);
+                sent += 1;
+            } catch (e) {
+                Logger.warn(`epochKeys: failed to wrap the interactions key for request ${request.requestId}:`, e.message);
             }
         }
         if (sent > 0) {
@@ -1465,14 +1638,26 @@ class EpochKeyManager {
     }
 
     /**
-     * One MEMBER_HELLO per epoch, sealed with that epoch's key and published
-     * on first adoption — never for past epochs (a backfilled hello would
-     * fake presence in a window the member did not live). The seal is what
-     * keeps the roster private: the -4 resend is publicly readable over HTTP.
+     * A MEMBER_HELLO per (epoch, name), sealed with that epoch's key and
+     * published on first adoption — never for past epochs (a backfilled hello
+     * would fake presence in a window the member did not live). The seal is
+     * what keeps the roster private: the -4 resend is publicly readable over
+     * HTTP.
+     *
+     * The name travels so a member who never wrote still has one. The old
+     * hello is not removed — the -4 is append-only and only the node's TTL
+     * deletes — but substitution is infeasible by construction: the roster
+     * only accepts a hello whose envelope signer equals the declared account.
+     * `prev` chains the previous hello's timestamp, which buys an auditable
+     * trail for free.
      */
     async _maybePublishHello(channel, s, keyId, epoch) {
+        // A preview shadow channel receives keys (live-holding gates answer
+        // its requests) but peeking must not enter the roster.
+        if (channel.preview) return;
         if (epoch !== s.currentEpoch) return;
-        if (s.helloEpochs.has(epoch)) return;
+        const name = this._myDisplayName();
+        if (s.helloEpochs.has(epoch) && (s.helloName || null) === name) return;
         if (!(await this._rosterCapable(channel, s))) return;
         const account = (authManager.getAddress() || '').toLowerCase();
         const entry = s.epochs.get(keyId);
@@ -1483,7 +1668,9 @@ class EpochKeyManager {
             t: KEYS_MSG_TYPE.MEMBER_HELLO,
             account,
             ...(spk ? { spk } : {}),
-            ts: Date.now()
+            ts: Date.now(),
+            ...(name ? { name } : {}),
+            ...(s.helloTs ? { prev: s.helloTs } : {})
         };
         const sealed = await epochKeyCrypto.encryptWithEpochKey(
             hello, await this._cryptoKey(entry));
@@ -1492,9 +1679,55 @@ class EpochKeyManager {
             { e: 'epoch-aes-gcm', k: keyId, ct: sealed.ct, iv: sealed.iv },
             KEYS_STREAM.ROSTER);
         s.helloEpochs.add(epoch);
+        s.helloName = name;
+        s.helloTs = hello.ts;
+        s.rosterCache = null;
         await this._persist(channel.messageStreamId, s);
         Logger.debug(`epochKeys: member hello published for epoch ${epoch} on`,
             channel.keysStreamId.slice(-30));
+    }
+
+    /** The display name that travels in the hello, or null. */
+    _myDisplayName() {
+        const name = (identityManager.getUsername?.() || '').trim();
+        return name ? name.slice(0, 64) : null;
+    }
+
+    /**
+     * The name changed: republish the hello wherever this account is already
+     * in the roster. Without this a rename waited for the next rotation,
+     * which on a quiet channel is a week.
+     */
+    async republishHelloForRename(channels) {
+        const name = this._myDisplayName();
+        for (const channel of channels) {
+            if (!usesEpochKeys(channel) || channel.preview) continue;
+            const s = this.state.get(channel.messageStreamId);
+            if (!s || s.currentEpoch === 0) continue;
+            if ((s.helloName || null) === name) continue;
+            const announce = s.announces.get(s.currentEpoch);
+            if (!announce || !s.epochs.has(announce.keyId)) continue;
+            try {
+                await this._maybePublishHello(channel, s, announce.keyId, s.currentEpoch);
+            } catch (e) {
+                Logger.debug('epochKeys: hello republish failed:', e.message);
+            }
+        }
+    }
+
+    /**
+     * The roster as last read, without a network round trip — what the bubbles
+     * consult while rendering. Null when nothing has been read yet.
+     */
+    getCachedRoster(messageStreamId) {
+        return this.state.get(messageStreamId)?.rosterCache?.members || null;
+    }
+
+    /** The name this account announced in the roster, with when it said so. */
+    getRosterName(messageStreamId, account) {
+        const entry = this.getCachedRoster(messageStreamId)
+            ?.find(m => m.account === String(account).toLowerCase());
+        return entry?.name ? { name: entry.name, ts: entry.ts } : null;
     }
 
     /**
@@ -1537,20 +1770,26 @@ class EpochKeyManager {
                 const account = (hello.account || '').toLowerCase();
                 if (!/^0x[0-9a-f]{40}$/.test(account)) continue;
                 if (account !== (publisherId || '').toLowerCase()) continue;
+                const ts = hello.ts || timestamp || 0;
+                const spk = typeof hello.spk === 'string' ? hello.spk : null;
+                const name = typeof hello.name === 'string' && hello.name.trim()
+                    ? hello.name.trim().slice(0, 64) : null;
                 const prev = members.get(account);
-                if (!prev || (hello.ts || 0) > prev.ts) {
-                    members.set(account, {
-                        account,
-                        spk: typeof hello.spk === 'string' ? hello.spk : null,
-                        ts: hello.ts || timestamp || 0
-                    });
+                if (!prev) {
+                    members.set(account, { account, spk, ts, name, nameTs: name ? ts : 0 });
+                    continue;
                 }
+                if (ts > prev.ts) { prev.ts = ts; prev.spk = spk; }
+                // A hello without a name does not erase one: the name comes
+                // from the newest hello that actually carried it.
+                if (name && ts >= prev.nameTs) { prev.name = name; prev.nameTs = ts; }
             }
         } catch (e) {
             Logger.warn('epochKeys: roster read failed:', e.message);
             return s.rosterCache?.members || [];
         }
-        const list = Array.from(members.values());
+        const list = Array.from(members.values())
+            .map(({ account, spk, ts, name }) => ({ account, spk, ts, name: name || null }));
         s.rosterCache = { at: Date.now(), members: list };
         return list;
     }
@@ -1614,6 +1853,29 @@ class EpochKeyManager {
     // ==================== KEY ACCESS (Passo 5) ====================
 
     /**
+     * The epoch in force, as a number. Moderation stamps a ban with it so the
+     * ban applies from that epoch onward and leaves the author's earlier
+     * messages alone.
+     * @returns {number|null} null when the channel has no epoch yet
+     */
+    currentEpoch(messageStreamId) {
+        const s = this.state.get(messageStreamId);
+        return s && s.currentEpoch > 0 ? s.currentEpoch : null;
+    }
+
+    /**
+     * When the scheduled rotation is due, in epoch millis. A due date in the
+     * past is honest: the timer only fires while the admin is here, so an
+     * absent admin leaves the epoch standing until the next channel open.
+     * @returns {number|null} null when there is no announce to count from
+     */
+    nextRotationAt(messageStreamId) {
+        const s = this.state.get(messageStreamId);
+        const validFrom = s?.announces?.get(s.currentEpoch)?.validFrom;
+        return validFrom ? validFrom + ROTATION_INTERVAL_MS : null;
+    }
+
+    /**
      * Key to encrypt with right now: the current epoch's.
      * @returns {Promise<{kid: string, cryptoKey: CryptoKey}|null>} null while waiting for a key
      */
@@ -1660,7 +1922,14 @@ class EpochKeyManager {
     _kidIsFresh(s, kid, entry, { live, timestamp } = {}) {
         const currentAnnounce = s.announces.get(s.currentEpoch);
         if (!currentAnnounce) return true;               // no anchor yet — cannot judge
-        if (kid === currentAnnounce.keyId) return true;  // current epoch always fine
+        if (kid === currentAnnounce.keyId) {
+            // Current epoch — but a history timestamp from before the epoch
+            // existed is backdating under the current key: the kid in
+            // force then was an older one.
+            if (live || !Number.isFinite(timestamp)) return true;
+            const validFrom = currentAnnounce.validFrom ?? currentAnnounce.timestamp ?? 0;
+            return timestamp >= validFrom - CONFIG.gate.kidFreshnessToleranceMs;
+        }
 
         if (live) {
             // Previous epoch tolerated briefly after a rotation (messages in

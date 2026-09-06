@@ -790,8 +790,8 @@
                             <!-- Confirm step: opens on password field focus, closes once it matches -->
                             <div id="password-confirm-section" class="hidden mt-3 space-y-3">
                                 <div class="p-3 bg-amber-500/5 rounded-xl border border-amber-500/10">
-                                    <p class="text-xs text-amber-400/80 flex items-start gap-2">
-                                        <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                                    <p class="text-xs text-amber-400/80 flex items-center gap-2">
+                                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
                                         <span>Use a strong password — anyone who has it can join this channel.</span>
                                     </p>
                                 </div>
@@ -933,14 +933,14 @@
                             <label class="block text-xs font-medium text-white/80 uppercase tracking-wider mb-2">Identity on the wire</label>
                             <div class="flex gap-2">
                                 <label class="flex-1 cursor-pointer">
-                                    <input type="radio" name="author-visibility" id="gate-author-visibility-members" class="peer sr-only" checked>
+                                    <input type="radio" name="author-visibility" id="gate-wire-identity-sealed" class="peer sr-only" checked>
                                     <span class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/5 text-white/50 border border-white/5 peer-checked:bg-white/10 peer-checked:text-white peer-checked:border-white/10">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
                                         Sealed
                                     </span>
                                 </label>
                                 <label class="flex-1 cursor-pointer">
-                                    <input type="radio" name="author-visibility" id="gate-author-visibility-everyone" class="peer sr-only">
+                                    <input type="radio" name="author-visibility" id="gate-wire-identity-visible" class="peer sr-only">
                                     <span class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/5 text-white/50 border border-white/5 peer-checked:bg-white/10 peer-checked:text-amber-400/90 peer-checked:border-white/10">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m-18.716-2.253A8.959 8.959 0 003 12c0 .778.099 1.533.284 2.253"/></svg>
                                         Visible
@@ -1008,7 +1008,7 @@
                         <!-- Visibility Toggle -->
                         <div id="exposure-section" class="flex items-center justify-between">
                             <div>
-                                <label class="text-xs font-medium text-white/70 uppercase tracking-wider">Visible</label>
+                                <label class="text-xs font-medium text-white/70 uppercase tracking-wider">Listed</label>
                                 <p class="text-xs text-white/30 mt-0.5">Channel appears in Explore</p>
                             </div>
                             <button type="button" id="visibility-toggle" class="relative w-9 h-5 rounded-full transition-colors bg-white/10" data-enabled="false">
@@ -1160,7 +1160,7 @@
                     </p>
                     <div class="mt-3 pt-3 border-t border-white/5 space-y-2">
                         <div class="flex items-start gap-2">
-                            <span class="text-[10px] text-white/20 uppercase tracking-wider w-20 flex-shrink-0 pt-0.5">Node</span>
+                            <span class="text-[10px] text-white/20 uppercase tracking-wider w-20 flex-shrink-0 pt-0.5">Provider</span>
                             <span class="text-xs text-white/40 font-mono">0xae340e79...7667</span>
                         </div>
                         <div class="flex items-start gap-2">
@@ -1179,20 +1179,20 @@
                     </div>
                 </div>
 
-                <!-- Custom Storage Node -->
+                <!-- Custom Storage Provider -->
                 <div class="p-4 bg-white/5 rounded-xl border border-white/5">
                     <div class="flex items-center gap-3 mb-3">
                         <div class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
                             <svg class="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
                         </div>
-                        <h4 class="text-sm font-medium text-white">Custom Storage Node</h4>
+                        <h4 class="text-sm font-medium text-white">Custom Storage Provider</h4>
                     </div>
                     <p class="text-sm text-white/40 leading-relaxed">
                         Bring your own Streamr-compatible storage node or cluster. Provide the node's on-chain address and Pombo will register your stream against it. TTL behavior depends on your node's configuration. Use this to self-host history, route to a private cluster, or experiment with third-party storage providers.
                     </p>
                     <div class="mt-3 pt-3 border-t border-white/5 space-y-2">
                         <div class="flex items-start gap-2">
-                            <span class="text-[10px] text-white/20 uppercase tracking-wider w-20 flex-shrink-0 pt-0.5">Node</span>
+                            <span class="text-[10px] text-white/20 uppercase tracking-wider w-20 flex-shrink-0 pt-0.5">Provider</span>
                             <span class="text-xs text-white/40">User-supplied EVM address</span>
                         </div>
                         <div class="flex items-start gap-2">
@@ -1356,7 +1356,7 @@
 
                         <!-- Streamr Address (shown when Streamr selected) -->
                         <div id="dm-streamr-address-display" class="mt-3">
-                            <span class="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">Storage Node</span>
+                            <span class="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">Storage Provider</span>
                             <div class="w-full px-3 py-2 text-xs font-mono bg-white/5 border border-white/10 rounded-lg text-white/50 break-all">
                                 <span id="dm-streamr-address-value">—</span>
                             </div>
@@ -1364,8 +1364,8 @@
 
                         <!-- Custom Address Input (hidden by default) -->
                         <div id="dm-custom-address-section" class="hidden mt-3">
-                            <label for="dm-custom-storage-address" class="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">Storage Node</label>
-                            <input type="text" id="dm-custom-storage-address" placeholder="0x..." spellcheck="false" autocomplete="off" class="w-full px-3 py-2 text-xs font-mono bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/20 focus:outline-none focus:border-white/20 transition">
+                            <label for="dm-custom-storage-address" class="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">Storage Provider</label>
+                            <input type="text" id="dm-custom-storage-address" placeholder="0x… custom storage provider address" spellcheck="false" autocomplete="off" class="w-full px-3 py-2 text-xs font-mono bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/20 focus:outline-none focus:border-white/20 transition">
                             <p id="dm-custom-storage-address-error" class="hidden text-[11px] text-red-400 mt-1.5"></p>
                         </div>
 
@@ -1542,15 +1542,15 @@
                 <label id="ban-level-client-row" class="flex gap-3 p-3 bg-white/[0.04] rounded-xl cursor-pointer">
                     <input type="checkbox" id="ban-level-client" class="mt-0.5 accent-white" checked />
                     <span class="min-w-0">
-                        <span class="block text-sm text-white/85">Client enforcement</span>
-                        <span id="ban-level-client-detail" class="block text-xs text-white/40 mt-0.5">Hides their messages for everyone. Free and reversible.</span>
+                        <span class="block text-sm text-white/85">Hide their messages</span>
+                        <span id="ban-level-client-detail" class="block text-xs text-white/40 mt-0.5">Their messages disappear for everyone. Free and reversible.</span>
                     </span>
                 </label>
                 <label id="ban-level-protocol-row" class="flex gap-3 p-3 bg-white/[0.04] rounded-xl cursor-pointer">
                     <input type="checkbox" id="ban-level-protocol" class="mt-0.5 accent-white" checked />
                     <span class="min-w-0">
-                        <span class="block text-sm text-white/85">Protocol enforcement</span>
-                        <span id="ban-level-protocol-detail" class="block text-xs text-white/40 mt-0.5">Cuts their access on the gate and rotates the channel key. One transaction.</span>
+                        <span class="block text-sm text-white/85">Cut their access</span>
+                        <span id="ban-level-protocol-detail" class="block text-xs text-white/40 mt-0.5">They can no longer write or receive keys; the channel key rotates. One transaction.</span>
                     </span>
                 </label>
             </div>
@@ -1689,7 +1689,10 @@
                 <h3 class="text-lg font-medium text-white/90 md:order-1">Channel Details</h3>
             </div>
 
-            <div class="flex min-h-[420px]">
+            <!-- Capped so a long panel scrolls inside the modal instead of
+                 stretching it past the viewport. Desktop only: under 768px the
+                 modal is already full-screen and owns its own height. -->
+            <div class="flex min-h-[420px] md:max-h-[75vh]">
                 <!-- Sidebar Tabs -->
                 <div class="w-44 bg-[#0a0a0a] border-r border-white/5 py-2 flex flex-col">
 
@@ -1731,8 +1734,8 @@
                             <div id="channel-name-section" class="hidden">
                                 <!-- Gas fee warning (edit mode, non-DM only) -->
                                 <div id="channel-edit-gas-warning" class="hidden p-3 bg-amber-500/5 rounded-xl border border-amber-500/10 mb-3">
-                                    <p class="text-xs text-amber-400/80 flex items-start gap-2">
-                                        <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                                    <p class="text-xs text-amber-400/80 flex items-center gap-2">
+                                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
                                         <span>Changes require on-chain transactions and gas fees.</span>
                                     </p>
                                 </div>
@@ -1799,6 +1802,12 @@
                             <label class="block text-xs font-medium text-white/80 uppercase tracking-wider mb-1.5">Access</label>
                             <div id="channel-settings-type" class="text-sm text-white/70"></div>
                         </div>
+
+                        <!-- Identity on the wire: a property of the gate, so gated only -->
+                        <div id="channel-settings-wire-section" class="hidden">
+                            <label class="block text-xs font-medium text-white/80 uppercase tracking-wider mb-1.5">Identity on the wire</label>
+                            <div id="channel-settings-wire" class="text-sm text-white/70"></div>
+                        </div>
                     </div>
 
                     <!-- Members Panel -->
@@ -1855,8 +1864,8 @@
                                     </details>
 
                                     <div class="p-3 bg-amber-500/5 rounded-xl border border-amber-500/10 mt-3">
-                                        <p class="text-xs text-amber-400/80 flex items-start gap-2">
-                                            <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                                        <p class="text-xs text-amber-400/80 flex items-center gap-2">
+                                            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
                                             <span>Adding members requires on-chain transactions and gas fees.</span>
                                         </p>
                                     </div>
@@ -1914,8 +1923,8 @@
                         <div class="space-y-5">
                             <!-- Gas warning (admin only) -->
                             <div id="channel-storage-gas-warning" class="hidden p-3 bg-amber-500/5 rounded-xl border border-amber-500/10">
-                                <p class="text-xs text-amber-400/80 flex items-start gap-2">
-                                    <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                                <p class="text-xs text-amber-400/80 flex items-center gap-2">
+                                    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
                                     <span>Storage changes require on-chain transactions and gas fees.</span>
                                 </p>
                             </div>
@@ -1930,8 +1939,8 @@
                                 </div>
                                 <!-- Sibling of both retention states: either one can be the hidden one -->
                                 <div id="channel-storage-retention-mixed" class="hidden mt-2 p-2.5 bg-amber-500/5 rounded-lg border border-amber-500/10">
-                                    <p class="text-xs text-amber-400/80 flex items-start gap-2">
-                                        <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                                    <p class="text-xs text-amber-400/80 flex items-center gap-2">
+                                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
                                         <span id="channel-storage-retention-mixed-text"></span>
                                     </p>
                                 </div>
@@ -1939,7 +1948,7 @@
 
                             <!-- Storage nodes list -->
                             <div>
-                                <label class="block text-xs font-medium text-white/80 uppercase tracking-wider mb-2">Storage Nodes</label>
+                                <label class="block text-xs font-medium text-white/80 uppercase tracking-wider mb-2">Storage Provider</label>
                                 <div id="channel-storage-nodes-list" class="space-y-2"></div>
                             </div>
 
@@ -1947,7 +1956,7 @@
                             <div id="channel-storage-add-section" class="hidden">
                                 <button id="channel-storage-add-toggle-btn" class="text-xs text-white/60 hover:text-white/90 transition flex items-center gap-1.5">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                                    <span>Add storage node</span>
+                                    <span>Add Storage Provider</span>
                                 </button>
                                 <div id="channel-storage-add-form" class="hidden mt-3 p-3 bg-white/[0.03] border border-white/5 rounded-xl space-y-3">
                                     <div class="flex items-center gap-4 text-sm text-white/80">
@@ -1957,11 +1966,11 @@
                                         </label>
                                         <label class="flex items-center gap-2 cursor-pointer">
                                             <input type="radio" name="channel-storage-provider-radio" value="custom" class="accent-[#F6851B]" />
-                                            <span>Custom</span>
+                                            <span>Custom Storage Provider</span>
                                         </label>
                                     </div>
-                                    <input id="channel-storage-custom-address" type="text" placeholder="0x… custom storage node address" class="hidden w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 font-mono focus:outline-none focus:border-white/30" />
-                                    <p class="text-xs text-white/25">The node will use the channel's retention period.</p>
+                                    <input id="channel-storage-custom-address" type="text" placeholder="0x… custom storage provider address" class="hidden w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 font-mono focus:outline-none focus:border-white/30" />
+                                    <p class="text-xs text-white/25">The provider will use the channel's retention period.</p>
                                     <div class="flex items-center gap-2 justify-end">
                                         <button id="channel-storage-add-cancel" class="text-white/60 hover:text-white/90 px-3 py-1.5 rounded-lg text-xs transition">Cancel</button>
                                         <button id="channel-storage-add-confirm" class="bg-[#F6851B] hover:bg-[#F6851B]/90 text-white px-3 py-1.5 rounded-lg text-xs transition">Add</button>
@@ -1984,44 +1993,90 @@
                         <div class="space-y-5">
                             <div>
                                 <div class="flex items-center justify-between mb-3">
-                                    <label class="text-sm font-medium text-white/80 uppercase tracking-wider">Banned Members</label>
+                                    <label class="text-sm font-medium text-white/80 uppercase tracking-wider">Banned Members
+                                        <button type="button" data-hint="ban-levels-hint" title="Client bans hide the author's messages for everyone and cost nothing. Protocol bans cut access on the gate, so the member stops receiving keys, and take a transaction to apply and to lift." class="align-middle p-1 -m-1 text-white/25 hover:text-white/60 transition" aria-label="About ban levels">
+                                            <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
+                                        </button>
+                                    </label>
                                     <span id="banned-members-count" class="text-xs text-white/30">0</span>
                                 </div>
+                                <p id="ban-levels-hint" class="hidden text-xs text-white/40 leading-relaxed mb-3">
+                                    Client bans hide the author's messages for everyone and cost nothing. Protocol bans cut access on the gate, so the member stops receiving keys, and take a transaction to apply and to lift.
+                                </p>
                                 <div id="banned-members-list" class="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                                     <div class="text-center text-white/30 py-6 text-sm">No banned members</div>
                                 </div>
                             </div>
-                            <p class="text-sm text-white/30 leading-relaxed">
-                                Client bans hide the author's messages for everyone and cost nothing. Protocol bans cut access on the gate, so the member stops receiving keys, and take a transaction to apply and to lift.
-                            </p>
 
-                            <!-- Stream grantees: the technical view (owner only) -->
-                            <div id="permissions-section" class="hidden">
-                                <div class="border-t border-white/5 pt-5">
-                                    <div class="flex items-center justify-between mb-3">
-                                        <label class="text-sm font-medium text-white/40 uppercase tracking-wider">Stream Grantees</label>
-                                        <button id="refresh-permissions-btn" class="text-sm text-white/60 hover:text-white transition">
-                                            ↻ Refresh
-                                        </button>
+                            <!-- Owner only, gated channels: ratify the moderators' pending actions -->
+                            <div id="absorb-mod-section" class="hidden p-4 bg-white/[0.03] rounded-xl border border-white/5">
+                                <h4 class="text-sm font-medium text-white/90 mb-1">Confirm Moderator Actions</h4>
+                                <p class="text-sm text-white/40 mb-3">
+                                    <span id="absorb-mod-count">0</span> action(s) by your moderators are in effect but not yet yours. Confirming makes them permanent, even if you dismiss the moderator later. Free — no transaction.
+                                </p>
+                                <button id="absorb-mod-btn" class="w-full bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 px-4 py-2.5 rounded-xl text-sm transition">
+                                    Confirm Moderator Actions
+                                </button>
+                            </div>
+
+                            <!-- Gated channels, admin only: manual epoch rotation. Free, unlike the re-key. -->
+                            <div id="rotate-epoch-section" class="hidden p-4 bg-white/[0.03] rounded-xl border border-white/5">
+                                <div class="flex items-center justify-between mb-1">
+                                    <h4 class="text-sm font-medium text-white/90">Rotate Channel Key</h4>
+                                    <button type="button" data-hint="rotate-epoch-hint" title="Issues a new encryption key now. Anyone without current access stops reading new messages. Free — no transaction." class="p-1 -m-1 text-white/25 hover:text-white/60 transition" aria-label="About rotating the channel key">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
+                                    </button>
+                                </div>
+                                <p id="rotate-epoch-hint" class="hidden text-xs text-white/40 leading-relaxed mb-3">
+                                    Issues a new encryption key now. Anyone without current access stops reading new messages. Free — no transaction.
+                                </p>
+                                <p id="rotate-epoch-next" class="text-sm text-white/40 mb-3"></p>
+                                <button id="rotate-epoch-btn" class="w-full bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 px-4 py-2.5 rounded-xl text-sm transition">
+                                    Rotate Now
+                                </button>
+                                <p id="rotate-epoch-status" class="hidden mt-2 text-xs text-white/40"></p>
+                            </div>
+
+                            <!-- The technical surfaces: grantees and the re-key, folded away
+                                 because neither belongs in a routine visit. -->
+                            <details id="mod-advanced-section" class="hidden group border-t border-white/5 pt-5">
+                                <summary class="text-sm text-white/40 hover:text-white/60 cursor-pointer transition list-none">
+                                    <span class="group-open:hidden">▸ Advanced</span>
+                                    <span class="hidden group-open:inline">▾ Advanced</span>
+                                </summary>
+                                <div class="mt-4 space-y-5">
+                                    <!-- Stream grantees: the technical view (owner only) -->
+                                    <div id="permissions-section" class="hidden">
+                                        <div class="flex items-center justify-between mb-3">
+                                            <label class="text-sm font-medium text-white/40 uppercase tracking-wider">Stream Grantees</label>
+                                            <button id="refresh-permissions-btn" class="text-sm text-white/60 hover:text-white transition">
+                                                ↻ Refresh
+                                            </button>
+                                        </div>
+                                        <!-- A gated channel's grantees are the clone, the storage node and
+                                             the owner: three rows and the legend must fit without scrolling. -->
+                                        <div id="permissions-list" class="text-sm space-y-1 max-h-[220px] overflow-y-auto pr-1">
+                                            <div class="text-white/30">Loading...</div>
+                                        </div>
                                     </div>
-                                    <!-- A gated channel's grantees are the clone, the storage node and
-                                         the owner: three rows and the legend must fit without scrolling. -->
-                                    <div id="permissions-list" class="text-sm space-y-1 max-h-[220px] overflow-y-auto pr-1">
-                                        <div class="text-white/30">Loading...</div>
+                                    <!-- Members-only channels, admin only: the escape valve against ex-key-holder abuse -->
+                                    <div id="rekey-publish-section" class="hidden p-4 bg-amber-500/5 rounded-xl border border-amber-500/10">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <h4 class="text-sm font-medium text-white/90">Reset Publish Key</h4>
+                                            <button type="button" data-hint="rekey-publish-hint" title="Last resort, for cutting off an ex-member who is flooding storage. Two transactions. It revokes the old shared key, so every message published before the reset stops verifying for anyone reading this channel outside Pombo." class="p-1 -m-1 text-white/25 hover:text-white/60 transition" aria-label="About resetting the publish key">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
+                                            </button>
+                                        </div>
+                                        <p id="rekey-publish-hint" class="hidden text-xs text-white/40 leading-relaxed mb-3">
+                                            Last resort, for cutting off an ex-member who is flooding storage. Two transactions. Ex-members who kept the old key lose the ability to write and current members pick up the new one automatically, but revoking the old key also stops every message published before the reset from verifying for anyone reading this channel outside Pombo.
+                                        </p>
+                                        <button id="rekey-publish-btn" class="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 px-4 py-2.5 rounded-xl text-sm transition">
+                                            Reset Publish Key
+                                        </button>
+                                        <p id="rekey-publish-status" class="hidden mt-2 text-xs text-white/40"></p>
                                     </div>
                                 </div>
-                            </div>
-                            <!-- Members-only channels, admin only: the escape valve against ex-key-holder abuse -->
-                            <div id="rekey-publish-section" class="hidden p-4 bg-amber-500/5 rounded-xl border border-amber-500/10">
-                                <h4 class="text-sm font-medium text-white/90 mb-1">Reset Publish Key</h4>
-                                <p class="text-sm text-white/40 mb-3">
-                                    Replaces the channel's shared publish key (2 transactions). Former members who kept the old key lose the ability to write. Current members pick up the new key automatically.
-                                </p>
-                                <button id="rekey-publish-btn" class="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 px-4 py-2.5 rounded-xl text-sm transition">
-                                    Reset Publish Key
-                                </button>
-                                <p id="rekey-publish-status" class="hidden mt-2 text-xs text-white/40"></p>
-                            </div>
+                            </details>
                         </div>
                     </div>
 
@@ -2033,9 +2088,12 @@
                                     <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
                                     Delete Channel
                                 </h4>
-                                <p class="text-sm text-white/40 mb-4">
-                                    Permanently delete this channel from the Streamr network. This cannot be undone.
-                                </p>
+                                <div class="p-3 bg-amber-500/5 rounded-xl border border-amber-500/10 mb-4">
+                                    <p class="text-xs text-amber-400/80 flex items-center gap-2">
+                                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                                        <span>Deleting this channel requires on-chain transactions and gas fees. It cannot be reversed.</span>
+                                    </p>
+                                </div>
                                 <button id="delete-channel-btn" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-4 py-2.5 rounded-xl text-sm transition">
                                     Delete Channel Forever
                                 </button>
@@ -2071,7 +2129,10 @@
                                 <svg class="w-4 h-4 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
                             </button>
                             <button data-mobile-nav="danger" class="channel-mobile-nav-item w-full flex items-center justify-between px-4 py-4 text-sm text-white/70 bg-white/[0.03] hover:bg-white/[0.06] transition rounded-xl border border-white/5">
-                                <span>Delete Channel</span>
+                                <span class="flex items-center gap-3">
+                                    <svg class="w-[18px] h-[18px] text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                                    <span>Delete Channel</span>
+                                </span>
                                 <svg class="w-4 h-4 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
                             </button>
                         </div>
@@ -2710,7 +2771,7 @@
                             <div id="inbox-storage-section" class="pt-4 mt-4 border-t border-white/5 space-y-4 hidden">
                                 <div>
                                     <h4 class="text-sm font-medium text-white/90 mb-1">Inbox Storage</h4>
-                                    <p class="text-xs text-white/40">Change the storage node that persists your DM inbox.</p>
+                                    <p class="text-xs text-white/40">Change the storage provider that persists your DM inbox.</p>
                                 </div>
 
                                 <!-- Retention -->
@@ -2725,7 +2786,7 @@
 
                                 <!-- Storage nodes list -->
                                 <div>
-                                    <label class="block text-xs font-medium text-white/30 uppercase tracking-wider mb-2">Storage Nodes</label>
+                                    <label class="block text-xs font-medium text-white/30 uppercase tracking-wider mb-2">Storage Provider</label>
                                     <div id="inbox-storage-nodes-list" class="space-y-2"></div>
                                 </div>
 
@@ -2733,20 +2794,20 @@
                                 <div>
                                     <button id="inbox-storage-add-toggle-btn" class="text-xs text-white/60 hover:text-white/90 transition flex items-center gap-1.5">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                                        <span>Add storage node</span>
+                                        <span>Add Storage Provider</span>
                                     </button>
                                     <div id="inbox-storage-add-form" class="hidden mt-3 p-3 bg-white/[0.03] border border-white/5 rounded-xl space-y-3">
                                         <div class="flex items-center gap-4 text-sm text-white/80">
                                             <label class="flex items-center gap-2 cursor-pointer">
                                                 <input type="radio" name="inbox-storage-provider-radio" value="streamr" checked class="accent-[#F6851B]" />
-                                                <span>Streamr Official</span>
+                                                <span>Pombo</span>
                                             </label>
                                             <label class="flex items-center gap-2 cursor-pointer">
                                                 <input type="radio" name="inbox-storage-provider-radio" value="custom" class="accent-[#F6851B]" />
-                                                <span>Custom</span>
+                                                <span>Custom Storage Provider</span>
                                             </label>
                                         </div>
-                                        <input id="inbox-storage-custom-address" type="text" placeholder="0x… custom storage node address" class="hidden w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 font-mono focus:outline-none focus:border-white/30" />
+                                        <input id="inbox-storage-custom-address" type="text" placeholder="0x… custom storage provider address" class="hidden w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 font-mono focus:outline-none focus:border-white/30" />
                                         <div class="flex items-center gap-2">
                                             <input id="inbox-storage-add-days" type="number" min="1" max="3650" placeholder="days" class="w-24 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 focus:outline-none focus:border-white/30" />
                                             <span class="text-sm text-white/50">retention</span>
@@ -2760,8 +2821,8 @@
 
                                 <!-- Gas warning -->
                                 <div class="p-3 bg-amber-500/5 rounded-xl border border-amber-500/10">
-                                    <p class="text-xs text-amber-400/80 flex items-start gap-2">
-                                        <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                                    <p class="text-xs text-amber-400/80 flex items-center gap-2">
+                                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
                                         <span>Storage changes require on-chain transactions and gas fees.</span>
                                     </p>
                                 </div>

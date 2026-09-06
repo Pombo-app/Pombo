@@ -102,14 +102,27 @@ class DMManager {
     }
 
     /**
-     * Rebuild the conversations map from existing DM channels in channelManager
+     * Rebuild the conversations map from existing DM channels in channelManager.
+     *
+     * The peer comes from the record's OWN stream id, not from its
+     * `peerAddress` field: the stream is the inbox we publish into, so it is
+     * the one thing that cannot be wrong. A record whose two halves disagree
+     * (seen in state carried over from a pre-August build) used to point this
+     * map at another conversation, and every message from that peer was filed
+     * there. The record is corrected in passing so sending is right too.
      */
     loadConversationsFromChannels() {
         this.conversations.clear();
         for (const [streamId, channel] of channelManager.channels) {
-            if (channel.type === 'dm' && channel.peerAddress) {
-                this.conversations.set(channel.peerAddress.toLowerCase(), streamId);
+            if (channel.type !== 'dm') continue;
+            const peer = String(streamId).split('/')[0].toLowerCase();
+            if (!peer.startsWith('0x')) continue;
+            if ((channel.peerAddress || '').toLowerCase() !== peer) {
+                Logger.warn('DM: record pointed at the wrong peer, correcting:',
+                    channel.peerAddress, '→', peer);
+                channel.peerAddress = peer;
             }
+            this.conversations.set(peer, streamId);
         }
     }
 
@@ -644,9 +657,10 @@ class DMManager {
         // Soft-leave check: ignore control messages from peers we left
         if (secureStorage.getDMLeftAt(senderAddress)) return;
 
-        // Find the conversation for this sender
-        const channelStreamId = this.conversations.get(senderAddress);
-        if (!channelStreamId) return;
+        // Derived from the sender, like the message path: typing and presence
+        // name a user, and a lookup could name the wrong conversation.
+        const channelStreamId = streamrController.getDMInboxId(senderAddress);
+        if (!channelManager.channels.has(channelStreamId)) return;
 
         const controlData = data;   // already opened above
 
@@ -717,8 +731,10 @@ class DMManager {
 
         if (secureStorage.isBlocked(senderAddress)) return;
 
-        const channelStreamId = this.conversations.get(senderAddress);
-        if (!channelStreamId) return;
+        // Derived from the sender: an image filed under the wrong peer is the
+        // most visible form of this mistake.
+        const channelStreamId = streamrController.getDMInboxId(senderAddress);
+        if (!channelManager.channels.has(channelStreamId)) return;
 
         if (!opened) {
             // Legacy path: decrypt with the static pair-wise ECDH key
@@ -803,12 +819,15 @@ class DMManager {
         delete data.pending;
         delete data._dmSent;
 
-        // Find or create conversation for this sender
-        let channelStreamId = this.conversations.get(senderAddress);
-        let channel;
-
-        if (channelStreamId) {
-            channel = channelManager.channels.get(channelStreamId);
+        // The conversation is DERIVED from the sender, never looked up: the
+        // inbox id is a deterministic function of the address, so a message
+        // can only ever be filed under the peer who wrote it. Consulting the
+        // map here is what let one bad record redirect a peer's messages into
+        // someone else's conversation (Android has always derived it).
+        const channelStreamId = streamrController.getDMInboxId(senderAddress);
+        let channel = channelManager.channels.get(channelStreamId);
+        if (channel && this.conversations.get(senderAddress) !== channelStreamId) {
+            this.conversations.set(senderAddress, channelStreamId);
         }
 
         if (!channel) {
@@ -911,9 +930,12 @@ class DMManager {
         const { notificationManager } = await import('./notifications.js');
         const myAddress = authManager.getAddress()?.toLowerCase();
         try {
+            // Raw — inboxes are never gated; the envelope check replaces the
+            // SDK validation, and the sealed invite carries its own proof.
+            const { verifyEnvelopeAuthenticity } = await import('./envelopeSigner.js');
             const resend = await streamrController.client.resend(
                 { streamId: this.inboxMessageStreamId, partition: STREAM_CONFIG.MESSAGE_STREAM.NOTIFICATIONS },
-                { last: count }
+                { last: count, raw: true }
             );
             const iterator = resend[Symbol.asyncIterator]();
             for (;;) {
@@ -927,6 +949,7 @@ class DMManager {
                     continue;
                 }
                 try {
+                    if (!verifyEnvelopeAuthenticity(message)) continue;
                     let data = message.content ?? message;
                     data = await this.openDMEnvelope(data);
                     if (!data?.account) continue;
@@ -1314,11 +1337,27 @@ class DMManager {
         const channel = channelManager.channels.get(channelStreamId);
         if (!channel) return;
 
-        // Sent messages (from local storage)
-        const sent = secureStorage.getSentMessages(channelStreamId);
+        // Sent messages (from local storage). A record here is one of MINE by
+        // definition, so one naming another account is state that landed in
+        // the wrong slice; it is not shown, whatever put it there. Records
+        // that name nobody predate the account field and are kept.
+        const myAddress = authManager.getAddress()?.toLowerCase();
+        const sent = secureStorage.getSentMessages(channelStreamId).filter(m => {
+            const from = (m.account || m.sender || '').toLowerCase();
+            return !from || from === myAddress;
+        });
 
-        // Received messages (already in channel.messages from inbox subscription)
-        const received = channel.messages.filter(m => m._dmReceived);
+        // Received messages (already in channel.messages from inbox subscription).
+        // A message that names ANOTHER peer does not belong here: state carried
+        // over from an older build can hold one filed under the wrong
+        // conversation, and once stored no amount of correct routing moves it.
+        // One that names nobody is kept — the oldest entries predate the
+        // account field, and unknown provenance is not grounds for erasing.
+        const received = channel.messages.filter(m => {
+            if (!m._dmReceived) return false;
+            const from = (m.account || m.sender || '').toLowerCase();
+            return !from || from === normalizedPeer;
+        });
 
         // Merge: combine sent + received, deduplicate by id, sort by timestamp
         // Prefer versions that have imageData (storage-backed messages may have it when sentMessages lost it)

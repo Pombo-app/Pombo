@@ -32,21 +32,24 @@ import {
 import {
     getChannelIdentity, dropChannelIdentity, clearChannelIdentities
 } from './channelIdentity.js';
-import { recoverEnvelopeSigner } from './envelopeSigner.js';
+import { recoverEnvelopeSigner, verifyEnvelopeAuthenticity } from './envelopeSigner.js';
 import {
     MESSAGE_STREAM as MESSAGE_STREAM_CONSTANTS,
     EPHEMERAL_STREAM as EPHEMERAL_STREAM_CONSTANTS,
     ADMIN_STREAM as ADMIN_STREAM_CONSTANTS,
     KEYS_STREAM as KEYS_STREAM_CONSTANTS,
+    KEYS_MSG_TYPE,
     PASSWORD_CHALLENGE_MAGIC,
     deriveEphemeralId as _deriveEphemeralId,
     deriveMessageId as _deriveMessageId,
     deriveAdminId as _deriveAdminId,
     deriveKeysId as _deriveKeysId,
+    deriveInteractionsId as _deriveInteractionsId,
     isMessageStream as _isMessageStream,
     isEphemeralStream as _isEphemeralStream,
     isAdminStream as _isAdminStream,
-    isKeysStream as _isKeysStream
+    isKeysStream as _isKeysStream,
+    isInteractionsStream as _isInteractionsStream
 } from './streamConstants.js';
 
 // === STREAM CONFIG (DUAL-STREAM ARCHITECTURE) ===
@@ -61,10 +64,12 @@ const deriveEphemeralId = _deriveEphemeralId;
 const deriveMessageId = _deriveMessageId;
 const deriveAdminId = _deriveAdminId;
 const deriveKeysId = _deriveKeysId;
+const deriveInteractionsId = _deriveInteractionsId;
 const isMessageStream = _isMessageStream;
 const isEphemeralStream = _isEphemeralStream;
 const isAdminStream = _isAdminStream;
 const isKeysStream = _isKeysStream;
+const isInteractionsStream = _isInteractionsStream;
 
 const isIpLiteralHost = (hostname) => {
     if (!hostname) {
@@ -282,9 +287,12 @@ class StreamrController {
     }
 
     /**
-     * Create a new channel with triple-stream architecture
-     * Creates 3 streams: Message stream (with storage), Ephemeral stream (no storage), Admin stream (with storage, owner-only writes)
-     * 
+     * Create a new channel and the streams it owns.
+     *
+     * Every channel gets three: messages (-1, stored), ephemeral (-2, never
+     * stored) and admin (-3, stored, owner-only writes). A gated channel adds
+     * two more: keys (-4) and interactions (-5), both stored.
+     *
      * @param {string} channelName - Name of the channel
      * @param {string} creatorAddress - Creator's Ethereum address
      * @param {string} type - Channel type: 'public', 'password', 'gated'
@@ -308,6 +316,9 @@ class StreamrController {
         const ephemeralStreamId = `${baseStreamPath}-2`;
         const adminStreamId = `${baseStreamPath}-3`;
         const keysStreamId = `${baseStreamPath}-4`;
+        // Interactions (-5): where members participate (reactions) without
+        // publishing on -1 — what lets a read-only channel still have them.
+        const interactionsStreamId = `${baseStreamPath}-5`;
 
         // Build metadata for The Graph indexing (abbreviated keys per MIGRATION_PLAN)
         // Channels default to hidden unless specified
@@ -331,7 +342,7 @@ class StreamrController {
             // envelope). Absent = Everyone — which is what every channel
             // created before the flag existed is. IMMUTABLE post-creation:
             // flipping it would break validation of the mixed history.
-            m: type === 'gated' && options.authorMode === 'members' ? 1 : undefined,
+            m: type === 'gated' && options.wireIdentity === 'sealed' ? 1 : undefined,
             // Only include metadata if visible
             d: exposure === 'visible' ? (options.description || '') : undefined,  // description
             l: exposure === 'visible' ? (options.language || 'en') : undefined,   // language
@@ -361,6 +372,13 @@ class StreamrController {
             v: '1',               // version
             ln: messageStreamId,  // linkedTo (parentStream)
             k: 'keys'             // kind
+        });
+
+        const interactionsMetadata = JSON.stringify({
+            a: 'pombo',           // app
+            v: '1',               // version
+            ln: messageStreamId,  // linkedTo (parentStream)
+            k: 'interactions'     // kind
         });
 
         try {
@@ -430,6 +448,18 @@ class StreamrController {
                 try { onProgress(); } catch (_) { /* see above */ }
             }
 
+            // Step 3c: INTERACTIONS STREAM (-5) — every channel type. Reactions
+            // need a stream of their own because permissions are per stream:
+            // a read-only channel closes the -1 to members, and without this
+            // they would lose reactions along with the ability to post. It
+            // also keeps the -1 conversation-only, which is what lets a
+            // `last: N` read come back with messages instead of emoji.
+            Logger.info('Creating interactions stream...');
+            const interactionsStream = await createStreamWithRetry(
+                interactionsStreamId, interactionsMetadata, 'interactions',
+                STREAM_CONFIG.INTERACTIONS_STREAM.PARTITIONS);
+            try { onProgress(); } catch (_) { /* see above */ }
+
             const createTime = ((Date.now() - startTime) / 1000).toFixed(1);
             Logger.info(`✓ All streams created in ${createTime}s`);
 
@@ -479,7 +509,20 @@ class StreamrController {
                 } finally {
                     try { onProgress(); } catch (_) { /* ignore */ }
                 }
-                
+
+                // Interactions (-5): public publish EVEN when the channel is
+                // read-only. Read-only means members do not post messages, not
+                // that they cannot react — the whole reason reactions have a
+                // stream of their own.
+                try {
+                    await this.grantPublicPermissions(interactionsStream);
+                    Logger.info('✓ Interactions stream: public permissions set');
+                } catch (e) {
+                    Logger.error('✗ Interactions stream permissions failed:', e.message);
+                } finally {
+                    try { onProgress(); } catch (_) { /* ignore */ }
+                }
+
                 const permTime = ((Date.now() - permStartTime) / 1000).toFixed(1);
                 Logger.info(`Permissions configured in ${permTime}s`);
                 
@@ -504,15 +547,45 @@ class StreamrController {
                 //
                 // The shared key only ever writes: reading is the clone's job
                 // (members subscribe through ERC-1271), so it gets PUBLISH
-                // alone. Same grant shape on re-key.
+                // alone. Same grant shape on re-key. And the inverse holds
+                // too: with a shared key present nothing publishes through
+                // the clone on -1/-2, so the clone is SUBSCRIBE-only there —
+                // a publish grant it never uses would only let a modified
+                // client self-identify on the wire.
                 const contentMembers = options.publishKeyAddress
-                    ? [options.gateAddress, { userId: options.publishKeyAddress, permissions: ['publish'] }]
+                    ? [
+                        { userId: options.gateAddress, permissions: ['subscribe'] },
+                        { userId: options.publishKeyAddress, permissions: ['publish'] }
+                    ]
                     : gateMembers;
+                // Interactions (-5): in Sealed it carries its own shared key,
+                // handed to EVERY member (read-only included) — that is what
+                // makes reactions work where messages do not. Without one
+                // (Visible) the clone publishes, like the rest of that mode.
+                const interactionMembers = options.interactionsKeyAddress
+                    ? [
+                        { userId: options.gateAddress, permissions: ['subscribe'] },
+                        { userId: options.interactionsKeyAddress, permissions: ['publish'] }
+                    ]
+                    : gateMembers;
+                // The -2 is where everyone PARTICIPATES — presence, typing,
+                // media coordination — so it carries the interactions key
+                // beside the content one. Without that grant a read-only
+                // member is invisible, and so is everyone else: the transport
+                // rejects the key the participation paths actually use.
+                const ephemeralMembers = options.interactionsKeyAddress
+                    ? [
+                        ...contentMembers.filter(m =>
+                            (m.userId || m) !== options.interactionsKeyAddress),
+                        { userId: options.interactionsKeyAddress, permissions: ['publish'] }
+                    ]
+                    : contentMembers;
                 for (const [stream, label] of [
                     [messageStream, 'Message'],
                     [ephemeralStream, 'Ephemeral'],
                     [adminStream, 'Admin'],
-                    [keysStream, 'Keys']
+                    [keysStream, 'Keys'],
+                    [interactionsStream, 'Interactions']
                 ]) {
                     if (!stream) continue;
                     try {
@@ -530,8 +603,12 @@ class StreamrController {
                                 : { public: false, members: gateMembers, memberPermissions: ['subscribe'] })
                             : {
                                 public: false,
-                                members: (stream === messageStream || stream === ephemeralStream)
-                                    ? contentMembers : gateMembers
+                                members: stream === messageStream
+                                    ? contentMembers
+                                    : (stream === ephemeralStream
+                                        ? ephemeralMembers
+                                        : (stream === interactionsStream
+                                            ? interactionMembers : gateMembers))
                             };
                         await this.setStreamPermissions(stream.id, perms);
                         Logger.info(`✓ ${label} stream: gate clone permissions set`);
@@ -554,6 +631,7 @@ class StreamrController {
                 ephemeralStreamId: ephemeralStream.id,
                 adminStreamId: adminStream.id,
                 keysStreamId: keysStream ? keysStream.id : null,
+                interactionsStreamId: interactionsStream ? interactionsStream.id : null,
                 type: type,
                 name: channelName
             };
@@ -1389,14 +1467,17 @@ class StreamrController {
             throw new Error('Stream not found');
         }
 
-        // Parse existing Pombo metadata from the stream description
+        // Parse existing Pombo metadata from the stream description.
+        // The description also carries the gate address ('g') and wire identity
+        // ('m'): writing over a failed read would strip the gate from the
+        // channel on-chain, so an unreadable description aborts the update.
         let meta = {};
         try {
             const desc = await stream.getDescription();
             meta = desc ? JSON.parse(desc) : {};
         } catch (e) {
-            Logger.warn('updateStreamMetadata: could not parse existing metadata:', e.message);
-            meta = {};
+            Logger.error('updateStreamMetadata: existing metadata unreadable, refusing to overwrite:', e.message);
+            throw new Error('Channel metadata could not be read; rename aborted to avoid losing the gate');
         }
 
         if (typeof updates.name === 'string') meta.n = updates.name;
@@ -1485,14 +1566,21 @@ class StreamrController {
         }
 
         // Gated (N-C): the stream grant belongs to the gate clone; a member's
-        // write ability is the CURRENT gate. One cached eth_call.
+        // write ability is the CURRENT gate plus the read-only filter — the
+        // same condition the contract's isValidSignature applies at ingest,
+        // so the composer never promises a publish the network would refuse.
         const gatedChannel = await this._gatedChannelFor(streamId);
         if (gatedChannel) {
             try {
                 const { gateManager } = await import('./gate.js');
-                const ok = await gateManager.checkAccess(
-                    gatedChannel.gate.address, authManager.getAddress());
-                return createPermissionResult(ok, false);
+                const address = authManager.getAddress();
+                const [ok, info] = await Promise.all([
+                    gateManager.checkAccess(gatedChannel.gate.address, address),
+                    gateManager.getGateInfo(gatedChannel.gate.address)
+                ]);
+                const mayWrite = ok && (!info.readOnly
+                    || await gateManager.canModerate(gatedChannel.gate.address, address));
+                return createPermissionResult(mayWrite, false);
             } catch (error) {
                 return createPermissionResult(null, true, error.message);
             }
@@ -1630,20 +1718,20 @@ class StreamrController {
     }
 
     /**
-     * Delete a stream (only owner can delete)
-     * For dual-stream architecture, deletes message stream (-1), ephemeral stream (-2)
-     * and admin stream (-3) so no orphan streams are left on the network.
+     * Delete a channel's streams (owner only): -1 message, -2 ephemeral,
+     * -3 admin, -5 interactions, and on gated channels -4 keys. Every one
+     * of them, so the network is left with no orphan holding paid storage.
      * @param {string} streamId - Stream ID (can be either messageStreamId or ephemeralStreamId)
      * @param {number} retries - Number of retry attempts per stream
-     * @returns {Promise<void>}
+     * @returns {Promise<string[]>} the streams still standing; empty means done
      */
     async deleteStream(streamId, retries = 7) {
         if (!this.client) {
             throw new Error('Streamr client not initialized');
         }
 
-        // Derive all stream IDs (message + ephemeral + admin + keys)
-        let messageStreamId, ephemeralStreamId, adminStreamId, keysStreamId;
+        // Derive all stream IDs (message + ephemeral + admin + keys + interactions)
+        let messageStreamId, ephemeralStreamId, adminStreamId, keysStreamId, interactionsStreamId;
 
         if (isMessageStream(streamId)) {
             messageStreamId = streamId;
@@ -1656,6 +1744,7 @@ class StreamrController {
         ephemeralStreamId = deriveEphemeralId(messageStreamId);
         adminStreamId = deriveAdminId(messageStreamId);
         keysStreamId = deriveKeysId(messageStreamId);
+        interactionsStreamId = deriveInteractionsId(messageStreamId);
 
         // Helper: detect "stream does not exist" — idempotent success case.
         // The stream may have been deleted in a previous attempt or never existed
@@ -1710,31 +1799,30 @@ class StreamrController {
                     Logger.warn('Keys unsubscribe warning:', e.message)
                 );
             }
-
-            // Delete sequentially (preserves wallet nonce ordering):
-            // message (primary) → ephemeral → admin → keys.
-            const msgResult = await deleteWithRetry(messageStreamId, 'message stream');
-
-            if (ephemeralStreamId) {
-                await deleteWithRetry(ephemeralStreamId, 'ephemeral stream');
+            // Same for the interactions stream (-5).
+            if (interactionsStreamId) {
+                await this.unsubscribe(interactionsStreamId).catch(e =>
+                    Logger.warn('Interactions unsubscribe warning:', e.message)
+                );
             }
 
-            if (adminStreamId) {
-                // Admin stream may not exist on legacy channels created before
-                // the -3 feature; failures here are non-critical (logged, not thrown).
-                await deleteWithRetry(adminStreamId, 'admin stream');
+            // Delete sequentially (preserves wallet nonce ordering), with the
+            // message stream LAST: while it stands the channel still opens, so
+            // a run that dies halfway leaves something to come back to. A
+            // stream that never existed answers as already gone.
+            const failed = [];
+            for (const [sid, label] of [
+                [ephemeralStreamId, 'ephemeral stream'],
+                [adminStreamId, 'admin stream'],
+                [keysStreamId, 'keys stream'],
+                [interactionsStreamId, 'interactions stream'],
+                [messageStreamId, 'message stream']
+            ]) {
+                if (!sid) continue;
+                const result = await deleteWithRetry(sid, label);
+                if (!result.success) failed.push(sid);
             }
-
-            if (keysStreamId) {
-                // Keys stream exists only on gated channels; the idempotent
-                // "already gone" path absorbs every other type.
-                await deleteWithRetry(keysStreamId, 'keys stream');
-            }
-
-            // Throw if message stream failed (primary stream)
-            if (!msgResult.success) {
-                throw msgResult.error;
-            }
+            return failed;
 
         } catch (error) {
             Logger.error('Failed to delete streams:', error);
@@ -1853,10 +1941,24 @@ class StreamrController {
      * @param {string} streamId - Any of the channel's streams (-1..-4)
      * @returns {Promise<Object|null>} The channel object when it has a gate
      */
+    /**
+     * The channel record for any of its streams, gated or not. Lazy import
+     * for the same reason as _gatedChannelFor: a static one is circular.
+     */
+    async _channelRecordFor(streamId) {
+        try {
+            const { channelManager } = await import('./channels.js');
+            const base = String(streamId).replace(/-[12345]$/, '');
+            return channelManager?.channels?.get(base + '-1') ?? null;
+        } catch {
+            return null;
+        }
+    }
+
     async _gatedChannelFor(streamId) {
         try {
             const { channelManager } = await import('./channels.js');
-            const base = String(streamId).replace(/-[1234]$/, '');
+            const base = String(streamId).replace(/-[12345]$/, '');
             const channel = channelManager?.channels?.get(base + '-1')
                 // Gated previews (Explore browse) live outside the map —
                 // without this fallback the preview's subscribes lose the
@@ -1910,7 +2012,7 @@ class StreamrController {
         // everyone. The author comes from the wrapper inside the epoch seal
         // (_openAuthorship, after decrypt); this stage neither confirms nor
         // drops.
-        if (channel.authorMode === 'members'
+        if (channel.wireIdentity === 'sealed'
                 && !isAdminStream(streamId) && !isKeysStream(streamId)) {
             return publisherId ?? null;
         }
@@ -1918,12 +2020,19 @@ class StreamrController {
         const gateAddress = channel.gate.address.toLowerCase();
         if ((publisherId || '').toLowerCase() !== gateAddress) {
             // -3 as the ACCOUNT: the owner publishes the admin stream under
-            // their own address — the transport already validated the plain
-            // EVM signature, and the namespace prefix IS the authority.
+            // their own address, and the namespace prefix IS the authority.
+            // The signature is recovered rather than taken on trust: a raw
+            // read skips the SDK validation, and this branch is on the gated
+            // path, where the envelope-authenticity check does not run.
             // (Clone-published -3 below stays for pre-switch history.)
             if (isAdminStream(streamId)) {
                 const admin = (channel.messageStreamId?.split('/')[0] || '').toLowerCase();
-                if ((publisherId || '').toLowerCase() === admin) return admin;
+                if ((publisherId || '').toLowerCase() === admin) {
+                    const signer = recoverEnvelopeSigner(streamMessage);
+                    if (signer === admin) return admin;
+                    Logger.warn('resolveAuthor: -3 envelope not signed by the admin — dropping');
+                    return null;
+                }
             }
             // Not published through the clone — a foreign publisher on a gated
             // stream has no business here (permissions are clone-only).
@@ -1966,14 +2075,14 @@ class StreamrController {
      * both modes).
      *
      * @param {Object} channel - The gated Members-only channel
-     * @param {Object} sealed - The decrypted epoch plaintext (the wrapper)
+     * @param {Object} epochWrapper - The decrypted epoch plaintext (the wrapper)
      * @param {Object} [options]
      * @param {boolean} [options.live=false]
      * @returns {Promise<{author: string, payload: Object}|null>}
      */
-    async _openAuthorship(channel, sealed, { live = false } = {}) {
+    async _openAuthorship(channel, epochWrapper, { live = false } = {}) {
         const { authorship } = await import('./authorship.js');
-        const opened = authorship.open(channel.messageStreamId, sealed);
+        const opened = authorship.open(channel.messageStreamId, epochWrapper);
         if (!opened) {
             Logger.warn('authorship: unverifiable wrapper on', channel.messageStreamId.slice(-20), '— dropping');
             return null;
@@ -1985,6 +2094,12 @@ class StreamrController {
                 Logger.info(`authorship: lapsed gate access for ${opened.author} — dropping live message`);
                 return null;
             }
+        }
+        // The epoch belongs to the envelope, so carry it onto the payload the
+        // caller keeps — the wrapper itself is discarded here.
+        if (opened.payload && typeof opened.payload === 'object'
+            && Number.isInteger(epochWrapper?._epoch)) {
+            opened.payload._epoch = epochWrapper._epoch;
         }
         return opened;
     }
@@ -2043,7 +2158,7 @@ class StreamrController {
         } catch { /* registry unavailable → ephemeral (public/password) */ }
 
         if (channelManager?.usesAccountPublish?.(streamId)) {
-            const base = String(streamId).replace(/-[1234]$/, '');
+            const base = String(streamId).replace(/-[12345]$/, '');
             const channel = channelManager.channels?.get(base + '-1');
             if (channel?.type === 'gated' || channel?.gate?.address) {
                 // Errors here MUST propagate: falling through to the ephemeral
@@ -2190,10 +2305,19 @@ class StreamrController {
      * @param {Object} data - Protocol message ({ t: KEYS_MSG_TYPE.*, ... })
      * @returns {Promise<Object>} The published StreamMessage
      */
-    async publishKeysMessage(keysStreamId, data, partition = STREAM_CONFIG.KEYS_STREAM.KEY_EXCHANGE) {
+    async publishKeysMessage(keysStreamId, data, partition = null) {
         if (!isKeysStream(keysStreamId)) {
             throw new Error(`publishKeysMessage expects a keys stream (-4), got: ${keysStreamId}`);
         }
+        // Split by CADENCE, not by key type: announces (one per rotation)
+        // stay on P0, requests and the wraps that answer them (one per member
+        // per rotation, and retried) go to P1. Sharing one partition let the
+        // churn push the announces out of the thousand-message read window,
+        // which left a new device unable to learn the anchor it needs.
+        partition ??= (data?.t === KEYS_MSG_TYPE.KEY_ANNOUNCE
+            || data?.t === KEYS_MSG_TYPE.PUB_ANNOUNCE)
+            ? STREAM_CONFIG.KEYS_STREAM.KEY_EXCHANGE
+            : STREAM_CONFIG.KEYS_STREAM.REQUESTS;
         if (!this._accountIdentity) {
             throw new Error('Account identity unavailable — EthereumKeyPairIdentity not exposed, check streamr-bundle.js');
         }
@@ -2256,11 +2380,31 @@ class StreamrController {
         // publish key or no wallet means NO publish, never a fallback to the
         // clone (which would put the account on the wire).
         const { usesSharedPublish } = await import('./epochKeyManager.js');
-        if (usesSharedPublish(channel)) {
-            const pubKey = await epochKeyManager.ensurePublishKey(channel);
+        // The -3 is the owner's alone: they publish it as the ACCOUNT, which
+        // is what the stream's on-chain permission enforces. A shared key
+        // holds nothing there, so routing it through the Members-only path
+        // below would hand the network a publisher it rejects — silently.
+        if (usesSharedPublish(channel) && !isAdminStream(streamId)) {
+            // Which shared key carries this depends on the stream, not on the
+            // author's role: the -1 is where you publish (content key, which
+            // a read-only channel withholds from members) and the -2/-5 is
+            // where you participate (interactions key, which every member
+            // holds). That split is what keeps presence and reactions alive
+            // in a read-only channel.
+            const participates = isEphemeralStream(streamId) || isInteractionsStream(streamId);
+            // The -5 grants publish to the interactions key ALONE, so there
+            // is no falling back to the content key there: the network would
+            // drop the message and the reaction would vanish with no error.
+            // The -2 still accepts both, which is what keeps channels created
+            // before the split working.
+            const interactionsOnly = isInteractionsStream(streamId);
+            const pubKey = participates
+                ? epochKeyManager.getInteractionsKey(channel.messageStreamId)
+                    || (interactionsOnly ? null : await epochKeyManager.ensurePublishKey(channel))
+                : await epochKeyManager.ensurePublishKey(channel);
             if (!pubKey) {
                 throw new Error(
-                    `No publish key for ${channel.messageStreamId} — cannot publish on a Members-only channel without one (waiting for PUB_WRAP)`);
+                    `No ${participates ? 'interactions' : 'publish'} key for ${channel.messageStreamId} — cannot publish on a Members-only channel without one (waiting for the wrap)`);
             }
             const auth = epochKeyManager.getAuthorship(channel);
             if (!auth) {
@@ -2271,14 +2415,14 @@ class StreamrController {
                 channel.messageStreamId, payload,
                 { privateKey: auth.privateKey, publicKey: auth.publicKey },
                 auth.bindProof);
-            const sealedWrapper = await epochKeyCrypto.encryptWithEpochKey(wrapper, key.cryptoKey);
-            const envelope = { e: 'epoch-aes-gcm', k: key.kid, ct: sealedWrapper.ct, iv: sealedWrapper.iv };
+            const epochWrapper = await epochKeyCrypto.encryptWithEpochKey(wrapper, key.cryptoKey);
+            const envelope = { e: 'epoch-aes-gcm', k: key.kid, ct: epochWrapper.ct, iv: epochWrapper.iv };
             return this.publishAs(
                 this._sharedPublishIdentity(pubKey), streamId, partition, envelope);
         }
 
-        const sealed = await epochKeyCrypto.encryptWithEpochKey(payload, key.cryptoKey);
-        const envelope = { e: 'epoch-aes-gcm', k: key.kid, ct: sealed.ct, iv: sealed.iv };
+        const epochWrapper = await epochKeyCrypto.encryptWithEpochKey(payload, key.cryptoKey);
+        const envelope = { e: 'epoch-aes-gcm', k: key.kid, ct: epochWrapper.ct, iv: epochWrapper.iv };
 
         return this.publishAs(
             this._accountIdentity, streamId, partition, envelope,
@@ -2363,10 +2507,13 @@ class StreamrController {
         // stamp the sender's account onto every piece.
         const { usesSharedPublish } = await import('./epochKeyManager.js');
         if (usesSharedPublish(channel)) {
-            const pubKey = await epochKeyManager.ensurePublishKey(channel);
+            // The -2 is participation, so it rides the interactions key —
+            // media coordination keeps working for a member who may not post.
+            const pubKey = epochKeyManager.getInteractionsKey(channel.messageStreamId)
+                || await epochKeyManager.ensurePublishKey(channel);
             if (!pubKey) {
                 throw new Error(
-                    `No publish key for ${channel.messageStreamId} — cannot send media on a Members-only channel without one`);
+                    `No interactions key for ${channel.messageStreamId} — cannot send media on a Members-only channel without one`);
             }
             return this.publishAs(
                 this._sharedPublishIdentity(pubKey), ephemeralStreamId,
@@ -2404,7 +2551,7 @@ class StreamrController {
 
         const parsed = epochKeyCrypto.parseBinaryEpochEnvelope(content);
         if (!parsed) return null;
-        const messageStreamId = String(streamId).replace(/-[234]$/, '-1');
+        const messageStreamId = String(streamId).replace(/-[2345]$/, '-1');
         const { epochKeyManager } = await import('./epochKeyManager.js');
         const key = await epochKeyManager.getKeyForKid(messageStreamId, parsed.kid, { live: true });
         if (key === false) return null;
@@ -2482,7 +2629,7 @@ class StreamrController {
      * @returns {Promise<Object|null>}
      */
     async openEpochEnvelope(streamId, content, context = {}) {
-        const messageStreamId = String(streamId).replace(/-[234]$/, '-1');
+        const messageStreamId = String(streamId).replace(/-[2345]$/, '-1');
         const { epochKeyManager } = await import('./epochKeyManager.js');
         const key = await epochKeyManager.getKeyForKid(messageStreamId, content.k, context);
         if (key === false) {
@@ -2497,7 +2644,17 @@ class StreamrController {
         }
         const { epochKeyCrypto } = await import('./epochKeyCrypto.js');
         try {
-            return await epochKeyCrypto.decryptWithEpochKey({ ct: content.ct, iv: content.iv }, key);
+            const plain = await epochKeyCrypto.decryptWithEpochKey(
+                { ct: content.ct, iv: content.iv }, key);
+            // The epoch this was written under, read off the kid that travels
+            // in the clear. Moderation needs it to hide only what a banned
+            // author wrote from the ban onward, and unlike the payload
+            // timestamp the publisher does not get to choose it.
+            if (plain && typeof plain === 'object') {
+                const epoch = parseInt(String(content.k).split('.')[0], 10);
+                if (Number.isInteger(epoch)) plain._epoch = epoch;
+            }
+            return plain;
         } catch (e) {
             Logger.warn(`Epoch envelope failed to open (kid ${content.k}):`, e.message);
             return null;
@@ -2595,13 +2752,17 @@ class StreamrController {
             partitionSubs = {};
             this.subscriptions.set(keysStreamId, partitionSubs);
         }
-        const partition = STREAM_CONFIG.KEYS_STREAM.KEY_EXCHANGE;
+        // Both cadences are subscribed: P0 for announces, P1 for the
+        // request/answer traffic.
+        const gatedChannel = await this._gatedChannelFor(keysStreamId);
+        for (const partition of [
+            STREAM_CONFIG.KEYS_STREAM.KEY_EXCHANGE, STREAM_CONFIG.KEYS_STREAM.REQUESTS
+        ]) {
         if (partitionSubs[partition]) {
-            Logger.debug('Already subscribed to keys stream:', keysStreamId);
-            return partitionSubs[partition];
+            Logger.debug('Already subscribed to keys stream partition', partition, keysStreamId);
+            continue;
         }
 
-        const gatedChannel = await this._gatedChannelFor(keysStreamId);
         partitionSubs[partition] = await this.client.subscribe(
             {
                 streamId: keysStreamId, partition,
@@ -2631,8 +2792,9 @@ class StreamrController {
             }
         );
 
+        }
         Logger.debug('Subscribed to keys stream:', keysStreamId);
-        return partitionSubs[partition];
+        return partitionSubs[STREAM_CONFIG.KEYS_STREAM.KEY_EXCHANGE];
     }
 
     /**
@@ -2745,7 +2907,7 @@ class StreamrController {
         let channelManager = null;
         try { ({ channelManager } = await import('./channels.js')); } catch { /* early boot */ }
         if (channelManager?.usesAccountPublish?.(messageStreamId)) {
-            const base = String(messageStreamId).replace(/-[1234]$/, '');
+            const base = String(messageStreamId).replace(/-[12345]$/, '');
             const channel = channelManager.channels?.get(base + '-1');
             if (channel?.type === 'gated' || channel?.gate?.address) {
                 // Members-only: chunks travel under the shared key too — the
@@ -2823,7 +2985,26 @@ class StreamrController {
      * @param {string} password - Password for encrypted channels (optional)
      */
     async publishReaction(messageStreamId, reaction, password = null) {
-        Logger.debug('publishReaction called - sending to messageStream partition 0:', { messageStreamId, messageId: reaction?.messageId });
+        // Reactions live on the -5 in every channel type: it is where members
+        // participate, so a read-only channel still has them, and the -1 stays
+        // conversation only. A channel created before the -5 existed has none;
+        // the publish fails once, falls back to the -1/P0 it used to use, and
+        // remembers for the session.
+        const record = await this._channelRecordFor(messageStreamId);
+        const interactionsId = record?._interactionsMissing
+            ? null
+            : (record?.interactionsStreamId || null);
+        if (interactionsId) {
+            try {
+                return await this.publishAsChannel(
+                    interactionsId, STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS, reaction, password);
+            } catch (error) {
+                if (!/not found|does not exist|NOT_FOUND/i.test(error?.message || '')) throw error;
+                if (record) record._interactionsMissing = true;
+                Logger.warn('No interactions stream on this channel — reacting on the -1:',
+                    messageStreamId.slice(-20));
+            }
+        }
         return await this.publishAsChannel(
             messageStreamId, STREAM_CONFIG.MESSAGE_STREAM.MESSAGES, reaction, password);
     }
@@ -2893,7 +3074,7 @@ class StreamrController {
         // on-chain (the account signs).
         try {
             const { channelManager } = await import('./channels.js');
-            const base = String(adminStreamId).replace(/-[1234]$/, '');
+            const base = String(adminStreamId).replace(/-[12345]$/, '');
             const channel = channelManager.channels?.get(base + '-1');
             if (channel?.type === 'gated' || channel?.gate?.address) {
                 // -3 publishes as the ACCOUNT on gated too (_gateTransportOptions):
@@ -2946,7 +3127,7 @@ class StreamrController {
             const gatedChannel = await this._gatedChannelFor(adminStreamId);
             const resend = await this.client.resend(
                 { streamId: adminStreamId, partition },
-                { last, ...(gatedChannel ? { raw: true } : {}) }
+                { last, raw: true }
             );
 
             const iterator = resend[Symbol.asyncIterator]();
@@ -2968,6 +3149,7 @@ class StreamrController {
                 }
 
                 try {
+                    if (!gatedChannel && !verifyEnvelopeAuthenticity(message)) continue;
                     let content = message.content || message;
                     if (password && typeof content === 'string') {
                         try {
@@ -3051,7 +3233,7 @@ class StreamrController {
         // opens for anyone who cannot reach the owner's group key.
         try {
             const { channelManager } = await import('./channels.js');
-            const base = String(adminStreamId).replace(/-[1234]$/, '');
+            const base = String(adminStreamId).replace(/-[12345]$/, '');
             const channel = channelManager.channels?.get(base + '-1');
             // Visible channels are storefronts: the image IS the marketing and
             // publishes in the CLEAR so non-members (Explore) can render it.
@@ -3107,7 +3289,7 @@ class StreamrController {
             const gatedChannel = await this._gatedChannelFor(adminStreamId);
             const resend = await this.client.resend(
                 { streamId: adminStreamId, partition },
-                { last: 1, ...(gatedChannel ? { raw: true } : {}) }
+                { last: 1, raw: true }
             );
 
             const iterator = resend[Symbol.asyncIterator]();
@@ -3129,6 +3311,7 @@ class StreamrController {
                 }
 
                 try {
+                    if (!gatedChannel && !verifyEnvelopeAuthenticity(message)) continue;
                     let content = message.content || message;
                     // Encrypted entries arrive as base64/JSON string; non-encrypted as object.
                     if (typeof content === 'string') {
@@ -3280,9 +3463,11 @@ class StreamrController {
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
             let rawContent = null;
             try {
+                // Raw — password channels are never gated, so the envelope
+                // check below is the authenticity the SDK validation gave.
                 const resend = await this.client.resend(
                     { streamId: adminStreamId, partition },
-                    { last: 1 }
+                    { last: 1, raw: true }
                 );
 
                 const iterator = resend[Symbol.asyncIterator]();
@@ -3299,6 +3484,7 @@ class StreamrController {
                         Logger.warn('verifyPasswordChallenge iteration error:', iterError.message);
                         continue;
                     }
+                    if (!verifyEnvelopeAuthenticity(message)) continue;
                     rawContent = message?.content ?? message;
                 }
             } catch (error) {
@@ -3575,10 +3761,13 @@ class StreamrController {
         }
 
         // Safety check: only enable storage for streams that should persist
-        // (-1 message, -3 admin, -4 keys). The keys stream MUST persist — a
-        // joiner pulls KEY_ANNOUNCEs from storage, and requests/wraps survive
-        // there until the counterpart comes online. Only -2 stays unstored.
-        if (!isMessageStream(messageStreamId) && !isAdminStream(messageStreamId) && !isKeysStream(messageStreamId)) {
+        // (-1 message, -3 admin, -4 keys, -5 interactions). The keys stream
+        // MUST persist — a joiner pulls KEY_ANNOUNCEs from storage, and
+        // requests/wraps survive there until the counterpart comes online.
+        // The -5 must persist for the same reason reactions moved off the -2:
+        // a reopened channel has to render them. Only -2 stays unstored.
+        if (!isMessageStream(messageStreamId) && !isAdminStream(messageStreamId)
+            && !isKeysStream(messageStreamId) && !isInteractionsStream(messageStreamId)) {
             Logger.warn('enableStorage called on non-persistent stream, ignoring:', messageStreamId);
             return { success: false, provider: null, storageDays: null };
         }
@@ -3679,7 +3868,8 @@ class StreamrController {
             throw new Error('Client not initialized');
         }
 
-        if (!isMessageStream(streamId) && !isAdminStream(streamId) && !isKeysStream(streamId)) {
+        if (!isMessageStream(streamId) && !isAdminStream(streamId)
+            && !isKeysStream(streamId) && !isInteractionsStream(streamId)) {
             return { success: false, nodeAddress: null, error: 'Storage not allowed on this stream' };
         }
 
@@ -3813,22 +4003,25 @@ class StreamrController {
         
         try {
             // Streamr SDK resend for partitioned history:
-            // pass stream definition as first arg: { streamId, partition }
+            // pass stream definition as first arg: { streamId, partition }.
+            // Raw — non-gated callers only; the envelope check replaces the
+            // SDK validation raw turns off.
             const resend = await this.client.resend(
                 { streamId: messageStreamId, partition: partition },
-                { last: count }
+                { last: count, raw: true }
             );
-            
+
             // Manual iteration to catch decrypt errors per-message
             const iterator = resend[Symbol.asyncIterator]();
             let iteratorDone = false;
             let decryptErrors = 0;
-            
+
             while (!iteratorDone) {
                 try {
                     const result = await iterator.next();
                     iteratorDone = result.done;
                     if (!iteratorDone) {
+                        if (!verifyEnvelopeAuthenticity(result.value)) continue;
                         messages.push(result.value.content);
                     }
                 } catch (iterError) {
@@ -3871,10 +4064,12 @@ class StreamrController {
 
             Logger.info(`fetchPartitionHistory: resending from ${streamId} partition ${partition}, last ${limit}`);
 
-            // Streamr SDK v103+: first arg is { streamId, partition }, second is resend options
+            // Streamr SDK v103+: first arg is { streamId, partition }, second
+            // is resend options. Raw — sync streams are the account's own and
+            // never gated; the envelope check replaces the SDK validation.
             const resend = await this.client.resend(
                 { streamId: streamId, partition: partition },
-                { last: limit }
+                { last: limit, raw: true }
             );
 
             // Manual iteration to catch errors per-message
@@ -3888,6 +4083,7 @@ class StreamrController {
 
                     if (!iteratorDone && result.value) {
                         const msg = result.value;
+                        if (!verifyEnvelopeAuthenticity(msg)) continue;
                         // Get publisherId - v103+ uses getPublisherId() method
                         const publisherId = typeof msg.getPublisherId === 'function'
                             ? msg.getPublisherId()
@@ -4129,24 +4325,6 @@ class StreamrController {
                 this.subscriptions.set(messageStreamId, msgSubs);
             }
 
-            // Partition 0: Content messages WITH history
-            if (handlers.onMessage) {
-                if (!msgSubs[STREAM_CONFIG.MESSAGE_STREAM.MESSAGES]) {
-                    Logger.debug('Subscribing to messageStream partition 0 (content) with history');
-                    msgSubs[STREAM_CONFIG.MESSAGE_STREAM.MESSAGES] = await this.subscribeWithHistory(
-                        messageStreamId,
-                        STREAM_CONFIG.MESSAGE_STREAM.MESSAGES,
-                        handlers.onMessage,
-                        historyCount,
-                        password,
-                        makePartitionHistoryCallback(STREAM_CONFIG.MESSAGE_STREAM.MESSAGES, 'messageStream P0'),
-                        handlers.allowOverridesInContentPartition === true
-                    );
-                } else {
-                    await completeHistoryPartition(STREAM_CONFIG.MESSAGE_STREAM.MESSAGES, 'messageStream P0 (already subscribed)');
-                }
-            }
-
             // Partition 1: Control overrides WITH history
             if (handlers.onOverride) {
                 if (!msgSubs[STREAM_CONFIG.MESSAGE_STREAM.CONTROL]) {
@@ -4162,6 +4340,47 @@ class StreamrController {
                     );
                 } else {
                     await completeHistoryPartition(STREAM_CONFIG.MESSAGE_STREAM.CONTROL, 'messageStream P1 (already subscribed)');
+                }
+            }
+
+            // Partition 2: moderator deltas WITH history. Deliberately outside
+            // the history-complete accounting: the timeline must not wait on
+            // moderation to render, it re-filters when the deltas land.
+            if (handlers.onModeration && !msgSubs[STREAM_CONFIG.MESSAGE_STREAM.MODERATION]) {
+                Logger.debug('Subscribing to messageStream partition 2 (moderation) with history');
+                msgSubs[STREAM_CONFIG.MESSAGE_STREAM.MODERATION] = await this.subscribeWithHistory(
+                    messageStreamId,
+                    STREAM_CONFIG.MESSAGE_STREAM.MODERATION,
+                    handlers.onModeration,
+                    STREAM_CONFIG.MODERATION_HISTORY_COUNT,
+                    password,
+                    null,
+                    false
+                );
+            }
+
+            // Partition 0 LAST, after the control partition and the moderator
+            // deltas: the timeline renders progressively as content batches
+            // land, so anything read after them shows its pre-override state
+            // until the next render — a deleted message appears and then
+            // vanishes. Read in this order the overrides are already parked
+            // (applyPendingOverrides runs per batch) and the deltas already
+            // compose, so the first paint is the final one.
+            // Partition 0: Content messages WITH history
+            if (handlers.onMessage) {
+                if (!msgSubs[STREAM_CONFIG.MESSAGE_STREAM.MESSAGES]) {
+                    Logger.debug('Subscribing to messageStream partition 0 (content) with history');
+                    msgSubs[STREAM_CONFIG.MESSAGE_STREAM.MESSAGES] = await this.subscribeWithHistory(
+                        messageStreamId,
+                        STREAM_CONFIG.MESSAGE_STREAM.MESSAGES,
+                        handlers.onMessage,
+                        historyCount,
+                        password,
+                        makePartitionHistoryCallback(STREAM_CONFIG.MESSAGE_STREAM.MESSAGES, 'messageStream P0'),
+                        handlers.allowOverridesInContentPartition === true
+                    );
+                } else {
+                    await completeHistoryPartition(STREAM_CONFIG.MESSAGE_STREAM.MESSAGES, 'messageStream P0 (already subscribed)');
                 }
             }
 
@@ -4252,4 +4471,4 @@ class StreamrController {
 
 // Export singleton instance and config
 export const streamrController = new StreamrController();
-export { STREAM_CONFIG, deriveEphemeralId, deriveMessageId, deriveAdminId, deriveKeysId, isMessageStream, isEphemeralStream, isAdminStream, isKeysStream };
+export { STREAM_CONFIG, deriveEphemeralId, deriveMessageId, deriveAdminId, deriveKeysId, deriveInteractionsId, isMessageStream, isEphemeralStream, isAdminStream, isKeysStream, isInteractionsStream };

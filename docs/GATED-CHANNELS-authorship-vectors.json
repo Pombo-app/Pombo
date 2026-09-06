@@ -1,0 +1,13 @@
+{
+  "accountPriv": "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+  "author": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+  "pseudonymPriv": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e01",
+  "streamId": "0xaaaabbbbccccddddeeeeffff0000111122223333/deadbeef01-1",
+  "wrapper": {
+    "v": 1,
+    "p": "{\"type\":\"text\",\"id\":\"msg-0001\",\"text\":\"olá autoria selada\",\"timestamp\":1787000000000}",
+    "pk": "0x03126e8824ff1ce4bbf18352df62dc12687ea5613f046a32a3bcfc268b2b5b0a30",
+    "sig": "0xe8ab29125cb8a9e7f5a9762494b56dcb525e03f92eb60ce720c3d8cf1ce35f6f4aad074a93d38a051aab3d9973c99b87700c7d52b90e540a94524ac60df3e6391b",
+    "bp": "0x6bedd9ed7332468bc2da2e4e29b600ba128c8705144bd5b9ac92c0eb09eeb96e40b6c9734a56575641c88f22dd6a4eea0f74c158652da6888920acb2cafbf0721c"
+  }
+}

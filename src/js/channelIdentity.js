@@ -32,15 +32,15 @@ import { createPublisherProof } from './publisherProof.js';
 const identities = new Map();
 
 /**
- * All three streams of a channel (-1 message, -2 ephemeral, -3 admin) share one
- * identity, so they must key to the same entry.
+ * Every stream of a channel shares one identity, so they must key to the
+ * same entry: -1 message, -2 ephemeral, -3 admin, -4 keys, -5 interactions.
  *
  * @param {string} streamId - Any of the channel's stream IDs
  * @returns {string|null} The channel's base ID
  */
 export function baseChannelId(streamId) {
     if (!streamId) return null;
-    return String(streamId).replace(/-[123]$/, '');
+    return String(streamId).replace(/-[12345]$/, '');
 }
 
 /**

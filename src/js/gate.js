@@ -5,15 +5,17 @@
  * clone is the channel's on-wire publisher for every member (ERC-1271), and
  * two views drive the client:
  *
- *   isValidSignature — consumed by the Streamr SDK, never called here.
+ *   isValidSignature — consumed by the Streamr SDK, never called here. Since
+ *                      v3 it answers the same question as checkAccess (plus
+ *                      the read-only filter), so a lapsed member stops
+ *                      publishing without any owner transaction.
  *   checkAccess      — the CURRENT gate. Decides epoch-key distribution
  *                      (answering a KEY_REQUEST) and UI state. Cached per
  *                      (gate, user) like the SDK caches isValidSignature.
  *
- * Membership is sticky on-chain (everMember); this module only ever needs the
- * current state. Writes (createGate / allow / ban / …) are owner transactions
- * signed with the local account wallet — the same wallet that already pays for
- * stream creation, so no new signing path.
+ * Writes (createGate / allow / ban / …) are owner transactions signed with
+ * the local account wallet — the same wallet that already pays for stream
+ * creation, so no new signing path.
  *
  * All reads go through a plain JsonRpcProvider with endpoint failover. The
  * Streamr SDK's provider is not reachable from app code, and GasEstimator's
@@ -25,40 +27,44 @@ import { CONFIG, getRpcEndpoints } from './config.js';
 import { Logger } from './logger.js';
 
 const GATE_ABI = [
-    'function initialize(address owner, uint8 mode, address token, uint256 minBalance, uint256 price, uint64 duration)',
     'function owner() view returns (address)',
     'function mode() view returns (uint8)',
     'function token() view returns (address)',
     'function minBalance() view returns (uint256)',
     'function price() view returns (uint256)',
     'function duration() view returns (uint64)',
-    'function everMember(address) view returns (bool)',
+    'function wireIdentity() view returns (uint8)',
+    'function readOnly() view returns (bool)',
     'function banned(address) view returns (bool)',
-    'function erased(address) view returns (bool)',
     'function allowlist(address) view returns (bool)',
     'function paidUntil(address) view returns (uint64)',
+    'function moderators(address) view returns (bool)',
     'function checkAccess(address user) view returns (bool)',
+    'function states(address[] users) view returns (tuple(bool access, bool banned, bool moderator, bool allowed, uint64 paidUntil)[])',
+    'function membersCount() view returns (uint256)',
+    'function membersAt(uint256 offset, uint256 limit) view returns (address[])',
     'function allow(address user)',
     'function allowBatch(address[] users)',
     'function revokeAllow(address user)',
     'function pay()',
     'function payWithPermit(uint256 permitValue, uint256 deadline, uint8 v, bytes32 r, bytes32 s)',
-    'function ban(address user, bool eraseHistory)',
+    'function ban(address user)',
     'function unban(address user)',
-    'function moderators(address) view returns (bool)',
     'function setModerator(address user, bool enabled)',
+    'function setPrice(uint256 price)',
+    'function setDuration(uint64 duration)',
     'event ModeratorSet(address indexed user, bool enabled)',
     'event Allowed(address indexed user)',
     'event AllowRevoked(address indexed user)',
     'event Paid(address indexed user, uint64 paidUntil)',
-    'event Banned(address indexed user, bool erasedHistory)',
+    'event Banned(address indexed user)',
     'event Unbanned(address indexed user)',
-    'event Unerased(address indexed user)',
-    'event OwnershipTransferred(address indexed previousOwner, address indexed newOwner)'
+    'event PriceSet(uint256 price)',
+    'event DurationSet(uint64 duration)'
 ];
 
 const FACTORY_ABI = [
-    'function createGate(uint8 mode, address token, uint256 minBalance, uint256 price, uint64 duration) returns (address)',
+    'function createGate(uint8 mode, address token, uint256 minBalance, uint256 price, uint64 duration, uint8 wireIdentity, bool readOnly) returns (address)',
     'event GateCreated(address indexed gate, address indexed owner, uint8 mode)'
 ];
 
@@ -87,6 +93,14 @@ export const GATE_MODE = Object.freeze({
 
 const GATE_MODE_NAMES = ['none', 'token', 'nft', 'paid'];
 
+/** Mirrors PomboGate.WireIdentity on-chain — order is part of the ABI. */
+export const WIRE_IDENTITY = Object.freeze({
+    VISIBLE: 0, // every message signed by its author's account
+    SEALED: 1 // shared channel key on the wire, authorship sealed inside
+});
+
+const WIRE_IDENTITY_NAMES = ['visible', 'sealed'];
+
 class GateManager {
     constructor() {
         this._provider = null;
@@ -95,7 +109,9 @@ class GateManager {
         this._accessCache = new Map();
         // (gate, user) → { until, at } — paidUntil in unix seconds, same TTL
         this._paidCache = new Map();
-        // gate → immutable params ({ owner, mode, token, minBalance, price, duration })
+        // gate → { info, at }. TTL'd since v3: price and duration are
+        // owner-mutable (setPrice/setDuration), so "fetched once" would show
+        // a stale price to everyone else for the whole session.
         this._infoCache = new Map();
         // token → { symbol, decimals } — immutable, fetched once
         this._tokenMetaCache = new Map();
@@ -133,12 +149,16 @@ class GateManager {
 
     /**
      * Run an RPC operation, rotating to the next endpoint once on failure.
-     * Mirrors GasEstimator's sticky-with-failover behaviour.
+     * Mirrors GasEstimator's sticky-with-failover behaviour. A revert
+     * (CALL_EXCEPTION) is the chain answering, not the endpoint failing —
+     * rotating on it would just replay the same revert against every
+     * endpoint in the list.
      */
     async _withProvider(op) {
         try {
             return await op(this._getProvider());
         } catch (firstError) {
+            if (firstError?.code === 'CALL_EXCEPTION') throw firstError;
             this._rpcIndex++;
             Logger.debug('gate: RPC failed, rotating endpoint:', firstError.message);
             return op(this._getProvider());
@@ -164,29 +184,62 @@ class GateManager {
     // ---------------------------------------------------------------- reads
 
     /**
-     * Immutable gate parameters, fetched once per gate.
+     * Gate parameters. Owner, mode, token, minBalance, wireIdentity and
+     * readOnly are immutable; price and duration are owner-mutable, hence the
+     * TTL (same window as checkAccess) plus explicit invalidation after our
+     * own setPrice/setDuration.
      * @returns {Promise<{owner: string, mode: number, modeName: string,
-     *   token: string, minBalance: bigint, price: bigint, duration: bigint}>}
+     *   token: string, minBalance: bigint, price: bigint, duration: bigint,
+     *   wireIdentity: number, wireIdentityName: string, readOnly: boolean}>}
      */
     async getGateInfo(gateAddress) {
         const key = gateAddress.toLowerCase();
-        if (this._infoCache.has(key)) return this._infoCache.get(key);
-        const info = await this._withProvider(async () => {
+        const cached = this._infoCache.get(key);
+        if (cached && Date.now() - cached.at < CONFIG.gate.checkAccessCacheMs) {
+            if (cached.info === null) throw new Error('gate is not v3 (unsupported)');
+            return cached.info;
+        }
+        let info;
+        try {
+            info = await this._readGateInfo(gateAddress);
+        } catch (error) {
+            // A revert means the gate lacks the v3 getters — a pre-v3 clone.
+            // Unsupported by decision; cache the verdict so every consumer of
+            // a dead channel doesn't hammer the RPC re-discovering it.
+            if (error?.code === 'CALL_EXCEPTION') {
+                this._infoCache.set(key, { info: null, at: Date.now() });
+                throw new Error('gate is not v3 (unsupported)');
+            }
+            throw error;
+        }
+        this._infoCache.set(key, { info, at: Date.now() });
+        return info;
+    }
+
+    _readGateInfo(gateAddress) {
+        return this._withProvider(async () => {
             const gate = this._readContract(gateAddress);
-            const [owner, mode, token, minBalance, price, duration] = await Promise.all([
+            const [owner, mode, token, minBalance, price, duration, wireIdentity, readOnly] = await Promise.all([
                 gate.owner(), gate.mode(), gate.token(),
-                gate.minBalance(), gate.price(), gate.duration()
+                gate.minBalance(), gate.price(), gate.duration(),
+                gate.wireIdentity(), gate.readOnly()
             ]);
             return {
                 owner: owner.toLowerCase(),
                 mode: Number(mode),
                 modeName: GATE_MODE_NAMES[Number(mode)] ?? 'unknown',
                 token: token.toLowerCase(),
-                minBalance, price, duration
+                minBalance, price, duration,
+                wireIdentity: Number(wireIdentity),
+                wireIdentityName: WIRE_IDENTITY_NAMES[Number(wireIdentity)] ?? 'visible',
+                readOnly: Boolean(readOnly)
             };
         });
-        this._infoCache.set(key, info);
-        return info;
+    }
+
+    /** Drop the cached parameters for one gate (after setPrice/setDuration). */
+    invalidateInfo(gateAddress) {
+        this._infoCache.delete(gateAddress.toLowerCase());
     }
 
     /**
@@ -233,6 +286,18 @@ class GateManager {
             this._accessCache.delete(oldest);
         }
         return value;
+    }
+
+    /**
+     * Overwrite one (gate, user) access-cache entry with a verdict just read
+     * elsewhere (the states() batch). The lost-access sweep seeds it so the
+     * member it is rotating for is refused keys immediately — a stale cached
+     * `true` would otherwise hand out the fresh epoch for up to the TTL.
+     */
+    noteAccess(gateAddress, userAddress, value) {
+        this._accessCache.set(
+            `${gateAddress.toLowerCase()}|${userAddress.toLowerCase()}`,
+            { value: !!value, at: Date.now() });
     }
 
     /** @returns {Promise<bigint>} Unix seconds the subscription runs to; 0 = never paid */
@@ -309,52 +374,96 @@ class GateManager {
      * `access` is the mode-aware CURRENT gate (checkAccess) — the membership
      * signal that works for every mode, where `allowed` only means NONE.
      *
+     * One states() call covers the whole set. Its access field is strict, so
+     * a broken gate token makes it revert — the fallback reads the non-token
+     * flags per address and reports no access, which is the same fail-closed
+     * the rest of the client applies.
+     *
      * @param {string} gateAddress
      * @param {string[]} [candidates] - Addresses to check (owner is implicit)
      * @returns {Promise<Array<{address: string, isOwner: boolean, access: boolean,
-     *   allowed: boolean, banned: boolean, everMember: boolean, erased: boolean,
-     *   paidUntil: number}>>}
+     *   allowed: boolean, banned: boolean, moderator: boolean, paidUntil: number}>>}
      */
     async getGateMembers(gateAddress, candidates = []) {
-        // paidUntil is only meaningful (and only read) on PAID gates
-        const isPaid = await this.getGateInfo(gateAddress)
-            .then((info) => info.mode === GATE_MODE.PAID).catch(() => false);
+        const info = await this.getGateInfo(gateAddress);
+        const owner = info.owner;
+        const gateAddr = gateAddress.toLowerCase();
+        const addresses = new Set([owner]);
+        for (const candidate of candidates) {
+            const addr = String(candidate || '').toLowerCase();
+            if (/^0x[0-9a-f]{40}$/.test(addr) && addr !== gateAddr) addresses.add(addr);
+        }
+        const list = Array.from(addresses);
+
+        let members;
+        try {
+            const states = await this._withProvider(() =>
+                this._readContract(gateAddress).states(list));
+            members = list.map((address, i) => ({
+                address,
+                access: states[i].access,
+                banned: states[i].banned,
+                moderator: states[i].moderator,
+                allowed: states[i].allowed,
+                paidUntil: Number(states[i].paidUntil),
+                isOwner: address === owner
+            }));
+            // The states() batch is an authoritative access read — refresh the
+            // per-user cache so a cut this read just revealed refuses keys
+            // immediately instead of after the TTL. (Not on the fallback path
+            // below: its per-flag access is a guess, never cacheable.)
+            for (const m of members) this.noteAccess(gateAddress, m.address, m.access);
+        } catch (error) {
+            Logger.warn('gate: states() failed, falling back to flag reads:', error.message);
+            members = await this._withProvider(async () => {
+                const gate = this._readContract(gateAddress);
+                return Promise.all(list.map(async (address) => {
+                    const [allowed, banned, moderator, paidUntil] = await Promise.all([
+                        gate.allowlist(address).catch(() => false),
+                        gate.banned(address).catch(() => false),
+                        gate.moderators(address).catch(() => false),
+                        info.mode === GATE_MODE.PAID
+                            ? gate.paidUntil(address).then(Number).catch(() => 0) : 0
+                    ]);
+                    return {
+                        address, allowed, banned, moderator, paidUntil,
+                        access: address === owner,
+                        isOwner: address === owner
+                    };
+                }));
+            });
+        }
+        // Owner first, then moderators, then current members, then the rest
+        return members.sort((a, b) =>
+            (b.isOwner - a.isOwner) || (b.moderator - a.moderator)
+            || (b.access - a.access) || a.address.localeCompare(b.address));
+    }
+
+    /**
+     * The full on-chain allowlist of a Closed (NONE) gate, paged through
+     * membersAt. This is the enumeration that makes the loss-of-access sweep
+     * complete on Closed gates — candidates no longer depend on what this
+     * client happened to see.
+     * @returns {Promise<string[]>} lowercase addresses
+     */
+    async listMembers(gateAddress, pageSize = 500) {
         return this._withProvider(async () => {
             const gate = this._readContract(gateAddress);
-            const owner = (await gate.owner()).toLowerCase();
-
-            const gateAddr = gateAddress.toLowerCase();
-            const addresses = new Set([owner]);
-            for (const candidate of candidates) {
-                const addr = String(candidate || '').toLowerCase();
-                if (/^0x[0-9a-f]{40}$/.test(addr) && addr !== gateAddr) addresses.add(addr);
+            const total = Number(await gate.membersCount());
+            const members = [];
+            for (let offset = 0; offset < total; offset += pageSize) {
+                const page = await gate.membersAt(offset, pageSize);
+                for (const address of page) members.push(address.toLowerCase());
             }
-
-            const members = await Promise.all(Array.from(addresses).map(async (address) => {
-                const [allowed, banned, everMember, erased, moderator, access, paidUntil] = await Promise.all([
-                    gate.allowlist(address), gate.banned(address),
-                    gate.everMember(address), gate.erased(address),
-                    // v1 gates predate the moderators getter — read as false
-                    gate.moderators(address).catch(() => false),
-                    gate.checkAccess(address).catch(() => false),
-                    isPaid ? gate.paidUntil(address).then(Number).catch(() => 0) : 0
-                ]);
-                return {
-                    address, allowed, banned, everMember, erased, moderator, access, paidUntil,
-                    isOwner: address === owner
-                };
-            }));
-            // Owner first, then moderators, then current members, then the rest
-            return members.sort((a, b) =>
-                (b.isOwner - a.isOwner) || (b.moderator - a.moderator)
-                || (b.access - a.access) || a.address.localeCompare(b.address));
+            return members;
         });
     }
 
     /** Drop cached access for one user (after allow/ban) or a whole gate. */
     invalidateAccess(gateAddress, userAddress = null) {
         const prefix = gateAddress.toLowerCase();
-        for (const cache of [this._accessCache, this._paidCache]) {
+        for (const cache of [this._accessCache, this._paidCache, this._modCache]) {
+            if (!cache) continue;
             for (const key of cache.keys()) {
                 if (!key.startsWith(prefix)) continue;
                 if (userAddress && key !== `${prefix}|${userAddress.toLowerCase()}`) continue;
@@ -367,16 +476,19 @@ class GateManager {
 
     /**
      * Deploy this channel's gate clone. The caller (our wallet) becomes the
-     * gate owner and is everMember from block one.
+     * gate owner. wireIdentity and readOnly are immutable for the life of the
+     * gate — the contract is the authority on both; the stream-metadata flags
+     * are cached copies for the Explore cards.
      *
-     * @param {Object} [params] - Mode NONE (Closed) needs none of these
+     * @param {Object} [params] - Mode NONE (Closed) needs no token params
      * @returns {Promise<string>} The clone address (lowercase)
      */
     async createGate({ mode = GATE_MODE.NONE, token = ethers.ZeroAddress,
-        minBalance = 0n, price = 0n, duration = 0n } = {}) {
+        minBalance = 0n, price = 0n, duration = 0n,
+        wireIdentity = WIRE_IDENTITY.VISIBLE, readOnly = false } = {}) {
         const signer = await this._txSigner();
         const factory = new ethers.Contract(CONFIG.gate.factoryAddress, FACTORY_ABI, signer);
-        const tx = await factory.createGate(mode, token, minBalance, price, duration);
+        const tx = await factory.createGate(mode, token, minBalance, price, duration, wireIdentity, readOnly);
         Logger.info('gate: createGate tx', tx.hash);
         const receipt = await tx.wait();
         const created = receipt.logs
@@ -397,7 +509,10 @@ class GateManager {
         this.invalidateAccess(gateAddress, invalidateUser);
     }
 
-    /** Closed (NONE) channels: admit a member. Sticky — also sets everMember. */
+    /**
+     * Closed (NONE) channels: admit a member. Reverts on-chain if the target
+     * is banned — unban first, so re-admitting stays an explicit decision.
+     */
     allow(gateAddress, userAddress) {
         return this._ownerCall(gateAddress, 'allow', [userAddress], userAddress);
     }
@@ -409,20 +524,20 @@ class GateManager {
 
     /**
      * Closed (NONE) channels: take a member off the allowlist without the ban
-     * mark, so a later allow() readmits them. everMember stays: allow() was a
-     * public, owner-signed statement that this address was a member.
+     * mark, so a later allow() readmits them. Cuts access, keys and transport
+     * alike — the distinction from ban is the stigma, not the mechanics.
      */
     revokeAllow(gateAddress, userAddress) {
         return this._ownerCall(gateAddress, 'revokeAllow', [userAddress], userAddress);
     }
 
     /**
-     * Cut future access, keep history. `eraseHistory` is the explicit owner
-     * option that additionally invalidates everything they published (NONE
-     * mode only, on-chain rule).
+     * Cut access — and with it ingest — in any mode. Owner-only since v3;
+     * moderators ban at the client layer (ADMIN_STATE / MOD_ACTION), never
+     * on-chain.
      */
-    ban(gateAddress, userAddress, eraseHistory = false) {
-        return this._ownerCall(gateAddress, 'ban', [userAddress, eraseHistory], userAddress);
+    ban(gateAddress, userAddress) {
+        return this._ownerCall(gateAddress, 'ban', [userAddress], userAddress);
     }
 
     unban(gateAddress, userAddress) {
@@ -430,11 +545,23 @@ class GateManager {
     }
 
     /**
-     * Appoint or dismiss a moderator (owner-only on-chain; v2 gates).
-     * Appointing also makes them a member — mirror the contract's semantics.
+     * Appoint or dismiss a moderator (owner only). Appointing also allowlists
+     * them on Closed gates — mirror the contract's semantics.
      */
     setModerator(gateAddress, userAddress, enabled) {
         return this._ownerCall(gateAddress, 'setModerator', [userAddress, enabled], userAddress);
+    }
+
+    /** PAID gates: change the price for future payments (owner only). */
+    async setPrice(gateAddress, price) {
+        await this._ownerCall(gateAddress, 'setPrice', [price]);
+        this.invalidateInfo(gateAddress);
+    }
+
+    /** PAID gates: change the period for future payments (owner only). */
+    async setDuration(gateAddress, duration) {
+        await this._ownerCall(gateAddress, 'setDuration', [duration]);
+        this.invalidateInfo(gateAddress);
     }
 
     // ----------------------------------------------------------- member txs
@@ -461,6 +588,10 @@ class GateManager {
      * @returns {Promise<string>} The paying address (lowercase)
      */
     async pay(gateAddress, onStep = null) {
+        // Always pay against the LIVE price: a cached one can be stale for up
+        // to the TTL after a setPrice, and approving the old amount would
+        // either revert the transfer or leave a dangling allowance.
+        this.invalidateInfo(gateAddress);
         const info = await this.getGateInfo(gateAddress);
         const signer = await this._txSigner();
         const token = new ethers.Contract(info.token, TOKEN_ABI, signer);
@@ -569,11 +700,21 @@ class GateManager {
         return `Paid · ${fmt(info.price)} ${paySymbol} / ${daysLabel} ${daysLabel === '1' ? 'day' : 'days'}`;
     }
 
-    /** Whether an address moderates this gate (v1 gates lack the getter → false). */
+    /** Whether an address moderates this gate (v1 gates lack the getter → false).
+     *  Cached with the access-cache TTL: the read-only reader cut consults it
+     *  per author on the message ingest path. */
     async _isModerator(gateAddress, userAddress) {
+        const key = `${gateAddress.toLowerCase()}|${userAddress.toLowerCase()}`;
+        this._modCache ??= new Map();
+        const cached = this._modCache.get(key);
+        if (cached && Date.now() - cached.at < CONFIG.gate.checkAccessCacheMs) {
+            return cached.value;
+        }
         try {
-            return await this._withProvider(() =>
+            const value = await this._withProvider(() =>
                 this._readContract(gateAddress).moderators(userAddress));
+            this._modCache.set(key, { value, at: Date.now() });
+            return value;
         } catch {
             return false;
         }

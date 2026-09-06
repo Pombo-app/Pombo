@@ -50,8 +50,8 @@ import {
 import { STORAGE_FILE, MESSAGE_STREAM, storageChunkPartition } from '../../src/js/streamConstants.js';
 
 describe('stream constants (storage file layout)', () => {
-    it('regular channels have 11 partitions, DM inboxes 13', () => {
-        expect(MESSAGE_STREAM.PARTITIONS).toBe(11);
+    it('regular channels have 12 partitions, DM inboxes 13', () => {
+        expect(MESSAGE_STREAM.PARTITIONS).toBe(12);
         expect(MESSAGE_STREAM.DM_PARTITIONS).toBe(13);
     });
 
@@ -68,10 +68,10 @@ describe('stream constants (storage file layout)', () => {
         expect(storageChunkPartition(12, 4)).toBe(4 + (12 % 9));
     });
 
-    it('never maps a chunk onto the message/control partitions', () => {
+    it('never maps a chunk onto the message/control/moderation partitions', () => {
         for (let i = 0; i < 100; i++) {
-            expect(storageChunkPartition(i, STORAGE_FILE.FIRST_CHUNK_PARTITION)).toBeGreaterThanOrEqual(2);
-            expect(storageChunkPartition(i, STORAGE_FILE.FIRST_CHUNK_PARTITION)).toBeLessThan(11);
+            expect(storageChunkPartition(i, STORAGE_FILE.FIRST_CHUNK_PARTITION)).toBeGreaterThanOrEqual(3);
+            expect(storageChunkPartition(i, STORAGE_FILE.FIRST_CHUNK_PARTITION)).toBeLessThan(12);
             expect(storageChunkPartition(i, STORAGE_FILE.DM_FIRST_CHUNK_PARTITION)).toBeGreaterThanOrEqual(4);
             expect(storageChunkPartition(i, STORAGE_FILE.DM_FIRST_CHUNK_PARTITION)).toBeLessThan(13);
         }

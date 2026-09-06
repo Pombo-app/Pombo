@@ -18,6 +18,10 @@ export const GasEstimator = {
         setPermissionsBatch: 210000,    // Batch setPermissions (multiple members)
         addStorageNode: 165000,         // Adding stream to storage node
         setStorageDayCount: 50000,      // Setting storage retention days (single SSTORE)
+        // Gate deployment (factory clone + initialize), measured with
+        // eth_estimateGas on Polygon: 217k for a Closed gate, 183k for a
+        // token gate. The higher one, so the figure is never short.
+        createGate: 220000,
     },
     
     cachedGasPrice: null,
@@ -108,22 +112,24 @@ export const GasEstimator = {
     async estimateCosts() {
         const gasPrice = await this.getGasPrice();
         
-        // Channels create 3 streams (-1 message + -2 ephemeral + -3 admin) + permissions on all three
-        // Storage is enabled on -1 (message) and -3 (admin) → 2× addStorageNode + 2× setStorageDayCount (Streamr provider)
-        // Public/Password: 3× createStream + 3× setPublicPermissions + 2× addStorageNode + 2× setStorageDayCount
+        // Public and password channels own four streams (-1 messages, -2
+        // ephemeral, -3 admin, -5 interactions) with permissions on all four;
+        // storage goes on the three that keep history, never on the -2.
         const publicCost = gasPrice * (
-            3 * this.GAS_UNITS.createStream
-            + 3 * this.GAS_UNITS.setPublicPermissions
-            + 2 * this.GAS_UNITS.addStorageNode
-            + 2 * this.GAS_UNITS.setStorageDayCount
-        );
-        // Gated adds the keys stream (-4, with storage):
-        // 4× createStream + 4× setPermissionsBatch + 3× addStorageNode + 3× setStorageDayCount
-        const gatedCost = gasPrice * (
             4 * this.GAS_UNITS.createStream
-            + 4 * this.GAS_UNITS.setPermissionsBatch
+            + 4 * this.GAS_UNITS.setPublicPermissions
             + 3 * this.GAS_UNITS.addStorageNode
             + 3 * this.GAS_UNITS.setStorageDayCount
+        );
+        // Gated: the gate contract plus five streams (-1, -2, -3 as above,
+        // -4 keys and -5 interactions), permissions on all five, and storage
+        // on the four that keep history — the -2 never takes any.
+        const gatedCost = gasPrice * (
+            this.GAS_UNITS.createGate
+            + 5 * this.GAS_UNITS.createStream
+            + 5 * this.GAS_UNITS.setPermissionsBatch
+            + 4 * this.GAS_UNITS.addStorageNode
+            + 4 * this.GAS_UNITS.setStorageDayCount
         );
         // DM Inbox: 2 streams (-1 + -2) + 2 public permissions + 1 addStorageNode + 1 setStorageDayCount
         const dmInboxCost = gasPrice * (

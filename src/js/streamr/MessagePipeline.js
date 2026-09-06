@@ -57,12 +57,14 @@ export class MessagePipeline {
                     data = await cryptoManager.decryptJSON(content, password);
                 }
 
+                const envelopeTimestamp = typeof streamMessage?.getTimestamp === 'function'
+                    ? streamMessage.getTimestamp() : streamMessage?.timestamp;
+
                 // Epoch envelope (gated): unknown kid → skip, not error (§7.9)
                 if (this.controller.isEpochEnvelope(data)) {
                     const opened = await this.controller.openEpochEnvelope(streamId, data, {
                         live: true,
-                        timestamp: typeof streamMessage?.getTimestamp === 'function'
-                            ? streamMessage.getTimestamp() : streamMessage?.timestamp
+                        timestamp: envelopeTimestamp
                     });
                     if (opened === null) return;
                     data = opened;
@@ -70,11 +72,12 @@ export class MessagePipeline {
                     // Members-only: the seal held an authorship wrapper —
                     // verify it, swap the author in, and cut lapsed members.
                     const gatedChannel = await this.controller._gatedChannelFor(streamId);
-                    if (gatedChannel?.authorMode === 'members') {
+                    if (gatedChannel?.wireIdentity === 'sealed') {
                         const authored = await this.controller._openAuthorship(gatedChannel, data, { live: true });
                         if (!authored) return;
                         data = authored.payload;
                         this.controller.attachAccount(data, authored.author);
+                        if (envelopeTimestamp) data._timestamp = envelopeTimestamp;
                         await handler(data);
                         return;
                     }
@@ -89,6 +92,10 @@ export class MessagePipeline {
                     const publisherId = await this.controller.resolveAuthor(streamId, streamMessage, transportPublisher, { live: true });
                     if (!publisherId) return;
                     this.controller.attachAccount(data, publisherId);
+                    // Same `_timestamp` the history paths surface: the signed
+                    // envelope time, the anchor the ingest clamp judges the
+                    // payload's own timestamp against.
+                    if (envelopeTimestamp) data._timestamp = envelopeTimestamp;
                 }
 
                 await handler(data);

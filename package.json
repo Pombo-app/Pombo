@@ -15,7 +15,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "vectors": "node tests/vectors/regen.mjs"
   },
   "dependencies": {
     "@streamr/sdk": "^103.3.1",

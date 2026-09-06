@@ -147,29 +147,46 @@ describe('gateManager.paidUntilCached', () => {
     });
 });
 
-describe('gateManager.getGateMembers paidUntil (N-F members panel)', () => {
+describe('gateManager.getGateMembers (v3 states batch)', () => {
     const OWNER = '0x3333333333333333333333333333333333333333';
-    let paidUntilReads;
+    let statesCalls;
+    let flagReads;
 
-    const stubGate = () => ({
-        owner: async () => OWNER,
-        allowlist: async () => false,
-        banned: async () => false,
-        everMember: async () => true,
-        erased: async () => false,
-        moderators: async () => false,
-        checkAccess: async () => true,
-        paidUntil: async (addr) => {
-            paidUntilReads.push(addr);
-            return 1_756_000_000n;
-        }
+    const cacheInfo = (mode = GATE_MODE.PAID) => {
+        gateManager._infoCache.set(GATE.toLowerCase(), {
+            at: Date.now(),
+            info: {
+                owner: OWNER, mode, modeName: mode === GATE_MODE.NONE ? 'none' : 'paid',
+                token: null, minBalance: 0n, price: 0n, duration: 0n,
+                wireIdentity: 0, wireIdentityName: 'visible', readOnly: false
+            }
+        });
+    };
+
+    const stubGate = ({ statesReverts = false } = {}) => ({
+        states: async (users) => {
+            statesCalls.push(users);
+            if (statesReverts) throw new Error('execution reverted: token broken');
+            return users.map((address) => ({
+                access: address !== BOB,
+                banned: address === BOB,
+                moderator: false,
+                allowed: address !== BOB,
+                paidUntil: 1_756_000_000n
+            }));
+        },
+        allowlist: async (addr) => { flagReads.push(['allowlist', addr]); return false; },
+        banned: async (addr) => { flagReads.push(['banned', addr]); return addr === BOB; },
+        moderators: async (addr) => { flagReads.push(['moderators', addr]); return false; },
+        paidUntil: async (addr) => { flagReads.push(['paidUntil', addr]); return 1_756_000_000n; }
     });
 
     beforeEach(() => {
-        paidUntilReads = [];
+        statesCalls = [];
+        flagReads = [];
         gateManager._infoCache.clear();
         gateManager._withProvider = (op) => op(null);
-        gateManager._readContract = stubGate;
+        gateManager._readContract = () => stubGate();
     });
 
     afterEach(() => {
@@ -178,19 +195,77 @@ describe('gateManager.getGateMembers paidUntil (N-F members panel)', () => {
         gateManager._infoCache.clear();
     });
 
-    it('reads paidUntil per candidate on a PAID gate', async () => {
-        gateManager._infoCache.set(GATE.toLowerCase(), { mode: GATE_MODE.PAID, owner: OWNER });
-        const members = await gateManager.getGateMembers(GATE, [ALICE]);
+    it('covers the whole candidate set in ONE states() call', async () => {
+        cacheInfo();
+        const members = await gateManager.getGateMembers(GATE, [ALICE, BOB]);
+        expect(statesCalls.length).toBe(1);
+        expect(statesCalls[0]).toEqual([OWNER, ALICE, BOB]);
         const alice = members.find((m) => m.address === ALICE);
+        expect(alice.access).toBe(true);
         expect(alice.paidUntil).toBe(1_756_000_000);
-        expect(paidUntilReads).toContain(ALICE);
+        const bob = members.find((m) => m.address === BOB);
+        expect(bob.banned).toBe(true);
+        expect(bob.access).toBe(false);
     });
 
-    it('skips the paidUntil read entirely on non-PAID gates', async () => {
-        gateManager._infoCache.set(GATE.toLowerCase(), { mode: GATE_MODE.TOKEN_BALANCE, owner: OWNER });
+    it('falls back to flag reads with NO access when states() reverts (broken gate token)', async () => {
+        cacheInfo(GATE_MODE.PAID);
+        gateManager._readContract = () => stubGate({ statesReverts: true });
         const members = await gateManager.getGateMembers(GATE, [ALICE]);
-        expect(members.every((m) => m.paidUntil === 0)).toBe(true);
-        expect(paidUntilReads.length).toBe(0);
+        // fail-closed: nobody but the owner is reported as having access
+        const alice = members.find((m) => m.address === ALICE);
+        expect(alice.access).toBe(false);
+        const owner = members.find((m) => m.address === OWNER);
+        expect(owner.access).toBe(true);
+        // but the moderation-relevant flags still come through
+        expect(flagReads.some(([what]) => what === 'banned')).toBe(true);
+    });
+});
+
+describe('gateManager.getGateInfo TTL (v3: price/duration are mutable)', () => {
+    let reads;
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(1_755_000_000_000);
+        reads = 0;
+        gateManager._infoCache.clear();
+        gateManager._withProvider = (op) => op(null);
+        gateManager._readContract = () => ({
+            owner: async () => '0x3333333333333333333333333333333333333333',
+            mode: async () => GATE_MODE.PAID,
+            token: async () => '0x4444444444444444444444444444444444444444',
+            minBalance: async () => 0n,
+            price: async () => { reads += 1; return 5_000_000n; },
+            duration: async () => 86_400n,
+            wireIdentity: async () => 1,
+            readOnly: async () => true
+        });
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        delete gateManager._readContract;
+        delete gateManager._withProvider;
+        gateManager._infoCache.clear();
+    });
+
+    it('caches within the TTL, re-reads after it, and exposes the v3 fields', async () => {
+        const info = await gateManager.getGateInfo(GATE);
+        expect(info.wireIdentityName).toBe('sealed');
+        expect(info.readOnly).toBe(true);
+        await gateManager.getGateInfo(GATE);
+        expect(reads).toBe(1);
+        vi.advanceTimersByTime(CONFIG.gate.checkAccessCacheMs + 1);
+        await gateManager.getGateInfo(GATE);
+        expect(reads).toBe(2);
+    });
+
+    it('invalidateInfo drops the entry immediately (after setPrice/setDuration)', async () => {
+        await gateManager.getGateInfo(GATE);
+        gateManager.invalidateInfo(GATE);
+        await gateManager.getGateInfo(GATE);
+        expect(reads).toBe(2);
     });
 });
 
@@ -216,11 +291,14 @@ describe('gateManager._makeProvider', () => {
     });
 });
 
-describe('GATE_MODE', () => {
-    it('mirrors the on-chain enum order (ABI compatibility)', () => {
+describe('GATE_MODE / WIRE_IDENTITY', () => {
+    it('mirror the on-chain enum order (ABI compatibility)', async () => {
+        const { WIRE_IDENTITY } = await import('../../src/js/gate.js');
         expect(GATE_MODE.NONE).toBe(0);
         expect(GATE_MODE.TOKEN_BALANCE).toBe(1);
         expect(GATE_MODE.NFT_OWNERSHIP).toBe(2);
         expect(GATE_MODE.PAID).toBe(3);
+        expect(WIRE_IDENTITY.VISIBLE).toBe(0);
+        expect(WIRE_IDENTITY.SEALED).toBe(1);
     });
 });

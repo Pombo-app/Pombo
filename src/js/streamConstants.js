@@ -7,11 +7,12 @@
  * explicit and prevent accidental edits.
  *
  * ARCHITECTURE:
- *   Each regular channel uses up to 4 streams, derived from a base ID by appending:
- *     -1  → Message stream   (WITH storage) — content (text, reactions, media announces, edit/delete overrides)
+ *   Each regular channel uses up to 5 streams, derived from a base ID by appending:
+ *     -1  → Message stream   (WITH storage) — content (text, media announces, edit/delete overrides)
  *     -2  → Ephemeral stream (NO storage)   — presence, typing, P2P media coordination
  *     -3  → Admin stream     (WITH storage) — admin-only writes (moderation state)
  *     -4  → Keys stream      (WITH storage) — epoch-key distribution (gated channels only)
+ *     -5  → Interactions     (WITH storage) — reactions, where members participate
  *
  * MESSAGE STREAM (-1):
  *   Regular channels use 11 partitions:
@@ -56,17 +57,19 @@ export const STREAM_SUFFIX = Object.freeze({
     MESSAGE: '-1',
     EPHEMERAL: '-2',
     ADMIN: '-3',
-    KEYS: '-4'
+    KEYS: '-4',
+    INTERACTIONS: '-5'
 });
 
 export const MESSAGE_STREAM = Object.freeze({
     SUFFIX: STREAM_SUFFIX.MESSAGE,
-    PARTITIONS: 11,       // Regular channels: content + control + 9 storage-file chunk partitions
+    PARTITIONS: 12,       // Regular channels: content + control + moderation + 9 storage-file chunk partitions
     DM_PARTITIONS: 13,    // DM inboxes: messages + sync + sync_blobs + notifications + 9 chunk partitions
 
     // Partition indexes
-    MESSAGES: 0,          // Text, reactions, images, video/file announcements
+    MESSAGES: 0,          // Text, images, video/file announcements (reactions live on -5)
     CONTROL: 1,           // Edit/Delete overrides (regular channels)
+    MODERATION: 2,        // MOD_ACTION deltas signed by a moderator (gated channels)
     SYNC: 1,              // Cross-device sync payloads (self → self, DM inbox only)
     SYNC_BLOBS: 2,        // Image blobs sync (DM inbox only)
     NOTIFICATIONS: 3      // Channel invites / notifications (DM inbox only)
@@ -83,7 +86,7 @@ export const MESSAGE_STREAM = Object.freeze({
  */
 export const STORAGE_FILE = Object.freeze({
     CHUNK_PARTITIONS: 9,
-    FIRST_CHUNK_PARTITION: 2,     // Regular channels (after P0 messages + P1 control)
+    FIRST_CHUNK_PARTITION: 3,     // Regular channels (after P0 messages + P1 control + P2 moderation)
     DM_FIRST_CHUNK_PARTITION: 4   // DM inboxes (after P0-P3)
 });
 
@@ -118,13 +121,38 @@ export const ADMIN_STREAM = Object.freeze({
     PASSWORD_CHALLENGE: 2 // PASSWORD_CHALLENGE: encrypted magic-plaintext blob for password verification
 });
 
+/**
+ * Keys stream (-4), partitioned BY CADENCE rather than by key type: announces
+ * are all read together on open, so splitting them per key would cost one
+ * resend per type; a new key kind tomorrow just gets a new `t` on P0.
+ */
 export const KEYS_STREAM = Object.freeze({
     SUFFIX: STREAM_SUFFIX.KEYS,
-    PARTITIONS: 2,
+    PARTITIONS: 4,
 
     // Partition indexes
-    KEY_EXCHANGE: 0,      // KEY_ANNOUNCE, KEY_REQUEST, KEY_WRAP
-    ROSTER: 1             // MEMBER_HELLO (epoch-sealed; channels created with a 2-partition -4 only)
+    KEY_EXCHANGE: 0,      // Announces of every key kind — one per rotation, resend on open
+    REQUESTS: 1,          // KEY_REQUEST / KEY_WRAP — one per member per rotation, subscribed
+    ROSTER: 2,            // MEMBER_HELLO (epoch-sealed) — one per member per epoch, resend on demand
+    RESERVED: 3
+});
+
+/**
+ * Interactions stream (-5): where members PARTICIPATE, as opposed to the -1
+ * where they publish. Reactions live here so a read-only channel can offer
+ * them, and so the -1 stops carrying emoji noise that the preview scanners
+ * had to skip. In Sealed it travels under the interactions key (handed to
+ * every member, read-only included); in Visible under the clone, like
+ * everything else in that mode.
+ */
+export const INTERACTIONS_STREAM = Object.freeze({
+    SUFFIX: STREAM_SUFFIX.INTERACTIONS,
+    PARTITIONS: 3,
+
+    // Partition indexes
+    REACTIONS: 0,
+    RESERVED_1: 1,
+    RESERVED_2: 2
 });
 
 /**
@@ -227,6 +255,24 @@ export function deriveAdminId(messageStreamId) {
 export function deriveKeysId(messageStreamId) {
     if (!messageStreamId) return null;
     return messageStreamId.replace(/-1$/, STREAM_SUFFIX.KEYS);
+}
+
+/**
+ * Derive interactions stream ID from a message stream ID.
+ * @param {string} messageStreamId - Message stream ID (ends with -1)
+ * @returns {string|null} Interactions stream ID (ends with -5) or null
+ */
+export function deriveInteractionsId(messageStreamId) {
+    if (!messageStreamId) return null;
+    return messageStreamId.replace(/-1$/, STREAM_SUFFIX.INTERACTIONS);
+}
+
+/**
+ * @param {string} streamId
+ * @returns {boolean} true if streamId ends with the interactions-stream suffix
+ */
+export function isInteractionsStream(streamId) {
+    return !!streamId && streamId.endsWith(STREAM_SUFFIX.INTERACTIONS);
 }
 
 /**

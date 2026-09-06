@@ -396,7 +396,7 @@ describe('sendFile — who publishes the chunks', () => {
     }, 20000);
 
     it('verifies a members-only upload against the shared publish key', async () => {
-        H.channel = { messageStreamId: SID, type: 'public', authorMode: 'members', messages: [] };
+        H.channel = { messageStreamId: SID, type: 'public', wireIdentity: 'sealed', messages: [] };
         H.publisherOverride = '0xpublishkey';
         SM.verify = true;
         const { metadata } = await storageMediaController.sendFile(SID, fileOfSize(2000));
@@ -405,7 +405,7 @@ describe('sendFile — who publishes the chunks', () => {
     }, 20000);
 
     it('refuses a members-only upload with no publish key', async () => {
-        H.channel = { messageStreamId: SID, type: 'public', authorMode: 'members', messages: [] };
+        H.channel = { messageStreamId: SID, type: 'public', wireIdentity: 'sealed', messages: [] };
         epochKeyManager.ensurePublishKey.mockResolvedValueOnce(null);
         await expect(storageMediaController.sendFile(SID, fileOfSize(500)))
             .rejects.toThrow(/No publish key/);

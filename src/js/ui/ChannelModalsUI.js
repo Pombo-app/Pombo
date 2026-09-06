@@ -96,7 +96,7 @@ class ChannelModalsUI {
         this.switchGateAssetTab('token');   // reapplies the gate token preset
         this.switchTokenPresetTab('paid', 'usdc');
         // Reset author visibility to the Members only default
-        const authorMembers = document.getElementById('gate-author-visibility-members');
+        const authorMembers = document.getElementById('gate-wire-identity-sealed');
         if (authorMembers) authorMembers.checked = true;
         this._wireAuthorVisibilityCaption();
         this._updateAuthorVisibilityCaption();
@@ -386,16 +386,16 @@ class ChannelModalsUI {
     _updateAuthorVisibilityCaption() {
         const caption = document.getElementById('author-visibility-caption');
         if (!caption) return;
-        const onTheWire = document.getElementById('gate-author-visibility-everyone')?.checked;
+        const onTheWire = document.getElementById('gate-wire-identity-visible')?.checked;
         caption.textContent = onTheWire
-            ? "Storage is protected from pollution. Every message exposes its author's account."
+            ? "Every message exposes its author's account, attributable by anyone, forever. Removed members' messages are rejected by readers, but can still reach storage."
             : 'Full author privacy. Removed members can pollute storage until you reset the key with a paid on-chain action.';
     }
 
     _wireAuthorVisibilityCaption() {
         if (this._authorCaptionWired) return;
         this._authorCaptionWired = true;
-        for (const id of ['gate-author-visibility-members', 'gate-author-visibility-everyone']) {
+        for (const id of ['gate-wire-identity-sealed', 'gate-wire-identity-visible']) {
             document.getElementById(id)?.addEventListener('change', () =>
                 this._updateAuthorVisibilityCaption());
         }
@@ -910,9 +910,9 @@ class ChannelModalsUI {
                     channelManager.readGateFromMetadata(entry.streamId, { withMode: true }))
                 .then((flags) => {
                     if (!flags) return;
-                    const members = flags.authorMode === 'members';
+                    const members = flags.wireIdentity === 'sealed';
                     authorsEl.textContent = members
-                        ? 'Authors visible to members only'
+                        ? 'Sealed identity — authors readable by members only'
                         : 'Every message is signed by its author on the wire';
                     authorsEl.className = 'mt-2 text-xs text-center '
                         + (members ? 'text-white/40' : 'text-amber-400/70');
@@ -1084,7 +1084,7 @@ class ChannelModalsUI {
             try {
                 await streamrController.validateCustomStorageNodeAddress(customStorageAddress);
             } catch (error) {
-                this.showCustomAddressError(error.message || 'Custom storage node is not compatible with Pombo web.');
+                this.showCustomAddressError(error.message || 'Custom storage provider is not compatible with Pombo web.');
                 return;
             }
 
@@ -1113,11 +1113,11 @@ class ChannelModalsUI {
         // after the wallet already paid for the gate deploy attempt.
         const gateOptions = isGated ? { gateMode } : {};
         if (isGated) {
-            // Author visibility (IMMUTABLE post-creation): Members only
-            // unless the creator opted into Everyone.
-            gateOptions.authorMode =
-                document.getElementById('gate-author-visibility-everyone')?.checked
-                    ? 'everyone' : 'members';
+            // Identity on the wire (IMMUTABLE post-creation): Sealed unless
+            // the creator opted into Visible.
+            gateOptions.wireIdentity =
+                document.getElementById('gate-wire-identity-visible')?.checked
+                    ? 'visible' : 'sealed';
         }
         if (isGated && !isClosed) {
             const tokenInputId = gateMode === GATE_MODE.PAID ? 'paid-token-input' : 'gate-token-input';
@@ -1246,13 +1246,16 @@ class ChannelModalsUI {
         }
 
         try {
-            // Total on-chain steps:
-            //   public/password: 3× createStream + 3× setPermissions + 2× addToStorageNode + 2× setStorageDayCount = 10
-            //   native adds the keys stream (-4): 4× create + 4× permissions + 3× addToStorageNode + 3× setStorageDayCount = 14
-            // gated: gate deploy + 4× createStream + 4× setPermissions
-            //        + 3× addToStorageNode + 3× setStorageDayCount = 15
-            const streamCount = isGated ? 4 : 3;
-            const totalSteps = isGated ? 15 : 10;
+            // Total on-chain steps. Every type has the -5, and the -2 is the
+            // only stream with no storage:
+            //   public/password: 4× createStream + 4× setPermissions
+            //        + 3× addToStorageNode + 3× setStorageDayCount = 14
+            //   gated: gate deploy + 5× createStream + 5× setPermissions
+            //        + 4× addToStorageNode + 4× setStorageDayCount = 19
+            const streamCount = isGated ? 5 : 4;
+            // A closed channel created with an initial member list allows them
+            // in one extra transaction (gate allowBatch).
+            const totalSteps = isGated ? (members.length ? 20 : 19) : 14;
             this.notificationUI?.showLoadingToast(
                 'Creating channel...',
                 'This may take a minute',

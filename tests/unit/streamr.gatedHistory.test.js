@@ -17,6 +17,14 @@ import { ethers } from 'ethers';
 
 globalThis.ethers = ethers;
 
+// Raw resends verify the envelope signature; these fixtures are plain
+// objects with no signature, so the check is stubbed to accept and the
+// real recovery keeps its own dedicated tests.
+vi.mock('../../src/js/envelopeSigner.js', async (importOriginal) => ({
+    ...(await importOriginal()),
+    verifyEnvelopeAuthenticity: () => true,
+}));
+
 const { streamrController } = await import('../../src/js/streamr.js');
 const { gateManager } = await import('../../src/js/gate.js');
 
@@ -70,13 +78,13 @@ describe('gated history goes through the raw resend', () => {
         expect(handled[0].account).toBe(AUTHOR);
     });
 
-    it('fetchHistoryAsync: ungated resend stays validated (no raw flag)', async () => {
+    it('fetchHistoryAsync: ungated reads raw too, guarded by the envelope check', async () => {
         vi.spyOn(streamrController, '_gatedChannelFor').mockResolvedValue(null);
 
         await streamrController.fetchHistoryAsync(STREAM, 0, 50, () => {});
 
         expect(resendCalls).toHaveLength(1);
-        expect(resendCalls[0].options.raw).toBeUndefined();
+        expect(resendCalls[0].options.raw).toBe(true);
     });
 
     it('fetchHistoryAsync: a row without a resolvable author is dropped', async () => {
@@ -121,12 +129,12 @@ describe('gated history goes through the raw resend', () => {
         expect(resendCalls[0].options.raw).toBe(true);
     });
 
-    it('resendChannelImage: ungated stays validated', async () => {
+    it('resendChannelImage: ungated reads raw too', async () => {
         vi.spyOn(streamrController, '_gatedChannelFor').mockResolvedValue(null);
 
         await streamrController.resendChannelImage(ADMIN_STREAM);
 
-        expect(resendCalls[0].options.raw).toBeUndefined();
+        expect(resendCalls[0].options.raw).toBe(true);
     });
 });
 

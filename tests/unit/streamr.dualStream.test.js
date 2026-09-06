@@ -51,7 +51,12 @@ describe('subscribeToDualStream', () => {
             .rejects.toThrow('Streamr client not initialized');
     });
 
-    it('opens content with history, overrides with history, and presence without', async () => {
+    /**
+     * Overrides first: the timeline renders as content batches land, so an
+     * edit or a delete read AFTER its target would show the pre-override
+     * state until the next paint.
+     */
+    it('opens overrides with history, then content, and presence without', async () => {
         const calls = stubSubscribe();
 
         await streamrController.subscribeToDualStream(
@@ -61,8 +66,8 @@ describe('subscribeToDualStream', () => {
         );
 
         expect(calls.map((c) => [c.streamId, c.partition, c.historyCount])).toEqual([
-            [MESSAGE, 0, 30],
             [MESSAGE, 1, 30],
+            [MESSAGE, 0, 30],
             [EPHEMERAL, 0, 0],
         ]);
     });
@@ -86,8 +91,9 @@ describe('subscribeToDualStream', () => {
             { onMessage: () => {}, onOverride: () => {}, allowOverridesInContentPartition: true }
         );
 
-        expect(calls[0].allowOverrides).toBe(true);
-        expect(calls[1].allowOverrides).toBe(false);
+        // calls[0] is the control partition now, calls[1] the content one.
+        expect(calls[0].allowOverrides).toBe(false);
+        expect(calls[1].allowOverrides).toBe(true);
     });
 
     it('waits for both stored partitions before saying history is complete', async () => {
@@ -99,9 +105,9 @@ describe('subscribeToDualStream', () => {
         );
 
         expect(done).not.toHaveBeenCalled();
-        await calls[0].onDone({ loaded: 12, requested: 30 });
+        await calls[0].onDone({ loaded: 3, requested: 30 });
         expect(done).not.toHaveBeenCalled();
-        await calls[1].onDone({ loaded: 3, requested: 30 });
+        await calls[1].onDone({ loaded: 12, requested: 30 });
 
         expect(done).toHaveBeenCalledTimes(1);
         expect(done).toHaveBeenCalledWith({

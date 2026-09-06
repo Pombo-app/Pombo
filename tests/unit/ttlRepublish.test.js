@@ -645,6 +645,7 @@ describe('channel storage covers every stored stream', () => {
 
     const gated = (extra = {}) => ({
         messageStreamId: 's-1', adminStreamId: 's-3', keysStreamId: 's-4',
+        interactionsStreamId: 's-5',
         name: 'T', type: 'gated', gate: { address: '0xgate' }, ...extra
     });
     const plain = (extra = {}) => ({
@@ -679,7 +680,9 @@ describe('channel storage covers every stored stream', () => {
             streamrController.getStreamStorageInfo.mockResolvedValue(info([NODE], 180));
 
             const { nodes } = await channelManager.getChannelStorageInfo('s-1');
-            expect(nodes).toEqual([{ address: NODE, onMessage: true, onAdmin: true, onKeys: true }]);
+            expect(nodes).toEqual([{
+                address: NODE, onMessage: true, onAdmin: true, onKeys: true, onInteractions: true
+            }]);
         });
 
         it('marks a node missing from the keys stream', async () => {
@@ -687,10 +690,13 @@ describe('channel storage covers every stored stream', () => {
             streamrController.getStreamStorageInfo
                 .mockResolvedValueOnce(info([NODE], 180))
                 .mockResolvedValueOnce(info([NODE], 180))
-                .mockResolvedValueOnce(info([], null));
+                .mockResolvedValueOnce(info([], null))
+                .mockResolvedValueOnce(info([NODE], 180));
 
             const { nodes } = await channelManager.getChannelStorageInfo('s-1');
-            expect(nodes).toEqual([{ address: NODE, onMessage: true, onAdmin: true, onKeys: false }]);
+            expect(nodes).toEqual([{
+                address: NODE, onMessage: true, onAdmin: true, onKeys: false, onInteractions: true
+            }]);
         });
 
         it('keeps reporting the message stream retention as the channel one', async () => {
@@ -698,11 +704,12 @@ describe('channel storage covers every stored stream', () => {
             streamrController.getStreamStorageInfo
                 .mockResolvedValueOnce(info([NODE], 180))
                 .mockResolvedValueOnce(info([NODE], 30))
+                .mockResolvedValueOnce(info([NODE], 3))
                 .mockResolvedValueOnce(info([NODE], 3));
 
             const result = await channelManager.getChannelStorageInfo('s-1');
             expect(result.storageDays).toBe(180);
-            expect(result.retention).toEqual({ message: 180, admin: 30, keys: 3 });
+            expect(result.retention).toEqual({ message: 180, admin: 30, keys: 3, interactions: 3 });
         });
 
         it('flags streams that hold different retentions', async () => {
@@ -710,7 +717,8 @@ describe('channel storage covers every stored stream', () => {
             streamrController.getStreamStorageInfo
                 .mockResolvedValueOnce(info([NODE], 180))
                 .mockResolvedValueOnce(info([NODE], 180))
-                .mockResolvedValueOnce(info([NODE], 3));
+                .mockResolvedValueOnce(info([NODE], 3))
+                .mockResolvedValueOnce(info([NODE], 180));
 
             const result = await channelManager.getChannelStorageInfo('s-1');
             expect(result.retentionInSync).toBe(false);
@@ -738,7 +746,8 @@ describe('channel storage covers every stored stream', () => {
             streamrController.getStreamStorageInfo
                 .mockResolvedValueOnce(info([NODE], 180))
                 .mockResolvedValueOnce(info([NODE], 180))
-                .mockRejectedValueOnce(new Error('rpc down'));
+                .mockRejectedValueOnce(new Error('rpc down'))
+                .mockResolvedValueOnce(info([NODE], 180));
 
             const result = await channelManager.getChannelStorageInfo('s-1');
             expect(result.retention.keys).toBeNull();
@@ -752,6 +761,7 @@ describe('channel storage covers every stored stream', () => {
             streamrController.getStreamStorageInfo
                 .mockResolvedValueOnce(info([NODE], 180))
                 .mockResolvedValueOnce({ ok: false, enabled: false, nodes: [], storageDays: null })
+                .mockResolvedValueOnce(info([NODE], 180))
                 .mockResolvedValueOnce(info([NODE], 180));
 
             const result = await channelManager.getChannelStorageInfo('s-1');
@@ -781,13 +791,14 @@ describe('storage writes go only where they are needed', () => {
 
     const gated = (extra = {}) => ({
         messageStreamId: 's-1', adminStreamId: 's-3', keysStreamId: 's-4',
+        interactionsStreamId: 's-5',
         name: 'T', type: 'gated', gate: { address: '0xgate' }, ...extra
     });
     const plain = (extra = {}) => ({
         messageStreamId: 's-1', adminStreamId: 's-3', name: 'T', type: 'public', ...extra
     });
 
-    /** Queue the reads: three streams before, then three after. */
+    /** Queue the reads: every stored stream before, then every one after. */
     const reads = (...values) => {
         streamrController.getStreamStorageInfo.mockReset();
         values.forEach(v => streamrController.getStreamStorageInfo.mockResolvedValueOnce(v));
@@ -806,20 +817,22 @@ describe('storage writes go only where they are needed', () => {
         it('writes only to the streams that are not already at the target', async () => {
             channelManager.channels.set('s-1', gated());
             reads(
-                state([NODE], 180), state([NODE], 180), state([NODE], 3),   // before
-                state([NODE], 180), state([NODE], 180), state([NODE], 180)  // after
+                state([NODE], 180), state([NODE], 180), state([NODE], 3), state([NODE], 180),   // before
+                state([NODE], 180), state([NODE], 180), state([NODE], 180), state([NODE], 180)  // after
             );
 
             const result = await channelManager.setChannelStorageDays('s-1', 180);
             expect(streamrController.setStorageDays).toHaveBeenCalledTimes(1);
             expect(streamrController.setStorageDays).toHaveBeenCalledWith('s-4', 180);
             expect(result.sent).toBe(1);
-            expect(result.results).toEqual({ message: 'unchanged', admin: 'unchanged', keys: 'applied' });
+            expect(result.results).toEqual({
+                message: 'unchanged', admin: 'unchanged', keys: 'applied', interactions: 'unchanged'
+            });
         });
 
         it('sends nothing when every stream already holds the target', async () => {
             channelManager.channels.set('s-1', gated());
-            reads(state([NODE], 180), state([NODE], 180), state([NODE], 180));
+            reads(state([NODE], 180), state([NODE], 180), state([NODE], 180), state([NODE], 180));
 
             const result = await channelManager.setChannelStorageDays('s-1', 180);
             expect(streamrController.setStorageDays).not.toHaveBeenCalled();
@@ -867,14 +880,15 @@ describe('storage writes go only where they are needed', () => {
             const channel = gated();
             channelManager.channels.set('s-1', channel);
             reads(
-                state([NODE], 180), state([NODE], 180), state([NODE], 3),
-                state([NODE], 180), state([NODE], 180), state([NODE], 180)
+                state([NODE], 180), state([NODE], 180), state([NODE], 3), state([NODE], 180),
+                state([NODE], 180), state([NODE], 180), state([NODE], 180), state([NODE], 180)
             );
 
             await channelManager.setChannelStorageDays('s-1', 180);
             expect(channel.storageDays).toBe(180);
             expect(channel.adminStorageDays).toBe(180);
             expect(channel.keysStorageDays).toBe(180);
+            expect(channel.interactionsStorageDays).toBe(180);
         });
 
         it('does not cache a retention whose write failed', async () => {
@@ -893,8 +907,8 @@ describe('storage writes go only where they are needed', () => {
         it('adds the node only to the streams that lack it', async () => {
             channelManager.channels.set('s-1', gated());
             reads(
-                state([NODE], 180), state([NODE], 180), state([], null),
-                state([NODE], 180), state([NODE], 180), state([NODE], 180)
+                state([NODE], 180), state([NODE], 180), state([], null), state([NODE], 180),
+                state([NODE], 180), state([NODE], 180), state([NODE], 180), state([NODE], 180)
             );
 
             const result = await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });

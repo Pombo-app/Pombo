@@ -13,6 +13,14 @@ vi.mock('../../src/js/auth.js', () => ({
     }
 }));
 
+// Raw resends verify the envelope signature; these fixtures are plain
+// objects with no signature, so the check is stubbed to accept and the
+// real recovery keeps its own dedicated tests.
+vi.mock('../../src/js/envelopeSigner.js', async (importOriginal) => ({
+    ...(await importOriginal()),
+    verifyEnvelopeAuthenticity: () => true,
+}));
+
 vi.mock('../../src/js/crypto.js', () => ({
     cryptoManager: {
         encryptJSON: vi.fn(async (data) => JSON.stringify(data)),
@@ -365,7 +373,7 @@ describe('StreamrController Core', () => {
             await streamrController.resendAdminState('stream-3', { historyCount: 7 });
             expect(mockClient.resend).toHaveBeenCalledWith(
                 { streamId: 'stream-3', partition: STREAM_CONFIG.ADMIN_STREAM.MODERATION },
-                { last: 7 }
+                { last: 7, raw: true }
             );
         });
 
@@ -1085,7 +1093,7 @@ describe('StreamrController Core', () => {
             await streamrController.fetchHistory('stream-1', 0, 50);
             expect(mockClient.resend).toHaveBeenCalledWith(
                 { streamId: 'stream-1', partition: 0 },
-                { last: 50 }
+                { last: 50, raw: true }
             );
         });
 
@@ -1143,7 +1151,7 @@ describe('StreamrController Core', () => {
             await streamrController.fetchPartitionHistory('stream-1', 1, 5);
             expect(mockClient.resend).toHaveBeenCalledWith(
                 { streamId: 'stream-1', partition: 1 },
-                { last: 5 }
+                { last: 5, raw: true }
             );
         });
 
@@ -1220,7 +1228,8 @@ describe('StreamrController Core', () => {
                 partition: 0
             }, {
                 from: { timestamp: 0 },
-                to: { timestamp: 5000 }
+                to: { timestamp: 5000 },
+                raw: true
             });
         });
 
@@ -1580,17 +1589,18 @@ describe('StreamrController Core', () => {
             expect(retryCallNames.some(name => name.includes('message'))).toBe(true);
         });
 
-        it('should delete all four streams (message -1, ephemeral -2, admin -3, keys -4)', async () => {
-            // -4 exists only on gated channels, but deletion is
+        it('deletes every stream of the channel (-1, -2, -3, -4, -5)', async () => {
+            // -4 and -5 exist only on gated channels, but deletion is
             // unconditional: the idempotent "already gone" path absorbs the
-            // other types, and skipping it is what used to orphan -4 streams.
+            // other types, and skipping one is what orphans it — with its
+            // paid storage — after the channel is gone.
             await streamrController.deleteStream('owner/stream-1');
             const deletedIds = mockClient.deleteStream.mock.calls.map(c => c[0]);
-            expect(deletedIds).toContain('owner/stream-1');
-            expect(deletedIds).toContain('owner/stream-2');
-            expect(deletedIds).toContain('owner/stream-3');
-            expect(deletedIds).toContain('owner/stream-4');
-            expect(mockClient.deleteStream).toHaveBeenCalledTimes(4);
+            expect(deletedIds).toEqual(expect.arrayContaining([
+                'owner/stream-1', 'owner/stream-2', 'owner/stream-3',
+                'owner/stream-4', 'owner/stream-5'
+            ]));
+            expect(mockClient.deleteStream).toHaveBeenCalledTimes(5);
         });
 
         it('should treat streamDoesNotExist as idempotent success (no throw)', async () => {
@@ -1598,7 +1608,8 @@ describe('StreamrController Core', () => {
             mockClient.deleteStream.mockRejectedValue(
                 Object.assign(new Error('error_streamDoesNotExist'), { reason: 'error_streamDoesNotExist' })
             );
-            await expect(streamrController.deleteStream('owner/stream-1')).resolves.toBeUndefined();
+            // Already gone counts as deleted: nothing is left standing.
+            await expect(streamrController.deleteStream('owner/stream-1')).resolves.toEqual([]);
         });
 
         it('should not throw when admin stream (-3) does not exist (legacy channels)', async () => {
@@ -1611,7 +1622,20 @@ describe('StreamrController Core', () => {
                 }
                 return undefined;
             });
-            await expect(streamrController.deleteStream('owner/stream-1')).resolves.toBeUndefined();
+            await expect(streamrController.deleteStream('owner/stream-1')).resolves.toEqual([]);
+        });
+
+        /**
+         * A stream the network refused is reported back, not swallowed: it is
+         * what keeps the channel on the device as the handle for a retry.
+         */
+        it('reports the streams that could not be deleted', async () => {
+            mockClient.deleteStream.mockImplementation(async (sid) => {
+                if (sid.endsWith('-3')) throw new Error('RPC down');
+                return undefined;
+            });
+            await expect(streamrController.deleteStream('owner/stream-1'))
+                .resolves.toEqual(['owner/stream-3']);
         });
     });
 

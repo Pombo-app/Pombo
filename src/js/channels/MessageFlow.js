@@ -190,6 +190,21 @@ export class MessageFlow {
             Logger.debug('Unknown message type, skipping:', data?.type);
             return;
         }
+
+        // Timestamp forgery clamps: the payload timestamp is what the
+        // UI orders, pages and ages by, and the publisher writes it freely.
+        // Reject a payload dated ahead of the wall clock or ahead of its own
+        // signed envelope beyond clock skew. One-sided on purpose: a payload
+        // OLDER than its envelope is a legitimate republish.
+        const skew = CONFIG.gate.timestampSkewMs;
+        if (data.timestamp > Date.now() + skew) {
+            Logger.warn('Rejecting future-dated message:', data.id, new Date(data.timestamp).toISOString());
+            return;
+        }
+        if (Number.isFinite(data._timestamp) && data.timestamp > data._timestamp + skew) {
+            Logger.warn('Rejecting message dated ahead of its envelope:', data.id);
+            return;
+        }
         
         Logger.debug('handleTextMessage:', { messageId: data.id, type: data.type || 'text', sender: data.sender?.slice(0,10) });
         
@@ -208,6 +223,28 @@ export class MessageFlow {
         if (!channel) {
             Logger.warn('Channel not found for streamId:', streamId);
             return;
+        }
+
+        // Read-only is enforced by READERS in Visible channels: the contract
+        // deliberately validates a member's signature (their reactions,
+        // presence and key requests must pass), so a member-authored MESSAGE
+        // is dropped here instead. Reactions never reach this point (routed
+        // to the control handler above) and stay allowed. In Sealed the
+        // content-key distribution already makes this unreachable.
+        if (channel.gate?.address && channel.readOnly) {
+            const author = (data.sender || '').toLowerCase();
+            const ownerAddr = (channel.createdBy
+                || streamId.split('/')[0] || '').toLowerCase();
+            if (author && author !== ownerAddr) {
+                const { gateManager } = await import('../gate.js');
+                const mod = await gateManager
+                    ._isModerator(channel.gate.address, author)
+                    .catch(() => false);
+                if (!mod) {
+                    Logger.debug('read-only: dropping member message', data.id);
+                    return;
+                }
+            }
         }
 
         // Check if message already exists (deduplication)
@@ -753,7 +790,43 @@ export class MessageFlow {
                     : Promise.resolve({ messages: [], hasMore: false })
             );
 
-            let [contentResult, overrideResult] = await Promise.all([fetchContent(), fetchOverrides()]);
+            // Reactions moved to the -5, so paging only the -1 brings back
+            // older messages with their reactions missing. Same window, same
+            // handler: they arrive as control messages either way. A channel
+            // whose -5 was never created reads as empty and costs one call.
+            const interactionsId = channel?.interactionsStreamId;
+            const fetchReactions = () => (
+                interactionsId
+                    ? streamrController.fetchOlderHistory(
+                        interactionsId,
+                        STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS,
+                        beforeTimestamp,
+                        STREAM_CONFIG.LOAD_MORE_COUNT,
+                        channel.password,
+                        signal,
+                        false
+                    ).catch(e => {
+                        Logger.debug('loadMoreHistory: interactions page failed:', e?.message || e);
+                        return { messages: [], hasMore: false };
+                    })
+                    : Promise.resolve({ messages: [], hasMore: false })
+            );
+
+            let [contentResult, overrideResult, reactionResult] = await Promise.all([
+                fetchContent(), fetchOverrides(), fetchReactions()
+            ]);
+
+            // Older reactions never gate "is there more history": that is the
+            // -1's question, and a reaction page that runs dry says nothing
+            // about the conversation behind it.
+            for (const msg of reactionResult.messages || []) {
+                if (msg?.type !== 'reaction') continue;
+                const reactionUser = msg.account || msg.user;
+                if (reactionUser && msg.messageId && msg.emoji) {
+                    this.manager.storeReaction(
+                        channel, msg.messageId, msg.emoji, reactionUser, msg.action || 'add');
+                }
+            }
 
             // Storage race mitigation: a {from:0, to:before} resend that returns
             // zero messages can mean either (a) true exhaustion, or (b) the

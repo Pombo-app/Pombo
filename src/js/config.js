@@ -89,16 +89,23 @@ export const CONFIG = {
     // isValidSignature/checkAccess drive envelope validation and epoch-key
     // distribution. See docs/UNIFIED_IMPLEMENTATION_PLAN.md §7.11.
     gate: {
-        // PomboGateFactory v2 on Polygon PoS (pre-audit deploy, 2026-08-17).
-        // v2 adds owner-appointed moderators (setModerator). Gates minted by
-        // the v1 factory (0xaCd7…E548) keep working — they just have no
-        // moderator surface.
-        factoryAddress: '0x14595B5F192fA56714D1F8821BD1651dC5bFd1aB',
+        // PomboGateFactory v3 on Polygon PoS (pre-audit deploy, 2026-09-02).
+        // v3 is the single gate: isValidSignature answers checkAccess plus
+        // the read-only filter, so lapsed access cuts publishing at ingest.
+        // No legacy: v1/v2 gates are not supported and their channels are
+        // expected to be recreated.
+        // v3.1: readOnly is a declaration — isValidSignature no longer
+        // filters on it; readers and the validating node enforce it.
+        factoryAddress: '0x38A42115B96A16079F2b0b31bba2Fa183E3f448F',
         // checkAccess eth_call cache — mirrors the SDK's own ERC-1271 TTL
         checkAccessCacheMs: 10 * 60 * 1000,
         // Live messages may use the previous epoch's kid for this long after
         // a rotation (the "short tolerance" of the kid freshness rule)
         kidFreshnessToleranceMs: 10 * 60 * 1000,
+        // Ingest clamp for the payload's own timestamp: allowed clock
+        // skew ahead of now / ahead of the signed envelope time. One-sided —
+        // a payload OLDER than its envelope is legitimate (TTL republish).
+        timestampSkewMs: 5 * 60 * 1000,
         // Quick-pick tokens for the create modal (N-D), Polygon PoS mainnet.
         // POL diverges by context: 0x…1010 is Polygon's system contract for
         // the NATIVE coin — its balanceOf mirrors the native balance, so
@@ -271,7 +278,12 @@ export const CONFIG = {
         previewPresenceIntervalMs: 20000, // Presence broadcast interval in preview
         initialPollDelayMs: 5000,      // Delay before first background poll
         maxPresenceFailures: 3,        // Stop preview presence after N consecutive failures
-        adminPollIntervalMs: 30000     // Poll interval for admin-state resend 
+        adminPollIntervalMs: 30000,    // Poll interval for admin-state resend
+        // Member catch-up on a gated channel: raw sweep of the keys and the
+        // message stream, which is how a member recovers what their live
+        // subscription and their key request could not get on their own.
+        memberCatchUpIntervalMs: 30000,
+        memberCatchUpCount: 30
     },
 
     // Push Notifications

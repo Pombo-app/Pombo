@@ -14,6 +14,14 @@ import { ethers } from 'ethers';
 
 globalThis.ethers = ethers;
 
+// Raw resends verify the envelope signature; these fixtures are plain
+// objects with no signature, so the check is stubbed to accept and the
+// real recovery keeps its own dedicated tests.
+vi.mock('../../src/js/envelopeSigner.js', async (importOriginal) => ({
+    ...(await importOriginal()),
+    verifyEnvelopeAuthenticity: () => true,
+}));
+
 const { streamrController } = await import('../../src/js/streamr.js');
 
 const AUTHOR = '0x' + '11'.repeat(20);
@@ -75,16 +83,18 @@ describe('fetchOlderHistory', () => {
         expect(calls[0].options.to).toEqual({ timestamp: 1000 });
     });
 
-    it('reads a gated channel raw and an ungated one validated', async () => {
+    it('reads raw on both gated and ungated channels', async () => {
         streamrController._gatedChannelFor.mockResolvedValue({ messageStreamId: STREAM, gate: { address: '0x1' } });
         let calls = serve([text(500)]);
         await streamrController.fetchOlderHistory(STREAM, P_MESSAGES, 1000, 10);
         expect(calls[0].options.raw).toBe(true);
 
+        // Ungated reads raw too — the envelope-authenticity check replaces
+        // the SDK validation that raw turns off.
         streamrController._gatedChannelFor.mockResolvedValue(null);
         calls = serve([text(500)]);
         await streamrController.fetchOlderHistory(STREAM, P_MESSAGES, 1000, 10);
-        expect(calls[0].options.raw).toBeUndefined();
+        expect(calls[0].options.raw).toBe(true);
     });
 
     it('confirms a claimed exhaustion on a second pass and unions the two', async () => {

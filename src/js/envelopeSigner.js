@@ -83,6 +83,29 @@ export function buildEnvelopePayload(message) {
  * @param {Object} message - SDK StreamMessage OR public Message wrapper, as seen at ingest
  * @returns {string|null} Lowercase 0x address, or null
  */
+/**
+ * The single authenticity check every RAW read goes through on NON-gated
+ * streams: the envelope must be signed by the key it claims as publisher.
+ * It replaces the SDK validation that `raw` turns off — without it a raw
+ * reader would accept an envelope carrying someone else's publisherId,
+ * which is authorship forgery on every stream where the publisher IS the
+ * author. Gated streams never use this: there the publisher is the clone
+ * for everyone and the author is the recovered signer itself
+ * (resolveAuthor), so signer == publisherId would reject every message.
+ *
+ * @param {Object} message - SDK StreamMessage OR public Message wrapper
+ * @returns {boolean} true when the envelope is authentically the publisher's
+ */
+export function verifyEnvelopeAuthenticity(message) {
+    const signer = recoverEnvelopeSigner(message);
+    if (!signer) return false;
+    const streamMessage = unwrap(message);
+    const publisherId = typeof message?.getPublisherId === 'function'
+        ? message.getPublisherId()
+        : (streamMessage?.messageId?.publisherId ?? message?.publisherId);
+    return !!publisherId && signer === String(publisherId).toLowerCase();
+}
+
 export function recoverEnvelopeSigner(message) {
     try {
         const streamMessage = unwrap(message);

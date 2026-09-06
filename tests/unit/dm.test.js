@@ -474,6 +474,45 @@ describe('DMManager', () => {
 
     // ==================== routeInboxMessage() ====================
     describe('routeInboxMessage()', () => {
+        /**
+         * A stray that is already stored cannot be re-routed, so the timeline
+         * refuses it at the display boundary too.
+         */
+        it('keeps a foreign sender out of the timeline it was stored in', async () => {
+            const peer = '0xpeer777777777777777777777777777777777777';
+            const streamId = peer + '/Pombo-DM-1';
+            const channel = { messageStreamId: streamId, type: 'dm', peerAddress: peer, messages: [
+                { id: 'ok', text: 'from the peer', _dmReceived: true, account: peer, timestamp: 2 },
+                { id: 'stray', text: 'from someone else', _dmReceived: true,
+                  account: '0xstranger88888888888888888888888888888888', timestamp: 1 }
+            ] };
+            channelManager.channels.set(streamId, channel);
+            dmManager.conversations.set(peer, streamId);
+
+            await dmManager.loadDMTimeline(peer);
+
+            expect(channel.messages.map(m => m.id)).toEqual(['ok']);
+        });
+
+        /**
+         * The map that used to answer this question is rebuilt from each
+         * record's peerAddress, so a record whose two halves disagree made
+         * every incoming message from that peer land in another room.
+         */
+        it('repairs a record whose peerAddress does not match its own stream', () => {
+            const peer = '0xpeer555555555555555555555555555555555555';
+            const streamId = peer + '/Pombo-DM-1';
+            const record = { messageStreamId: streamId, type: 'dm',
+                peerAddress: '0xsomeoneelse6666666666666666666666666666', messages: [] };
+            channelManager.channels.set(streamId, record);
+
+            dmManager.loadConversationsFromChannels();
+
+            expect(record.peerAddress).toBe(peer);
+            expect(dmManager.conversations.get(peer)).toBe(streamId);
+            expect(dmManager.conversations.get('0xsomeoneelse6666666666666666666666666666')).toBeUndefined();
+        });
+
         it('should ignore messages without account', async () => {
             await dmManager.routeInboxMessage({});
             await dmManager.routeInboxMessage(null);
@@ -514,6 +553,34 @@ describe('DMManager', () => {
             expect(channel.messages[0].text).toBe('Hello!');
             expect(channel.messages[0]._dmReceived).toBe(true);
             expect(channelManager.notifyHandlers).toHaveBeenCalledWith('message', expect.any(Object));
+        });
+
+        /**
+         * The conversation is derived from the sender, never looked up: a
+         * record carried over from an older build can pair a peer address
+         * with someone else's stream, and every message from that peer used
+         * to be filed in that other conversation.
+         */
+        it('files a message under its sender even when the map points elsewhere', async () => {
+            const peerAddress = '0xpeer333333333333333333333333333333333333';
+            const streamId = `${peerAddress}/Pombo-DM-1`;
+            const strangerStreamId = '0xstranger44444444444444444444444444444444/Pombo-DM-1';
+            const mine = { messageStreamId: streamId, type: 'dm', peerAddress, messages: [] };
+            const stranger = {
+                messageStreamId: strangerStreamId, type: 'dm', peerAddress, messages: []
+            };
+            channelManager.channels.set(streamId, mine);
+            channelManager.channels.set(strangerStreamId, stranger);
+            // The state a bad record leaves behind: the peer points at the
+            // stranger's conversation.
+            dmManager.conversations.set(peerAddress, strangerStreamId);
+
+            await dmManager.routeInboxMessage({
+                account: peerAddress, id: 'msg-derived-1', text: 'mine', timestamp: Date.now()
+            });
+
+            expect(mine.messages.map(m => m.id)).toEqual(['msg-derived-1']);
+            expect(stranger.messages).toHaveLength(0);
         });
 
         it('should deduplicate messages with same id', async () => {
@@ -750,6 +817,9 @@ describe('DMManager', () => {
             const peerAddress = '0xblocked55555555555555555555555555555555';
             const streamId = `${peerAddress}/Pombo-DM-1`;
             dmManager.conversations.set(peerAddress, streamId);
+            // Control is derived from the sender now, so the conversation
+            // has to exist rather than merely be in the map.
+            channelManager.channels.set(streamId, { messageStreamId: streamId, type: 'dm', peerAddress, messages: [] });
 
             secureStorage.isBlocked.mockReturnValueOnce(true);
 
@@ -766,6 +836,9 @@ describe('DMManager', () => {
             const peerAddress = '0xleft66666666666666666666666666666666666';
             const streamId = `${peerAddress}/Pombo-DM-1`;
             dmManager.conversations.set(peerAddress, streamId);
+            // Control is derived from the sender now, so the conversation
+            // has to exist rather than merely be in the map.
+            channelManager.channels.set(streamId, { messageStreamId: streamId, type: 'dm', peerAddress, messages: [] });
 
             secureStorage.getDMLeftAt.mockReturnValueOnce(1000);
 
@@ -782,6 +855,9 @@ describe('DMManager', () => {
             const peerAddress = '0xpeer333333333333333333333333333333333333';
             const streamId = `${peerAddress}/Pombo-DM-1`;
             dmManager.conversations.set(peerAddress, streamId);
+            // Control is derived from the sender now, so the conversation
+            // has to exist rather than merely be in the map.
+            channelManager.channels.set(streamId, { messageStreamId: streamId, type: 'dm', peerAddress, messages: [] });
 
             const data = { account: peerAddress, type: 'typing', isTyping: true };
             await dmManager.routeInboxControl(data);
@@ -793,6 +869,9 @@ describe('DMManager', () => {
             const peerAddress = '0xpeer333333333333333333333333333333333333';
             const streamId = `${peerAddress}/Pombo-DM-1`;
             dmManager.conversations.set(peerAddress, streamId);
+            // Control is derived from the sender now, so the conversation
+            // has to exist rather than merely be in the map.
+            channelManager.channels.set(streamId, { messageStreamId: streamId, type: 'dm', peerAddress, messages: [] });
 
             dmCrypto.isEncrypted.mockReturnValueOnce(true);
             dmCrypto.decrypt.mockResolvedValueOnce({ type: 'typing', timestamp: 12345 });
@@ -817,6 +896,9 @@ describe('DMManager', () => {
             const peerAddress = '0xpeer333333333333333333333333333333333333';
             const streamId = `${peerAddress}/Pombo-DM-1`;
             dmManager.conversations.set(peerAddress, streamId);
+            // Control is derived from the sender now, so the conversation
+            // has to exist rather than merely be in the map.
+            channelManager.channels.set(streamId, { messageStreamId: streamId, type: 'dm', peerAddress, messages: [] });
 
             dmCrypto.isEncrypted.mockReturnValueOnce(true);
             dmCrypto.decrypt.mockResolvedValueOnce({ type: 'presence', nickname: 'Bob', lastActive: 99999 });
@@ -842,6 +924,9 @@ describe('DMManager', () => {
             const peerAddress = '0xpeer333333333333333333333333333333333333';
             const streamId = `${peerAddress}/Pombo-DM-1`;
             dmManager.conversations.set(peerAddress, streamId);
+            // Control is derived from the sender now, so the conversation
+            // has to exist rather than merely be in the map.
+            channelManager.channels.set(streamId, { messageStreamId: streamId, type: 'dm', peerAddress, messages: [] });
 
             dmCrypto.isEncrypted.mockReturnValueOnce(true);
             dmCrypto.decrypt.mockRejectedValueOnce(new Error('Bad key'));
