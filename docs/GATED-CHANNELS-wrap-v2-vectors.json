@@ -1,0 +1,16 @@
+{
+  "generator": "Pombo Web tests/vectors/gen_wrap_v2_vectors.mjs",
+  "generatedAt": "2026-08-26",
+  "scheme": "KEY_WRAP v2: ECIES to the account's STATIC compressed pubkey (secp256k1 ECDH x-coord, HKDF-SHA256 salt 'pombo-keywrap-static-v2' info 'aes-256-gcm', AES-256-GCM); tag = sha256(utf8('POMBO_WRAP_TAG_V2|' + requestId + '|' + keyId))",
+  "accountPriv": "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+  "spk": "0x02ba5734d8f7091719471e7f7ed6b9df170dc70cc661ca05e688601ad984f068b0",
+  "epochKey": "0x4242424242424242424242424242424242424242424242424242424242424242",
+  "requestId": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "keyId": "3.deadbeef42",
+  "tag": "0xcdad7dad64d437644100796b2ed9b1fad92440e6a1d2a78b1f45b0eb5e3f1444",
+  "wrapped": {
+    "epk": "0x02824398a01a2ecd3553aa833574b540fd7cbead68c1c25b0f47cde96f3322ddc2",
+    "iv": "AQIDBAUGBwgJCgsM",
+    "ct": "EFk19R38/LdMzrfLDAdTnwmf03rAFhns0Ya9XUn26EsgGjhYyzPGniq3WwzP0JxX"
+  }
+}

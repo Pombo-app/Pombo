@@ -1,0 +1,63 @@
+{
+  "modPriv": "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+  "mod": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+  "streamId": "0xaaaabbbbccccddddeeeeffff0000111122223333/deadbeef01-1",
+  "vectors": [
+    {
+      "delta": {
+        "t": "MOD_ACTION",
+        "op": "hide",
+        "target": "msg-0001",
+        "ts": 1789000000000,
+        "mod": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+        "sig": "0x5f46fc37297f6d1c74f66e456481595f1d2bcb25dfbaebaf32f246ee7a80b4624667c4de4d02e4d86fea504bd939eecff91180c2473ffaeab0d3a62721c0f9ad1c"
+      },
+      "digest": "0x23a476e5dee114d4d4a03392169bcd39f14672a4e0435cd14e3591c51fd842e9"
+    },
+    {
+      "delta": {
+        "t": "MOD_ACTION",
+        "op": "unhide",
+        "target": "msg-0001",
+        "ts": 1789000001000,
+        "mod": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+        "sig": "0x8d47d1e00476e55d98881bf832b696cde6f3cb906a7f97d6e2356f4e59f6418777d980ca63b460ad046e934fa6219b77e997982d06a1ffcf4e2772b13cb9c5811c"
+      },
+      "digest": "0xa1b570fd1233ac5c21bf073b296c255207edd3dc09c7336c0871bc2ef78f5590"
+    },
+    {
+      "delta": {
+        "t": "MOD_ACTION",
+        "op": "ban",
+        "target": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+        "ts": 1789000002000,
+        "mod": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+        "sig": "0xbf350f97d19bb001fb6452acd150ef29b652ecc75a7555ab89e95b6a0196c02274948bd1157fda929908b79bd20a1a8932b35c1d83fa002df17b2c7eb82544e11b",
+        "sinceEpoch": 7
+      },
+      "digest": "0x06665575372173566e8579bc015eba7a58ba141ddd386ebffbd5ab1c1de148bd"
+    },
+    {
+      "delta": {
+        "t": "MOD_ACTION",
+        "op": "ban",
+        "target": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+        "ts": 1789000003000,
+        "mod": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+        "sig": "0x5a2985bdafcc0d930387f7b15ae236b154b0bba31363e00942d98d179c7e56fa194796ecd3d8c244418c6a5c5d42e78e37a9749da508c81298d674908539f3ec1b"
+      },
+      "digest": "0xcb0d0cbeae7288dc1545f29826c675d6b8ddd3d411f58d406baa418acdbaa995"
+    },
+    {
+      "delta": {
+        "t": "MOD_ACTION",
+        "op": "unban",
+        "target": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+        "ts": 1789000004000,
+        "mod": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+        "sig": "0x6cbed75a857b2d863022c9281ffc46c29a3cab2e0913616e51dc796d577581580cbda29736803deb763a43608a2a9deb23bbc2de127dd68a1c58cb8786c5e2101c"
+      },
+      "digest": "0xc1a567f02395a1587298e1d1c78195f57abbbdf67b1a4c12faad37c211ec51e9"
+    }
+  ]
+}
