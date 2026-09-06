@@ -52,6 +52,9 @@ import {
     isInteractionsStream as _isInteractionsStream
 } from './streamConstants.js';
 
+/** A publish grant added after a stream was cached takes this long to be seen. */
+const WRITER_CACHE_TTL_MS = 60_000;
+
 // === STREAM CONFIG (DUAL-STREAM ARCHITECTURE) ===
 import { STREAM_CONFIG } from './streamConfig.js';
 import { History } from './streamr/History.js';
@@ -115,6 +118,83 @@ class StreamrController {
         this.mediaHandlers = new Map(); // ephemeralStreamId -> { handler, password }
         this.history = new History(this);
         this.messages = new MessagePipeline(this);
+        this._writers = new Map();       // streamId -> { public, writers:Set, ts }
+        this._writerFetches = new Map(); // streamId -> in-flight promise
+    }
+
+    /**
+     * The question `raw: true` turns off: may this publisher write here?
+     *
+     * The network layer relays without asking — it knows nothing about the
+     * registry — and a storage node keeps whatever reaches it, so a raw resend
+     * can hand back a message the on-chain ACL refuses. A validated subscribe
+     * asks this on every message; a raw one has to ask for itself, or the
+     * signature check alone would prove authorship and call it authority.
+     *
+     * One registry read per stream, cached: a stream whose publish is public
+     * answers for everyone at once, which is the common case.
+     */
+    async publisherMayWrite(streamId, message) {
+        const publisherId = typeof message?.getPublisherId === 'function'
+            ? message.getPublisherId()
+            : (message?.messageId?.publisherId ?? message?.publisherId);
+        return this.mayPublishAs(streamId, publisherId);
+    }
+
+    /**
+     * The same question asked of a bare address, for the publish side.
+     * `refreshOnDeny` skips the TTL: a publish is one call, and a grant written
+     * seconds ago (a member just added) must not read as a forgery.
+     */
+    async mayPublishAs(streamId, publisherId, { refreshOnDeny = false } = {}) {
+        if (!streamId || !publisherId) return false;
+        const who = String(publisherId).toLowerCase();
+        try {
+            const entry = await this._streamWriters(streamId);
+            if (entry.public || entry.writers.has(who)) return true;
+            // A grant made after this cache was filled reads as a forgery.
+            // One refresh settles it; the TTL keeps that from being per message.
+            if (refreshOnDeny || Date.now() - entry.ts > WRITER_CACHE_TTL_MS) {
+                this._writers.delete(streamId);
+                const fresh = await this._streamWriters(streamId);
+                return fresh.public || fresh.writers.has(who);
+            }
+            return false;
+        } catch (error) {
+            // Registry unreadable (RPC down): keep the message. Dropping every
+            // message during an outage would read as data loss, and this check
+            // is a filter against junk, not a confidentiality boundary.
+            Logger.debug('Publisher permission unreadable, keeping message:', error.message);
+            return true;
+        }
+    }
+
+    /** Publish permissions of a stream, cached per session. */
+    async _streamWriters(streamId) {
+        const cached = this._writers.get(streamId);
+        if (cached) return cached;
+        const pending = this._writerFetches.get(streamId);
+        if (pending) return pending;
+        const fetch = (async () => {
+            const permissions = await this.getStreamPermissions(streamId);
+            // Every real stream lists at least its owner, so an empty answer is
+            // the SDK failing to read rather than a stream nobody may write —
+            // getStreamPermissions returns [] for both. Treat it as unknown.
+            const entry = {
+                public: permissions.length === 0,
+                writers: new Set(),
+                ts: Date.now()
+            };
+            for (const p of permissions) {
+                if (!(p.permissions || []).includes('publish')) continue;
+                if (p.public) entry.public = true;
+                else if (p.userId) entry.writers.add(String(p.userId).toLowerCase());
+            }
+            this._writers.set(streamId, entry);
+            return entry;
+        })();
+        this._writerFetches.set(streamId, fetch);
+        try { return await fetch; } finally { this._writerFetches.delete(streamId); }
     }
 
     async validateCustomStorageNodeAddress(nodeAddress) {
@@ -2050,6 +2130,16 @@ class StreamrController {
                 return null;
             }
         }
+        // The gate grants publish to every member, so read-only only holds if
+        // readers cut it — history included, since a member never wrote there
+        // legitimately. Sealed needs none of this: no publish key, no message.
+        if (channel.readOnly && !isAdminStream(streamId) && !isKeysStream(streamId)) {
+            const { gateManager } = await import('./gate.js');
+            if (!await gateManager.canModerate(channel.gate.address, signer)) {
+                Logger.info(`resolveAuthor: ${signer} is not a writer on read-only ${streamId} — dropping`);
+                return null;
+            }
+        }
         if (live && !isAdminStream(streamId) && !isKeysStream(streamId)) {
             const { gateManager } = await import('./gate.js');
             const access = await gateManager.checkAccessOrNull(channel.gate.address, signer);
@@ -2237,12 +2327,22 @@ class StreamrController {
         const isBinary = data instanceof Uint8Array;
         const content = isBinary ? data : new TextEncoder().encode(JSON.stringify(data));
 
+        const onWirePublisher = options.publisherId ?? await identity.getUserId();
+        // client.publish() asks the registry before signing anything; building
+        // the message by hand skipped that, and the network relays regardless —
+        // so a publish nobody may make still reaches storage, where only a
+        // validating reader ever refuses it. Ask here, as the SDK would.
+        if (!await this.mayPublishAs(streamId, onWirePublisher, { refreshOnDeny: true })) {
+            throw new Error(
+                `Refusing to publish to ${streamId}: ${onWirePublisher} holds no PUBLISH permission`);
+        }
+
         const messageId = new MessageID(
             streamId,
             partition,
             options.timestamp ?? Date.now(),
             0,
-            options.publisherId ?? await identity.getUserId(),
+            onWirePublisher,
             options.msgChainId ?? cryptoManager.generateRandomHex(10)
         );
 
@@ -3149,7 +3249,8 @@ class StreamrController {
                 }
 
                 try {
-                    if (!gatedChannel && !verifyEnvelopeAuthenticity(message)) continue;
+                    if (!gatedChannel && (!verifyEnvelopeAuthenticity(message)
+                        || !await this.publisherMayWrite(adminStreamId, message))) continue;
                     let content = message.content || message;
                     if (password && typeof content === 'string') {
                         try {
@@ -3311,7 +3412,8 @@ class StreamrController {
                 }
 
                 try {
-                    if (!gatedChannel && !verifyEnvelopeAuthenticity(message)) continue;
+                    if (!gatedChannel && (!verifyEnvelopeAuthenticity(message)
+                        || !await this.publisherMayWrite(adminStreamId, message))) continue;
                     let content = message.content || message;
                     // Encrypted entries arrive as base64/JSON string; non-encrypted as object.
                     if (typeof content === 'string') {
@@ -3484,7 +3586,8 @@ class StreamrController {
                         Logger.warn('verifyPasswordChallenge iteration error:', iterError.message);
                         continue;
                     }
-                    if (!verifyEnvelopeAuthenticity(message)) continue;
+                    if (!verifyEnvelopeAuthenticity(message)
+                        || !await this.publisherMayWrite(adminStreamId, message)) continue;
                     rawContent = message?.content ?? message;
                 }
             } catch (error) {
@@ -4021,7 +4124,8 @@ class StreamrController {
                     const result = await iterator.next();
                     iteratorDone = result.done;
                     if (!iteratorDone) {
-                        if (!verifyEnvelopeAuthenticity(result.value)) continue;
+                        if (!verifyEnvelopeAuthenticity(result.value)
+                            || !await this.publisherMayWrite(messageStreamId, result.value)) continue;
                         messages.push(result.value.content);
                     }
                 } catch (iterError) {
@@ -4083,7 +4187,8 @@ class StreamrController {
 
                     if (!iteratorDone && result.value) {
                         const msg = result.value;
-                        if (!verifyEnvelopeAuthenticity(msg)) continue;
+                        if (!verifyEnvelopeAuthenticity(msg)
+                            || !await this.publisherMayWrite(streamId, msg)) continue;
                         // Get publisherId - v103+ uses getPublisherId() method
                         const publisherId = typeof msg.getPublisherId === 'function'
                             ? msg.getPublisherId()

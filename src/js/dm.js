@@ -949,7 +949,8 @@ class DMManager {
                     continue;
                 }
                 try {
-                    if (!verifyEnvelopeAuthenticity(message)) continue;
+                    if (!verifyEnvelopeAuthenticity(message)
+                        || !await streamrController.publisherMayWrite(this.inboxMessageStreamId, message)) continue;
                     let data = message.content ?? message;
                     data = await this.openDMEnvelope(data);
                     if (!data?.account) continue;

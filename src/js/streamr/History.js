@@ -91,7 +91,8 @@ export class History {
                 }
 
                 try {
-                    if (!gatedChannel && !verifyEnvelopeAuthenticity(message)) continue;
+                    if (!gatedChannel && (!verifyEnvelopeAuthenticity(message)
+                        || !await this.controller.publisherMayWrite(messageStreamId, message))) continue;
                     let content = message.content || message;
                     // Encrypted entries arrive as base64/JSON string when password channel
                     if (typeof content === 'string') {
@@ -253,7 +254,8 @@ export class History {
                     // Non-gated raw: the envelope check replaces the SDK
                     // validation raw turned off (gated authorship comes from
                     // resolveAuthor below).
-                    if (!gatedChannel && !verifyEnvelopeAuthenticity(message)) continue;
+                    if (!gatedChannel && (!verifyEnvelopeAuthenticity(message)
+                        || !await this.controller.publisherMayWrite(messageStreamId, message))) continue;
                     let content = message.content || message;
 
                     // Decrypt if password provided
@@ -474,7 +476,8 @@ export class History {
                 }
 
                 try {
-                    if (!verifyEnvelopeAuthenticity(message)) continue;
+                    if (!verifyEnvelopeAuthenticity(message)
+                        || !await this.controller.publisherMayWrite(streamId, message)) continue;
                     let content = message.content || message;
 
                     // Decrypt payload for password-encrypted channels. DM inbox
@@ -637,7 +640,8 @@ export class History {
                     // Non-gated raw: the envelope check replaces the SDK
                     // validation raw turned off (gated authorship comes from
                     // resolveAuthor below).
-                    if (!gatedChannel && !verifyEnvelopeAuthenticity(message)) {
+                    if (!gatedChannel && (!verifyEnvelopeAuthenticity(message)
+                        || !await this.controller.publisherMayWrite(streamId, message))) {
                         skippedCount++;
                         continue;
                     }

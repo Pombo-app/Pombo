@@ -1574,7 +1574,7 @@ class UIController {
         
         if (cacheValid) {
             const canPublish = channel._publishPermCache.canPublish;
-            this.setReadOnlyInputState(!canPublish, canPublish && channel.readOnly);
+            this.setReadOnlyInputState(!canPublish, canPublish && channel.readOnly, !canPublish && !!channel.readOnly);
             
             // Update header label with cached permission result
             const effectiveReadOnly = !canPublish || channel.readOnly;
@@ -1610,7 +1610,7 @@ class UIController {
                 // For gated/private channels, use cache or stay disabled for safety
                 if (cacheValid) {
                     const cachedCanPublish = channel._publishPermCache.canPublish;
-                    this.setReadOnlyInputState(!cachedCanPublish, cachedCanPublish && channel.readOnly);
+                    this.setReadOnlyInputState(!cachedCanPublish, cachedCanPublish && channel.readOnly, !cachedCanPublish && !!channel.readOnly);
                 }
                 return;
             }
@@ -1626,7 +1626,7 @@ class UIController {
 
             // Update UI based on actual permission
             // If channel is read-only and user can publish, show "broadcast" placeholder
-            this.setReadOnlyInputState(!canPublish, canPublish && channel.readOnly);
+            this.setReadOnlyInputState(!canPublish, canPublish && channel.readOnly, !canPublish && !!channel.readOnly);
             
             // Update header label to reflect actual read-only state (user cannot publish)
             const effectiveReadOnly = !canPublish || channel.readOnly;
@@ -1654,10 +1654,16 @@ class UIController {
      * @param {boolean} disabled - Whether input should be disabled
      * @param {boolean} canBroadcast - Whether user can broadcast (has publish permission)
      */
-    setReadOnlyInputState(disabled, canBroadcast = false) {
+    setReadOnlyInputState(disabled, canBroadcast = false, hide = false) {
         const messageInput = this.elements.messageInput;
         const sendBtn = document.querySelector('#send-btn');
-        
+
+        // A reader of an announcements channel gets no composer at all: a
+        // disabled field is furniture that only says "not for you". Every
+        // other disabled state keeps its field, because the placeholder there
+        // explains what to do about it.
+        this.elements.messageInputContainer?.classList.toggle('hidden', hide);
+
         if (disabled) {
             if (messageInput) {
                 messageInput.contentEditable = 'false';

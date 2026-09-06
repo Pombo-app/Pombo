@@ -1105,7 +1105,9 @@ describe('StreamrController Core', () => {
                         next: async () => {
                             calls++;
                             if (calls === 1) throw Object.assign(new Error('key'), { code: 'DECRYPT_ERROR' });
-                            if (calls === 2) return { done: false, value: { content: { id: '1' } } };
+                            // publisherId: raw reads now check who may write on
+                            // the stream, and a message without one is nobody's.
+                            if (calls === 2) return { done: false, value: { content: { id: '1' }, publisherId: '0xsender' } };
                             return { done: true };
                         }
                     };

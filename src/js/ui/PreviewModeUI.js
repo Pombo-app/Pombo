@@ -4,6 +4,7 @@
  */
 
 import { Logger } from '../logger.js';
+import { authManager } from '../auth.js';
 import { STREAM_CONFIG } from '../streamr.js';
 import { deriveKeysId } from '../streamConstants.js';
 import { mediaController } from '../media.js';
@@ -347,8 +348,14 @@ class PreviewModeUI {
         elements.currentChannelInfo.parentElement.classList.remove('hidden');
         headerUI.updateChannelThumb(this.previewChannel);
 
-        // Show message input (full functionality in preview)
-        elements.messageInputContainer.classList.remove('hidden');
+        // Show message input (full functionality in preview) — except on an
+        // announcements channel, where the network refuses a reader's publish
+        // and the send would fail where nobody sees it.
+        const previewOwner = (this.previewChannel.createdBy
+            || this.previewChannel.streamId?.split('/')[0] || '').toLowerCase();
+        const mayWriteHere = !this.previewChannel.readOnly
+            || (authManager.getAddress() || '').toLowerCase() === previewOwner;
+        elements.messageInputContainer.classList.toggle('hidden', !mayWriteHere);
 
         // Hide explore type tabs
         elements.exploreTypeTabs?.classList.add('hidden');
