@@ -120,6 +120,9 @@ const ROSTER_HISTORY_COUNT = 500;
 const ROTATION_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 // Failed or not-yet-due scheduled rotations re-check on this fallback.
 const ROTATION_RETRY_MS = 60 * 60 * 1000;
+/** Wraps held for an announce that has not arrived; memory only. */
+const PARKED_WRAPS_PER_EPOCH = 4;
+const PARKED_EPOCHS = 8;
 
 class EpochKeyManager {
     constructor() {
@@ -191,6 +194,11 @@ class EpochKeyManager {
                 // enumerates members for TOKEN/NFT/PAID gates where holding
                 // or pay() bypasses the owner — no indexer, no event scan.
                 seenRequesters: new Set(),
+                // epoch → wraps that arrived before the announce that
+                // legitimises them. A responder answers a request as soon as
+                // it hears it, so on a cold subscribe the wrap regularly
+                // overtakes the announce; dropping it cost a 35s stall.
+                parkedWraps: new Map(),
                 loaded: false
             };
             this.state.set(messageStreamId, s);
@@ -1123,9 +1131,27 @@ class EpochKeyManager {
             channel.messageStreamId.slice(-30));
     }
 
+    /** Bounded: unverifiable material from strangers must not grow without end. */
+    _parkWrap(s, data) {
+        const epoch = Number(data?.epoch) || 0;
+        if (epoch < 1) return;
+        const forEpoch = s.parkedWraps.get(epoch) || [];
+        if (forEpoch.length >= PARKED_WRAPS_PER_EPOCH) return;
+        forEpoch.push(data);
+        s.parkedWraps.set(epoch, forEpoch);
+        while (s.parkedWraps.size > PARKED_EPOCHS) {
+            s.parkedWraps.delete(s.parkedWraps.keys().next().value);
+        }
+    }
+
     async _handleAnnounce(channel, s, data, publisherId, timestamp) {
         const changed = this._applyAnnounce(channel, s, data, publisherId, timestamp);
         if (!changed) return;
+        // The announce these were waiting for: replay before asking for what
+        // we may already hold.
+        const waiting = s.parkedWraps.get(Number(data?.epoch) || 0) || [];
+        s.parkedWraps.delete(Number(data?.epoch) || 0);
+        for (const wrap of waiting) await this._handleWrap(channel, s, wrap);
         // Pull model: a live announce for an epoch we lack triggers a request
         // (unless we just announced it ourselves and already hold the key).
         if (this._missingEpochs(s).length > 0) {
@@ -1465,7 +1491,7 @@ class EpochKeyManager {
 
         const announce = s.announces.get(data.epoch);
         if (!announce || announce.keyId !== data.keyId) {
-            Logger.warn('epochKeys: wrap for unannounced key ignored:', data.keyId);
+            this._parkWrap(s, data);
             return;
         }
 
@@ -1512,7 +1538,7 @@ class EpochKeyManager {
 
         const announce = s.announces.get(data.epoch);
         if (!announce || announce.keyId !== data.keyId) {
-            Logger.warn('epochKeys: v2 wrap for unannounced key ignored:', data.keyId);
+            this._parkWrap(s, data);
             return;
         }
 
