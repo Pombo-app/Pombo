@@ -2466,6 +2466,16 @@ class StreamrController {
         if (!this._accountIdentity) {
             throw new Error('Account identity unavailable — check streamr-bundle.js');
         }
+        // The mode decides whether this message carries an authorship wrapper,
+        // so it is settled against the contract before the first publish.
+        if (channel?._wireIdentityGuessed) {
+            try {
+                const { channelManager } = await import('./channels.js');
+                await channelManager.ensureGateAuthority(channel);
+            } catch (e) {
+                Logger.warn('Gate authority unresolved before publish:', e.message);
+            }
+        }
         const { epochKeyManager } = await import('./epochKeyManager.js');
         const { epochKeyCrypto } = await import('./epochKeyCrypto.js');
 

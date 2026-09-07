@@ -197,6 +197,17 @@ class PreviewModeUI {
                 // resolve channels through channelManager, and a preview lives
                 // outside the map — this is what lights the gated paths up.
                 channelManager.previewChannel = ownerChannel;
+
+                // Explore does not always carry the mode, so the gate settles it
+                // before anything is published or read here. Awaited: the same
+                // read carries the read-only flag the reader cut needs.
+                ownerChannel._wireIdentityGuessed = true;
+                try {
+                    await channelManager.ensureGateAuthority(ownerChannel);
+                } catch (e) {
+                    Logger.debug('preview: gate authority unresolved:', e?.message || e);
+                }
+                if (gen !== this.previewGeneration) return;
                 const { streamrController } = await import('../streamr.js');
                 const { epochKeyManager } = await import('../epochKeyManager.js');
                 await streamrController.subscribeToKeysStream(
@@ -490,6 +501,9 @@ class PreviewModeUI {
                 readOnly: readOnly,
                 gateAddress: this.previewChannel.gate?.address
                     || channelInfo?.gateAddress || null,
+                // The mode the preview settled against the gate: without it the
+                // joined record would guess, and publishing cannot guess.
+                wireIdentity: this.previewChannel.wireIdentity || null,
                 createdBy: channelInfo?.createdBy,
                 messages: messages || [],
                 reactions: reactionManager.exportAsObject(),

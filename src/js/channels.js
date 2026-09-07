@@ -142,12 +142,11 @@ class ChannelManager {
         }
         if (target.wireIdentity === 'members') target.wireIdentity = 'sealed';
         if (target.wireIdentity === 'everyone') target.wireIdentity = 'visible';
-        // A gated channel persisted without the field is from before the mode
-        // existed — Visible by definition. Channels created with the mode
-        // always persist it, and the gate repair below re-reads it from the
-        // on-chain metadata whenever it runs.
+        // Marked, never filled in: readers treat anything but 'sealed' as
+        // Visible, and a written-in guess would never be looked up again.
+        // Publishing cannot guess, so its path waits for the contract.
         if (target.type === 'gated' && !target.wireIdentity) {
-            target.wireIdentity = 'visible';
+            target._wireIdentityGuessed = true;
         }
 
         // Gated channel without its gate address — persisted by an old build
@@ -172,14 +171,28 @@ class ChannelManager {
         return target;
     }
 
+    /**
+     * Awaited by the publish path when the mode was guessed: under the wrong
+     * mode the message goes out unreadable.
+     */
+    async ensureGateAuthority(channel) {
+        if (!channel?._wireIdentityGuessed) return;
+        if (!channel.gate?.address) await this._repairGateAddress(channel).catch(() => {});
+        if (!channel.gate?.address) return;
+        await this._reconcileGateAuthority(channel);
+    }
+
     async _reconcileGateAuthority(channel) {
         this._gateAuthorityChecked ??= new Set();
         if (this._gateAuthorityChecked.has(channel.messageStreamId)) return;
-        this._gateAuthorityChecked.add(channel.messageStreamId);
         const { gateManager } = await import('./gate.js');
+        // Marked only once the contract has answered: a failed read must not
+        // pin the guessed mode for the session.
         const info = await gateManager.getGateInfo(channel.gate.address);
+        this._gateAuthorityChecked.add(channel.messageStreamId);
         const mode = info.wireIdentityName === 'sealed' ? 'sealed' : 'visible';
         let changed = false;
+        delete channel._wireIdentityGuessed;
         if (channel.wireIdentity !== mode) {
             channel.wireIdentity = mode;
             changed = true;
@@ -1245,6 +1258,7 @@ class ChannelManager {
                 adminLoaded: !!previewInfo.adminLoaded,
                 classification: classification,
                 readOnly: previewInfo.readOnly || false,
+                wireIdentity: previewInfo.wireIdentity || null,
                 historyLoaded: previewMessages.length > 0,  // Mark as loaded if we have messages
                 hasMoreHistory: true,
                 loadingHistory: false,
