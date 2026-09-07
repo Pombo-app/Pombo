@@ -135,6 +135,10 @@ class StreamrController {
      * answers for everyone at once, which is the common case.
      */
     async publisherMayWrite(streamId, message) {
+        // Presence and reactions ride per-channel identities that hold no
+        // grant of their own: that is what lets a member participate where
+        // they cannot post, so those streams are not filtered here.
+        if (isEphemeralStream(streamId) || isInteractionsStream(streamId)) return true;
         const publisherId = typeof message?.getPublisherId === 'function'
             ? message.getPublisherId()
             : (message?.messageId?.publisherId ?? message?.publisherId);
@@ -2133,7 +2137,9 @@ class StreamrController {
         // The gate grants publish to every member, so read-only only holds if
         // readers cut it — history included, since a member never wrote there
         // legitimately. Sealed needs none of this: no publish key, no message.
-        if (channel.readOnly && !isAdminStream(streamId) && !isKeysStream(streamId)) {
+        // Only the conversation is cut: the -2 and -5 are where a member of a
+        // read-only channel takes part.
+        if (channel.readOnly && isMessageStream(streamId)) {
             const { gateManager } = await import('./gate.js');
             if (!await gateManager.canModerate(channel.gate.address, signer)) {
                 Logger.info(`resolveAuthor: ${signer} is not a writer on read-only ${streamId} — dropping`);
@@ -2332,7 +2338,11 @@ class StreamrController {
         // the message by hand skipped that, and the network relays regardless —
         // so a publish nobody may make still reaches storage, where only a
         // validating reader ever refuses it. Ask here, as the SDK would.
-        if (!await this.mayPublishAs(streamId, onWirePublisher, { refreshOnDeny: true })) {
+        // Only for the conversation: presence and reactions go out under
+        // per-channel identities that hold no grant of their own, which is
+        // what makes them work in a channel where members cannot post.
+        if (isMessageStream(streamId)
+            && !await this.mayPublishAs(streamId, onWirePublisher, { refreshOnDeny: true })) {
             throw new Error(
                 `Refusing to publish to ${streamId}: ${onWirePublisher} holds no PUBLISH permission`);
         }

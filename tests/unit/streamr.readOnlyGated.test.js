@@ -85,4 +85,23 @@ describe('resolveAuthor on a read-only gated channel', () => {
         const keys = STREAM.replace(/-1$/, '-4');
         expect(await streamrController.resolveAuthor(keys, message(MEMBER), GATE)).toBe(MEMBER);
     });
+
+    /**
+     * Only the conversation is read-only. Cutting the member off the -5 left
+     * them unable to react AND unable to see anyone else's reactions, which is
+     * the whole of participation in an announcements channel.
+     */
+    it('never cuts the interactions stream, where members react', async () => {
+        channelIs({ readOnly: true });
+        canModerate.mockResolvedValue(false);
+        const interactions = STREAM.replace(/-1$/, '-5');
+        expect(await streamrController.resolveAuthor(interactions, message(MEMBER), GATE)).toBe(MEMBER);
+    });
+
+    it('never cuts the ephemeral stream, where members show presence', async () => {
+        channelIs({ readOnly: true });
+        canModerate.mockResolvedValue(false);
+        const ephemeral = STREAM.replace(/-1$/, '-2');
+        expect(await streamrController.resolveAuthor(ephemeral, message(MEMBER), GATE)).toBe(MEMBER);
+    });
 });
