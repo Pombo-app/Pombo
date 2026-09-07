@@ -674,4 +674,46 @@ describe('ChatAreaUI', () => {
             expect(reactionManager.attachReactionListeners).not.toHaveBeenCalled();
         });
     });
+
+    // ==================== showTypingIndicator ====================
+    describe('showTypingIndicator()', () => {
+        const SENDER = '0x' + 'cd'.repeat(20);
+
+        function setup(channel) {
+            document.body.insertAdjacentHTML('beforeend',
+                '<div id="typing-indicator" class="hidden"><span id="typing-users"></span></div>');
+            chatAreaUI.deps = { channelManager: { getCurrentChannel: () => channel } };
+        }
+
+        it('names the typist by the payload, not by their address', () => {
+            setup({ messageStreamId: 'x-1' });
+
+            chatAreaUI.showTypingIndicator([{ address: SENDER, nickname: 'Bob' }]);
+
+            expect(document.getElementById('typing-users').textContent).toBe('Bob is');
+        });
+
+        it('falls back to the roster when the keystroke carries no name', async () => {
+            const { epochKeyManager } = await import('../../src/js/epochKeyManager.js');
+            vi.spyOn(epochKeyManager, 'getRosterName').mockReturnValue({ name: 'Bob', ts: 5 });
+            setup({ messageStreamId: 'x-1', gate: { address: '0xgate' } });
+
+            chatAreaUI.showTypingIndicator([{ address: SENDER, nickname: null }]);
+
+            expect(document.getElementById('typing-users').textContent).toBe('Bob is');
+        });
+
+        it('shows the address when nobody knows the typist, and pluralises', () => {
+            setup({ messageStreamId: 'x-1' });
+
+            chatAreaUI.showTypingIndicator([
+                { address: SENDER, nickname: null },
+                { address: '0x' + 'ef'.repeat(20), nickname: 'Alice' }
+            ]);
+
+            const text = document.getElementById('typing-users').textContent;
+            expect(text).toContain('0xcdcdcd');
+            expect(text.endsWith(' are')).toBe(true);
+        });
+    });
 });

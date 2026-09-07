@@ -550,9 +550,10 @@ class SubscriptionManager {
             channelManager.handlePresenceMessage(streamId, msg);
         } else if (msg.type === 'typing') {
             // Use account from Streamr SDK (cryptographically guaranteed)
-            channelManager.notifyHandlers('typing', { 
-                streamId: streamId, 
-                user: msg.account || msg.user 
+            channelManager.notifyHandlers('typing', {
+                streamId: streamId,
+                user: msg.account || msg.user,
+                nickname: msg.nickname || null
             });
         } else if (msg.type === 'admin_invalidate') {
             // Apply the canonical ADMIN_STATE snapshot embedded in the

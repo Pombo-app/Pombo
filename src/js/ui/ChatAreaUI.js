@@ -1302,10 +1302,14 @@ class ChatAreaUI {
             return;
         }
         
+        const { channelManager } = this.deps;
+        const channel = channelManager?.getCurrentChannel() || previewModeUI.getPreviewChannel();
         const names = users.map(u => {
             const addr = u.address || u;
-            const ensName = addr ? localStorage.getItem(CONFIG.storageKeys.ens(addr)) : null;
-            return ensName || u.nickname || formatAddress(addr);
+            // Timestamped now: the name riding with a keystroke is a live
+            // claim, so it outranks an older roster entry.
+            return this._displayNameFor(
+                { sender: addr, senderName: u.nickname || null, timestamp: Date.now() }, channel);
         }).join(', ');
         usersSpan.textContent = names + (users.length === 1 ? ' is' : ' are');
         indicator.classList.remove('hidden');
