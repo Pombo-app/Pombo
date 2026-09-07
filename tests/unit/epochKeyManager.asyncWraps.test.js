@@ -85,7 +85,7 @@ describe('epochKeyManager v2 answers and adoption', () => {
         published = [];
         vi.spyOn(streamrController, 'publishKeysMessage')
             .mockImplementation(async (_sid, msg, partition) => { published.push({ msg, partition }); });
-        vi.spyOn(gateManager, 'checkAccess').mockResolvedValue(true);
+        vi.spyOn(gateManager, 'checkAccessQuorum').mockResolvedValue({ access: true });
         vi.spyOn(gateManager, 'getGateInfo').mockResolvedValue({ mode: 1 });
         vi.spyOn(secureStorage, 'setEpochKeys').mockResolvedValue();
         vi.spyOn(streamrController, 'getStreamPartitionCount').mockResolvedValue(1);

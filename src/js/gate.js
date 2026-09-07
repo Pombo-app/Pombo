@@ -107,6 +107,8 @@ class GateManager {
         this._rpcIndex = 0;
         // (gate, user) → { value, at } — TTL'd like the SDK's ERC-1271 cache
         this._accessCache = new Map();
+        // gate → last quorum-disagreement warning time, rate-limits the notice.
+        this._warnedGates = new Map();
         // (gate, user) → { until, at } — paidUntil in unix seconds, same TTL
         this._paidCache = new Map();
         // gate → { info, at }. TTL'd since v3: price and duration are
@@ -280,12 +282,96 @@ class GateManager {
             Logger.warn('gate: checkAccess read failed:', error.message);
             return null;
         }
+        this._cacheAccess(key, value);
+        return value;
+    }
+
+    _cacheAccess(key, value) {
         this._accessCache.set(key, { value, at: Date.now() });
         if (this._accessCache.size > 2000) {
             const oldest = this._accessCache.keys().next().value;
             this._accessCache.delete(oldest);
         }
-        return value;
+    }
+
+    /** One checkAccess read against a specific RPC url. null on any RPC error. */
+    async _readAccessAt(url, gateAddress, userAddress) {
+        try {
+            const contract = new ethers.Contract(gateAddress, GATE_ABI, this._makeProvider(url));
+            return await contract.checkAccess(userAddress);
+        } catch (error) {
+            Logger.debug('gate: quorum read failed at', url, '-', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * checkAccess cross-checked across the user's enabled RPCs, for the key
+     * responder: an epoch key must not be wrapped on the word of a single
+     * endpoint. Only enabled endpoints are ever contacted; a lone one is
+     * accepted (non-limiting). A disagreement is tie-broken by the remaining
+     * enabled endpoints; an unbreakable tie fails closed and returns `warn`.
+     *
+     * @returns {Promise<{access: boolean, warn?: string}>}
+     */
+    async checkAccessQuorum(gateAddress, userAddress) {
+        const key = `${gateAddress.toLowerCase()}|${userAddress.toLowerCase()}`;
+        const cached = this._accessCache.get(key);
+        if (cached && Date.now() - cached.at < CONFIG.gate.checkAccessCacheMs) {
+            return { access: cached.value };
+        }
+
+        const urls = getRpcEndpoints().map(e => e.url).filter(Boolean);
+        if (urls.length === 0) return { access: false };
+
+        if (urls.length === 1) {
+            const v = await this._readAccessAt(urls[0], gateAddress, userAddress);
+            if (v === null) return { access: false };
+            this._cacheAccess(key, v === true);
+            return { access: v === true };
+        }
+
+        const [a, b] = await Promise.all([
+            this._readAccessAt(urls[0], gateAddress, userAddress),
+            this._readAccessAt(urls[1], gateAddress, userAddress),
+        ]);
+        const responded = [a, b].filter(v => v !== null);
+        if (responded.length === 0) return { access: false };
+        if (responded.length === 1) {
+            const access = responded[0] === true;
+            this._cacheAccess(key, access);
+            return { access };
+        }
+        if (a === b) {
+            this._cacheAccess(key, a === true);
+            return { access: a === true };
+        }
+
+        const tally = { yes: a === true ? 1 : 0, no: a === false ? 1 : 0 };
+        tally.yes += b === true ? 1 : 0;
+        tally.no += b === false ? 1 : 0;
+        for (let i = 2; i < urls.length; i++) {
+            const v = await this._readAccessAt(urls[i], gateAddress, userAddress);
+            if (v === null) continue;
+            if (v === true) tally.yes++; else tally.no++;
+            if (tally.yes !== tally.no) break;
+        }
+        if (tally.yes !== tally.no) {
+            const access = tally.yes > tally.no;
+            this._cacheAccess(key, access);
+            return { access };
+        }
+
+        // Left uncached: a recovered endpoint must be free to decide next round.
+        Logger.warn('gate: checkAccess quorum unresolved (RPCs disagree) for', gateAddress.slice(0, 10));
+        const now = Date.now();
+        const lastWarn = this._warnedGates.get(gateAddress.toLowerCase()) || 0;
+        let warn;
+        if (now - lastWarn > CONFIG.gate.checkAccessCacheMs) {
+            this._warnedGates.set(gateAddress.toLowerCase(), now);
+            warn = 'Your RPC endpoints disagree on access to this channel — one may be compromised. Check them in Settings.';
+        }
+        return { access: false, warn };
     }
 
     /**
