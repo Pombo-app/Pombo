@@ -459,6 +459,7 @@ class PreviewModeUI {
             }
             
             // Update input state
+            document.body.classList.toggle('cannot-write', !canPublish);
             if (!canPublish) {
                 const messageInput = elements.messageInput;
                 const sendBtn = document.querySelector('#send-btn');

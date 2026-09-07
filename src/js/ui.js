@@ -1662,6 +1662,8 @@ class UIController {
         // field is furniture that only says "not for you". The optimistic
         // states before an answer arrives keep their field.
         this.elements.messageInputContainer?.classList.toggle('hidden', hide);
+        // Replying is writing: the reply affordances follow the composer.
+        document.body.classList.toggle('cannot-write', hide);
 
         if (disabled) {
             if (messageInput) {
