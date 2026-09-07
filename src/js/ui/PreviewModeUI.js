@@ -708,6 +708,27 @@ class PreviewModeUI {
      * Handle message received in preview mode
      * @param {Object} message - Message object
      */
+    /**
+     * The reader cut a joined channel applies (MessageFlow: read-only drops
+     * member-authored messages), for the preview's two ingest paths — the
+     * subscription and the older-history pagination. What a preview lets in is
+     * copied into the channel record at join, where nothing judges it again.
+     *
+     * @param {Object} channel - The preview channel
+     * @param {string} sender - The message's author
+     * @returns {Promise<boolean>} false when the reader must drop it
+     */
+    async _readOnlyAllows(channel, sender) {
+        if (!channel?.gate?.address || !channel.readOnly) return true;
+        const author = String(sender || '').toLowerCase();
+        if (!author) return true;
+        const ownerAddr = (channel.createdBy
+            || channel.messageStreamId?.split('/')[0] || '').toLowerCase();
+        if (author === ownerAddr) return true;
+        const { gateManager } = await import('../gate.js');
+        return gateManager._isModerator(channel.gate.address, author).catch(() => false);
+    }
+
     async handlePreviewMessage(message) {
         if (!this.previewChannel) return;
 
@@ -739,6 +760,10 @@ class PreviewModeUI {
         if (!message?.id || !message?.sender || !message?.timestamp) {
             return;
         }
+
+        const previewOwner = this.previewChannel;
+        if (!await this._readOnlyAllows(previewOwner, message.sender)) return;
+        if (this.previewChannel !== previewOwner) return;
 
         if (!isTextMessage && !isImageMessage && !isVideoMessage) {
             Logger.debug('Preview: Unknown message type, skipping:', message?.type);
@@ -1114,6 +1139,9 @@ class PreviewModeUI {
                 if (!msg?.id || !msg?.sender || !msg?.timestamp) continue;
                 if (channel.messages.some(m => m.id === msg.id)) continue;
                 if (channel._processingIds?.has(msg.id)) continue;
+                // Older history is ingested here rather than through the
+                // subscription handler, so the cut applies again.
+                if (!await this._readOnlyAllows(channel, msg.sender)) continue;
                 channel._processingIds?.add(msg.id);
 
                 try {
