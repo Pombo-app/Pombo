@@ -10,7 +10,7 @@
  * but only actively use one at a time.
  */
 
-import { streamrController, STREAM_CONFIG, deriveEphemeralId, deriveAdminId } from './streamr.js';
+import { streamrController, STREAM_CONFIG, deriveEphemeralId, deriveAdminId, deriveInteractionsId } from './streamr.js';
 import { channelManager } from './channels.js';
 import { channelLatestMessageManager } from './channelLatestMessageManager.js';
 import { adminStatePoller } from './adminStatePoller.js';
@@ -253,23 +253,33 @@ class SubscriptionManager {
         // and the empty-state render keeps the spinner indefinitely.
         let historyCompleteFired = false;
         let previewHistorySafetyTimer = null;
-        const wrappedOnHistoryComplete = onHistoryComplete
-            ? (stats) => {
-                if (historyCompleteFired) return;
-                historyCompleteFired = true;
-                if (previewHistorySafetyTimer) {
-                    clearTimeout(previewHistorySafetyTimer);
-                    previewHistorySafetyTimer = null;
-                }
-                try { onHistoryComplete(stats); }
-                catch (e) { Logger.warn('preview onHistoryComplete error:', e?.message || e); }
+        let historyStats = null;
+        // Nothing is painted until every source that can change what a message
+        // looks like has been read: content, the control overrides, and the
+        // reactions on the -5.
+        let pendingHistoryGates = 2;
+        const fireHistoryComplete = () => {
+            if (historyCompleteFired || !onHistoryComplete) return;
+            historyCompleteFired = true;
+            if (previewHistorySafetyTimer) {
+                clearTimeout(previewHistorySafetyTimer);
+                previewHistorySafetyTimer = null;
             }
-            : null;
+            try { onHistoryComplete(historyStats); }
+            catch (e) { Logger.warn('preview onHistoryComplete error:', e?.message || e); }
+        };
+        const releaseHistoryGate = (stats) => {
+            if (stats) historyStats = stats;
+            if (--pendingHistoryGates > 0) return;
+            fireHistoryComplete();
+        };
+        const wrappedOnHistoryComplete = onHistoryComplete ? releaseHistoryGate : null;
+        this._previewOnHistoryComplete = onHistoryComplete;
         if (wrappedOnHistoryComplete) {
             previewHistorySafetyTimer = setTimeout(() => {
                 if (historyCompleteFired) return;
                 Logger.warn(`Preview history safety timeout for ${messageStreamId.slice(-20)}`);
-                wrappedOnHistoryComplete(null);
+                fireHistoryComplete();
             }, 30000);
         }
 
@@ -347,6 +357,29 @@ class SubscriptionManager {
                 STREAM_CONFIG.INITIAL_MESSAGES, // historyCount - load recent messages
                 wrappedOnHistoryComplete // safety-wrapped callback (forces fire after 30s)
             );
+
+            // Reactions live on the -5, which the dual stream does not cover.
+            // The join reuses this subscription rather than making its own.
+            const interactionsStreamId = deriveInteractionsId(messageStreamId);
+            try {
+                await streamrController.subscribeToPartition(
+                    interactionsStreamId,
+                    STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS,
+                    (data) => channelManager.handleControlMessage(messageStreamId, data),
+                    null
+                );
+                await streamrController.fetchHistoryAsync(
+                    interactionsStreamId,
+                    STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS,
+                    STREAM_CONFIG.INITIAL_MESSAGES,
+                    (data) => channelManager.handleControlMessage(messageStreamId, data),
+                    null, null, false, { quiet: true }
+                );
+            } catch (e) {
+                Logger.warn('Preview interactions subscription failed:', e.message);
+            } finally {
+                releaseHistoryGate();
+            }
 
             // If a newer preview has claimed the slot while we were
             // subscribing, undo this subscription so it doesn't leak
@@ -517,9 +550,10 @@ class SubscriptionManager {
             channelManager.handlePresenceMessage(streamId, msg);
         } else if (msg.type === 'typing') {
             // Use account from Streamr SDK (cryptographically guaranteed)
-            channelManager.notifyHandlers('typing', { 
-                streamId: streamId, 
-                user: msg.account || msg.user 
+            channelManager.notifyHandlers('typing', {
+                streamId: streamId,
+                user: msg.account || msg.user,
+                nickname: msg.nickname || null
             });
         } else if (msg.type === 'admin_invalidate') {
             // Apply the canonical ADMIN_STATE snapshot embedded in the
@@ -699,6 +733,16 @@ class SubscriptionManager {
             Logger.warn('Error unsubscribing from preview:', error.message);
         }
 
+        // The -5 was subscribed beside the pair; a channel the user joins from
+        // here re-subscribes it, so leaving it open would double-deliver.
+        if (!channelManager.getChannel(streamId)) {
+            try {
+                await streamrController.unsubscribe(deriveInteractionsId(streamId));
+            } catch (error) {
+                Logger.debug('Preview interactions unsubscribe failed:', error.message);
+            }
+        }
+
         this.previewChannelId = null;
     }
 
@@ -746,6 +790,39 @@ class SubscriptionManager {
         }
 
         Logger.debug('Preview promoted - subscription reused, handlers auto-forward');
+    }
+
+    /**
+     * Re-read the preview's history over the subscriptions it already holds.
+     *
+     * Keys land after the first resend on a cold gated open, so what could not
+     * be opened then has to be read again — over the subscriptions already
+     * held, rendering once at the end.
+     *
+     * @param {string} messageStreamId - The preview to refresh
+     */
+    async refreshPreviewHistory(messageStreamId) {
+        if (this.previewChannelId !== messageStreamId) return;
+        const count = STREAM_CONFIG.INITIAL_MESSAGES;
+        const reads = [
+            [messageStreamId, STREAM_CONFIG.MESSAGE_STREAM.MESSAGES,
+                (data) => this._handlePreviewMessage(messageStreamId, data)],
+            [messageStreamId, STREAM_CONFIG.MESSAGE_STREAM.CONTROL,
+                (data) => this._handlePreviewOverride(messageStreamId, data)],
+            [deriveInteractionsId(messageStreamId), STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS,
+                (data) => channelManager.handleControlMessage(messageStreamId, data)]
+        ];
+        for (const [streamId, partition, handler] of reads) {
+            try {
+                await streamrController.fetchHistoryAsync(
+                    streamId, partition, count, handler, null, null, false, { quiet: true });
+            } catch (e) {
+                Logger.debug('preview refresh failed on', streamId.slice(-24), e?.message || e);
+            }
+            if (this.previewChannelId !== messageStreamId) return;
+        }
+        try { this._previewOnHistoryComplete?.(null); }
+        catch (e) { Logger.warn('preview refresh render failed:', e?.message || e); }
     }
 
     /**

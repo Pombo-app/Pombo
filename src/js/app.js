@@ -630,7 +630,10 @@ class App {
             }
             
             const currentChannel = channelManager.getCurrentChannel();
-            const currentStreamId = currentChannel?.streamId;
+            // Reactions and the rest key off the current channel, which a
+            // preview does not set.
+            const currentStreamId = currentChannel?.streamId
+                ?? channelManager.previewChannel?.messageStreamId;
             
             if (event === 'message') {
                 chatAreaUI.updateUnreadCount(data.streamId);
@@ -744,13 +747,13 @@ class App {
             } else if (event === 'history_batch_loaded') {
                 if (data.streamId === currentStreamId) {
                     const channel = channelManager.getCurrentChannel();
-                    // Always render on batch completion — ChatAreaUI now renders
-                    // cached content even during initialLoadInProgress. This is
-                    // critical because, for some channels (notably legacy
-                    // channels with partitionCount=1), the SDK resend iterator
-                    // never signals `done`, so onHistoryComplete may never fire
-                    // and `initialLoadInProgress` stays true indefinitely.
-                    if (channel) {
+                    // Not while the initial load runs: a batch painted before
+                    // its edits and deletes have been read shows text that is
+                    // about to change and messages that are about to vanish.
+                    // The load always ends — `initial_history_complete` fires
+                    // on completion or on the safety timeout — and that is
+                    // where the conversation is painted, once.
+                    if (channel && !channel.initialLoadInProgress) {
                         chatAreaUI.renderMessages(channel.messages, () => {
                             uiController.attachReactionListeners();
                             mediaHandler.attachLightboxListeners();

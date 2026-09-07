@@ -6,7 +6,7 @@
 import { Logger } from '../logger.js';
 import { authManager } from '../auth.js';
 import { STREAM_CONFIG } from '../streamr.js';
-import { deriveKeysId } from '../streamConstants.js';
+import { deriveKeysId, deriveInteractionsId } from '../streamConstants.js';
 import { mediaController } from '../media.js';
 import { secureStorage } from '../secureStorage.js';
 import { CONFIG } from '../config.js';
@@ -169,6 +169,11 @@ class PreviewModeUI {
                 name: this._getChannelDisplayName(streamId, channelInfo),
                 type: channelInfo?.type || 'public',
                 readOnly: channelInfo?.readOnly || false,
+                // Without the mode a Sealed channel is previewed as Visible, and
+                // what is published from here goes out unreadable.
+                wireIdentity: channelInfo?.wireIdentity || null,
+                // Reactions ride the -5, in a preview as anywhere else.
+                interactionsStreamId: deriveInteractionsId(streamId),
                 ...(gatedPreview || {}),
                 password: null, // Preview mode doesn't have password (public channels only)
                 // Admin/moderation layer (rebuilt on subscribe to -3/P0)
@@ -197,6 +202,17 @@ class PreviewModeUI {
                 // resolve channels through channelManager, and a preview lives
                 // outside the map — this is what lights the gated paths up.
                 channelManager.previewChannel = ownerChannel;
+
+                // Explore does not always carry the mode, so the gate settles it
+                // before anything is published or read here. Awaited: the same
+                // read carries the read-only flag the reader cut needs.
+                ownerChannel._wireIdentityGuessed = true;
+                try {
+                    await channelManager.ensureGateAuthority(ownerChannel);
+                } catch (e) {
+                    Logger.debug('preview: gate authority unresolved:', e?.message || e);
+                }
+                if (gen !== this.previewGeneration) return;
                 const { streamrController } = await import('../streamr.js');
                 const { epochKeyManager } = await import('../epochKeyManager.js');
                 await streamrController.subscribeToKeysStream(
@@ -205,14 +221,15 @@ class PreviewModeUI {
                         epochKeyManager.handleKeysMessage(ownerChannel, data, publisherId, timestamp));
                 await epochKeyManager.ensureChannelKeys(ownerChannel);
                 if (gen !== this.previewGeneration) return;
-                // First visit: the wraps land AFTER the resend below (N-B
-                // rank delay) — re-enter once on adoption so history opens.
+                // First visit: the wraps land AFTER the resend below (N-B rank
+                // delay), so what could not be opened then is read again once
+                // the key is in — over the same subscriptions.
                 epochKeyManager.onKeyAdopted(streamId, () => {
                     if (this.previewChannel !== ownerChannel) return;
                     clearTimeout(this._previewKeyRefreshTimer);
                     this._previewKeyRefreshTimer = setTimeout(() => {
                         if (this.previewChannel !== ownerChannel) return;
-                        this.enterPreviewWithoutHistory(streamId, channelInfo).catch(() => {});
+                        subscriptionManager.refreshPreviewHistory(streamId).catch(() => {});
                     }, 1500);
                 });
             }
@@ -313,13 +330,22 @@ class PreviewModeUI {
         // is built on, under a header still captioned Explore.
         document.body.classList.remove('explore-open', 'explore-header-retracted');
 
-        // Clear messages area first and show loading spinner
-        elements.messagesArea.innerHTML = `
-            <div class="flex flex-col items-center justify-center h-full text-white/40">
-                <div class="spinner mb-3" style="width: 24px; height: 24px;"></div>
-                <span class="text-sm">Loading messages...</span>
-            </div>
-        `;
+        // The spinner belongs to the load, not over a conversation that is
+        // already in: this runs after the subscribe whose callback renders.
+        if (!ownerChannel.initialLoadInProgress && ownerChannel.messages?.length) {
+            const { chatAreaUI, mediaHandler } = this.deps;
+            chatAreaUI.renderMessages(ownerChannel.messages, () => {
+                this.ui.attachReactionListeners();
+                mediaHandler.attachLightboxListeners();
+            });
+        } else {
+            elements.messagesArea.innerHTML = `
+                <div class="flex flex-col items-center justify-center h-full text-white/40">
+                    <div class="spinner mb-3" style="width: 24px; height: 24px;"></div>
+                    <span class="text-sm">Loading messages...</span>
+                </div>
+            `;
+        }
         elements.messagesArea?.classList.add('p-4');
         
         // Set a flag to track if we're still loading
@@ -433,6 +459,7 @@ class PreviewModeUI {
             }
             
             // Update input state
+            document.body.classList.toggle('cannot-write', !canPublish);
             if (!canPublish) {
                 const messageInput = elements.messageInput;
                 const sendBtn = document.querySelector('#send-btn');
@@ -490,6 +517,9 @@ class PreviewModeUI {
                 readOnly: readOnly,
                 gateAddress: this.previewChannel.gate?.address
                     || channelInfo?.gateAddress || null,
+                // The mode the preview settled against the gate: without it the
+                // joined record would guess, and publishing cannot guess.
+                wireIdentity: this.previewChannel.wireIdentity || null,
                 createdBy: channelInfo?.createdBy,
                 messages: messages || [],
                 reactions: reactionManager.exportAsObject(),
@@ -664,8 +694,10 @@ class PreviewModeUI {
         if (!channelManager?.applyAdminState) return;
         const applied = channelManager.applyAdminState(this.previewChannel, adminMsg);
         if (!applied) return;
-        // Re-render preview timeline to drop banned/hidden messages
-        if (chatAreaUI?.renderMessages) {
+        // Re-render preview timeline to drop banned/hidden messages, unless
+        // the initial load is still running: the conversation is painted once,
+        // at the end, with every override already applied.
+        if (chatAreaUI?.renderMessages && !this.previewChannel.initialLoadInProgress) {
             chatAreaUI.renderMessages(this.previewChannel.messages, () => {
                 this.ui?.attachReactionListeners?.();
                 this.deps.mediaHandler?.attachLightboxListeners?.();
@@ -677,6 +709,27 @@ class PreviewModeUI {
      * Handle message received in preview mode
      * @param {Object} message - Message object
      */
+    /**
+     * The reader cut a joined channel applies (MessageFlow: read-only drops
+     * member-authored messages), for the preview's two ingest paths — the
+     * subscription and the older-history pagination. What a preview lets in is
+     * copied into the channel record at join, where nothing judges it again.
+     *
+     * @param {Object} channel - The preview channel
+     * @param {string} sender - The message's author
+     * @returns {Promise<boolean>} false when the reader must drop it
+     */
+    async _readOnlyAllows(channel, sender) {
+        if (!channel?.gate?.address || !channel.readOnly) return true;
+        const author = String(sender || '').toLowerCase();
+        if (!author) return true;
+        const ownerAddr = (channel.createdBy
+            || channel.messageStreamId?.split('/')[0] || '').toLowerCase();
+        if (author === ownerAddr) return true;
+        const { gateManager } = await import('../gate.js');
+        return gateManager._isModerator(channel.gate.address, author).catch(() => false);
+    }
+
     async handlePreviewMessage(message) {
         if (!this.previewChannel) return;
 
@@ -708,6 +761,10 @@ class PreviewModeUI {
         if (!message?.id || !message?.sender || !message?.timestamp) {
             return;
         }
+
+        const previewOwner = this.previewChannel;
+        if (!await this._readOnlyAllows(previewOwner, message.sender)) return;
+        if (this.previewChannel !== previewOwner) return;
 
         if (!isTextMessage && !isImageMessage && !isVideoMessage) {
             Logger.debug('Preview: Unknown message type, skipping:', message?.type);
@@ -801,15 +858,14 @@ class PreviewModeUI {
             // `_deleted` and `type:'edit'|'delete'`, so flagging is enough.
             this._applyPreviewOverrides();
 
-            // Always render — ChatAreaUI gates to spinner only when there are no
-            // cached messages. This safety net ensures messages become visible even
-            // if the SDK resend iterator never signals `done` (observed with some
-            // legacy streams), which would otherwise leave `initialLoadInProgress`
-            // stuck at true and suppress the final onHistoryComplete render.
-            chatAreaUI.renderMessages(ownerChannel.messages, () => {
-                this.ui.attachReactionListeners();
-                mediaHandler.attachLightboxListeners();
-            });
+            // Nothing is painted while the initial load runs. It always ends:
+            // when the three sources are in, or when the safety timer fires.
+            if (!ownerChannel.initialLoadInProgress) {
+                chatAreaUI.renderMessages(ownerChannel.messages, () => {
+                    this.ui.attachReactionListeners();
+                    mediaHandler.attachLightboxListeners();
+                });
+            }
 
             // Scroll to bottom
             if (this.ui.elements.messagesArea) {
@@ -840,7 +896,9 @@ class PreviewModeUI {
 
         this._applyOrQueuePreviewOverride(override);
 
-        if (chatAreaUI?.renderMessages) {
+        // Same rule: while the initial load runs, an override changes the
+        // model and nothing else.
+        if (chatAreaUI?.renderMessages && !this.previewChannel.initialLoadInProgress) {
             chatAreaUI.renderMessages(this.previewChannel.messages, () => {
                 this.ui?.attachReactionListeners?.();
                 mediaHandler?.attachLightboxListeners?.();
@@ -1082,6 +1140,9 @@ class PreviewModeUI {
                 if (!msg?.id || !msg?.sender || !msg?.timestamp) continue;
                 if (channel.messages.some(m => m.id === msg.id)) continue;
                 if (channel._processingIds?.has(msg.id)) continue;
+                // Older history is ingested here rather than through the
+                // subscription handler, so the cut applies again.
+                if (!await this._readOnlyAllows(channel, msg.sender)) continue;
                 channel._processingIds?.add(msg.id);
 
                 try {

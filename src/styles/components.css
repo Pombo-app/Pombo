@@ -1006,6 +1006,12 @@ body {
     bottom: 28px;
 }
 
+/* Replying is writing, so it follows the composer. Reactions do not: they
+   ride the -5, where a member of a read-only channel takes part. */
+body.cannot-write .reply-trigger {
+    display: none;
+}
+
 .own-message .react-trigger,
 .own-message .reply-trigger {
     left: -28px;
@@ -1397,6 +1403,17 @@ body {
     40% {
         transform: scale(1.0);
     }
+}
+
+/* The row holds its height whether anyone is typing or not: the conversation
+   above it must not move. Only the contents are hidden. */
+#typing-indicator {
+    min-height: 1.75rem;
+}
+
+#typing-indicator.hidden {
+    display: block;
+    visibility: hidden;
 }
 
 .typing-dot {

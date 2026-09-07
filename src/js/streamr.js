@@ -135,6 +135,10 @@ class StreamrController {
      * answers for everyone at once, which is the common case.
      */
     async publisherMayWrite(streamId, message) {
+        // Presence and reactions ride per-channel identities that hold no
+        // grant of their own: that is what lets a member participate where
+        // they cannot post, so those streams are not filtered here.
+        if (isEphemeralStream(streamId) || isInteractionsStream(streamId)) return true;
         const publisherId = typeof message?.getPublisherId === 'function'
             ? message.getPublisherId()
             : (message?.messageId?.publisherId ?? message?.publisherId);
@@ -2029,7 +2033,11 @@ class StreamrController {
         try {
             const { channelManager } = await import('./channels.js');
             const base = String(streamId).replace(/-[12345]$/, '');
-            return channelManager?.channels?.get(base + '-1') ?? null;
+            // A preview lives outside the map, and its reactions belong on the
+            // -5 like everyone else's.
+            return channelManager?.channels?.get(base + '-1')
+                ?? (channelManager?.previewChannel?.messageStreamId === base + '-1'
+                    ? channelManager.previewChannel : null);
         } catch {
             return null;
         }
@@ -2133,7 +2141,9 @@ class StreamrController {
         // The gate grants publish to every member, so read-only only holds if
         // readers cut it — history included, since a member never wrote there
         // legitimately. Sealed needs none of this: no publish key, no message.
-        if (channel.readOnly && !isAdminStream(streamId) && !isKeysStream(streamId)) {
+        // Only the conversation is cut: the -2 and -5 are where a member of a
+        // read-only channel takes part.
+        if (channel.readOnly && isMessageStream(streamId)) {
             const { gateManager } = await import('./gate.js');
             if (!await gateManager.canModerate(channel.gate.address, signer)) {
                 Logger.info(`resolveAuthor: ${signer} is not a writer on read-only ${streamId} — dropping`);
@@ -2247,9 +2257,16 @@ class StreamrController {
             ({ channelManager } = await import('./channels.js'));
         } catch { /* registry unavailable → ephemeral (public/password) */ }
 
-        if (channelManager?.usesAccountPublish?.(streamId)) {
-            const base = String(streamId).replace(/-[12345]$/, '');
-            const channel = channelManager.channels?.get(base + '-1');
+        // A gated preview lives outside the channel map, as it does for reads
+        // (_gatedChannelFor): publishing from one still goes out as the channel.
+        const base = String(streamId).replace(/-[12345]$/, '');
+        const record = channelManager?.channels?.get(base + '-1')
+            ?? (channelManager?.previewChannel?.messageStreamId === base + '-1'
+                ? channelManager.previewChannel : null);
+
+        if (record?.type === 'gated' || record?.gate?.address
+            || channelManager?.usesAccountPublish?.(streamId)) {
+            const channel = record;
             if (channel?.type === 'gated' || channel?.gate?.address) {
                 // Errors here MUST propagate: falling through to the ephemeral
                 // path would put an unencrypted payload under a key that holds
@@ -2332,7 +2349,11 @@ class StreamrController {
         // the message by hand skipped that, and the network relays regardless —
         // so a publish nobody may make still reaches storage, where only a
         // validating reader ever refuses it. Ask here, as the SDK would.
-        if (!await this.mayPublishAs(streamId, onWirePublisher, { refreshOnDeny: true })) {
+        // Only for the conversation: presence and reactions go out under
+        // per-channel identities that hold no grant of their own, which is
+        // what makes them work in a channel where members cannot post.
+        if (isMessageStream(streamId)
+            && !await this.mayPublishAs(streamId, onWirePublisher, { refreshOnDeny: true })) {
             throw new Error(
                 `Refusing to publish to ${streamId}: ${onWirePublisher} holds no PUBLISH permission`);
         }
@@ -2455,6 +2476,16 @@ class StreamrController {
     async publishEpochEncrypted(channel, streamId, partition, data) {
         if (!this._accountIdentity) {
             throw new Error('Account identity unavailable — check streamr-bundle.js');
+        }
+        // The mode decides whether this message carries an authorship wrapper,
+        // so it is settled against the contract before the first publish.
+        if (channel?._wireIdentityGuessed) {
+            try {
+                const { channelManager } = await import('./channels.js');
+                await channelManager.ensureGateAuthority(channel);
+            } catch (e) {
+                Logger.warn('Gate authority unresolved before publish:', e.message);
+            }
         }
         const { epochKeyManager } = await import('./epochKeyManager.js');
         const { epochKeyCrypto } = await import('./epochKeyCrypto.js');
