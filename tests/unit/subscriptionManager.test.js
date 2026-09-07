@@ -27,18 +27,21 @@ vi.mock('../../src/js/streamr.js', () => ({
         resendAdminState: vi.fn().mockResolvedValue(null),
         publishControl: vi.fn().mockResolvedValue(undefined),
         fetchOlderHistory: vi.fn().mockResolvedValue({ messages: [] }),
-        fetchHistoryAsync: vi.fn().mockResolvedValue(undefined)
+        fetchHistoryAsync: vi.fn().mockResolvedValue(undefined),
+        subscribeToPartition: vi.fn().mockResolvedValue(undefined)
     },
-    STREAM_CONFIG: { 
+    STREAM_CONFIG: {
         partitions: 1,
         INITIAL_MESSAGES: 50,
         ADMIN_HISTORY_COUNT: 10,
         MESSAGE_STREAM: { MESSAGES: 0, CONTROL: 1 },
         EPHEMERAL_STREAM: { CONTROL: 0, MEDIA_SIGNALS: 1, MEDIA_DATA: 2 },
-        ADMIN_STREAM: { MODERATION: 0 }
+        ADMIN_STREAM: { MODERATION: 0 },
+        INTERACTIONS_STREAM: { REACTIONS: 0 }
     },
     deriveEphemeralId: vi.fn((id) => `${id}/ephemeral`),
-    deriveAdminId: vi.fn((id) => `${id}/admin`)
+    deriveAdminId: vi.fn((id) => `${id}/admin`),
+    deriveInteractionsId: vi.fn((id) => `${id}/interactions`)
 }));
 
 vi.mock('../../src/js/memberCatchUp.js', () => ({

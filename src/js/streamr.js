@@ -2033,7 +2033,11 @@ class StreamrController {
         try {
             const { channelManager } = await import('./channels.js');
             const base = String(streamId).replace(/-[12345]$/, '');
-            return channelManager?.channels?.get(base + '-1') ?? null;
+            // A preview lives outside the map, and its reactions belong on the
+            // -5 like everyone else's.
+            return channelManager?.channels?.get(base + '-1')
+                ?? (channelManager?.previewChannel?.messageStreamId === base + '-1'
+                    ? channelManager.previewChannel : null);
         } catch {
             return null;
         }
@@ -2253,9 +2257,16 @@ class StreamrController {
             ({ channelManager } = await import('./channels.js'));
         } catch { /* registry unavailable → ephemeral (public/password) */ }
 
-        if (channelManager?.usesAccountPublish?.(streamId)) {
-            const base = String(streamId).replace(/-[12345]$/, '');
-            const channel = channelManager.channels?.get(base + '-1');
+        // A gated preview lives outside the channel map, as it does for reads
+        // (_gatedChannelFor): publishing from one still goes out as the channel.
+        const base = String(streamId).replace(/-[12345]$/, '');
+        const record = channelManager?.channels?.get(base + '-1')
+            ?? (channelManager?.previewChannel?.messageStreamId === base + '-1'
+                ? channelManager.previewChannel : null);
+
+        if (record?.type === 'gated' || record?.gate?.address
+            || channelManager?.usesAccountPublish?.(streamId)) {
+            const channel = record;
             if (channel?.type === 'gated' || channel?.gate?.address) {
                 // Errors here MUST propagate: falling through to the ephemeral
                 // path would put an unencrypted payload under a key that holds
