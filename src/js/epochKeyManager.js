@@ -199,6 +199,7 @@ class EpochKeyManager {
                 // it hears it, so on a cold subscribe the wrap regularly
                 // overtakes the announce; dropping it cost a 35s stall.
                 parkedWraps: new Map(),
+                parkedPubWraps: new Map(),
                 loaded: false
             };
             this.state.set(messageStreamId, s);
@@ -698,6 +699,9 @@ class EpochKeyManager {
      * keyId/keyHash/addr/rev), exactly like the epoch re-announce.
      */
     async _maybeAnnounceInteractions(channel, s) {
+        // Never mint one here: the -2 and -5 grant PUBLISH to the address of
+        // the key minted at channel creation. A lost key needs a re-key, which
+        // is on-chain work.
         if (!usesSharedPublish(channel) || !s.intKey) return;
         if (s.intAnnounce && s.intAnnounce.rev > s.intKey.rev) return;
         const retentionMs = keysRetentionDays(channel) * 86_400_000;
@@ -982,7 +986,12 @@ class EpochKeyManager {
             case KEYS_MSG_TYPE.PUB_ANNOUNCE:
                 if (this._applyPubAnnounce(channel, s, data, publisherId, timestamp)) {
                     await this._persist(channel.messageStreamId, s);
-                    if (this._needsPubKey(channel, s)) {
+                    const waiting = s.parkedPubWraps.get(data.keyId) || [];
+                    s.parkedPubWraps.delete(data.keyId);
+                    for (const wrap of waiting) await this._handlePubWrap(channel, s, wrap);
+                    // The interactions key is asked for beside the epoch keys:
+                    // it is the one reactions and presence ride under.
+                    if (this._needsPubKey(channel, s) || this._needsInteractionsKey(channel, s)) {
                         await this._sendKeyRequest(channel, s);
                     }
                 }
@@ -1074,7 +1083,13 @@ class EpochKeyManager {
         const isInteractions = data.k === 'i';
         const announce = isInteractions ? s.intAnnounce : s.pubAnnounce;
         const keySlot = isInteractions ? 'intKey' : 'pubKey';
-        if (!announce || data.keyId !== announce.keyId) return;
+        // Same race as the epoch wraps: the responder answers the moment it
+        // hears the request, so the wrap can overtake the announce that says
+        // what it should hash to.
+        if (!announce || data.keyId !== announce.keyId) {
+            this._parkPubWrap(s, data);
+            return;
+        }
         if (s[keySlot]?.keyId === data.keyId) return;                     // already held
         if (typeof data.tag !== 'string') return;
 
@@ -1135,12 +1150,22 @@ class EpochKeyManager {
     _parkWrap(s, data) {
         const epoch = Number(data?.epoch) || 0;
         if (epoch < 1) return;
-        const forEpoch = s.parkedWraps.get(epoch) || [];
-        if (forEpoch.length >= PARKED_WRAPS_PER_EPOCH) return;
-        forEpoch.push(data);
-        s.parkedWraps.set(epoch, forEpoch);
-        while (s.parkedWraps.size > PARKED_EPOCHS) {
-            s.parkedWraps.delete(s.parkedWraps.keys().next().value);
+        this._park(s.parkedWraps, epoch, data);
+    }
+
+    /** The shared keys ride PUB_WRAP and are addressed by keyId, not epoch. */
+    _parkPubWrap(s, data) {
+        if (typeof data?.keyId !== 'string' || !data.keyId) return;
+        this._park(s.parkedPubWraps, data.keyId, data);
+    }
+
+    _park(parked, key, data) {
+        const waiting = parked.get(key) || [];
+        if (waiting.length >= PARKED_WRAPS_PER_EPOCH) return;
+        waiting.push(data);
+        parked.set(key, waiting);
+        while (parked.size > PARKED_EPOCHS) {
+            parked.delete(parked.keys().next().value);
         }
     }
 

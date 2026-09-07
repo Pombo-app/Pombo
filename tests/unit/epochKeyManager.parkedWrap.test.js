@@ -49,3 +49,32 @@ describe('parked wraps', () => {
         expect(s.parkedWraps.has(40)).toBe(true);
     });
 });
+
+/**
+ * Losing this race is worse than losing the epoch one: a member who never
+ * adopts the interactions key cannot react at all, in a read-only channel
+ * where reacting is the whole of participation.
+ */
+describe('parked shared-key wraps', () => {
+    let s;
+    beforeEach(() => { s = { parkedPubWraps: new Map() }; });
+
+    it('holds a wrap until the announce for that keyId arrives', () => {
+        epochKeyManager._parkPubWrap(s, { keyId: 'int-1', k: 'i' });
+        expect(s.parkedPubWraps.get('int-1')).toHaveLength(1);
+        expect(s.parkedPubWraps.has('pub-1')).toBe(false);
+    });
+
+    it('ignores a wrap with no keyId to wait on', () => {
+        epochKeyManager._parkPubWrap(s, { k: 'i' });
+        epochKeyManager._parkPubWrap(s, { keyId: '' });
+        expect(s.parkedPubWraps.size).toBe(0);
+    });
+
+    it('bounds the wait list', () => {
+        for (let i = 0; i < 50; i++) epochKeyManager._parkPubWrap(s, { keyId: 'int-1' });
+        expect(s.parkedPubWraps.get('int-1')).toHaveLength(4);
+        for (let i = 1; i <= 40; i++) epochKeyManager._parkPubWrap(s, { keyId: `k${i}` });
+        expect(s.parkedPubWraps.size).toBe(8);
+    });
+});
