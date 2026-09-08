@@ -20,6 +20,7 @@ import { dmManager } from './dm.js';
 import { dmCrypto } from './dmCrypto.js';
 import { CONFIG } from './config.js';
 import { StorageError } from './utils/errors.js';
+import { isMessageStream } from './streamConstants.js';
 import { mediaController } from './media.js';
 import { adminStatePoller } from './adminStatePoller.js';
 import { channelImageManager } from './channelImageManager.js';
@@ -2776,8 +2777,13 @@ class ChannelManager {
         // By TYPE, not by gate.address — a gated channel whose gate is still
         // being repaired must fail loudly in the gated path, never fall
         // through to an ephemeral publish the network rejects.
-        return !!ch && (ch.type === 'gated'
-            || ch.readOnly === true || !!ch.gate?.address);
+        //
+        // Read-only reaches only the conversation: the -1 grant is the write
+        // restriction, so publishing there is the account's. The -2 and -5 are
+        // granted publicly even on a read-only channel, and go out under the
+        // channel's pseudonym like everywhere else (D2).
+        return !!ch && (ch.type === 'gated' || !!ch.gate?.address
+            || (ch.readOnly === true && isMessageStream(streamId)));
     }
 
     /**
