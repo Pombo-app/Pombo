@@ -610,6 +610,24 @@ describe('AvatarGenerator', () => {
             expect(html).toContain('<svg');
         });
 
+        it('escapes a quote in the avatar URL so it cannot break out of src', () => {
+            // The scheme check is a prefix test, so this passes it — the fix is
+            // escaping the attribute value, not the scheme.
+            const evil = 'https://x" onerror="alert(document.cookie)';
+            const html = getAvatarHtml(address, 32, 0.5, evil);
+            expect(html).not.toContain('" onerror="');
+            expect(html).toContain('&quot;');
+            document.body.innerHTML = `<div id="slot">${html}</div>`;
+            const img = document.querySelector('#slot img.ens-avatar');
+            expect(img).not.toBeNull();
+            expect(img.hasAttribute('onerror')).toBe(false);
+            expect(img.getAttribute('src')).toBe(evil);
+        });
+
+        it('leaves a normal avatar URL intact', () => {
+            expect(getAvatarHtml(address, 32, 0.5, remote)).toContain(`src="${remote}"`);
+        });
+
         it('downgrades avatars already on screen', () => {
             document.body.innerHTML = `<div id="slot">${getAvatarHtml(address, 32, 0.5, remote)}</div>`;
             expect(document.querySelectorAll('img.ens-avatar').length).toBe(1);
