@@ -14,6 +14,7 @@ import { dmManager } from '../dm.js';
 import { CONFIG } from '../config.js';
 import { mediaController } from '../media.js';
 import { adminStatePoller } from '../adminStatePoller.js';
+import { messageTime } from '../utils/messageTime.js';
 
 export class MessageFlow {
     /**
@@ -321,8 +322,8 @@ export class MessageFlow {
         channel.messages.push(data);
         
         // Update oldest timestamp for pagination
-        if (!channel.oldestTimestamp || data.timestamp < channel.oldestTimestamp) {
-            channel.oldestTimestamp = data.timestamp;
+        if (!channel.oldestTimestamp || messageTime(data) < channel.oldestTimestamp) {
+            channel.oldestTimestamp = messageTime(data);
         }
         
         // Sort to maintain chronological order (in case of out-of-order delivery)
@@ -438,8 +439,8 @@ export class MessageFlow {
             addedCount++;
             
             // Update oldest timestamp
-            if (!channel.oldestTimestamp || data.timestamp < channel.oldestTimestamp) {
-                channel.oldestTimestamp = data.timestamp;
+            if (!channel.oldestTimestamp || messageTime(data) < channel.oldestTimestamp) {
+                channel.oldestTimestamp = messageTime(data);
             }
         }
         
@@ -685,7 +686,7 @@ export class MessageFlow {
      */
     sortMessagesByTimestamp(channel) {
         if (!channel || !channel.messages) return;
-        channel.messages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        channel.messages.sort((a, b) => messageTime(a) - messageTime(b));
     }
 
     /**
@@ -889,8 +890,8 @@ export class MessageFlow {
                     // initial resend window but whose chunks fall outside.
                     if (typeof mediaController?.isStoredImageChunkMessage === 'function'
                         && mediaController.isStoredImageChunkMessage(msg)) {
-                        if (msg.timestamp && (!channel.oldestTimestamp || msg.timestamp < channel.oldestTimestamp)) {
-                            channel.oldestTimestamp = msg.timestamp;
+                        if (messageTime(msg) && (!channel.oldestTimestamp || messageTime(msg) < channel.oldestTimestamp)) {
+                            channel.oldestTimestamp = messageTime(msg);
                         }
                         try {
                             await mediaController.registerStoredImageChunk(messageStreamId, msg);
@@ -907,16 +908,16 @@ export class MessageFlow {
                             this.manager.storeReaction(channel, msg.messageId, msg.emoji, reactionUser, msg.action || 'add');
                         }
                         // Track oldest timestamp from reactions too (for pagination progress)
-                        if (msg.timestamp && (!channel.oldestTimestamp || msg.timestamp < channel.oldestTimestamp)) {
-                            channel.oldestTimestamp = msg.timestamp;
+                        if (messageTime(msg) && (!channel.oldestTimestamp || messageTime(msg) < channel.oldestTimestamp)) {
+                            channel.oldestTimestamp = messageTime(msg);
                         }
                         continue;
                     }
 
                     // Legacy fallback path: stream has no control partition, overrides come from P0
                     if (!supportsControlPartition && (msg?.type === 'edit' || msg?.type === 'delete')) {
-                        if (msg.timestamp && (!channel.oldestTimestamp || msg.timestamp < channel.oldestTimestamp)) {
-                            channel.oldestTimestamp = msg.timestamp;
+                        if (messageTime(msg) && (!channel.oldestTimestamp || messageTime(msg) < channel.oldestTimestamp)) {
+                            channel.oldestTimestamp = messageTime(msg);
                         }
                         overrides.push(msg);
                         continue;
@@ -982,8 +983,8 @@ export class MessageFlow {
                         addedCount++;
                         
                         // Update oldest timestamp
-                        if (!channel.oldestTimestamp || msg.timestamp < channel.oldestTimestamp) {
-                            channel.oldestTimestamp = msg.timestamp;
+                        if (!channel.oldestTimestamp || messageTime(msg) < channel.oldestTimestamp) {
+                            channel.oldestTimestamp = messageTime(msg);
                         }
                     }
                     
