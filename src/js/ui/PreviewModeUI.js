@@ -11,6 +11,7 @@ import { mediaController } from '../media.js';
 import { secureStorage } from '../secureStorage.js';
 import { CONFIG } from '../config.js';
 import { escapeAttr } from './utils.js';
+import { messageTime } from '../utils/messageTime.js';
 
 class PreviewModeUI {
     constructor() {
@@ -837,15 +838,15 @@ class PreviewModeUI {
             ownerChannel.isLoading = false;
 
             // Track oldest timestamp for pagination (scroll-to-top load-more)
-            if (!ownerChannel.oldestTimestamp || message.timestamp < ownerChannel.oldestTimestamp) {
-                ownerChannel.oldestTimestamp = message.timestamp;
+            if (!ownerChannel.oldestTimestamp || messageTime(message) < ownerChannel.oldestTimestamp) {
+                ownerChannel.oldestTimestamp = messageTime(message);
             }
 
             // Add message to preview channel
             ownerChannel.messages.push(message);
 
             // Sort by timestamp to ensure correct order
-            ownerChannel.messages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            ownerChannel.messages.sort((a, b) => messageTime(a) - messageTime(b));
 
             // Apply any override (edit/delete) that arrived BEFORE this
             // message and was queued in `_pendingOverrides`. Race-safe by
@@ -988,7 +989,7 @@ class PreviewModeUI {
         
         // Add to local preview messages immediately
         this.previewChannel.messages.push(message);
-        this.previewChannel.messages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        this.previewChannel.messages.sort((a, b) => messageTime(a) - messageTime(b));
         chatAreaUI.renderMessages(this.previewChannel.messages, () => {
             this.ui.attachReactionListeners();
             mediaHandler.attachLightboxListeners();
@@ -1053,7 +1054,7 @@ class PreviewModeUI {
         // Use oldest message timestamp, or compute from existing messages, or Date.now()
         let beforeTimestamp = channel.oldestTimestamp;
         if (!beforeTimestamp && channel.messages.length > 0) {
-            beforeTimestamp = Math.min(...channel.messages.map(m => m.timestamp || Infinity));
+            beforeTimestamp = Math.min(...channel.messages.map(m => messageTime(m) || Infinity));
             channel.oldestTimestamp = beforeTimestamp;
         }
         if (!beforeTimestamp) beforeTimestamp = Date.now();
@@ -1112,8 +1113,8 @@ class PreviewModeUI {
                 // before the generic incomplete-message filter drops them.
                 if (typeof mediaController?.isStoredImageChunkMessage === 'function'
                     && mediaController.isStoredImageChunkMessage(msg)) {
-                    if (msg.timestamp && (!channel.oldestTimestamp || msg.timestamp < channel.oldestTimestamp)) {
-                        channel.oldestTimestamp = msg.timestamp;
+                    if (messageTime(msg) && (!channel.oldestTimestamp || messageTime(msg) < channel.oldestTimestamp)) {
+                        channel.oldestTimestamp = messageTime(msg);
                     }
                     try {
                         await mediaController.registerStoredImageChunk(streamId, msg);
@@ -1131,8 +1132,8 @@ class PreviewModeUI {
                         );
                     }
                     // Track oldest timestamp from reactions too (for pagination progress)
-                    if (msg.timestamp && (!channel.oldestTimestamp || msg.timestamp < channel.oldestTimestamp)) {
-                        channel.oldestTimestamp = msg.timestamp;
+                    if (messageTime(msg) && (!channel.oldestTimestamp || messageTime(msg) < channel.oldestTimestamp)) {
+                        channel.oldestTimestamp = messageTime(msg);
                     }
                     continue;
                 }
@@ -1176,8 +1177,8 @@ class PreviewModeUI {
                     channel.messages.push(msg);
                     addedCount++;
 
-                    if (!channel.oldestTimestamp || msg.timestamp < channel.oldestTimestamp) {
-                        channel.oldestTimestamp = msg.timestamp;
+                    if (!channel.oldestTimestamp || messageTime(msg) < channel.oldestTimestamp) {
+                        channel.oldestTimestamp = messageTime(msg);
                     }
                 } finally {
                     channel._processingIds?.delete(msg.id);
@@ -1185,8 +1186,8 @@ class PreviewModeUI {
             }
 
             for (const override of overrideResult.messages || []) {
-                if (override?.timestamp && (!channel.oldestTimestamp || override.timestamp < channel.oldestTimestamp)) {
-                    channel.oldestTimestamp = override.timestamp;
+                if (messageTime(override) && (!channel.oldestTimestamp || messageTime(override) < channel.oldestTimestamp)) {
+                    channel.oldestTimestamp = messageTime(override);
                 }
                 this._applyOrQueuePreviewOverride(override);
             }
@@ -1195,7 +1196,7 @@ class PreviewModeUI {
             channel.messages = channel.messages.filter(m => !m._deleted);
 
             if (addedCount > 0) {
-                channel.messages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+                channel.messages.sort((a, b) => messageTime(a) - messageTime(b));
             }
 
             channel.hasMoreHistory = !!(contentResult.hasMore || overrideResult.hasMore);
