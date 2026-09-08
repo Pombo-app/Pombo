@@ -486,6 +486,15 @@ class EpochKeyManager {
      * the hook the receive path uses to retro-decrypt "waiting for key"
      * messages (Passo 5).
      */
+    /**
+     * Handler shown when the gate quorum cannot resolve access (RPCs disagree).
+     * The app wires it to a user notice; unset, the disagreement only logs.
+     * @param {(messageStreamId: string, warning: string) => void} fn
+     */
+    setGateWarningHandler(fn) {
+        this._gateWarningHandler = fn;
+    }
+
     onKeyAdopted(messageStreamId, callback) {
         if (!this.listeners.has(messageStreamId)) {
             this.listeners.set(messageStreamId, new Set());
@@ -1296,11 +1305,13 @@ class EpochKeyManager {
 
         // The write-cut for ex-members lives HERE (N-C). The requester
         // authenticated as an author (sticky isValidSignature), but the epoch
-        // key only goes to whoever passes the CURRENT gate — one cached
-        // eth_call. Fail-closed inside checkAccess: RPC trouble means no wrap
-        // from us; the requester's retry finds a healthier responder.
+        // key only goes to whoever passes the CURRENT gate. Fail-closed: RPC
+        // trouble means no wrap from us; the requester's retry finds a
+        // healthier responder.
         if (!request.requester) return;
-        const ok = await gateManager.checkAccess(channel.gate.address, request.requester);
+        const { access: ok, warn } = await gateManager.checkAccessQuorum(
+            channel.gate.address, request.requester);
+        if (warn) this._gateWarningHandler?.(channel.messageStreamId, warn);
         if (!ok) {
             Logger.info('epochKeys: KEY_REQUEST from', request.requester,
                 'refused by gate', channel.gate.address.slice(0, 10));

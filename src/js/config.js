@@ -22,8 +22,9 @@ export const RPC_ENDPOINTS = [
 /** The custom URL is a row of its own, orderable and toggleable like the rest. */
 export const RPC_CUSTOM_KEY = 'custom';
 
-/** Enabled out of the box: two providers, so one going down is not an outage. */
-export const RPC_DEFAULT_ENABLED = ['drpc', 'publicnode'];
+/** Enabled out of the box: all known providers, so a lone one going down is not
+ * an outage and access reads can be cross-checked across several. */
+export const RPC_DEFAULT_ENABLED = ['drpc', 'publicnode', 'tenderly', '1rpc'];
 
 export const CONFIG = {
     // Polygon Network Configuration

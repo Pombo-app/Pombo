@@ -57,6 +57,8 @@ class App {
             // Wire cross-module callbacks (avoids circular dependencies and window globals)
             channelManager.onChannelsSaved = () => syncManager.scheduleAutoPush();
             identityManager.onTrustedContactsChanged = () => syncManager.scheduleAutoPush();
+            epochKeyManager.setGateWarningHandler((_streamId, warning) =>
+                uiController.showNotification(warning, 'error', 8000));
             // ENS is no longer resolved during message verification (that leaked
             // the contact list to public RPCs, one lookup per message seen), so
             // names arrive after render and the chat is patched in place.

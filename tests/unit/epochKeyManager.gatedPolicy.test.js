@@ -46,7 +46,7 @@ describe('epochKeyManager._answerRequest (history scope)', () => {
             .mockImplementation(async (_sid, msg) => { published.push(msg); });
         vi.spyOn(epochKeyCrypto, 'computeWrapTag').mockResolvedValue('tag');
         vi.spyOn(epochKeyCrypto, 'wrapEpochKey').mockResolvedValue({ epk: 'e', iv: 'i', ct: 'c' });
-        vi.spyOn(gateManager, 'checkAccess').mockResolvedValue(true);
+        vi.spyOn(gateManager, 'checkAccessQuorum').mockResolvedValue({ access: true });
     });
 
     afterEach(() => {
