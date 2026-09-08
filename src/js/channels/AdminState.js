@@ -35,6 +35,50 @@ export class AdminState {
         return { bannedMembers: [], hiddenMessageIds: [], pins: [], absorbedThrough: 0 };
     }
 
+    // The last ADMIN_STATE this device applied, kept per (account, channel) so a
+    // cold session opens on the moderation it last saw and refuses a storage node
+    // that serves an older or empty snapshot. Local only — a device that has
+    // never seen the real state has no floor and takes the first snapshot.
+    _floorKey(messageStreamId) {
+        return `${(authManager.getAddress() || '').toLowerCase()}|${messageStreamId}`;
+    }
+
+    _loadFloorMap() {
+        try { return JSON.parse(localStorage.getItem('pombo_admin_floor') || '{}'); }
+        catch { return {}; }
+    }
+
+    _loadFloor(messageStreamId) {
+        const entry = this._loadFloorMap()[this._floorKey(messageStreamId)];
+        return (entry && typeof entry.rev === 'number') ? entry : null;
+    }
+
+    _persistFloor(channel) {
+        try {
+            const map = this._loadFloorMap();
+            map[this._floorKey(channel.messageStreamId)] = {
+                rev: channel.adminRev, ts: channel.adminTs, state: channel.adminSnapshot
+            };
+            localStorage.setItem('pombo_admin_floor', JSON.stringify(map));
+        } catch (e) {
+            Logger.debug('admin floor persist failed:', e?.message);
+        }
+    }
+
+    // Seed the channel from the persisted floor before the bootstrap resend, so
+    // the (rev, ts) latest-wins check then refuses anything older.
+    _seedFromFloor(channel) {
+        const saved = this._loadFloor(channel.messageStreamId);
+        if (!saved) return;
+        const rev = channel.adminRev || 0, ts = channel.adminTs || 0;
+        if (saved.rev < rev || (saved.rev === rev && saved.ts <= ts)) return;
+        channel.adminSnapshot = this.manager._normalizeAdminState(saved.state);
+        this.recompose(channel);
+        channel.adminRev = saved.rev;
+        channel.adminTs = saved.ts;
+        channel.adminLoaded = true;
+    }
+
     /** The owner's own snapshot, which is what a publish must build on. */
     _snapshot(channel) {
         return channel?.adminSnapshot || channel?.adminState || this._createEmptyAdminState();
@@ -142,6 +186,7 @@ export class AdminState {
         channel.adminRev = adminMsg.rev;
         channel.adminTs = incomingTs;
         channel.adminLoaded = true;
+        this._persistFloor(channel);
         Logger.debug('Admin state applied:', {
             streamId: channel.messageStreamId.slice(-20),
             rev: adminMsg.rev,
@@ -191,6 +236,8 @@ export class AdminState {
     async bootstrapAdminState(messageStreamId, adminStreamId, password = null) {
         const channel = this.manager.channels.get(messageStreamId);
         if (!channel) return;
+
+        this._seedFromFloor(channel);
 
         try {
             const latest = await streamrController.resendAdminState(adminStreamId, {
