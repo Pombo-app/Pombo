@@ -10,6 +10,7 @@ import { reactionManager } from './ReactionManager.js';
 import { mediaHandler } from './MediaHandler.js';
 import { previewModeUI } from './PreviewModeUI.js';
 import { pinnedBannerUI } from './PinnedBannerUI.js';
+import { messageTime } from '../utils/messageTime.js';
 import { subscriptionBannerUI } from './SubscriptionBannerUI.js';
 import { analyzeMessageGroups, getGroupPositionClass, analyzeSpacing, getSpacingClass, shouldGroup } from './MessageGrouper.js';
 import { escapeHtml, formatAddress } from './utils.js';
@@ -672,7 +673,7 @@ class ChatAreaUI {
             const msg = messagesForRender[index];
             const prev = index > 0 ? messagesForRender[index - 1] : null;
             const isOwn = msg.sender?.toLowerCase() === currentAddress?.toLowerCase();
-            const msgDate = new Date(msg.timestamp);
+            const msgDate = new Date(messageTime(msg));
             const time = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
             const dateStr = msgDate.toDateString();
@@ -963,7 +964,7 @@ class ChatAreaUI {
         const { authManager } = this.deps;
         const currentAddress = authManager?.getAddress();
         const isOwn = msg.sender?.toLowerCase() === currentAddress?.toLowerCase();
-        const msgDate = new Date(msg.timestamp);
+        const msgDate = new Date(messageTime(msg));
         const time = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const badge = this.getVerificationBadge(msg, isOwn);
         const displayName = this._displayNameFor(
