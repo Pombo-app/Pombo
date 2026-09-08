@@ -763,6 +763,13 @@ class PreviewModeUI {
             return;
         }
 
+        // Same forgery clamp the joined channel applies (MessageFlow): drop a
+        // payload dated ahead of the wall clock or its own envelope beyond skew;
+        // a payload older than its envelope is a legitimate republish.
+        const skew = CONFIG.gate.timestampSkewMs;
+        if (message.timestamp > Date.now() + skew) return;
+        if (Number.isFinite(message._timestamp) && message.timestamp > message._timestamp + skew) return;
+
         const previewOwner = this.previewChannel;
         if (!await this._readOnlyAllows(previewOwner, message.sender)) return;
         if (this.previewChannel !== previewOwner) return;
