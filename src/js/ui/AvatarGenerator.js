@@ -6,6 +6,7 @@
  */
 
 import { CONFIG } from '../config.js';
+import { escapeAttr } from './utils.js';
 
 // ==========================================
 // Constants 
@@ -773,8 +774,10 @@ export function getAvatarHtml(address, size = 32, borderRadius = 0.2, avatarUrl 
     if (!avatarUrl.startsWith('https://') && !avatarUrl.startsWith('data:')) {
         return svgFallback;
     }
-    // Store SVG fallback in data attribute; global error listener handles swap
-    return `<img src="${avatarUrl}" alt="" width="${size}" height="${size}" class="ens-avatar" data-fallback="${encodeURIComponent(svgFallback)}" style="width:100%;height:100%;object-fit:cover;display:block;" />`;
+    // Store SVG fallback in data attribute; global error listener handles swap.
+    // escapeAttr on the URL: the scheme check above is a prefix test, so a
+    // record like `https://x" onerror=…` would otherwise break out of src.
+    return `<img src="${escapeAttr(avatarUrl)}" alt="" width="${size}" height="${size}" class="ens-avatar" data-fallback="${encodeURIComponent(svgFallback)}" style="width:100%;height:100%;object-fit:cover;display:block;" />`;
 }
 
 /**
