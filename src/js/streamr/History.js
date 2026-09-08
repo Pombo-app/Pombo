@@ -16,6 +16,19 @@ import { STREAM_CONFIG } from '../streamConfig.js';
 import { isMessageStream } from '../streamConstants.js';
 import { verifyEnvelopeAuthenticity } from '../envelopeSigner.js';
 
+// The same forgery clamp the live handler applies (MessageFlow): a payload
+// dated ahead of the wall clock or its own signed envelope beyond skew is
+// dropped here too, so a future-dated message cannot enter the timeline
+// through a resend. One-sided: a payload OLDER than its envelope is a
+// legitimate republish.
+function isFutureForged(payloadTs, envelopeTs) {
+    if (typeof payloadTs !== 'number') return false;
+    const skew = CONFIG.gate?.timestampSkewMs ?? 0;
+    if (payloadTs > Date.now() + skew) return true;
+    if (Number.isFinite(envelopeTs) && payloadTs > envelopeTs + skew) return true;
+    return false;
+}
+
 export class History {
     /**
      * Calls back into `controller` on purpose: while the controller is still
@@ -122,6 +135,8 @@ export class History {
                     } else {
                         timestamp = message.timestamp || content.timestamp || null;
                     }
+
+                    if (isFutureForged(content.timestamp, timestamp)) continue;
 
                     entries.push({
                         ...content,
@@ -333,7 +348,10 @@ export class History {
                     if (partition === STREAM_CONFIG.MESSAGE_STREAM.CONTROL && !isValidOverrideMessage(content)) {
                         continue;
                     }
-                    
+
+                    if (partition === STREAM_CONFIG.MESSAGE_STREAM.MESSAGES
+                        && isFutureForged(content?.timestamp, content?._timestamp)) continue;
+
                     collected.push(content);
                 } catch (e) {
                     Logger.warn('Error processing historical message:', e.message);
@@ -493,6 +511,8 @@ export class History {
                     const publisherId = typeof message.getPublisherId === 'function'
                         ? message.getPublisherId()
                         : message.publisherId;
+
+                    if (isFutureForged(content?.timestamp, message.timestamp)) continue;
 
                     messages.push({
                         content,
