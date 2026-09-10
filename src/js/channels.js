@@ -2056,6 +2056,12 @@ class ChannelManager {
                 `control ${stats?.controlLoaded ?? '?'}/${stats?.controlRequested ?? '?'}`
             );
 
+            // A storage node that refused the read (no access, bad signature,
+            // chain unreachable) is not "no more history": the empty state
+            // says why, and nothing keeps polling for older pages.
+            channel.historyError = stats?.readError || null;
+            if (channel.historyError) channel.hasMoreHistory = false;
+
             channel.initialLoadInProgress = false;
             
             this.notifyHandlers('initial_history_complete', { streamId: messageStreamId });

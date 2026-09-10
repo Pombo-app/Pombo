@@ -111,7 +111,7 @@ describe('subscribeToDualStream', () => {
 
         expect(done).toHaveBeenCalledTimes(1);
         expect(done).toHaveBeenCalledWith({
-            contentLoaded: 12, contentRequested: 30, controlLoaded: 3, controlRequested: 30,
+            contentLoaded: 12, contentRequested: 30, controlLoaded: 3, controlRequested: 30, readError: null,
         });
     });
 

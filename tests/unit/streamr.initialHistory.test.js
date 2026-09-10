@@ -86,7 +86,7 @@ describe('fetchHistoryAsync', () => {
         await streamrController.fetchHistoryAsync(MESSAGE, 0, 40, handler, null, done);
 
         expect(handler).toHaveBeenCalledTimes(1);
-        expect(done).toHaveBeenCalledWith({ loaded: 3, requested: 40 });
+        expect(done).toHaveBeenCalledWith({ loaded: 3, requested: 40, readError: null });
     });
 
     it('still reports when storage is unreachable, so the channel does not hang', async () => {
@@ -95,7 +95,7 @@ describe('fetchHistoryAsync', () => {
 
         await streamrController.fetchHistoryAsync(MESSAGE, 0, 40, () => {}, null, done);
 
-        expect(done).toHaveBeenCalledWith({ loaded: 0, requested: 40 });
+        expect(done).toHaveBeenCalledWith({ loaded: 0, requested: 40, readError: null });
     });
 
     it('survives a completion callback that throws', async () => {

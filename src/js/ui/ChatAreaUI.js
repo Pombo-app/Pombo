@@ -320,6 +320,29 @@ class ChatAreaUI {
     }
 
     /**
+     * Empty-state copy for a history read the storage node refused.
+     * @param {{status: number, signed: boolean}} error
+     * @param {boolean} isPreview - browsing without having joined
+     * @returns {{title: string, detail: string}}
+     */
+    _historyErrorText(error, isPreview) {
+        switch (error?.status) {
+            case 403:
+                return isPreview
+                    ? { title: 'History is available to members', detail: 'Join the channel to read past messages' }
+                    : { title: 'Your access to this channel has ended', detail: 'The storage node no longer serves its history to you' };
+            case 401:
+                return error?.signed
+                    ? { title: 'The storage node did not accept this read', detail: 'Check the device clock and try again' }
+                    : { title: 'History is available to members', detail: 'Sign in with an account that has access to read past messages' };
+            case 503:
+                return { title: 'Channel history is temporarily unavailable', detail: 'The storage node cannot reach the chain right now. Reopen the channel to retry' };
+            default:
+                return { title: 'Channel history could not be loaded', detail: `The storage node answered HTTP ${error?.status ?? '?'}. Reopen the channel to retry` };
+        }
+    }
+
+    /**
      * Show "No messages found — Search older" banner at top of messages area (DM pagination)
      * @private
      */
@@ -603,7 +626,16 @@ class ChatAreaUI {
                     : null;
                 const subscriptionExpired = paidStatus?.paid
                     && paidStatus.until * 1000 <= Date.now() && !paidStatus.accessNow;
-                if (subscriptionExpired) {
+                const historyError = effectiveChannel?.historyError;
+                if (historyError) {
+                    const { title, detail } = this._historyErrorText(historyError, !!previewChannel);
+                    this.messagesArea.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                        <span class="text-sm">${title}</span>
+                        <span class="text-xs text-white/25">${detail}</span>
+                    </div>
+                `;
+                } else if (subscriptionExpired) {
                     this.messagesArea.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
                         <span class="text-sm">Your subscription has expired</span>

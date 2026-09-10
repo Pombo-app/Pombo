@@ -266,7 +266,10 @@ export const CONFIG = {
         writeBackpressureMobileMB: 12,
         downloadRetryPasses: 3,
         resendIdleTimeoutMs: 20000,    // SDK-resend fallback inactivity cutoff
-        directFetchTimeoutMs: 120000   // Direct HTTP read inactivity watchdog
+        directFetchTimeoutMs: 120000,  // Direct HTTP read inactivity watchdog
+        // A stored message whose declared timestamp is later than the node's
+        // receive time by more than this was forward-dated by its publisher
+        storedAtToleranceMs: 5 * 60 * 1000
     },
 
     // Subscription Manager / Polling

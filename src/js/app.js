@@ -17,6 +17,8 @@ import { relayManager } from './relayManager.js';
 import { dmManager } from './dm.js';
 import { syncManager } from './syncManager.js';
 import { epochKeyManager } from './epochKeyManager.js';
+import { storageFetch } from './storageFetch.js';
+import { storageEndpoints } from './storageEndpoints.js';
 import { Logger } from './logger.js';
 import { CONFIG } from './config.js';
 import { headerUI } from './ui/HeaderUI.js';
@@ -48,6 +50,19 @@ class App {
             Logger.debug('Share intake skipped:', err?.message));
 
         try {
+            // Storage reads gain signatures and storedAt on Pombo nodes. Before
+            // anything can fetch history, and once per page: the wrapper reads
+            // the identity at request time, so a wallet switch needs nothing.
+            storageFetch.install({
+                endpoints: storageEndpoints,
+                signer: () => {
+                    const address = authManager.getAddress();
+                    if (!address || authManager.isGuestMode() || !authManager.getSigner()) return null;
+                    return { address, sign: (message) => authManager.signMessage(message) };
+                },
+                isGated: async (streamId) => !!(await streamrController._gatedChannelFor(streamId))
+            });
+
             // Initialize media controller
             await mediaController.init();
             
