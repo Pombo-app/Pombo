@@ -3,7 +3,7 @@
  * caching, health rotation and format=metadata capability tracking.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../src/js/logger.js', () => ({
     Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
@@ -140,5 +140,128 @@ describe('storageEndpoints', () => {
         expect(storageEndpoints.supportsMetaFormat('https://node-a.example')).toBe(false);
         // trailing-slash normalization
         expect(storageEndpoints.supportsMetaFormat('https://node-a.example/')).toBe(false);
+    });
+
+    describe('capabilities', () => {
+        const FORK = ['metadata', 'storedAt', 'purge', 'signedReads'];
+        const jsonResponse = (status, body) => ({
+            ok: status >= 200 && status < 300,
+            status,
+            json: () => Promise.resolve(body)
+        });
+        let fetchMock;
+
+        beforeEach(() => {
+            fetchMock = vi.fn();
+            vi.stubGlobal('fetch', fetchMock);
+        });
+
+        afterEach(() => {
+            vi.unstubAllGlobals();
+        });
+
+        it('caches the announced features per URL and answers hasFeature', async () => {
+            fetchMock.mockResolvedValue(jsonResponse(200, { name: 'pombo-storage-node', features: FORK }));
+            const features = await storageEndpoints.probeCapabilities('https://node-a.example/');
+            expect([...features]).toEqual(FORK);
+            expect(fetchMock).toHaveBeenCalledWith('https://node-a.example/capabilities', expect.any(Object));
+            expect(storageEndpoints.hasFeature('https://node-a.example', 'purge')).toBe(true);
+            expect(storageEndpoints.hasFeature('https://node-a.example', 'teleport')).toBe(false);
+
+            await storageEndpoints.probeCapabilities('https://node-a.example');
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+        });
+
+        it('remembers a 404 as a node announcing nothing, without touching the metadata probe', async () => {
+            fetchMock.mockResolvedValue(jsonResponse(404, {}));
+            const features = await storageEndpoints.probeCapabilities('https://node-b.example');
+            expect(features.size).toBe(0);
+            expect(storageEndpoints.hasFeature('https://node-b.example', 'metadata')).toBe(false);
+            // Production nodes carry format=metadata without /capabilities:
+            // the engine's own 400 probe still decides.
+            expect(storageEndpoints.supportsMetaFormat('https://node-b.example')).toBeUndefined();
+            await storageEndpoints.probeCapabilities('https://node-b.example');
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not cache a failed probe', async () => {
+            fetchMock.mockRejectedValueOnce(new Error('network down'));
+            expect(await storageEndpoints.probeCapabilities('https://node-a.example')).toBeUndefined();
+            expect(storageEndpoints.capabilitiesOf('https://node-a.example')).toBeUndefined();
+
+            fetchMock.mockResolvedValueOnce(jsonResponse(503, {}));
+            expect(await storageEndpoints.probeCapabilities('https://node-a.example')).toBeUndefined();
+
+            fetchMock.mockResolvedValueOnce(jsonResponse(200, { features: ['purge'] }));
+            expect(storageEndpoints.hasFeature('https://node-a.example', 'purge')).toBe(false);
+            await storageEndpoints.probeCapabilities('https://node-a.example');
+            expect(storageEndpoints.hasFeature('https://node-a.example', 'purge')).toBe(true);
+            expect(fetchMock).toHaveBeenCalledTimes(3);
+        });
+
+        it('shares one in-flight probe between concurrent callers', async () => {
+            let resolveFetch;
+            fetchMock.mockReturnValue(new Promise((r) => { resolveFetch = r; }));
+            const a = storageEndpoints.probeCapabilities('https://node-a.example');
+            const b = storageEndpoints.probeCapabilities('https://node-a.example/');
+            resolveFetch(jsonResponse(200, { features: ['signedReads'] }));
+            const [fa, fb] = await Promise.all([a, b]);
+            expect(fa).toBe(fb);
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+        });
+
+        it('announced metadata support feeds supportsMetaFormat, a recorded 400 wins over it', async () => {
+            fetchMock.mockResolvedValue(jsonResponse(200, { features: FORK }));
+            await storageEndpoints.probeCapabilities('https://node-a.example');
+            expect(storageEndpoints.supportsMetaFormat('https://node-a.example')).toBe(true);
+            storageEndpoints.setMetaFormatSupport('https://node-a.example', false);
+            expect(storageEndpoints.supportsMetaFormat('https://node-a.example')).toBe(false);
+        });
+
+        it('ignores a malformed body', async () => {
+            fetchMock.mockResolvedValue(jsonResponse(200, { features: 'purge' }));
+            const features = await storageEndpoints.probeCapabilities('https://node-a.example');
+            expect(features.size).toBe(0);
+            fetchMock.mockResolvedValue(jsonResponse(200, { features: ['purge', 7, null] }));
+            expect([...await storageEndpoints.probeCapabilities('https://node-b.example')]).toEqual(['purge']);
+        });
+
+        it('probeStream unions features per provider and providersWith keeps only announcing URLs', async () => {
+            // Provider A fronts a cluster: one URL upgraded, one still vanilla.
+            mockClient.getStorageNodeMetadata.mockImplementation((addr) => {
+                if (addr === NODE_A) return Promise.resolve({ urls: ['https://a1.example', 'https://a2.example'] });
+                if (addr === NODE_B) return Promise.resolve({ urls: ['https://node-b.example'] });
+                return Promise.reject(new Error('unknown node'));
+            });
+            fetchMock.mockImplementation((url) => {
+                if (url.startsWith('https://a1.example')) return Promise.resolve(jsonResponse(200, { features: FORK }));
+                return Promise.resolve(jsonResponse(404, {}));
+            });
+
+            const providers = await storageEndpoints.probeStream('0xchan/foo-1');
+            expect(providers).toHaveLength(2);
+            expect([...providers[0].features]).toEqual(FORK);
+            expect(providers[1].features.size).toBe(0);
+            expect(fetchMock).toHaveBeenCalledTimes(3);
+
+            const purgers = await storageEndpoints.providersWith('0xchan/foo-1', 'purge');
+            expect(purgers).toEqual([{ nodeAddress: NODE_A.toLowerCase(), urls: ['https://a1.example'] }]);
+            expect(await storageEndpoints.providersWith('0xchan/foo-1', 'teleport')).toEqual([]);
+            // Second pass served from the cache.
+            expect(fetchMock).toHaveBeenCalledTimes(3);
+        });
+
+        it('probeStream on a stream without storage is empty and probes nothing', async () => {
+            mockClient.getStream.mockResolvedValue({ getStorageNodes: () => Promise.resolve([]) });
+            expect(await storageEndpoints.probeStream('0xchan/none-1')).toEqual([]);
+            expect(fetchMock).not.toHaveBeenCalled();
+        });
+
+        it('clear() forgets probed capabilities', async () => {
+            fetchMock.mockResolvedValue(jsonResponse(200, { features: FORK }));
+            await storageEndpoints.probeCapabilities('https://node-a.example');
+            storageEndpoints.clear();
+            expect(storageEndpoints.capabilitiesOf('https://node-a.example')).toBeUndefined();
+        });
     });
 });
