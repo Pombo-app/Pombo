@@ -15,7 +15,7 @@ import { CONFIG } from '../config.js';
 import { STREAM_CONFIG } from '../streamConfig.js';
 import { isMessageStream } from '../streamConstants.js';
 import { verifyEnvelopeAuthenticity } from '../envelopeSigner.js';
-import { storageFetch } from '../storageFetch.js';
+import { storageFetch, envelopeSequenceNumber } from '../storageFetch.js';
 
 // The same forgery clamp the live handler applies (MessageFlow): a payload
 // dated ahead of the wall clock or its own signed envelope beyond skew is
@@ -338,6 +338,7 @@ export class History {
                         }
                         if (messageTimestamp) {
                             content._timestamp = messageTimestamp;
+                            content._seq = envelopeSequenceNumber(message);
                         }
                     }
                     
@@ -746,6 +747,7 @@ export class History {
                         }
                         if (messageTimestamp) {
                             content._timestamp = messageTimestamp;
+                            content._seq = envelopeSequenceNumber(message);
                         }
                     }
                     

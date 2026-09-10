@@ -581,9 +581,16 @@ class ChatAreaUI {
             bannedBy.set(address, typeof entry === 'string'
                 ? { address, sinceEpoch: null } : entry);
         }
+        // Whoever moderates keeps seeing what they hid, greyed out, so a hide
+        // can be undone and an erase can be decided on what is actually there.
+        const moderates = !!effectiveChannel?.streamId && !previewChannel && (
+            !!channelManager?.getCachedDeletePermission?.(effectiveChannel.streamId)?.canDelete
+            || !!channelManager?.isCachedModerator?.(effectiveChannel.streamId));
         const filteredSource = sourceMessages.filter((m) => {
             if (!m || m._deleted || ['edit', 'delete'].includes(m.type)) return false;
-            if (hiddenIds && m.id && hiddenIds.has(m.id)) return false;
+            const hidden = !!(hiddenIds && m.id && hiddenIds.has(m.id));
+            if (hidden && !moderates) return false;
+            m._hidden = hidden;
             if (m.sender) {
                 const ban = bannedBy.get(String(m.sender).toLowerCase());
                 if (ban && banHidesMessage(ban, m._epoch)) return false;

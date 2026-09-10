@@ -12,6 +12,7 @@
 
 import { Logger } from '../logger.js';
 import { cryptoManager } from '../crypto.js';
+import { envelopeSequenceNumber } from '../storageFetch.js';
 
 export class MessagePipeline {
     /**
@@ -77,7 +78,10 @@ export class MessagePipeline {
                         if (!authored) return;
                         data = authored.payload;
                         this.controller.attachAccount(data, authored.author);
-                        if (envelopeTimestamp) data._timestamp = envelopeTimestamp;
+                        if (envelopeTimestamp) {
+                            data._timestamp = envelopeTimestamp;
+                            data._seq = envelopeSequenceNumber(streamMessage);
+                        }
                         await handler(data);
                         return;
                     }
@@ -95,7 +99,10 @@ export class MessagePipeline {
                     // Same `_timestamp` the history paths surface: the signed
                     // envelope time, the anchor the ingest clamp judges the
                     // payload's own timestamp against.
-                    if (envelopeTimestamp) data._timestamp = envelopeTimestamp;
+                    if (envelopeTimestamp) {
+                        data._timestamp = envelopeTimestamp;
+                        data._seq = envelopeSequenceNumber(streamMessage);
+                    }
                 }
 
                 await handler(data);

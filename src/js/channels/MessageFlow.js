@@ -250,9 +250,15 @@ export class MessageFlow {
 
         // Check if message already exists (deduplication)
         // This handles duplicates from network AND historical messages
-        const messageExists = channel.messages.some(m => m.id === data.id);
-        
-        if (messageExists) {
+        const existing = channel.messages.find(m => m.id === data.id);
+
+        if (existing) {
+            // The echo of an own message is where its envelope coordinates
+            // arrive; the local copy needs them to be addressed on storage.
+            if (Number.isFinite(data._timestamp) && !Number.isFinite(existing._timestamp)) {
+                existing._timestamp = data._timestamp;
+                if (Number.isFinite(data._seq)) existing._seq = data._seq;
+            }
             Logger.debug('Message already exists, skipping duplicate:', data.id);
             return;
         }

@@ -486,6 +486,29 @@ export class AdminState {
         return this.manager.publishAdminState(messageStreamId, { patch: { hiddenMessageIds: Array.from(set) } });
     }
 
+    /**
+     * Show a hidden message again. Same shape as `unbanMember`: when the hide
+     * came from a moderator's delta, the snapshot alone would not lift it, so
+     * the publish absorbs the composed state minus this one id.
+     * @returns {Promise<{rev:number, state:Object}>}
+     */
+    async unhideMessage(messageStreamId, targetId) {
+        const channel = this.manager.channels.get(messageStreamId);
+        if (!channel) throw new Error('Channel not found');
+        const deltas = this.manager.modDeltas?.all(messageStreamId) || [];
+        const base = deltas.length > 0
+            ? (channel.adminState || this._snapshot(channel))
+            : this._snapshot(channel);
+        const patch = {
+            hiddenMessageIds: (base.hiddenMessageIds || []).filter(id => id !== targetId)
+        };
+        if (deltas.length > 0) {
+            patch.bannedMembers = base.bannedMembers || [];
+            patch.absorbedThrough = deltas.reduce((max, d) => Math.max(max, Number(d.ts) || 0), 0);
+        }
+        return this.manager.publishAdminState(messageStreamId, { patch });
+    }
+
     /** @returns {Promise<{rev:number, state:Object}>} */
     async pinMessage(messageStreamId, targetId, snapshot = null) {
         const channel = this.manager.channels.get(messageStreamId);

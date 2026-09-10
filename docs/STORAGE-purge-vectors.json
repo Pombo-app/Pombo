@@ -1,0 +1,50 @@
+{
+  "userPriv": "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+  "user": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "vectors": [
+    {
+      "name": "one target",
+      "streamId": "0xaaaabbbbccccddddeeeeffff0000111122223333/deadbeef01-1",
+      "partition": 0,
+      "message": "pombo-storage-node\npurge\n0xaaaabbbbccccddddeeeeffff0000111122223333/deadbeef01-1\n0\n1789000000000\n0f1e2d3c4b5a69788796a5b4c3d2e1f0\n1788999000000:0",
+      "body": {
+        "user": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "issuedAt": 1789000000000,
+        "nonce": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "signature": "0x73f1334ea749393e5ec9aa16c516233a01ee3a51543b839e5bdf2717880a560c3be76be5658ed70cf290bbfd1c0facbc846609e6f46caa898ff6eb69f56389901c",
+        "targets": [
+          {
+            "timestamp": 1788999000000,
+            "sequenceNumber": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "three targets in the order sent, one with a sequence number above zero",
+      "streamId": "0xaaaabbbbccccddddeeeeffff0000111122223333/deadbeef01-1",
+      "partition": 3,
+      "message": "pombo-storage-node\npurge\n0xaaaabbbbccccddddeeeeffff0000111122223333/deadbeef01-1\n3\n1789000001000\n00000000000000000000000000000001\n1788999000000:2\n1788998000000:0\n1788999000000:1",
+      "body": {
+        "user": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "issuedAt": 1789000001000,
+        "nonce": "00000000000000000000000000000001",
+        "signature": "0x3f6c2967a172334aab98a4c82946e87d5e9606bf3704e52ad19791e4e36ef7c91b5e8689cf267e9032c6831d68be99a5118596ed97284339c62c1bbe6c7213f01c",
+        "targets": [
+          {
+            "timestamp": 1788999000000,
+            "sequenceNumber": 2
+          },
+          {
+            "timestamp": 1788998000000,
+            "sequenceNumber": 0
+          },
+          {
+            "timestamp": 1788999000000,
+            "sequenceNumber": 1
+          }
+        ]
+      }
+    }
+  ]
+}

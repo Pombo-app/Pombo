@@ -10,6 +10,7 @@
 
 import { Logger } from './logger.js';
 import { streamrController, STREAM_CONFIG, deriveEphemeralId, deriveMessageId, deriveAdminId, deriveKeysId, deriveInteractionsId } from './streamr.js';
+import { storageEndpoints } from './storageEndpoints.js';
 import { authManager } from './auth.js';
 import { identityManager } from './identity.js';
 import { secureStorage } from './secureStorage.js';
@@ -1676,6 +1677,7 @@ class ChannelManager {
     banMember(messageStreamId, address) { return this.adminState.banMember(messageStreamId, address); }
     unbanMember(messageStreamId, address) { return this.adminState.unbanMember(messageStreamId, address); }
     hideMessage(messageStreamId, targetId) { return this.adminState.hideMessage(messageStreamId, targetId); }
+    unhideMessage(messageStreamId, targetId) { return this.adminState.unhideMessage(messageStreamId, targetId); }
     pinMessage(messageStreamId, targetId, snapshot = null) { return this.adminState.pinMessage(messageStreamId, targetId, snapshot); }
     unpinMessage(messageStreamId, targetId) { return this.adminState.unpinMessage(messageStreamId, targetId); }
 
@@ -2716,6 +2718,15 @@ class ChannelManager {
         const previousChannel = this.currentChannel;
         this.currentChannel = streamId;
         this.switchGeneration++;
+
+        // Which of the channel's storage providers can erase messages decides
+        // whether moderation offers "Erase from storage" at all.
+        const opened = this.channels.get(streamId);
+        if (opened && opened.type !== 'dm' && !opened.purgeProviders) {
+            storageEndpoints.providersWith(streamId, 'purge')
+                .then((providers) => { opened.purgeProviders = providers; })
+                .catch((e) => Logger.debug('purge providers unknown:', e?.message || e));
+        }
         
         // Abort any in-flight history fetch for the previous channel
         if (this.historyAbortController) {

@@ -829,9 +829,17 @@ class MessageRenderer {
                         <span class="message-sender-name text-[13px] font-medium" style="color: ${senderColor}">${escapeHtml(sanitizeText(truncatedName))}</span>
                     </div>`;
 
+        // A moderator's view of a hidden message: dimmed, labelled, still
+        // reachable by the context menu for Unhide and Erase.
+        const moderationHtml = msg._hidden
+            ? `<div class="message-moderation text-[11px] text-amber-400/80 mb-1">${msg._erased ? 'Hidden · erased from storage' : 'Hidden by moderation'}</div>`
+            : '';
+        const bubbleStyle = msg._hidden ? ' style="opacity:0.45"' : '';
+
         return `
-            <div class="message-entry ${isOwn ? 'own-message' : 'other-message'} ${groupClass} ${spacingClass}" data-msg-id="${escapeAttr(msgId)}" data-sender="${escapeAttr(msg.sender || '')}" data-type="${escapeAttr(msgType)}"${emojiAttr}>
-                <div class="message-bubble">
+            <div class="message-entry ${isOwn ? 'own-message' : 'other-message'} ${groupClass} ${spacingClass}${msg._hidden ? ' message-hidden' : ''}" data-msg-id="${escapeAttr(msgId)}" data-sender="${escapeAttr(msg.sender || '')}" data-type="${escapeAttr(msgType)}"${emojiAttr}>
+                <div class="message-bubble"${bubbleStyle}>
+                    ${moderationHtml}
                     ${senderRowHtml}
                     ${replyPreviewHtml}
                     <div class="message-content">${contentHtml}</div>

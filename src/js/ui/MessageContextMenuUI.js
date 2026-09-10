@@ -258,27 +258,38 @@ class MessageContextMenuUI {
         const pinBtn = document.getElementById('context-menu-pin-btn');
         const unpinBtn = document.getElementById('context-menu-unpin-btn');
         const adminDeleteBtn = document.getElementById('context-menu-admin-delete-btn');
+        const unhideBtn = document.getElementById('context-menu-unhide-btn');
+        const eraseBtn = document.getElementById('context-menu-erase-btn');
         const banBtn = document.getElementById('context-menu-ban-btn');
 
         const msgId = this.contextMenuTarget?.msgId;
         const isAlreadyPinned = !!(currentChannel?.adminState?.pins?.some?.(p => p.targetId === msgId));
         const isCreator = currentChannel?.createdBy
             && senderAddress.toLowerCase() === String(currentChannel.createdBy).toLowerCase();
+        const moderates = isAdminUser || isModeratorUser;
+        const isHidden = !!(msgId && currentChannel?.adminState?.hiddenMessageIds?.includes?.(msgId));
+        const message = msgId ? currentChannel?.messages?.find?.(m => m.id === msgId) : null;
 
         const showPin = isAdminUser && !!msgId && !isAlreadyPinned;
         const showUnpin = isAdminUser && !!msgId && isAlreadyPinned;
-        // Admin delete hides the message for everyone via the admin stream.
-        // Shown for ANY message (including the admin's own) so deletion is
-        // always routed through the admin moderation surface for admins.
-        const showAdminDelete = (isAdminUser || isModeratorUser) && !!msgId;
+        // Hide keeps the bytes and is reversible; it is offered on ANY
+        // message, the admin's own included, so moderation stays the single
+        // surface for admins. Erase goes further: it removes the bytes from
+        // every storage provider that can, and only exists where one can.
+        const showHide = moderates && !!msgId && !isHidden;
+        const showUnhide = moderates && !!msgId && isHidden && !message?._erased;
+        const showErase = moderates && !!msgId && !message?._erased
+            && (currentChannel?.purgeProviders?.length > 0);
         // Cannot ban yourself or the channel admin.
-        const showBan = (isAdminUser || isModeratorUser) && !isSelf && !isCreator;
+        const showBan = moderates && !isSelf && !isCreator;
 
         if (pinBtn) pinBtn.classList.toggle('hidden', !showPin);
         if (unpinBtn) unpinBtn.classList.toggle('hidden', !showUnpin);
-        if (adminDeleteBtn) adminDeleteBtn.classList.toggle('hidden', !showAdminDelete);
+        if (adminDeleteBtn) adminDeleteBtn.classList.toggle('hidden', !showHide);
+        if (unhideBtn) unhideBtn.classList.toggle('hidden', !showUnhide);
+        if (eraseBtn) eraseBtn.classList.toggle('hidden', !showErase);
         if (banBtn) banBtn.classList.toggle('hidden', !showBan);
-        if (adminDivider) adminDivider.classList.toggle('hidden', !(showPin || showUnpin || showAdminDelete || showBan));
+        if (adminDivider) adminDivider.classList.toggle('hidden', !(showPin || showUnpin || showHide || showUnhide || showErase || showBan));
     }
 
     /** Show the menu at viewport coords, clamped to the visible area. */
@@ -412,6 +423,57 @@ class MessageContextMenuUI {
                     showNotification('Message hidden', 'success');
                 } catch (err) {
                     showNotification(err?.message || 'Failed to hide message', 'error');
+                }
+                break;
+            }
+
+            case 'unhide-message': {
+                if (!target.msgId) break;
+                const ch = channelManager?.getCurrentChannel?.();
+                if (!ch) break;
+                try {
+                    if (channelManager.isCachedModerator?.(ch.streamId)
+                        && !channelManager.getCachedDeletePermission?.(ch.streamId)?.canDelete) {
+                        await channelManager.publishModAction(ch.streamId, 'unhide', target.msgId);
+                    } else {
+                        await channelManager.unhideMessage(ch.streamId, target.msgId);
+                    }
+                    showNotification('Message shown again', 'success');
+                } catch (err) {
+                    showNotification(err?.message || 'Failed to unhide message', 'error');
+                }
+                break;
+            }
+
+            case 'erase-message': {
+                if (!target.msgId) break;
+                const ch = channelManager?.getCurrentChannel?.();
+                const msg = ch?.messages?.find?.(m => m.id === target.msgId);
+                if (!ch || !msg) break;
+                const providers = ch.purgeProviders?.length || 0;
+                if (!confirm(`Erase this message from storage on ${providers} provider${providers === 1 ? '' : 's'}? It stays hidden for everyone and cannot be recovered.`)) break;
+                try {
+                    const { authManager } = await import('../auth.js');
+                    const { eraseMessage } = await import('../storagePurge.js');
+                    const isModOnly = channelManager.isCachedModerator?.(ch.streamId)
+                        && !channelManager.getCachedDeletePermission?.(ch.streamId)?.canDelete;
+                    // Hide first: the bytes leaving storage does nothing for a
+                    // client that still holds the message.
+                    if (!ch.adminState?.hiddenMessageIds?.includes?.(target.msgId)) {
+                        if (isModOnly) await channelManager.publishModAction(ch.streamId, 'hide', target.msgId);
+                        else await channelManager.hideMessage(ch.streamId, target.msgId);
+                    }
+                    const signer = { address: authManager.getAddress(), sign: (m) => authManager.signMessage(m) };
+                    const outcome = await eraseMessage(ch, msg, signer);
+                    if (outcome.erasedOn > 0) msg._erased = true;
+                    const level = outcome.erasedOn === outcome.providers ? 'success' : 'warning';
+                    showNotification(`Erased from storage on ${outcome.erasedOn} of ${outcome.providers} provider${outcome.providers === 1 ? '' : 's'}`
+                        + (outcome.forbiddenOn ? ` (${outcome.forbiddenOn} refused)` : '')
+                        + (outcome.unreachable ? ` (${outcome.unreachable} unreachable)` : ''), level);
+                    chatAreaUI?.renderMessages?.(ch.messages, () => chatAreaUI._attachMessageListeners?.());
+                } catch (err) {
+                    console.warn('Erase from storage failed:', err?.message || err);
+                    showNotification(err?.message || 'Failed to erase message', 'error');
                 }
                 break;
             }

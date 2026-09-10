@@ -38,6 +38,20 @@ const STORED_AT_MAX_ENTRIES = 50000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * The envelope sequence number of a raw SDK message: with the envelope
+ * timestamp, the coordinates a storage node addresses the message by.
+ * @param {Object} message - Raw SDK StreamMessage (or its wrapper)
+ * @returns {number|undefined}
+ */
+export function envelopeSequenceNumber(message) {
+    const sm = message?.streamMessage || message;
+    const seq = typeof sm?.getSequenceNumber === 'function'
+        ? sm.getSequenceNumber()
+        : (sm?.sequenceNumber ?? sm?.messageId?.sequenceNumber);
+    return Number.isFinite(seq) ? Number(seq) : undefined;
+}
+
 const storedAtKey = (streamId, partition, timestamp, sequenceNumber) =>
     `${streamId}|${partition}|${timestamp}|${sequenceNumber}`;
 
