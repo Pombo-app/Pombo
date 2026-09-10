@@ -12,6 +12,7 @@ import { identityManager } from '../identity.js';
 import { secureStorage } from '../secureStorage.js';
 import { dmManager } from '../dm.js';
 import { CONFIG } from '../config.js';
+import { hasChannelIdentity, getChannelIdentity } from '../channelIdentity.js';
 
 export class MessageOverrides {
     /**
@@ -296,8 +297,51 @@ export class MessageOverrides {
                 channel.password
             );
             Logger.debug('Delete published for message:', targetId);
+            return await this.purgeOwnMessage(channel, original);
         } finally {
             setTimeout(() => this.pendingOverrides.delete(overrideKey), 2000);
+        }
+    }
+
+    /**
+     * The signer an own delete can erase the message from storage with, or
+     * null when the purge does not apply. The node honours whoever signed the
+     * message: the account on a Visible gated (or read-only) channel, the
+     * session pseudonym on public/password, where an older message is out of
+     * its author's reach. Sealed channels sign with the shared key, so nobody
+     * can claim authorship there.
+     * @param {Object} channel - Channel record
+     * @param {Object} msg - The message being deleted
+     * @returns {{address: string, sign: (message: string) => Promise<string>}|null}
+     */
+    ownPurgeSigner(channel, msg) {
+        if (!channel || channel.type === 'dm' || !(channel.purgeProviders?.length > 0)) return null;
+        if (channel.wireIdentity === 'sealed') return null;
+        if (this.manager.usesAccountPublish(channel.streamId)) {
+            return { address: authManager.getAddress(), sign: (m) => authManager.signMessage(m) };
+        }
+        if (!hasChannelIdentity(channel.streamId)) return null;
+        const { publisherId, wallet } = getChannelIdentity(channel.streamId);
+        if (msg?._publisherId && String(msg._publisherId).toLowerCase() !== publisherId.toLowerCase()) return null;
+        return { address: wallet.address, sign: (m) => wallet.signMessage(m) };
+    }
+
+    /**
+     * The storage side of an own delete. A failure comes back on the outcome
+     * rather than failing a delete that already went out.
+     * @param {Object} channel - Channel record
+     * @param {Object} msg - The deleted message
+     * @returns {Promise<Object|null>} storagePurge outcome, null when the purge does not apply
+     */
+    async purgeOwnMessage(channel, msg) {
+        const signer = this.ownPurgeSigner(channel, msg);
+        if (!signer) return null;
+        try {
+            const { eraseMessage } = await import('../storagePurge.js');
+            return await eraseMessage(channel, msg, signer);
+        } catch (err) {
+            Logger.warn('Storage purge of own message failed:', err?.message || err);
+            return { providers: channel.purgeProviders.length, erasedOn: 0, forbiddenOn: 0, unreachable: 0, error: err?.message || String(err) };
         }
     }
 

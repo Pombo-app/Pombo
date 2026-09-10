@@ -96,6 +96,7 @@ export class MessagePipeline {
                     const publisherId = await this.controller.resolveAuthor(streamId, streamMessage, transportPublisher, { live: true });
                     if (!publisherId) return;
                     this.controller.attachAccount(data, publisherId);
+                    data._publisherId = publisherId;
                     // Same `_timestamp` the history paths surface: the signed
                     // envelope time, the anchor the ingest clamp judges the
                     // payload's own timestamp against.

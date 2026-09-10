@@ -2431,6 +2431,12 @@ class ChannelManager {
     applyPendingOverrides(channel) { return this.overrides.applyPendingOverrides(channel); }
     sendEdit(streamId, targetId, newText) { return this.overrides.sendEdit(streamId, targetId, newText); }
     sendDelete(streamId, targetId) { return this.overrides.sendDelete(streamId, targetId); }
+    /** Whether deleting this own message also erases it from storage. */
+    ownPurgeApplies(streamId, targetId) {
+        const channel = this.channels.get(streamId);
+        const msg = channel?.messages?.find((m) => m.id === targetId);
+        return !!(msg && this.overrides.ownPurgeSigner(channel, msg));
+    }
     sendReaction(streamId, messageId, emoji, isRemoving = false) { return this.overrides.sendReaction(streamId, messageId, emoji, isRemoving); }
 
     // ==================== End Message Overrides ====================

@@ -68,8 +68,18 @@ vi.mock('../../src/js/auth.js', () => ({
         getAddress: vi.fn().mockReturnValue('0xmyaddress'),
         getCurrentAddress: vi.fn().mockReturnValue('0xmyaddress'),
         getWalletAddress: vi.fn().mockReturnValue('0xmyaddress'),
-        isConnected: vi.fn().mockReturnValue(true)
+        isConnected: vi.fn().mockReturnValue(true),
+        signMessage: vi.fn().mockResolvedValue('0xaccountsig')
     }
+}));
+
+vi.mock('../../src/js/channelIdentity.js', () => ({
+    hasChannelIdentity: vi.fn().mockReturnValue(false),
+    getChannelIdentity: vi.fn()
+}));
+
+vi.mock('../../src/js/storagePurge.js', () => ({
+    eraseMessage: vi.fn()
 }));
 
 vi.mock('../../src/js/identity.js', () => ({
@@ -2386,6 +2396,84 @@ describe('ChannelManager', () => {
 
             expect(dmManager.sendEdit).toHaveBeenCalledWith(streamId, 'msg-1', 'dm edit');
             expect(streamrController.publishAsChannel).not.toHaveBeenCalled();
+        });
+    });
+
+    // ==================== sendDelete: storage purge ====================
+    describe('sendDelete() erases the message from storage', () => {
+        let channel, streamId, eraseMessage, hasChannelIdentity, getChannelIdentity, pseudonymWallet;
+
+        beforeEach(async () => {
+            ({ eraseMessage } = await import('../../src/js/storagePurge.js'));
+            ({ hasChannelIdentity, getChannelIdentity } = await import('../../src/js/channelIdentity.js'));
+            pseudonymWallet = { address: '0xPseudo', signMessage: vi.fn().mockResolvedValue('0xpseudosig') };
+            eraseMessage.mockReset().mockResolvedValue({ providers: 1, erasedOn: 1, forbiddenOn: 0, unreachable: 0 });
+            hasChannelIdentity.mockReset().mockReturnValue(true);
+            getChannelIdentity.mockReset().mockReturnValue({ publisherId: '0xpseudo', wallet: pseudonymWallet });
+            streamrController.publishAsChannel.mockClear().mockResolvedValue(undefined);
+            streamId = '0xabc/del-1';
+            channel = {
+                streamId,
+                messageStreamId: streamId,
+                name: 'Purge Channel',
+                type: 'public',
+                messages: [{ id: 'msg-1', text: 'Delete me', sender: '0xmyaddress', timestamp: 1000, _timestamp: 1003, _seq: 0 }],
+                password: null,
+                purgeProviders: [{ nodeAddress: '0xa', urls: ['https://a.example'] }]
+            };
+            channelManager.channels.set(streamId, channel);
+        });
+
+        it('signs with the session pseudonym on a public channel and returns the outcome', async () => {
+            const outcome = await channelManager.sendDelete(streamId, 'msg-1');
+            expect(outcome).toMatchObject({ providers: 1, erasedOn: 1 });
+            expect(streamrController.publishAsChannel).toHaveBeenCalled();
+            const [ch, msg, signer] = eraseMessage.mock.calls[0];
+            expect(ch).toBe(channel);
+            expect(msg.id).toBe('msg-1');
+            expect(signer.address).toBe('0xPseudo');
+            expect(await signer.sign('m')).toBe('0xpseudosig');
+        });
+
+        it('leaves a message published under another pseudonym on storage', async () => {
+            channel.messages[0]._publisherId = '0xOlderPseudo';
+            expect(await channelManager.sendDelete(streamId, 'msg-1')).toBeNull();
+            expect(eraseMessage).not.toHaveBeenCalled();
+            expect(channel.messages).toHaveLength(0);
+            expect(channelManager.ownPurgeApplies(streamId, 'msg-1')).toBe(false);
+        });
+
+        it('does not purge without a pseudonym or without a provider announcing purge', async () => {
+            hasChannelIdentity.mockReturnValue(false);
+            expect(channelManager.ownPurgeApplies(streamId, 'msg-1')).toBe(false);
+            hasChannelIdentity.mockReturnValue(true);
+            expect(channelManager.ownPurgeApplies(streamId, 'msg-1')).toBe(true);
+            channel.purgeProviders = [];
+            expect(await channelManager.sendDelete(streamId, 'msg-1')).toBeNull();
+            expect(eraseMessage).not.toHaveBeenCalled();
+        });
+
+        it('signs with the account on a Visible gated channel and never on a Sealed one', async () => {
+            channel.type = 'gated';
+            channel.wireIdentity = 'visible';
+            await channelManager.sendDelete(streamId, 'msg-1');
+            const signer = eraseMessage.mock.calls[0][2];
+            expect(signer.address).toBe('0xmyaddress');
+            expect(await signer.sign('m')).toBe('0xaccountsig');
+
+            eraseMessage.mockClear();
+            channel.messages.push({ id: 'msg-3', text: 'x', sender: '0xmyaddress', timestamp: 3000 });
+            channel.wireIdentity = 'sealed';
+            expect(await channelManager.sendDelete(streamId, 'msg-3')).toBeNull();
+            expect(eraseMessage).not.toHaveBeenCalled();
+        });
+
+        it('reports a purge failure on the outcome instead of failing the delete', async () => {
+            eraseMessage.mockRejectedValue(new Error('node down'));
+            const outcome = await channelManager.sendDelete(streamId, 'msg-1');
+            expect(outcome).toMatchObject({ providers: 1, erasedOn: 0, error: 'node down' });
+            expect(channel.messages).toHaveLength(0);
+            expect(streamrController.publishAsChannel).toHaveBeenCalled();
         });
     });
 

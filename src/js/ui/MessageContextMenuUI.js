@@ -13,6 +13,14 @@
  * Add/Remove contact modals are delegated to ContactsUI via deps.
  */
 
+/** "Erased from storage on k of n providers", with what the others did. */
+function purgeOutcomeText(outcome) {
+    const n = outcome.providers;
+    return `Erased from storage on ${outcome.erasedOn} of ${n} provider${n === 1 ? '' : 's'}`
+        + (outcome.forbiddenOn ? ` (${outcome.forbiddenOn} refused)` : '')
+        + (outcome.unreachable ? ` (${outcome.unreachable} unreachable)` : '');
+}
+
 class MessageContextMenuUI {
     constructor() {
         this.deps = null;
@@ -399,12 +407,25 @@ class MessageContextMenuUI {
                 }
                 break;
 
-            case 'delete-message':
-                if (target.msgId && confirm('Delete this message?')) {
-                    const ch = channelManager?.getCurrentChannel?.();
-                    if (ch) channelManager.sendDelete(ch.streamId, target.msgId);
+            case 'delete-message': {
+                if (!target.msgId) break;
+                const ch = channelManager?.getCurrentChannel?.();
+                if (!ch) break;
+                const providers = ch.purgeProviders?.length || 0;
+                const purges = providers > 0 && channelManager.ownPurgeApplies?.(ch.streamId, target.msgId);
+                const note = purges
+                    ? ` It is also erased from storage on ${providers} provider${providers === 1 ? '' : 's'}.`
+                    : (providers > 0 ? ' Its copy on storage cannot be erased from this session.' : '');
+                if (!confirm(`Delete this message?${note}`)) break;
+                try {
+                    const outcome = await channelManager.sendDelete(ch.streamId, target.msgId);
+                    if (outcome?.error) showNotification(`Deleted, but not erased from storage: ${outcome.error}`, 'warning');
+                    else if (outcome) showNotification(purgeOutcomeText(outcome), outcome.erasedOn === outcome.providers ? 'success' : 'warning');
+                } catch (err) {
+                    showNotification(err?.message || 'Failed to delete message', 'error');
                 }
                 break;
+            }
 
             case 'admin-delete-message': {
                 if (!target.msgId) break;
@@ -466,10 +487,7 @@ class MessageContextMenuUI {
                     const signer = { address: authManager.getAddress(), sign: (m) => authManager.signMessage(m) };
                     const outcome = await eraseMessage(ch, msg, signer);
                     if (outcome.erasedOn > 0) msg._erased = true;
-                    const level = outcome.erasedOn === outcome.providers ? 'success' : 'warning';
-                    showNotification(`Erased from storage on ${outcome.erasedOn} of ${outcome.providers} provider${outcome.providers === 1 ? '' : 's'}`
-                        + (outcome.forbiddenOn ? ` (${outcome.forbiddenOn} refused)` : '')
-                        + (outcome.unreachable ? ` (${outcome.unreachable} unreachable)` : ''), level);
+                    showNotification(purgeOutcomeText(outcome), outcome.erasedOn === outcome.providers ? 'success' : 'warning');
                     chatAreaUI?.renderMessages?.(ch.messages, () => chatAreaUI._attachMessageListeners?.());
                 } catch (err) {
                     console.warn('Erase from storage failed:', err?.message || err);
