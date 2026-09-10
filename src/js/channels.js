@@ -2437,6 +2437,41 @@ class ChannelManager {
         const msg = channel?.messages?.find((m) => m.id === targetId);
         return !!(msg && this.overrides.ownPurgeSigner(channel, msg));
     }
+    /**
+     * Erase everything an author wrote from the storage providers that can:
+     * the storage side of a ban. The account signs, as owner or moderator.
+     * @returns {Promise<Object>} storagePurge outcome with `messages` and `skipped`
+     */
+    async eraseAuthorMessages(streamId, address) {
+        const channel = this.channels.get(streamId);
+        if (!channel) throw new Error('Channel not found');
+        const { eraseAuthorMessages } = await import('./storagePurge.js');
+        const signer = { address: authManager.getAddress(), sign: (m) => authManager.signMessage(m) };
+        const outcome = await eraseAuthorMessages(channel, address, signer, this.purgeOptions(channel));
+        if (outcome.erasedOn > 0) {
+            const lower = String(address).toLowerCase();
+            for (const m of channel.messages) {
+                if (String(m?.sender || '').toLowerCase() === lower) m._erased = true;
+            }
+        }
+        return outcome;
+    }
+    /**
+     * What a storage purge on this channel needs beyond the targets: the
+     * opener that turns a stored chunk row back into the chunk a download
+     * sees, so a file's rows can be told apart by content.
+     * @param {Object} channel - Channel record
+     * @returns {{openerFor: (meta: Object) => Promise<Function>}}
+     */
+    purgeOptions(channel) {
+        return {
+            openerFor: async (meta) => {
+                const { storageMediaController } = await import('./storageMedia.js');
+                const sealer = await storageMediaController.makeSealer(channel, channel?.password || null, { encSaltB64: meta?.encSalt || null });
+                return sealer.open;
+            }
+        };
+    }
     sendReaction(streamId, messageId, emoji, isRemoving = false) { return this.overrides.sendReaction(streamId, messageId, emoji, isRemoving); }
 
     // ==================== End Message Overrides ====================

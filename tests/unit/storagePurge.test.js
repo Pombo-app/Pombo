@@ -23,8 +23,12 @@ import {
     signedPurgeBody,
     purgeOnProvider,
     purgeMessages,
+    purgeGroups,
+    chunkTransferId,
+    fileChunkGroups,
     resolveTarget,
     eraseMessage,
+    eraseAuthorMessages,
     PURGE_MAX_TARGETS
 } from '../../src/js/storagePurge.js';
 
@@ -183,7 +187,120 @@ describe('resolveTarget / eraseMessage', () => {
             : []);
         const fetchMock = vi.fn(async () => jsonResponse(200, { results: [{ timestamp: 900, sequenceNumber: 1, result: 'deleted' }] }));
         const out = await eraseMessage({ messageStreamId: STREAM }, { id: 'm', _timestamp: 900, _seq: 1 }, signer, { fetchImpl: fetchMock });
-        expect(out).toMatchObject({ providers: 1, erasedOn: 1 });
+        expect(out).toMatchObject({ providers: 1, erasedOn: 1, targets: 1 });
         expect(fetchMock.mock.calls[0][0]).toBe(purgeUrl('https://a.example', 0));
+    });
+});
+
+describe('purgeGroups', () => {
+    beforeEach(() => providersWith.mockReset());
+
+    it('sends one request per partition and per batch of 100, and counts the targets', async () => {
+        providersWith.mockResolvedValue([{ nodeAddress: '0xa', urls: ['https://a.example'] }]);
+        const targets = Array.from({ length: 150 }, (_, i) => ({ timestamp: 1000 + i, sequenceNumber: 0 }));
+        const fetchMock = vi.fn(async (_url, init) => {
+            const body = JSON.parse(init.body);
+            return jsonResponse(200, { results: body.targets.map((t) => ({ ...t, result: 'deleted' })) });
+        });
+        const out = await purgeGroups(STREAM, [{ partition: 0, targets }, { partition: 3, targets: targets.slice(0, 2) }], signer, fetchMock);
+        expect(fetchMock.mock.calls.map(([u]) => u)).toEqual([
+            purgeUrl('https://a.example', 0), purgeUrl('https://a.example', 0), purgeUrl('https://a.example', 3)
+        ]);
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body).targets).toHaveLength(100);
+        expect(JSON.parse(fetchMock.mock.calls[1][1].body).targets).toHaveLength(50);
+        expect(out).toMatchObject({ providers: 1, erasedOn: 1, forbiddenOn: 0, unreachable: 0, targets: 152 });
+    });
+
+    it('stops at the first unreachable batch of a provider and does not count it as erased', async () => {
+        providersWith.mockResolvedValue([{ nodeAddress: '0xa', urls: ['https://a.example'] }]);
+        const fetchMock = vi.fn(async () => { throw new Error('down'); });
+        const out = await purgeGroups(STREAM, [{ partition: 0, targets: [{ timestamp: 1, sequenceNumber: 0 }] }, { partition: 3, targets: [{ timestamp: 2, sequenceNumber: 0 }] }], signer, fetchMock);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(out).toMatchObject({ providers: 1, erasedOn: 0, unreachable: 1, targets: 2 });
+    });
+});
+
+describe('chunkTransferId / fileChunkGroups', () => {
+    beforeEach(() => providersWith.mockReset());
+
+    const chunkHex = (transferId, data = 'abcd') => {
+        const meta = Buffer.from(JSON.stringify({ type: 'binary_file_chunked', version: 2, transferId }), 'utf8');
+        return meta.length.toString(16).padStart(8, '0') + meta.toString('hex') + '00000003' + '00000000' + data;
+    };
+
+    it('reads the transfer off a chunk header and rejects anything else', () => {
+        expect(chunkTransferId(chunkHex('t1'))).toBe('t1');
+        expect(chunkTransferId(Uint8Array.from(Buffer.from(chunkHex('t1'), 'hex')))).toBe('t1');
+        expect(chunkTransferId('00')).toBeNull();
+        expect(chunkTransferId(chunkHex('t1').slice(0, 20))).toBeNull();
+        expect(chunkTransferId('0000000a' + Buffer.from('{"x":1}   ').toString('hex'))).toBeNull();
+        expect(chunkTransferId({ type: 'text' })).toBeNull();
+    });
+
+    it('opens sealed rows with the opener it is given and skips the ones that do not open', async () => {
+        providersWith.mockResolvedValue([{ nodeAddress: '0xa', urls: ['https://a.example'] }]);
+        const fetchMock = vi.fn(async (url) => {
+            const p = Number(url.match(/partitions\/(\d+)\//)[1]);
+            return jsonResponse(200, p === 3 ? [
+                { timestamp: 1000, sequenceNumber: 0, contentType: 1, content: 'ff' + chunkHex('t1') },
+                { timestamp: 1001, sequenceNumber: 0, contentType: 1, content: '00' + chunkHex('t1') },
+                { timestamp: 1002, sequenceNumber: 0, contentType: 1, content: 'ff' + chunkHex('t2') }
+            ] : []);
+        });
+        const openChunk = async (bytes) => {
+            if (bytes[0] !== 0xff) throw new Error('not sealed by us');
+            return bytes.subarray(1);
+        };
+        const groups = await fileChunkGroups(STREAM, { transferId: 't1', firstChunkTs: 1000000, lastChunkTs: 1010000 }, fetchMock, openChunk);
+        expect(groups).toEqual([{ partition: 3, targets: [{ timestamp: 1000, sequenceNumber: 0 }] }]);
+    });
+
+    it('keeps only the rows of the announced transfer, on every chunk partition', async () => {
+        providersWith.mockResolvedValue([{ nodeAddress: '0xa', urls: ['https://a.example'] }]);
+        const fetchMock = vi.fn(async (url) => {
+            expect(url).toContain('fromTimestamp=940000&toTimestamp=1070000');
+            const p = Number(url.match(/partitions\/(\d+)\//)[1]);
+            if (p === 3) return jsonResponse(200, [
+                { timestamp: 1000, sequenceNumber: 0, contentType: 1, content: chunkHex('t1') },
+                { timestamp: 1001, sequenceNumber: 0, contentType: 1, content: chunkHex('other') },
+                { timestamp: 1002, sequenceNumber: 1, contentType: 0, content: { type: 'text' } }
+            ]);
+            if (p === 5) return jsonResponse(200, [{ timestamp: 1005, sequenceNumber: 2, contentType: 1, content: chunkHex('t1') }]);
+            return jsonResponse(200, []);
+        });
+        const groups = await fileChunkGroups(STREAM, { transferId: 't1', firstChunkTs: 1000000, lastChunkTs: 1010000 }, fetchMock);
+        expect(groups).toEqual([
+            { partition: 3, targets: [{ timestamp: 1000, sequenceNumber: 0 }] },
+            { partition: 5, targets: [{ timestamp: 1005, sequenceNumber: 2 }] }
+        ]);
+        expect(fetchMock).toHaveBeenCalledTimes(9);
+        await expect(fileChunkGroups(STREAM, { transferId: 't1' }, fetchMock)).rejects.toThrow(/does not say/);
+    });
+
+    it('erases a storage file with its chunks, and everything one author wrote', async () => {
+        providersWith.mockResolvedValue([{ nodeAddress: '0xa', urls: ['https://a.example'] }]);
+        const purges = [];
+        const fetchMock = vi.fn(async (url, init) => {
+            const p = Number(url.match(/partitions\/(\d+)\//)[1]);
+            if (url.includes('/purge')) {
+                const body = JSON.parse(init.body);
+                purges.push({ partition: p, n: body.targets.length });
+                return jsonResponse(200, { results: body.targets.map((t) => ({ ...t, result: 'deleted' })) });
+            }
+            return jsonResponse(200, p === 4 ? [{ timestamp: 2000, sequenceNumber: 0, contentType: 1, content: chunkHex('t9') }] : []);
+        });
+        const file = { id: 'f', type: 'storage_file_announce', sender: '0xAuthor', _timestamp: 1999, _seq: 0, metadata: { transferId: 't9', firstChunkTs: 2000, lastChunkTs: 2100 } };
+        const text = { id: 't', type: 'text', sender: '0xauthor', _timestamp: 1500, _seq: 1 };
+        const other = { id: 'o', type: 'text', sender: '0xother', _timestamp: 1600, _seq: 0 };
+        const channel = { messageStreamId: STREAM, messages: [file, text, other] };
+
+        const one = await eraseMessage(channel, file, signer, { fetchImpl: fetchMock });
+        expect(one).toMatchObject({ providers: 1, erasedOn: 1, targets: 2 });
+        expect(purges).toEqual([{ partition: 0, n: 1 }, { partition: 4, n: 1 }]);
+
+        purges.length = 0;
+        const all = await eraseAuthorMessages(channel, '0xAUTHOR', signer, { fetchImpl: fetchMock });
+        expect(all).toMatchObject({ providers: 1, erasedOn: 1, targets: 3, messages: 2, skipped: 0 });
+        expect(purges).toEqual([{ partition: 0, n: 2 }, { partition: 4, n: 1 }]);
     });
 });

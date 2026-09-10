@@ -754,13 +754,36 @@ class ChannelModalsUI {
 
         const client = document.getElementById('ban-level-client');
         const protocol = document.getElementById('ban-level-protocol');
+        const purge = document.getElementById('ban-level-purge');
         const clientDetail = document.getElementById('ban-level-client-detail');
         const protocolDetail = document.getElementById('ban-level-protocol-detail');
+        const purgeDetail = document.getElementById('ban-level-purge-detail');
+        // The storage side needs the hide: bytes leaving storage do nothing
+        // for a client that still holds the message.
+        const providers = channel?.purgeProviders?.length || 0;
+        const canPurge = providers > 0 && canClientBan;
 
         if (client) {
             client.checked = canClientBan;
             client.disabled = !canClientBan;
+            client.onchange = () => {
+                if (!purge) return;
+                purge.disabled = !(canPurge && client.checked);
+                if (purge.disabled) purge.checked = false;
+            };
         }
+        if (purge) {
+            purge.checked = false;
+            purge.disabled = !canPurge;
+        }
+        if (purgeDetail) {
+            purgeDetail.textContent = providers === 0
+                ? 'No storage provider of this channel can erase messages.'
+                : (canClientBan
+                    ? `Removes their messages and files from the ${providers} storage provider${providers === 1 ? '' : 's'} that can. Cannot be undone.`
+                    : 'Only the channel creator can erase, together with the hide.');
+        }
+        document.getElementById('ban-level-purge-row')?.classList.toggle('opacity-40', !canPurge);
         if (protocol) {
             protocol.checked = gated;
             protocol.disabled = !gated;
@@ -785,6 +808,7 @@ class ChannelModalsUI {
                     client: !!client?.checked && canClientBan,
                     protocol: !!protocol?.checked && gated
                 };
+                const erase = !!purge?.checked && canPurge && levels.client;
                 if (!levels.client && !levels.protocol) return;
                 this.deps.modalManager?.hide('ban-member-modal');
                 try {
@@ -793,6 +817,22 @@ class ChannelModalsUI {
                     this.showNotification('Member banned', 'success');
                 } catch (error) {
                     this.showNotification('Failed to ban: ' + error.message, 'error');
+                    return;
+                } finally {
+                    this.notificationUI?.hideLoadingToast();
+                }
+                if (!erase) return;
+                try {
+                    this.notificationUI?.showLoadingToast('Erasing from storage…', 'Locating their messages and files');
+                    const o = await this.channelManager.eraseAuthorMessages(channel.streamId, address);
+                    this.showNotification(
+                        `Erased ${o.messages} message${o.messages === 1 ? '' : 's'} from storage on ${o.erasedOn} of ${o.providers} provider${o.providers === 1 ? '' : 's'}`
+                            + (o.skipped ? ` (${o.skipped} not found)` : '')
+                            + (o.forbiddenOn ? ` (${o.forbiddenOn} refused)` : '')
+                            + (o.unreachable ? ` (${o.unreachable} unreachable)` : ''),
+                        o.erasedOn === o.providers ? 'success' : 'warning');
+                } catch (error) {
+                    this.showNotification('Banned, but not erased from storage: ' + error.message, 'warning');
                 } finally {
                     this.notificationUI?.hideLoadingToast();
                 }

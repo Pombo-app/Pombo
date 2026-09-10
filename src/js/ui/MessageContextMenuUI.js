@@ -485,7 +485,7 @@ class MessageContextMenuUI {
                         else await channelManager.hideMessage(ch.streamId, target.msgId);
                     }
                     const signer = { address: authManager.getAddress(), sign: (m) => authManager.signMessage(m) };
-                    const outcome = await eraseMessage(ch, msg, signer);
+                    const outcome = await eraseMessage(ch, msg, signer, channelManager.purgeOptions?.(ch));
                     if (outcome.erasedOn > 0) msg._erased = true;
                     showNotification(purgeOutcomeText(outcome), outcome.erasedOn === outcome.providers ? 'success' : 'warning');
                     chatAreaUI?.renderMessages?.(ch.messages, () => chatAreaUI._attachMessageListeners?.());

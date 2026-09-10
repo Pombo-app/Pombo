@@ -338,7 +338,7 @@ export class MessageOverrides {
         if (!signer) return null;
         try {
             const { eraseMessage } = await import('../storagePurge.js');
-            return await eraseMessage(channel, msg, signer);
+            return await eraseMessage(channel, msg, signer, this.manager.purgeOptions?.(channel));
         } catch (err) {
             Logger.warn('Storage purge of own message failed:', err?.message || err);
             return { providers: channel.purgeProviders.length, erasedOn: 0, forbiddenOn: 0, unreachable: 0, error: err?.message || String(err) };
