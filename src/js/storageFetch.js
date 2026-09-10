@@ -116,10 +116,11 @@ class StorageFetch {
                 if (metadata) await metadata;
                 continue;
             }
+            const errorKey = `${streamId}|${parsed.partition}`;
             if (resp.ok) {
-                this.lastErrors.delete(streamId);
+                this.lastErrors.delete(errorKey);
             } else {
-                this.lastErrors.set(streamId, { status: resp.status, signed: sign, at: Date.now() });
+                this.lastErrors.set(errorKey, { status: resp.status, signed: sign, at: Date.now() });
                 Logger.warn(`Storage read ${parsed.resendType} ${streamId.slice(-24)} P${parsed.partition}: HTTP ${resp.status}${sign ? ' (signed)' : ''}`);
             }
             if (metadata) await metadata;
@@ -219,15 +220,22 @@ class StorageFetch {
     }
 
     /**
-     * Last failed read of a stream since its last success.
+     * Last failed read of a stream partition since its last success. Without
+     * a partition, any partition of the stream still in error.
      * @returns {{status: number, signed: boolean, at: number}|undefined}
      */
-    lastReadError(streamId) {
-        return this.lastErrors.get(streamId);
+    lastReadError(streamId, partition = null) {
+        if (partition !== null) return this.lastErrors.get(`${streamId}|${partition}`);
+        for (const [key, error] of this.lastErrors) {
+            if (key.startsWith(`${streamId}|`)) return error;
+        }
+        return undefined;
     }
 
     clearReadError(streamId) {
-        this.lastErrors.delete(streamId);
+        for (const key of [...this.lastErrors.keys()]) {
+            if (key.startsWith(`${streamId}|`)) this.lastErrors.delete(key);
+        }
     }
 }
 

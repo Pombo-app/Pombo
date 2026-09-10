@@ -236,12 +236,16 @@ class PreviewModeUI {
             }
 
             // Subscribe to channel stream temporarily (without persisting)
-            await subscriptionManager.setPreviewChannel(streamId, () => {
+            await subscriptionManager.setPreviewChannel(streamId, (stats) => {
                 // ownerChannel identity check is sufficient: every code path
                 // that replaces `previewChannel` also bumps previewGeneration.
                 if (this.previewChannel !== ownerChannel) return;
                 this._applyPreviewOverrides();
                 ownerChannel.messages = ownerChannel.messages.filter(m => !m._deleted);
+                // A refusal by the storage node is what the empty preview
+                // explains, and no older page will change it.
+                ownerChannel.historyError = stats?.readError || null;
+                if (ownerChannel.historyError) ownerChannel.hasMoreHistory = false;
                 ownerChannel.initialLoadInProgress = false;
                 const { chatAreaUI, mediaHandler } = this.deps;
                 chatAreaUI.renderMessages(ownerChannel.messages, () => {

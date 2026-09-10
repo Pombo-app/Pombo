@@ -812,8 +812,11 @@ export class History {
         } catch (error) {
             // CORS errors and other network issues are caught here
             Logger.warn(`History fetch failed for partition ${partition} (may be CORS on localhost):`, error.message);
-            readError = storageFetch.lastReadError(streamId) || null;
         } finally {
+            // A refusal by the storage node surfaces as an iterator error the
+            // loop above skips, so the verdict comes from the fetch layer, which
+            // clears it on the next successful read of this partition.
+            readError = storageFetch.lastReadError(streamId, partition) || null;
             // Signal that initial history fetch is complete (success or failure).
             // Pass `loaded`/`requested` so callers can detect exhaustion (when
             // fewer raw messages came back than requested → no more history

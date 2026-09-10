@@ -150,7 +150,20 @@ describe('storageFetch', () => {
         expect(resp.status).toBe(403);
         expect(callsTo('format=raw')).toHaveLength(1);
         expect(storageFetch.lastReadError(STREAM)).toMatchObject({ status: 403, signed: true });
+        expect(storageFetch.lastReadError(STREAM, 0)).toMatchObject({ status: 403, signed: true });
+        expect(storageFetch.lastReadError(STREAM, 1)).toBeUndefined();
         expect(storageFetch.lastReadError(KEYS)).toBeUndefined();
+    });
+
+    it('keeps a partition refusal when another partition of the stream succeeds', async () => {
+        fetchMock.mockImplementation(async (url) => String(url).includes('/partitions/0/') ? ok('', 403) : ok([]));
+        await globalThis.fetch(readUrl(STREAM, 0));
+        await globalThis.fetch(readUrl(STREAM, 1));
+        expect(storageFetch.lastReadError(STREAM, 0)).toMatchObject({ status: 403 });
+        expect(storageFetch.lastReadError(STREAM, 1)).toBeUndefined();
+        expect(storageFetch.lastReadError(STREAM)).toMatchObject({ status: 403 });
+        storageFetch.clearReadError(STREAM);
+        expect(storageFetch.lastReadError(STREAM)).toBeUndefined();
     });
 
     it('retries a 503 with backoff and gives up after the last delay', async () => {

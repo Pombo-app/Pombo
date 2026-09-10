@@ -687,6 +687,18 @@ class ChatAreaUI {
                 </div>
             `;
         }
+        // What is on screen came from the local cache; the storage node
+        // refused to serve more, and the reader should know why.
+        let historyErrorBanner = '';
+        if (effectiveChannel?.historyError) {
+            const { title, detail } = this._historyErrorText(effectiveChannel.historyError, !!previewChannel);
+            historyErrorBanner = `
+                <div id="history-error-banner" class="flex flex-col items-center gap-1 py-3 px-4 text-center">
+                    <span class="text-sm text-white/40">${escapeHtml(title)}</span>
+                    <span class="text-xs text-white/25">${escapeHtml(detail)}</span>
+                </div>
+            `;
+        }
 
         // Analyze message groups for Stack Effect
         const groupPositions = analyzeMessageGroups(messagesForRender);
@@ -762,7 +774,7 @@ class ChatAreaUI {
             messagesHtml += messageRenderer.buildMessageGroupCloseHTML();
         }
 
-        this.messagesArea.innerHTML = historyStartIndicator + messagesHtml;
+        this.messagesArea.innerHTML = historyErrorBanner + historyStartIndicator + messagesHtml;
 
         if (!this.isLoadingMore) {
             this.messagesArea.scrollTop = this.messagesArea.scrollHeight;
