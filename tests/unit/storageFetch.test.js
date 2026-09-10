@@ -144,6 +144,56 @@ describe('storageFetch', () => {
         expect(storageFetch.lastReadError(STREAM)).toBeUndefined();
     });
 
+    it('refuses a page whose storedAt the node did not supply, after a second try', async () => {
+        fetchMock.mockImplementation(async (url) => {
+            if (String(url).includes('format=metadata')) throw new Error('timed out');
+            return ok('frames');
+        });
+        const resp = await globalThis.fetch(readUrl(STREAM));
+        expect(resp.status).toBe(503);
+        expect(callsTo('format=metadata')).toHaveLength(2);
+        expect(callsTo('format=raw')).toHaveLength(1);
+        expect(storageFetch.lastReadError(STREAM)).toMatchObject({ status: 503, signed: true, reason: 'storedAt' });
+    });
+
+    it('refuses the page at once when the node answers the storedAt read with an error', async () => {
+        fetchMock.mockImplementation(async (url) => String(url).includes('format=metadata') ? ok('', 503) : ok('frames'));
+        const resp = await globalThis.fetch(readUrl(STREAM));
+        expect(resp.status).toBe(503);
+        expect(callsTo('format=metadata')).toHaveLength(1);
+        expect(storageFetch.lastReadError(STREAM)).toMatchObject({ status: 503, reason: 'storedAt' });
+    });
+
+    it('stops asking for storedAt once the raw read was abandoned', async () => {
+        const ctrl = new AbortController();
+        fetchMock.mockImplementation(async (url, init) => {
+            if (String(url).includes('format=metadata')) {
+                if (init.signal.aborted) throw new Error('aborted');
+                return new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted'))));
+            }
+            ctrl.abort();
+            return ok('frames');
+        });
+        const resp = await globalThis.fetch(readUrl(STREAM), { signal: ctrl.signal });
+        expect(resp.status).toBe(503);
+        expect(callsTo('format=metadata')).toHaveLength(1);
+        expect(storageFetch.lastReadError(STREAM)).toMatchObject({ reason: 'storedAt' });
+    });
+
+    it('signs once after a 401 even when the capabilities probe failed', async () => {
+        endpoints.probeCapabilities.mockResolvedValueOnce(undefined);
+        let rawCalls = 0;
+        fetchMock.mockImplementation(async (url, init) => {
+            if (String(url).includes('format=metadata')) return ok([]);
+            rawCalls++;
+            return new Headers(init.headers).has('x-pombo-user') ? ok('frames') : ok('', 401);
+        });
+        const resp = await globalThis.fetch(readUrl(STREAM));
+        expect(resp.status).toBe(200);
+        expect(rawCalls).toBe(2);
+        expect(storageFetch.lastReadError(STREAM)).toBeUndefined();
+    });
+
     it('records a 403 as refused access, signed', async () => {
         fetchMock.mockImplementation(async () => ok('', 403));
         const resp = await globalThis.fetch(readUrl(STREAM));
@@ -182,13 +232,16 @@ describe('storageFetch', () => {
         expect(storageFetch.lastReadError(STREAM)).toBeUndefined();
     });
 
-    it('a failed metadata read only costs the storedAt', async () => {
+    it('keeps the page on a node that does not announce storedAt, without asking for it', async () => {
+        features = new Set(['metadata', 'purge', 'signedReads']);
         fetchMock.mockImplementation(async (url) => String(url).includes('format=metadata')
             ? Promise.reject(new Error('boom'))
             : ok('frames'));
         const resp = await globalThis.fetch(readUrl(STREAM));
         expect(resp.status).toBe(200);
+        expect(callsTo('format=metadata')).toHaveLength(0);
         expect(storageFetch.storedAtFor(STREAM, 0, 1000, 0)).toBeUndefined();
+        expect(storageFetch.lastReadError(STREAM)).toBeUndefined();
     });
 
     it('preserves caller headers and options on the signed request', async () => {

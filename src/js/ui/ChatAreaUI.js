@@ -326,6 +326,9 @@ class ChatAreaUI {
      * @returns {{title: string, detail: string}}
      */
     _historyErrorText(error, isPreview) {
+        if (error?.reason === 'storedAt') {
+            return { title: 'Channel history is temporarily unavailable', detail: 'The storage node did not say when these messages were stored. Reopen the channel to retry' };
+        }
         switch (error?.status) {
             case 403:
                 return isPreview

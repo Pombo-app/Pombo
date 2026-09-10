@@ -33,10 +33,18 @@ import { parseStorageDataUrl, signedReadHeaders } from './storageReadSigner.js';
 const SIGNED_READS = 'signedReads';
 const STORED_AT = 'storedAt';
 const RETRY_503_DELAYS_MS = [1000, 3000, 7000];
-const METADATA_TIMEOUT_MS = 30000;
+// The storedAt read lives as long as the raw read it pairs with (same node,
+// same rows); the cap only bounds a read whose caller set no signal.
+const METADATA_SAFETY_MS = 90000;
+const METADATA_ATTEMPTS = 2;
 const STORED_AT_MAX_ENTRIES = 50000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** A refusal the client makes itself, shaped like a node outage so the SDK treats it as one. */
+const unavailable = () => (typeof Response === 'function'
+    ? new Response('', { status: 503, statusText: 'storedAt unavailable' })
+    : { ok: false, status: 503, statusText: 'storedAt unavailable', headers: new Headers(), body: null, json: async () => ({}), text: async () => '' });
 
 /**
  * The envelope sequence number of a raw SDK message: with the envelope
@@ -104,7 +112,7 @@ class StorageFetch {
         const { streamId } = parsed;
         const features = (await endpoints.probeCapabilities(parsed.base)) || new Set();
         const gated = await isGated(streamId);
-        const identity = signer();
+        let identity = signer();
         const canSign = !!identity?.address && features.has(SIGNED_READS);
         let sign = canSign && gated && !/-3$/.test(streamId);
         const wantStoredAt = gated && features.has(STORED_AT);
@@ -118,11 +126,18 @@ class StorageFetch {
             }
             const metadata = wantStoredAt ? this.collectStoredAt(parsed, sign ? identity : null, init) : null;
             const resp = await this.original(parsed.url, { ...init, headers });
-            if (resp.status === 401 && !sign && canSign && !signedUnprompted) {
-                sign = true;
+            // A 401 is the node asking for a signature, whatever the probe
+            // said (it may have timed out on a slow node) and whether or not
+            // the stream was known to be gated; the identity is read again,
+            // since it may have arrived since the request went out.
+            if (resp.status === 401 && !sign && !signedUnprompted) {
                 signedUnprompted = true;
-                if (metadata) await metadata;
-                continue;
+                identity = signer();
+                if (identity?.address) {
+                    sign = true;
+                    if (metadata) await metadata;
+                    continue;
+                }
             }
             if (resp.status === 503 && attempt < this.retryDelays.length) {
                 Logger.warn(`Storage node ${parsed.base} cannot consult the chain (503), retrying`);
@@ -131,13 +146,21 @@ class StorageFetch {
                 continue;
             }
             const errorKey = `${streamId}|${parsed.partition}`;
+            const collected = metadata ? await metadata : true;
+            if (resp.ok && !collected) {
+                // History without storedAt cannot tell a forged row from a
+                // genuine one, and a node that announces storedAt owes it:
+                // the page is refused the way a node outage is.
+                this.lastErrors.set(errorKey, { status: 503, signed: sign, at: Date.now(), reason: 'storedAt' });
+                Logger.warn(`Storage read ${parsed.resendType} ${streamId.slice(-24)} P${parsed.partition}: no storedAt, page refused`);
+                return unavailable();
+            }
             if (resp.ok) {
                 this.lastErrors.delete(errorKey);
             } else {
                 this.lastErrors.set(errorKey, { status: resp.status, signed: sign, at: Date.now() });
                 Logger.warn(`Storage read ${parsed.resendType} ${streamId.slice(-24)} P${parsed.partition}: HTTP ${resp.status}${sign ? ' (signed)' : ''}`);
             }
-            if (metadata) await metadata;
             return resp;
         }
     }
@@ -146,33 +169,49 @@ class StorageFetch {
      * The paired `format=metadata` read. Best-effort: a failure only means
      * the messages of this page carry no storedAt.
      */
+    /**
+     * The paired `format=metadata` read, remembered per row.
+     * @returns {Promise<boolean>} whether the node supplied the page's storedAt
+     */
     async collectStoredAt(parsed, identity, init) {
         const u = new URL(parsed.url);
         u.searchParams.set('format', 'metadata');
         const metaParsed = parseStorageDataUrl(u.toString());
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), METADATA_TIMEOUT_MS);
-        try {
-            const headers = new Headers();
-            if (identity) {
-                for (const [k, v] of Object.entries(await signedReadHeaders(metaParsed, identity))) headers.set(k, v);
+        const outer = init?.signal;
+        // A second try, because history judged without storedAt cannot tell
+        // a forged row from a genuine one; each attempt signs afresh.
+        for (let attempt = 1; attempt <= METADATA_ATTEMPTS; attempt++) {
+            if (outer?.aborted) return false;
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), METADATA_SAFETY_MS);
+            const onOuterAbort = () => ctrl.abort();
+            outer?.addEventListener?.('abort', onOuterAbort, { once: true });
+            try {
+                const headers = new Headers();
+                if (identity) {
+                    for (const [k, v] of Object.entries(await signedReadHeaders(metaParsed, identity))) headers.set(k, v);
+                }
+                const resp = await this.original(metaParsed.url, { ...init, headers, signal: ctrl.signal });
+                if (!resp.ok) {
+                    Logger.debug(`storedAt read ${parsed.streamId.slice(-24)} P${parsed.partition}: HTTP ${resp.status}`);
+                    return false;
+                }
+                const rows = await resp.json();
+                if (!Array.isArray(rows)) return false;
+                for (const row of rows) {
+                    if (!row || !Number.isFinite(row.storedAt)) continue;
+                    this.remember(parsed.streamId, parsed.partition, row.timestamp, row.sequenceNumber, row.storedAt);
+                }
+                return true;
+            } catch (e) {
+                Logger.debug(`storedAt read failed (attempt ${attempt}): ${e.message}`);
+            } finally {
+                clearTimeout(t);
+                outer?.removeEventListener?.('abort', onOuterAbort);
             }
-            const resp = await this.original(metaParsed.url, { ...init, headers, signal: ctrl.signal });
-            if (!resp.ok) {
-                Logger.debug(`storedAt read ${parsed.streamId.slice(-24)} P${parsed.partition}: HTTP ${resp.status}`);
-                return;
-            }
-            const rows = await resp.json();
-            if (!Array.isArray(rows)) return;
-            for (const row of rows) {
-                if (!row || !Number.isFinite(row.storedAt)) continue;
-                this.remember(parsed.streamId, parsed.partition, row.timestamp, row.sequenceNumber, row.storedAt);
-            }
-        } catch (e) {
-            Logger.debug(`storedAt read failed: ${e.message}`);
-        } finally {
-            clearTimeout(t);
         }
+        Logger.warn(`storedAt unavailable for ${parsed.streamId.slice(-24)} P${parsed.partition}`);
+        return false;
     }
 
     remember(streamId, partition, timestamp, sequenceNumber, storedAt) {
