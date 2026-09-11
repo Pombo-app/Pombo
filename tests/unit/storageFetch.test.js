@@ -206,7 +206,7 @@ describe('storageFetch', () => {
         expect(storageFetch.lastReadError(STREAM)).toMatchObject({ reason: 'storedAt' });
     });
 
-    it('signs once after a 401 even when the capabilities probe failed', async () => {
+    it('signs once after a 401 even when the capabilities probe failed, and demands storedAt from then on', async () => {
         endpoints.probeCapabilities.mockResolvedValueOnce(undefined);
         let rawCalls = 0;
         fetchMock.mockImplementation(async (url, init) => {
@@ -217,7 +217,19 @@ describe('storageFetch', () => {
         const resp = await globalThis.fetch(readUrl(STREAM));
         expect(resp.status).toBe(200);
         expect(rawCalls).toBe(2);
+        expect(callsTo('format=metadata')).toHaveLength(1);
         expect(storageFetch.lastReadError(STREAM)).toBeUndefined();
+    });
+
+    it('refuses the page of a node that asked for a signature but gave no storedAt, probe or no probe', async () => {
+        endpoints.probeCapabilities.mockResolvedValueOnce(undefined);
+        fetchMock.mockImplementation(async (url, init) => {
+            if (String(url).includes('format=metadata')) return ok('', 500);
+            return new Headers(init.headers).has('x-pombo-user') ? ok('frames') : ok('', 401);
+        });
+        const resp = await globalThis.fetch(readUrl(STREAM));
+        expect(resp.status).toBe(503);
+        expect(storageFetch.lastReadError(STREAM)).toMatchObject({ status: 503, signed: true, reason: 'storedAt' });
     });
 
     it('records a 403 as refused access, signed', async () => {

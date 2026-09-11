@@ -120,7 +120,7 @@ class StorageFetch {
         let sign = canSign && (gated || ownInbox) && !/-3$/.test(streamId);
         // storedAt is read wherever a page gets judged: every stream of a
         // node that supplies it.
-        const wantStoredAt = features.has(STORED_AT);
+        let wantStoredAt = features.has(STORED_AT);
 
         let attempt = 0;
         let signedUnprompted = false;
@@ -140,6 +140,10 @@ class StorageFetch {
                 identity = signer();
                 if (identity?.address) {
                     sign = true;
+                    // Only a Pombo node asks for a signature, and every Pombo
+                    // node supplies storedAt: the page is judged even when
+                    // the probe never said so.
+                    wantStoredAt = true;
                     if (metadata) await metadata;
                     continue;
                 }
@@ -162,6 +166,7 @@ class StorageFetch {
             }
             if (resp.ok) {
                 this.lastErrors.delete(errorKey);
+                Logger.debug(`Storage read ${parsed.resendType} ${streamId.slice(-24)} P${parsed.partition}: ok${sign ? ' signed' : ' unsigned'}${metadata ? ' +storedAt' : ' -storedAt'}`);
             } else {
                 this.lastErrors.set(errorKey, { status: resp.status, signed: sign, at: Date.now() });
                 Logger.warn(`Storage read ${parsed.resendType} ${streamId.slice(-24)} P${parsed.partition}: HTTP ${resp.status}${sign ? ' (signed)' : ''}`);
