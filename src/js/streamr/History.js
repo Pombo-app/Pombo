@@ -15,6 +15,7 @@ import { CONFIG } from '../config.js';
 import { STREAM_CONFIG } from '../streamConfig.js';
 import { isMessageStream } from '../streamConstants.js';
 import { verifyEnvelopeAuthenticity } from '../envelopeSigner.js';
+import { storageFetch, envelopeSequenceNumber } from '../storageFetch.js';
 
 // The same forgery clamp the live handler applies (MessageFlow): a payload
 // dated ahead of the wall clock or its own signed envelope beyond skew is
@@ -74,6 +75,10 @@ export class History {
         const partition = STREAM_CONFIG.MESSAGE_STREAM.MESSAGES;
         const entries = [];
         const gatedChannel = await this.controller._gatedChannelFor(messageStreamId);
+        // Gated entries are epoch envelopes and never render as a preview,
+        // and a storage node with signed reads refuses the read to anyone
+        // without access: nothing to fetch.
+        if (gatedChannel) return entries;
 
         try {
             // Raw: skips the SDK's validation/ordering pipeline — resilience
@@ -288,9 +293,11 @@ export class History {
 
                     // Epoch envelope (gated): unknown kid → skip, not error (§7.9)
                     let innerAuthor = null;
+                    const judged = storageFetch.judgeMessage(messageStreamId, partition, message);
+                    if (judged.forwardDated) continue;
                     if (this.controller.isEpochEnvelope(content)) {
                         const opened = await this.controller.openEpochEnvelope(messageStreamId, content,
-                            { live: false, timestamp: historyTimestamp });
+                            { live: false, timestamp: judged.judgeTime });
                         if (opened === null) {
                             epochWaiting++;
                             continue;
@@ -331,6 +338,7 @@ export class History {
                         }
                         if (messageTimestamp) {
                             content._timestamp = messageTimestamp;
+                            content._seq = envelopeSequenceNumber(message);
                         }
                     }
                     
@@ -513,6 +521,7 @@ export class History {
                         : message.publisherId;
 
                     if (isFutureForged(content?.timestamp, message.timestamp)) continue;
+                    if (storageFetch.judgeMessage(streamId, partition, message).forwardDated) continue;
 
                     messages.push({
                         content,
@@ -554,6 +563,7 @@ export class History {
         // real count to onHistoryComplete (scoping bug fix: it previously read
         // an out-of-scope variable via typeof and always reported 0)
         let rawCount = 0;
+        let readError = null;
         try {
             Logger.debug(`Fetching ${count} historical messages for partition ${partition}${password ? ' (encrypted)' : ''}...`);
 
@@ -687,9 +697,14 @@ export class History {
 
                     // Epoch envelope (gated): unknown kid → skip, not error (§7.9)
                     let innerAuthor = null;
+                    const judged = storageFetch.judgeMessage(streamId, partition, message);
+                    if (judged.forwardDated) {
+                        skippedCount++;
+                        continue;
+                    }
                     if (this.controller.isEpochEnvelope(content)) {
                         const opened = await this.controller.openEpochEnvelope(streamId, content,
-                            { live: false, timestamp: historyTimestamp });
+                            { live: false, timestamp: judged.judgeTime });
                         if (opened === null) {
                             skippedCount++;
                             continue;
@@ -733,6 +748,7 @@ export class History {
                         }
                         if (messageTimestamp) {
                             content._timestamp = messageTimestamp;
+                            content._seq = envelopeSequenceNumber(message);
                         }
                     }
                     
@@ -800,6 +816,10 @@ export class History {
             // CORS errors and other network issues are caught here
             Logger.warn(`History fetch failed for partition ${partition} (may be CORS on localhost):`, error.message);
         } finally {
+            // A refusal by the storage node surfaces as an iterator error the
+            // loop above skips, so the verdict comes from the fetch layer, which
+            // clears it on the next successful read of this partition.
+            readError = storageFetch.lastReadError(streamId, partition) || null;
             // Signal that initial history fetch is complete (success or failure).
             // Pass `loaded`/`requested` so callers can detect exhaustion (when
             // fewer raw messages came back than requested → no more history
@@ -807,7 +827,7 @@ export class History {
             // `hasMoreHistory=false` deterministically.
             if (onHistoryComplete) {
                 try {
-                    await onHistoryComplete({ loaded: rawCount, requested: count });
+                    await onHistoryComplete({ loaded: rawCount, requested: count, readError });
                 } catch (e) { Logger.warn('onHistoryComplete error:', e); }
             }
         }

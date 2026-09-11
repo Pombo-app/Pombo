@@ -33,12 +33,15 @@ function isOwner(channel) {
     return !!owner && owner === me;
 }
 
-async function tick(channel, onMessage) {
+async function tick(channel, onMessage, onRefusal = null) {
     await epochKeyManager.ensureChannelKeys(channel).catch(e =>
         Logger.debug('Member catch-up: key sweep failed:', e.message));
     await new Promise((resolve) => {
         let settled = false;
-        const done = () => { if (!settled) { settled = true; resolve(); } };
+        const done = (stats) => {
+            if (stats?.readError && onRefusal) onRefusal(stats.readError);
+            if (!settled) { settled = true; resolve(); }
+        };
         try {
             streamrController.fetchHistoryAsync(
                 channel.messageStreamId,
@@ -56,10 +59,10 @@ async function tick(channel, onMessage) {
 
 export const memberCatchUp = {
     /** Start catching up for this channel, if this account is a member of it. */
-    start(channel, onMessage) {
+    start(channel, onMessage, onRefusal = null) {
         if (!channel || !usesEpochKeys(channel) || channel.preview) return;
         if (isOwner(channel)) return;
-        poller.start(channel.messageStreamId, () => tick(channel, onMessage));
+        poller.start(channel.messageStreamId, () => tick(channel, onMessage, onRefusal));
     },
 
     stop(messageStreamId = null) {

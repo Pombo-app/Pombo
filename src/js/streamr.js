@@ -59,6 +59,7 @@ const WRITER_CACHE_TTL_MS = 60_000;
 import { STREAM_CONFIG } from './streamConfig.js';
 import { History } from './streamr/History.js';
 import { MessagePipeline } from './streamr/MessagePipeline.js';
+import { storageFetch } from './storageFetch.js';
 
 // === ID DERIVATION FUNCTIONS ===
 // Re-exported from streamConstants.js; kept as local names for readability
@@ -3294,11 +3295,10 @@ class StreamrController {
                     // context so entries sealed under an older epoch open in
                     // that epoch's validity window instead of being dropped.
                     if (this.isEpochEnvelope(content)) {
-                        const historyTimestamp = typeof message.getTimestamp === 'function'
-                            ? message.getTimestamp()
-                            : message.timestamp;
+                        const judged = storageFetch.judgeMessage(adminStreamId, partition, message);
+                        if (judged.forwardDated) continue;
                         const opened = await this.openEpochEnvelope(adminStreamId, content,
-                            { live: false, timestamp: historyTimestamp });
+                            { live: false, timestamp: judged.judgeTime });
                         if (opened === null) continue;
                         content = opened;
                     }
@@ -3459,11 +3459,10 @@ class StreamrController {
                     // context so an image sealed under an older epoch opens in
                     // that epoch's validity window instead of being dropped.
                     if (this.isEpochEnvelope(content)) {
-                        const historyTimestamp = typeof message.getTimestamp === 'function'
-                            ? message.getTimestamp()
-                            : message.timestamp;
+                        const judged = storageFetch.judgeMessage(adminStreamId, partition, message);
+                        if (judged.forwardDated) continue;
                         const opened = await this.openEpochEnvelope(adminStreamId, content,
-                            { live: false, timestamp: historyTimestamp });
+                            { live: false, timestamp: judged.judgeTime });
                         if (opened === null) continue;
                         content = opened;
                     }
@@ -4404,8 +4403,8 @@ class StreamrController {
         // even when the iterator never signals `done` (e.g. legacy single-
         // partition channels).
         const historyStats = {
-            content: { loaded: 0, requested: 0 },
-            control: { loaded: 0, requested: 0 },
+            content: { loaded: 0, requested: 0, readError: null },
+            control: { loaded: 0, requested: 0, readError: null },
         };
 
         const maybeSignalHistoryComplete = async () => {
@@ -4418,6 +4417,7 @@ class StreamrController {
                         contentRequested: historyStats.content.requested,
                         controlLoaded: historyStats.control.loaded,
                         controlRequested: historyStats.control.requested,
+                        readError: historyStats.content.readError || historyStats.control.readError,
                     });
                 } catch (e) { Logger.warn('onHistoryComplete error:', e); }
             }
@@ -4432,11 +4432,13 @@ class StreamrController {
                 historyStats.content = {
                     loaded: stats.loaded ?? 0,
                     requested: stats.requested ?? 0,
+                    readError: stats.readError ?? null,
                 };
             } else if (stats && partition === STREAM_CONFIG.MESSAGE_STREAM.CONTROL) {
                 historyStats.control = {
                     loaded: stats.loaded ?? 0,
                     requested: stats.requested ?? 0,
+                    readError: stats.readError ?? null,
                 };
             }
             Logger.debug(`History complete for ${partitionLabel}. Pending: ${pendingHistoryCompletions}`);

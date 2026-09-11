@@ -15,6 +15,7 @@ import { CONFIG } from '../config.js';
 import { mediaController } from '../media.js';
 import { adminStatePoller } from '../adminStatePoller.js';
 import { messageTime } from '../utils/messageTime.js';
+import { storageFetch } from '../storageFetch.js';
 
 export class MessageFlow {
     /**
@@ -248,11 +249,21 @@ export class MessageFlow {
             }
         }
 
+        // A deleted message's row stays on storage; no later read of it
+        // brings the message back.
+        if (channel._deletedIds?.has(data.id)) return;
+
         // Check if message already exists (deduplication)
         // This handles duplicates from network AND historical messages
-        const messageExists = channel.messages.some(m => m.id === data.id);
-        
-        if (messageExists) {
+        const existing = channel.messages.find(m => m.id === data.id);
+
+        if (existing) {
+            // The echo of an own message is where its envelope coordinates
+            // arrive; the local copy needs them to be addressed on storage.
+            if (Number.isFinite(data._timestamp) && !Number.isFinite(existing._timestamp)) {
+                existing._timestamp = data._timestamp;
+                if (Number.isFinite(data._seq)) existing._seq = data._seq;
+            }
             Logger.debug('Message already exists, skipping duplicate:', data.id);
             return;
         }
@@ -435,6 +446,7 @@ export class MessageFlow {
                 await mediaController.registerStoredImageManifest(streamId, data);
             }
             
+            if (channel._deletedIds?.has(data.id)) continue;
             channel.messages.push(data);
             addedCount++;
             
@@ -842,9 +854,16 @@ export class MessageFlow {
             // to give the storage node enough time to walk the gap. Any
             // attempt that returns data wins immediately; we don't keep
             // retrying after success.
+            const refusal = storageFetch.lastReadError(messageStreamId, STREAM_CONFIG.MESSAGE_STREAM.MESSAGES);
+            if (refusal) {
+                channel.historyError = refusal;
+                contentResult = { ...contentResult, hasMore: false };
+            }
+
             const isEmpty = (c, o) => (c?.messages?.length || 0) === 0
                 && (o?.messages?.length || 0) === 0;
-            if (isEmpty(contentResult, overrideResult)
+            if (!refusal
+                && isEmpty(contentResult, overrideResult)
                 && beforeTimestamp > 1
                 && !signal?.aborted
                 && this.manager.switchGeneration === generationAtStart) {
@@ -979,6 +998,7 @@ export class MessageFlow {
                             }
                         }
 
+                        if (channel._deletedIds?.has(msg.id)) continue;
                         channel.messages.push(msg);
                         addedCount++;
                         

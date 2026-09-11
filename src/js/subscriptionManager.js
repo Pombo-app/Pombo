@@ -138,7 +138,11 @@ class SubscriptionManager {
             const channel = channelManager.getChannel(messageStreamId);
             if (channel) {
                 memberCatchUp.start(channel,
-                    (data) => channelManager.handleTextMessage(messageStreamId, data));
+                    (data) => channelManager.handleTextMessage(messageStreamId, data),
+                    (refusal) => {
+                        channel.historyError = refusal;
+                        channelManager.notifyHandlers('history_batch_loaded', { streamId: messageStreamId, loaded: 0, total: 0 });
+                    });
             }
         } catch (e) {
             Logger.debug('Member catch-up start failed (non-fatal):', e?.message || e);

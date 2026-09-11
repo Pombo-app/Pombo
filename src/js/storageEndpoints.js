@@ -13,8 +13,16 @@
  *
  * The module also tracks per-node health for the session:
  *  - consecutive-failure ejection from the rotation (noteFailure/noteSuccess)
- *  - whether a node supports the Pombo `format=metadata` fast path (probed
- *    lazily by the engine; vanilla storage nodes answer HTTP 400)
+ *  - the features a node announces on `GET /capabilities` (Pombo storage
+ *    node fork: metadata, storedAt, purge, signedReads); vanilla nodes answer
+ *    404 and are remembered as announcing nothing
+ *  - whether a node supports the Pombo `format=metadata` fast path (from the
+ *    capabilities when announced, else probed lazily by the engine; vanilla
+ *    storage nodes answer HTTP 400)
+ *
+ * A "provider" is one on-chain node address; its URLs may front a cluster
+ * sharing one database, so a feature belongs to the provider when any of its
+ * URLs announces it.
  */
 
 import { CONFIG } from './config.js';
@@ -22,6 +30,8 @@ import { Logger } from './logger.js';
 import { streamrController, isWebSafeStorageNodeUrl } from './streamr.js';
 
 const normalizeUrl = (url) => String(url || '').trim().replace(/\/+$/, '');
+
+const CAPABILITIES_TIMEOUT_MS = 8000;
 
 class StorageEndpointResolver {
     constructor() {
@@ -33,6 +43,10 @@ class StorageEndpointResolver {
         this.failures = new Map();
         // url → true | false (format=metadata support; unknown = not present)
         this.metaFormat = new Map();
+        // url → { at: epochMs, features: Set<string> } (empty set = vanilla / 404)
+        this.capabilities = new Map();
+        // url → in-flight capabilities probe
+        this.capabilityProbes = new Map();
     }
 
     /**
@@ -153,11 +167,121 @@ class StorageEndpointResolver {
     }
 
     /**
-     * format=metadata support for a node URL.
-     * @returns {boolean|undefined} undefined = not probed yet
+     * Features a node URL announces on `GET /capabilities`. Cached per URL
+     * with the endpoint TTL; concurrent probes share one request. A 404 is a
+     * vanilla node and caches as an empty set; a network error or any other
+     * status is not cached, so the next call probes again.
+     *
+     * @param {string} url - Node base URL
+     * @param {Object} [options]
+     * @param {boolean} [options.force=false] - Bypass the cache
+     * @returns {Promise<Set<string>|undefined>} undefined = probe failed
+     */
+    async probeCapabilities(url, { force = false } = {}) {
+        const u = normalizeUrl(url);
+        if (!u) return undefined;
+        const ttl = CONFIG.storageMedia.endpointCacheTtlMs;
+        const cached = this.capabilities.get(u);
+        if (!force && cached && Date.now() - cached.at < ttl) {
+            return cached.features;
+        }
+        if (this.capabilityProbes.has(u)) {
+            return this.capabilityProbes.get(u);
+        }
+        const p = this.fetchCapabilities(u)
+            .then((features) => {
+                if (features) this.capabilities.set(u, { at: Date.now(), features });
+                return features;
+            })
+            .finally(() => this.capabilityProbes.delete(u));
+        this.capabilityProbes.set(u, p);
+        return p;
+    }
+
+    async fetchCapabilities(u) {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), CAPABILITIES_TIMEOUT_MS);
+        try {
+            const resp = await fetch(`${u}/capabilities`, { signal: ctrl.signal });
+            if (resp.status === 404) return new Set();
+            if (!resp.ok) {
+                Logger.debug(`Capabilities probe ${u}: HTTP ${resp.status}`);
+                return undefined;
+            }
+            const body = await resp.json();
+            const list = Array.isArray(body?.features) ? body.features : [];
+            const features = new Set(list.filter((f) => typeof f === 'string'));
+            Logger.info(`Storage node ${u} announces: ${[...features].join(', ') || '(nothing)'}`);
+            return features;
+        } catch (e) {
+            Logger.debug(`Capabilities probe ${u} failed: ${e.message}`);
+            return undefined;
+        } finally {
+            clearTimeout(t);
+        }
+    }
+
+    /**
+     * Cached capabilities of a node URL, without probing.
+     * @returns {Set<string>|undefined} undefined = not probed (or probe failed)
+     */
+    capabilitiesOf(url) {
+        return this.capabilities.get(normalizeUrl(url))?.features;
+    }
+
+    /** True only when the URL has been probed and announces the feature. */
+    hasFeature(url, feature) {
+        return this.capabilitiesOf(url)?.has(feature) === true;
+    }
+
+    /**
+     * Resolve a stream's providers and probe every URL in parallel.
+     * @param {string} streamId
+     * @returns {Promise<Array<{nodeAddress: string, urls: string[], features: Set<string>}>>}
+     *   `features` is the union over the provider's URLs
+     */
+    async probeStream(streamId) {
+        const nodes = await this.resolve(streamId);
+        const urls = nodes.flatMap((n) => n.urls);
+        await Promise.all(urls.map((u) => this.probeCapabilities(u)));
+        return nodes.map((n) => {
+            const features = new Set();
+            for (const u of n.urls) {
+                for (const f of this.capabilitiesOf(u) || []) features.add(f);
+            }
+            return { nodeAddress: n.nodeAddress, urls: n.urls, features };
+        });
+    }
+
+    /**
+     * Providers of a stream that announce a feature, each reduced to the URLs
+     * that announce it (a request goes to one of them, the rest are retries).
+     * @param {string} streamId
+     * @param {string} feature
+     * @returns {Promise<Array<{nodeAddress: string, urls: string[]}>>}
+     */
+    async providersWith(streamId, feature) {
+        const providers = await this.probeStream(streamId);
+        return providers
+            .filter((p) => p.features.has(feature))
+            .map((p) => ({
+                nodeAddress: p.nodeAddress,
+                urls: p.urls.filter((u) => this.hasFeature(u, feature))
+            }));
+    }
+
+    /**
+     * format=metadata support for a node URL. An explicit record from a read
+     * wins; otherwise the answer comes from the announced capabilities.
+     * @returns {boolean|undefined} undefined = not known yet
      */
     supportsMetaFormat(url) {
-        return this.metaFormat.get(normalizeUrl(url));
+        const u = normalizeUrl(url);
+        const recorded = this.metaFormat.get(u);
+        if (recorded !== undefined) return recorded;
+        const features = this.capabilities.get(u)?.features;
+        if (features && features.has('metadata')) return true;
+        return undefined;
     }
 
     setMetaFormatSupport(url, supported) {
@@ -175,6 +299,8 @@ class StorageEndpointResolver {
         this.inFlight.clear();
         this.failures.clear();
         this.metaFormat.clear();
+        this.capabilities.clear();
+        this.capabilityProbes.clear();
     }
 }
 

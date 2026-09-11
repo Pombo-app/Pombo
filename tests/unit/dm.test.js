@@ -179,6 +179,16 @@ vi.mock('../../src/js/media.js', () => ({
         hasActiveDMTransfers: vi.fn().mockReturnValue(false)
     }
 }));
+vi.mock('../../src/js/storageEndpoints.js', () => ({
+    storageEndpoints: { providersWith: vi.fn().mockResolvedValue([]) }
+}));
+const purgeGroupsMock = vi.fn();
+const eraseMessageMock = vi.fn();
+vi.mock('../../src/js/storagePurge.js', () => ({
+    purgeGroups: (...a) => purgeGroupsMock(...a),
+    eraseMessage: (...a) => eraseMessageMock(...a),
+    keySigner: (privateKey) => ({ address: `signer:${privateKey}`, sign: async () => '0xsig' })
+}));
 
 vi.mock('../../src/js/notifications.js', () => ({
     notificationManager: {
@@ -2020,6 +2030,133 @@ describe('DMManager', () => {
             const ch = channelManager.channels.get(streamId);
             expect(ch.messages).toHaveLength(1);
             expect(secureStorage.removeSentMessage).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('purge in DMs', () => {
+        const peerAddress = '0xpeerpurge11111111111111111111111111111';
+        const streamId = `${peerAddress}/Pombo-DM-1`;
+        const me = '0xmyaddress1234567890abcdef12345678';
+        const provider = { nodeAddress: '0xprov', urls: ['https://p.example'] };
+
+        beforeEach(() => {
+            purgeGroupsMock.mockReset();
+            eraseMessageMock.mockReset();
+            authManager.getAddress.mockReturnValue(me);
+            dmManager.sentRows.clear();
+            dmManager.inboxMessageStreamId = `${me}/Pombo-DM-1`;
+            dmManager.inboxPurgeProviders = [provider];
+            channelManager.channels.set(streamId, {
+                streamId,
+                messageStreamId: streamId,
+                type: 'dm',
+                peerAddress,
+                purgeProviders: [provider],
+                messages: [
+                    { id: 'm-1', sender: me, text: 'mine', timestamp: 1 },
+                    { id: 'r-1', sender: peerAddress, text: 'theirs', timestamp: 2, _dmReceived: true, _timestamp: 700, _seq: 0 }
+                ]
+            });
+        });
+
+        it('remembers the row and key of each sealed publish, and deleting purges them chunks first', async () => {
+            streamrController.publishAs.mockResolvedValueOnce({ messageId: { publisherId: '0xE', timestamp: 555 } });
+            await dmManager.sealAndPublish(streamId, peerAddress, { id: 'm-1', type: 'text', text: 'mine' });
+            dmManager.rememberFileRows('m-1', [
+                { streamId, partition: 4, timestamp: 900, sequenceNumber: 0 },
+                { streamId, partition: 5, timestamp: 901, sequenceNumber: 0 }
+            ], '0x' + '33'.repeat(32));
+            expect(dmManager.canPurge(streamId, 'm-1')).toBe(true);
+            expect(dmManager.canPurge(streamId, 'r-1')).toBe(false);
+
+            purgeGroupsMock.mockResolvedValue({ providers: 1, erasedOn: 1, forbiddenOn: 0, unreachable: 0, targets: 3 });
+            const outcome = await dmManager.sendDelete(streamId, 'm-1');
+            expect(outcome).toMatchObject({ erasedOn: 1 });
+            expect(purgeGroupsMock).toHaveBeenCalledTimes(1);
+            const [sid, groups] = purgeGroupsMock.mock.calls[0];
+            expect(sid).toBe(streamId);
+            expect(groups.map((g) => [g.partition, g.targets, g.signer.address])).toEqual([
+                [4, [{ timestamp: 900, sequenceNumber: 0 }], 'signer:0x' + '33'.repeat(32)],
+                [5, [{ timestamp: 901, sequenceNumber: 0 }], 'signer:0x' + '33'.repeat(32)],
+                [0, [{ timestamp: 555, sequenceNumber: 0 }], 'signer:0x' + '11'.repeat(32)]
+            ]);
+            expect(dmManager.canPurge(streamId, 'm-1')).toBe(false);
+        });
+
+        it('deleting a message sent in another session publishes the override and leaves storage alone', async () => {
+            const outcome = await dmManager.sendDelete(streamId, 'm-1');
+            expect(outcome).toBeNull();
+            expect(purgeGroupsMock).not.toHaveBeenCalled();
+            expect(streamrController.publishAs).toHaveBeenCalled();
+        });
+
+        it('keeps the rows of a message whose purge no provider carried out', async () => {
+            streamrController.publishAs.mockResolvedValueOnce({ messageId: { publisherId: '0xE', timestamp: 555 } });
+            await dmManager.sealAndPublish(streamId, peerAddress, { id: 'm-1', type: 'text', text: 'mine' });
+            purgeGroupsMock.mockResolvedValue({ providers: 1, erasedOn: 0, forbiddenOn: 0, unreachable: 1, targets: 1 });
+            const outcome = await dmManager.sendDelete(streamId, 'm-1');
+            expect(outcome).toMatchObject({ unreachable: 1 });
+            expect(dmManager.rowsOf('m-1')).toHaveLength(1);
+        });
+
+        it('erasing a received message purges the own inbox as its owner and drops it from this device', async () => {
+            eraseMessageMock.mockResolvedValue({ providers: 1, erasedOn: 1, forbiddenOn: 0, unreachable: 0, targets: 1 });
+            const outcome = await dmManager.eraseReceived(streamId, 'r-1');
+            expect(outcome).toMatchObject({ erasedOn: 1 });
+            const [inbox, msg, signer] = eraseMessageMock.mock.calls[0];
+            expect(inbox).toMatchObject({ messageStreamId: `${me}/Pombo-DM-1`, streamId: `${me}/Pombo-DM-1`, peerAddress });
+            expect(msg).toMatchObject({ id: 'r-1', _timestamp: 700, _seq: 0 });
+            expect(signer.address).toBe(me);
+            const ch = channelManager.channels.get(streamId);
+            expect(ch.messages.map((m) => m.id)).toEqual(['m-1']);
+            expect(ch._deletedIds.has('r-1')).toBe(true);
+            expect(channelManager.notifyHandlers).toHaveBeenCalledWith('message_deleted', { streamId, targetId: 'r-1' });
+        });
+
+        it('keeps a received message that no provider erased', async () => {
+            eraseMessageMock.mockResolvedValue({ providers: 1, erasedOn: 0, forbiddenOn: 1, unreachable: 0, targets: 1 });
+            await dmManager.eraseReceived(streamId, 'r-1');
+            expect(channelManager.channels.get(streamId).messages).toHaveLength(2);
+        });
+
+        it('drops a live DM dated ahead of the clock or of its own envelope, and keeps one within skew', async () => {
+            const sealed = (message, extra = {}) => {
+                dmCrypto.isSealed.mockReturnValueOnce(true);
+                dmCrypto.open.mockResolvedValueOnce({ sender: peerAddress, message });
+                return dmManager.routeInboxMessage({ v: 2, epk: '0x02eph', ct: 'c', iv: 'i', e: 'aes-256-gcm', ...extra });
+            };
+            await sealed({ id: 'f-1', type: 'text', text: 'future', timestamp: Date.now() + 3600000 });
+            await sealed({ id: 'f-2', type: 'text', text: 'ahead of envelope', timestamp: Date.now() - 1000 }, { _timestamp: Date.now() - 600000, _seq: 0 });
+            await sealed({ id: 'ok-1', type: 'text', text: 'fine', timestamp: Date.now() + 60000 }, { _timestamp: Date.now(), _seq: 0 });
+            const ids = channelManager.channels.get(streamId).messages.map((m) => m.id);
+            expect(ids).not.toContain('f-1');
+            expect(ids).not.toContain('f-2');
+            expect(ids).toContain('ok-1');
+        });
+
+        it('raises the history error and stops paging when an older inbox page was refused', async () => {
+            const { storageFetch } = await import('../../src/js/storageFetch.js');
+            dmManager.conversations.set(peerAddress, streamId);
+            const ch = channelManager.channels.get(streamId);
+            ch.hasMoreHistory = true;
+            streamrController.fetchOlderHistoryWindowed.mockResolvedValueOnce({ messages: [], hasMore: true, windowStart: 1 });
+            storageFetch.lastErrors.set(`${me}/Pombo-DM-1|0`, { status: 503, signed: true, at: Date.now(), reason: 'storedAt' });
+            try {
+                const result = await dmManager.fetchOlderDMMessages(peerAddress);
+                expect(result).toMatchObject({ loaded: 0, hasMore: false });
+                expect(ch.historyError).toMatchObject({ status: 503, reason: 'storedAt' });
+                expect(ch.hasMoreHistory).toBe(false);
+            } finally {
+                storageFetch.lastErrors.delete(`${me}/Pombo-DM-1|0`);
+            }
+        });
+
+        it('carries the storage coordinates of a sealed envelope onto the opened message', async () => {
+            dmCrypto.isSealed.mockReturnValueOnce(true);
+            dmCrypto.open.mockResolvedValueOnce({ sender: peerAddress, message: { id: 'r-2', type: 'text', text: 'sealed', timestamp: 3 } });
+            await dmManager.routeInboxMessage({ v: 2, epk: '0x02eph', ct: 'c', iv: 'i', e: 'aes-256-gcm', _timestamp: 800, _seq: 1 });
+            const ch = channelManager.channels.get(streamId);
+            expect(ch.messages.find((m) => m.id === 'r-2')).toMatchObject({ _timestamp: 800, _seq: 1, _dmReceived: true });
         });
     });
 

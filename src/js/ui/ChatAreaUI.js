@@ -320,6 +320,32 @@ class ChatAreaUI {
     }
 
     /**
+     * Empty-state copy for a history read the storage node refused.
+     * @param {{status: number, signed: boolean}} error
+     * @param {boolean} isPreview - browsing without having joined
+     * @returns {{title: string, detail: string}}
+     */
+    _historyErrorText(error, isPreview) {
+        if (error?.reason === 'storedAt') {
+            return { title: 'Channel history is temporarily unavailable', detail: 'The storage node did not say when these messages were stored. Reopen the channel to retry' };
+        }
+        switch (error?.status) {
+            case 403:
+                return isPreview
+                    ? { title: 'History is available to members', detail: 'Join the channel to read past messages' }
+                    : { title: 'Your access to this channel has ended', detail: 'The storage node no longer serves its history to you' };
+            case 401:
+                return error?.signed
+                    ? { title: 'The storage node did not accept this read', detail: 'Check the device clock and try again' }
+                    : { title: 'History is available to members', detail: 'Sign in with an account that has access to read past messages' };
+            case 503:
+                return { title: 'Channel history is temporarily unavailable', detail: 'The storage node cannot reach the chain right now. Reopen the channel to retry' };
+            default:
+                return { title: 'Channel history could not be loaded', detail: `The storage node answered HTTP ${error?.status ?? '?'}. Reopen the channel to retry` };
+        }
+    }
+
+    /**
      * Show "No messages found — Search older" banner at top of messages area (DM pagination)
      * @private
      */
@@ -558,9 +584,16 @@ class ChatAreaUI {
             bannedBy.set(address, typeof entry === 'string'
                 ? { address, sinceEpoch: null } : entry);
         }
+        // Whoever moderates keeps seeing what they hid, greyed out, so a hide
+        // can be undone and an erase can be decided on what is actually there.
+        const moderates = !!effectiveChannel?.streamId && !previewChannel && (
+            !!channelManager?.getCachedDeletePermission?.(effectiveChannel.streamId)?.canDelete
+            || !!channelManager?.isCachedModerator?.(effectiveChannel.streamId));
         const filteredSource = sourceMessages.filter((m) => {
             if (!m || m._deleted || ['edit', 'delete'].includes(m.type)) return false;
-            if (hiddenIds && m.id && hiddenIds.has(m.id)) return false;
+            const hidden = !!(hiddenIds && m.id && hiddenIds.has(m.id));
+            if (hidden && !moderates) return false;
+            m._hidden = hidden;
             if (m.sender) {
                 const ban = bannedBy.get(String(m.sender).toLowerCase());
                 if (ban && banHidesMessage(ban, m._epoch)) return false;
@@ -603,7 +636,16 @@ class ChatAreaUI {
                     : null;
                 const subscriptionExpired = paidStatus?.paid
                     && paidStatus.until * 1000 <= Date.now() && !paidStatus.accessNow;
-                if (subscriptionExpired) {
+                const historyError = effectiveChannel?.historyError;
+                if (historyError) {
+                    const { title, detail } = this._historyErrorText(historyError, !!previewChannel);
+                    this.messagesArea.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                        <span class="text-sm">${title}</span>
+                        <span class="text-xs text-white/25">${detail}</span>
+                    </div>
+                `;
+                } else if (subscriptionExpired) {
                     this.messagesArea.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
                         <span class="text-sm">Your subscription has expired</span>
@@ -652,6 +694,18 @@ class ChatAreaUI {
                     <div class="text-white/[0.12] text-xs">
                         — beginning of conversation —
                     </div>
+                </div>
+            `;
+        }
+        // What is on screen came from the local cache; the storage node
+        // refused to serve more, and the reader should know why.
+        let historyErrorBanner = '';
+        if (effectiveChannel?.historyError) {
+            const { title, detail } = this._historyErrorText(effectiveChannel.historyError, !!previewChannel);
+            historyErrorBanner = `
+                <div id="history-error-banner" class="flex flex-col items-center gap-1 py-3 px-4 text-center">
+                    <span class="text-sm text-white/40">${escapeHtml(title)}</span>
+                    <span class="text-xs text-white/25">${escapeHtml(detail)}</span>
                 </div>
             `;
         }
@@ -730,7 +784,7 @@ class ChatAreaUI {
             messagesHtml += messageRenderer.buildMessageGroupCloseHTML();
         }
 
-        this.messagesArea.innerHTML = historyStartIndicator + messagesHtml;
+        this.messagesArea.innerHTML = historyErrorBanner + historyStartIndicator + messagesHtml;
 
         if (!this.isLoadingMore) {
             this.messagesArea.scrollTop = this.messagesArea.scrollHeight;

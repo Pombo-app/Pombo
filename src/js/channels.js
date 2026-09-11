@@ -10,6 +10,7 @@
 
 import { Logger } from './logger.js';
 import { streamrController, STREAM_CONFIG, deriveEphemeralId, deriveMessageId, deriveAdminId, deriveKeysId, deriveInteractionsId } from './streamr.js';
+import { storageEndpoints } from './storageEndpoints.js';
 import { authManager } from './auth.js';
 import { identityManager } from './identity.js';
 import { secureStorage } from './secureStorage.js';
@@ -1676,6 +1677,7 @@ class ChannelManager {
     banMember(messageStreamId, address) { return this.adminState.banMember(messageStreamId, address); }
     unbanMember(messageStreamId, address) { return this.adminState.unbanMember(messageStreamId, address); }
     hideMessage(messageStreamId, targetId) { return this.adminState.hideMessage(messageStreamId, targetId); }
+    unhideMessage(messageStreamId, targetId) { return this.adminState.unhideMessage(messageStreamId, targetId); }
     pinMessage(messageStreamId, targetId, snapshot = null) { return this.adminState.pinMessage(messageStreamId, targetId, snapshot); }
     unpinMessage(messageStreamId, targetId) { return this.adminState.unpinMessage(messageStreamId, targetId); }
 
@@ -1853,6 +1855,8 @@ class ChannelManager {
         // Cleared in `onHistoryComplete` (and on any error path below).
         if (channel && !channel.writeOnly && channel.type !== 'dm') {
             channel.initialLoadInProgress = true;
+            // The override read that follows re-establishes every delete.
+            channel._deletedIds = new Set();
         }
 
         // Skip network subscription for write-only channels (no subscribe permission)
@@ -2055,6 +2059,12 @@ class ChannelManager {
                 `content ${stats?.contentLoaded ?? '?'}/${stats?.contentRequested ?? '?'}, ` +
                 `control ${stats?.controlLoaded ?? '?'}/${stats?.controlRequested ?? '?'}`
             );
+
+            // A storage node that refused the read (no access, bad signature,
+            // chain unreachable) is not "no more history": the empty state
+            // says why, and nothing keeps polling for older pages.
+            channel.historyError = stats?.readError || null;
+            if (channel.historyError) channel.hasMoreHistory = false;
 
             channel.initialLoadInProgress = false;
             
@@ -2423,6 +2433,48 @@ class ChannelManager {
     applyPendingOverrides(channel) { return this.overrides.applyPendingOverrides(channel); }
     sendEdit(streamId, targetId, newText) { return this.overrides.sendEdit(streamId, targetId, newText); }
     sendDelete(streamId, targetId) { return this.overrides.sendDelete(streamId, targetId); }
+    /** Whether deleting this own message also erases it from storage. */
+    ownPurgeApplies(streamId, targetId) {
+        const channel = this.channels.get(streamId);
+        if (channel?.type === 'dm') return dmManager.canPurge(streamId, targetId);
+        const msg = channel?.messages?.find((m) => m.id === targetId);
+        return !!(msg && this.overrides.ownPurgeSigner(channel, msg));
+    }
+    /**
+     * Erase everything an author wrote from the storage providers that can:
+     * the storage side of a ban. The account signs, as owner or moderator.
+     * @returns {Promise<Object>} storagePurge outcome with `messages` and `skipped`
+     */
+    async eraseAuthorMessages(streamId, address) {
+        const channel = this.channels.get(streamId);
+        if (!channel) throw new Error('Channel not found');
+        const { eraseAuthorMessages } = await import('./storagePurge.js');
+        const signer = { address: authManager.getAddress(), sign: (m) => authManager.signMessage(m) };
+        const outcome = await eraseAuthorMessages(channel, address, signer, this.purgeOptions(channel));
+        if (outcome.erasedOn > 0) {
+            const lower = String(address).toLowerCase();
+            for (const m of channel.messages) {
+                if (String(m?.sender || '').toLowerCase() === lower) m._erased = true;
+            }
+        }
+        return outcome;
+    }
+    /**
+     * What a storage purge on this channel needs beyond the targets: the
+     * opener that turns a stored chunk row back into the chunk a download
+     * sees, so a file's rows can be told apart by content.
+     * @param {Object} channel - Channel record
+     * @returns {{openerFor: (meta: Object) => Promise<Function>}}
+     */
+    purgeOptions(channel) {
+        return {
+            openerFor: async (meta) => {
+                const { storageMediaController } = await import('./storageMedia.js');
+                const sealer = await storageMediaController.makeSealer(channel, channel?.password || null, { encSaltB64: meta?.encSalt || null });
+                return sealer.open;
+            }
+        };
+    }
     sendReaction(streamId, messageId, emoji, isRemoving = false) { return this.overrides.sendReaction(streamId, messageId, emoji, isRemoving); }
 
     // ==================== End Message Overrides ====================
@@ -2710,6 +2762,15 @@ class ChannelManager {
         const previousChannel = this.currentChannel;
         this.currentChannel = streamId;
         this.switchGeneration++;
+
+        // Which of the channel's storage providers can erase messages decides
+        // whether moderation offers "Erase from storage" at all.
+        const opened = this.channels.get(streamId);
+        if (opened && !opened.purgeProviders) {
+            storageEndpoints.providersWith(streamId, 'purge')
+                .then((providers) => { opened.purgeProviders = providers; })
+                .catch((e) => Logger.debug('purge providers unknown:', e?.message || e));
+        }
         
         // Abort any in-flight history fetch for the previous channel
         if (this.historyAbortController) {

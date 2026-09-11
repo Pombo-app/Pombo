@@ -95,6 +95,23 @@ describe('fetchOlderHistoryWindowed', () => {
         expect(out.hasMore).toBe(true);
     });
 
+    it('drops a row dated ahead of the instant the node stored it, like the first page does', async () => {
+        const { storageFetch } = await import('../../src/js/storageFetch.js');
+        const forged = 10_000_000;
+        const genuine = 9_000_000;
+        storageFetch.remember(STREAM, 0, forged, 0, forged - 3_600_000);
+        storageFetch.remember(STREAM, 0, genuine, 0, genuine + 2_000);
+        serve(
+            row(forged, { type: 'dm', body: 'forged' }, { messageId: { timestamp: forged, sequenceNumber: 0 } }),
+            row(genuine, { type: 'dm', body: 'fine' }, { messageId: { timestamp: genuine, sequenceNumber: 0 } })
+        );
+
+        const out = await streamrController.fetchOlderHistoryWindowed(STREAM, 0, forged + 1_000, 3_000_000);
+
+        expect(out.messages.map((m) => m.content.body)).toEqual(['fine']);
+        storageFetch.storedAt.clear();
+    });
+
     it('hands back the envelope as it came, with publisher and timestamp', async () => {
         serve(row(8_000, { type: 'dm', body: 'sealed' }));
 

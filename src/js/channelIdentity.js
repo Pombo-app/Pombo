@@ -78,7 +78,10 @@ export function getChannelIdentity(streamId) {
     const entry = {
         identity,
         publisherId,
-        proof: createPublisherProof(accountKey, publisherId)
+        proof: createPublisherProof(accountKey, publisherId),
+        // Signs for the pseudonym outside the SDK: a storage purge of an own
+        // message must come from the key that published it. Memory only.
+        wallet: new ethers.Wallet(ephemeralPrivateKey)
     };
 
     identities.set(key, entry);

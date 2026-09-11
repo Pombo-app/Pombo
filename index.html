@@ -1553,6 +1553,13 @@
                         <span id="ban-level-protocol-detail" class="block text-xs text-white/40 mt-0.5">They can no longer write or receive keys; the channel key rotates. One transaction.</span>
                     </span>
                 </label>
+                <label id="ban-level-purge-row" class="flex gap-3 p-3 bg-white/[0.04] rounded-xl cursor-pointer">
+                    <input type="checkbox" id="ban-level-purge" class="mt-0.5 accent-white" />
+                    <span class="min-w-0">
+                        <span class="block text-sm text-white/85">Erase their messages from storage</span>
+                        <span id="ban-level-purge-detail" class="block text-xs text-white/40 mt-0.5">Removes their messages and files from the storage providers that can. Cannot be undone.</span>
+                    </span>
+                </label>
             </div>
 
             <div class="flex gap-2 mt-5">
@@ -2239,6 +2246,21 @@
                 <button id="confirm-delete-btn" class="flex-1 px-4 py-3 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 border-l border-white/5 transition">
                     Delete Forever
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: confirm a decisive action (the app's own dialog, never the browser's) -->
+    <div id="confirm-dialog-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70]">
+        <div class="bg-[#111113] rounded-2xl w-[400px] max-w-[95vw] mx-4 shadow-2xl border border-white/[0.08] overflow-hidden">
+            <div class="p-6">
+                <h3 id="confirm-dialog-title" class="text-lg font-medium text-white/90 mb-3"></h3>
+                <p id="confirm-dialog-message" class="text-sm text-white/60 leading-relaxed"></p>
+                <p id="confirm-dialog-detail" class="hidden text-xs text-white/40 mt-2"></p>
+            </div>
+            <div class="flex border-t border-white/5">
+                <button id="confirm-dialog-cancel" class="flex-1 px-4 py-3 text-sm text-white/60 hover:text-white hover:bg-white/5 transition">Cancel</button>
+                <button id="confirm-dialog-ok" class="flex-1 px-4 py-3 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 border-l border-white/5 transition">Confirm</button>
             </div>
         </div>
     </div>
@@ -3012,9 +3034,17 @@
             <svg class="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/></svg>
             Unpin Message
         </button>
+        <button id="context-menu-unhide-btn" class="context-menu-item w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm flex items-center gap-2 hidden" data-action="unhide-message">
+            <svg class="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            Unhide Message
+        </button>
+        <button id="context-menu-erase-btn" class="context-menu-item w-full text-left px-4 py-2 hover:bg-red-500/10 text-sm text-red-400 flex items-center gap-2 hidden" data-action="erase-message">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M10 11v6m4-6v6M5 7l1 12a2 2 0 002 2h8a2 2 0 002-2l1-12M9 7V4h6v3"/></svg>
+            Erase from storage
+        </button>
         <button id="context-menu-admin-delete-btn" class="context-menu-item w-full text-left px-4 py-2 hover:bg-red-500/10 text-sm text-red-400 flex items-center gap-2 hidden" data-action="admin-delete-message">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
-            Delete Message
+            Hide Message
         </button>
         <button id="context-menu-ban-btn" class="context-menu-item w-full text-left px-4 py-2 hover:bg-red-500/10 text-sm text-red-400 flex items-center gap-2 hidden" data-action="ban-user">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
