@@ -286,8 +286,11 @@ class MessageContextMenuUI {
         // every storage provider that can, and only exists where one can.
         const showHide = moderates && !!msgId && !isHidden;
         const showUnhide = moderates && !!msgId && isHidden && !message?._erased;
-        const showErase = moderates && !!msgId && !message?._erased
-            && (currentChannel?.purgeProviders?.length > 0);
+        const { dmManager } = this.deps;
+        const dmErase = currentChannel?.type === 'dm' && !isSelf && !!msgId
+            && (dmManager?.inboxPurgeProviders?.length > 0);
+        const showErase = dmErase || (moderates && !!msgId && !message?._erased
+            && (currentChannel?.purgeProviders?.length > 0));
         // Cannot ban yourself or the channel admin.
         const showBan = moderates && !isSelf && !isCreator;
 
@@ -471,6 +474,18 @@ class MessageContextMenuUI {
                 const ch = channelManager?.getCurrentChannel?.();
                 const msg = ch?.messages?.find?.(m => m.id === target.msgId);
                 if (!ch || !msg) break;
+                if (ch.type === 'dm') {
+                    const { dmManager } = this.deps;
+                    const n = dmManager?.inboxPurgeProviders?.length || 0;
+                    if (!confirm(`Erase this message from your inbox storage on ${n} provider${n === 1 ? '' : 's'}? It disappears from this device and cannot be recovered.`)) break;
+                    try {
+                        const outcome = await dmManager.eraseReceived(ch.streamId, target.msgId);
+                        showNotification(purgeOutcomeText(outcome), outcome.erasedOn === outcome.providers ? 'success' : 'warning');
+                    } catch (err) {
+                        showNotification(err?.message || 'Failed to erase message', 'error');
+                    }
+                    break;
+                }
                 const providers = ch.purgeProviders?.length || 0;
                 if (!confirm(`Erase this message from storage on ${providers} provider${providers === 1 ? '' : 's'}? It stays hidden for everyone and cannot be recovered.`)) break;
                 try {

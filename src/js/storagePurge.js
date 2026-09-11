@@ -51,10 +51,19 @@ const CHUNK_WINDOW_PAD_MS = 60000;
  * @param {Array<{timestamp: number, sequenceNumber: number}>} fields.targets
  * @returns {string}
  */
-export function buildPurgeMessage({ streamId, partition, issuedAt, nonce, targets }) {
+export function buildPurgeMessage(fields) {
+    return buildTargetsMessage('purge', fields);
+}
+
+/** The exact string the client signs for a `stored` query: a purge's lines with `stored` as the action. */
+export function buildStoredMessage(fields) {
+    return buildTargetsMessage('stored', fields);
+}
+
+function buildTargetsMessage(action, { streamId, partition, issuedAt, nonce, targets }) {
     return [
         'pombo-storage-node',
-        'purge',
+        action,
         streamId,
         String(partition),
         String(issuedAt),
@@ -73,11 +82,20 @@ export function buildPurgeMessage({ streamId, partition, issuedAt, nonce, target
  * @param {number} [options.issuedAt=Date.now()]
  * @param {string} [options.nonce=randomNonce()]
  */
-export async function signedPurgeBody(streamId, partition, targets, signer, { issuedAt = Date.now(), nonce = randomNonce() } = {}) {
-    if (!Array.isArray(targets) || targets.length === 0) throw new Error('No purge targets');
-    if (targets.length > PURGE_MAX_TARGETS) throw new Error(`At most ${PURGE_MAX_TARGETS} targets per purge`);
+export async function signedPurgeBody(streamId, partition, targets, signer, options = {}) {
+    return signedTargetsBody('purge', streamId, partition, targets, signer, options);
+}
+
+/** The signed body of a `stored` query: the purge body with `stored` signed as the action. */
+export async function signedStoredBody(streamId, partition, targets, signer, options = {}) {
+    return signedTargetsBody('stored', streamId, partition, targets, signer, options);
+}
+
+async function signedTargetsBody(action, streamId, partition, targets, signer, { issuedAt = Date.now(), nonce = randomNonce() } = {}) {
+    if (!Array.isArray(targets) || targets.length === 0) throw new Error(`No ${action} targets`);
+    if (targets.length > PURGE_MAX_TARGETS) throw new Error(`At most ${PURGE_MAX_TARGETS} targets per ${action}`);
     const clean = targets.map((t) => ({ timestamp: Number(t.timestamp), sequenceNumber: Number(t.sequenceNumber) }));
-    const message = buildPurgeMessage({ streamId, partition, issuedAt, nonce, targets: clean });
+    const message = buildTargetsMessage(action, { streamId, partition, issuedAt, nonce, targets: clean });
     const signature = await signer.sign(message);
     return { user: signer.address, issuedAt, nonce, signature, targets: clean };
 }
@@ -89,27 +107,31 @@ export async function signedPurgeBody(streamId, partition, targets, signer, { is
  * @returns {Promise<{provider: string, url: string|null, status: number, results: Array, error?: string}>}
  */
 export async function purgeOnProvider(provider, streamId, partition, targets, signer, fetchImpl = fetch) {
+    return postTargets('purge', provider, streamId, partition, targets, signer, fetchImpl);
+}
+
+async function postTargets(action, provider, streamId, partition, targets, signer, fetchImpl) {
     let lastError = null;
     for (const url of provider.urls) {
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), PURGE_TIMEOUT_MS);
         try {
-            const body = await signedPurgeBody(streamId, partition, targets, signer);
-            const resp = await fetchImpl(`${url}/streams/${encodeURIComponent(streamId)}/data/partitions/${partition}/purge`, {
+            const body = await signedTargetsBody(action, streamId, partition, targets, signer);
+            const resp = await fetchImpl(`${url}/streams/${encodeURIComponent(streamId)}/data/partitions/${partition}/${action}`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify(body),
                 signal: ctrl.signal
             });
             if (!resp.ok) {
-                Logger.warn(`Purge on ${url}: HTTP ${resp.status}`);
+                Logger.warn(`${action} on ${url}: HTTP ${resp.status}`);
                 return { provider: provider.nodeAddress, url, status: resp.status, results: [] };
             }
             const json = await resp.json().catch(() => ({}));
             return { provider: provider.nodeAddress, url, status: resp.status, results: Array.isArray(json?.results) ? json.results : [] };
         } catch (e) {
             lastError = e;
-            Logger.warn(`Purge on ${url} failed: ${e.message}`);
+            Logger.warn(`${action} on ${url} failed: ${e.message}`);
         } finally {
             clearTimeout(t);
         }
@@ -118,10 +140,33 @@ export async function purgeOnProvider(provider, streamId, partition, targets, si
 }
 
 /**
+ * Which of the targets the providers hold, asked of every provider that
+ * announces `stored` and signed by whoever may read the stream or wrote the
+ * rows. A row counts as present when any provider says so.
+ * @param {Array<{nodeAddress: string, urls: string[]}>} providers
+ * @returns {Promise<Set<string>|null>} `timestamp:sequenceNumber` of the present rows; null when no provider answered
+ */
+export async function storedOn(providers, streamId, partition, targets, signer, fetchImpl = fetch) {
+    const present = new Set();
+    let answered = false;
+    for (const provider of providers) {
+        for (let i = 0; i < targets.length; i += PURGE_MAX_TARGETS) {
+            const o = await postTargets('stored', provider, streamId, partition, targets.slice(i, i + PURGE_MAX_TARGETS), signer, fetchImpl);
+            if (o.status === 0) break;
+            if (o.status !== 200) continue;
+            answered = true;
+            for (const r of o.results) if (r?.result === 'present') present.add(`${r.timestamp}:${r.sequenceNumber}`);
+        }
+    }
+    return answered ? present : null;
+}
+
+/**
  * Fan the purge out to every provider of the stream that announces it: one
  * request per partition and per batch of PURGE_MAX_TARGETS targets.
  * @param {string} streamId
- * @param {Array<{partition: number, targets: Array<{timestamp: number, sequenceNumber: number}>}>} groups
+ * @param {Array<{partition: number, targets: Array<{timestamp: number, sequenceNumber: number}>, signer?: Object}>} groups
+ *   A group may carry its own signer, for rows written under another key (a file's chunks).
  * @param {{address: string, sign: (message: string) => Promise<string>}} signer
  * @returns {Promise<{providers: number, erasedOn: number, forbiddenOn: number, unreachable: number, targets: number, outcomes: Array}>}
  *   `erasedOn` counts providers where every target is now gone (`deleted` or
@@ -132,13 +177,13 @@ export async function purgeGroups(streamId, groups, signer, fetchImpl = fetch) {
     const batches = [];
     for (const g of groups) {
         for (let i = 0; i < g.targets.length; i += PURGE_MAX_TARGETS) {
-            batches.push({ partition: g.partition, targets: g.targets.slice(i, i + PURGE_MAX_TARGETS) });
+            batches.push({ partition: g.partition, targets: g.targets.slice(i, i + PURGE_MAX_TARGETS), signer: g.signer });
         }
     }
     const onProvider = async (p) => {
         const outcomes = [];
         for (const b of batches) {
-            const o = await purgeOnProvider(p, streamId, b.partition, b.targets, signer, fetchImpl);
+            const o = await purgeOnProvider(p, streamId, b.partition, b.targets, b.signer || signer, fetchImpl);
             outcomes.push({ ...o, partition: b.partition, targets: b.targets });
             if (o.status === 0) break;
         }
@@ -166,6 +211,12 @@ export async function purgeGroups(streamId, groups, signer, fetchImpl = fetch) {
  * @param {Array<{timestamp: number, sequenceNumber: number}>} targets
  * @param {{address: string, sign: (message: string) => Promise<string>}} signer
  */
+/** A signer over one raw key: the throwaway that wrote a DM row, or a transfer's chunk key. */
+export function keySigner(privateKey) {
+    const wallet = new ethers.Wallet(privateKey);
+    return { address: wallet.address, sign: (m) => wallet.signMessage(m) };
+}
+
 export async function purgeMessages(streamId, partition, targets, signer, fetchImpl = fetch) {
     return purgeGroups(streamId, [{ partition, targets }], signer, fetchImpl);
 }

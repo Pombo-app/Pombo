@@ -21,6 +21,9 @@ vi.mock('../../src/js/storageEndpoints.js', () => ({
 import {
     buildPurgeMessage,
     signedPurgeBody,
+    buildStoredMessage,
+    signedStoredBody,
+    storedOn,
     purgeOnProvider,
     purgeMessages,
     purgeGroups,
@@ -34,6 +37,8 @@ import {
 
 const VECTORS = JSON.parse(readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'docs', 'STORAGE-purge-vectors.json'), 'utf8'));
+const STORED_VECTORS = JSON.parse(readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'docs', 'STORAGE-stored-vectors.json'), 'utf8'));
 const STREAM = '0xaaaabbbbccccddddeeeeffff0000111122223333/deadbeef01-1';
 const wallet = new Wallet(VECTORS.userPriv);
 const signer = { address: wallet.address, sign: (m) => wallet.signMessage(m) };
@@ -217,6 +222,68 @@ describe('purgeGroups', () => {
         const out = await purgeGroups(STREAM, [{ partition: 0, targets: [{ timestamp: 1, sequenceNumber: 0 }] }, { partition: 3, targets: [{ timestamp: 2, sequenceNumber: 0 }] }], signer, fetchMock);
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(out).toMatchObject({ providers: 1, erasedOn: 0, unreachable: 1, targets: 2 });
+    });
+
+    it('signs a group with its own signer when it carries one, the rest with the default', async () => {
+        providersWith.mockResolvedValue([{ nodeAddress: '0xa', urls: ['https://a.example'] }]);
+        const other = new Wallet('0x' + '11'.repeat(32));
+        const otherSigner = { address: other.address, sign: (m) => other.signMessage(m) };
+        const fetchMock = vi.fn(async (_url, init) => {
+            const body = JSON.parse(init.body);
+            return jsonResponse(200, { results: body.targets.map((t) => ({ ...t, result: 'deleted' })) });
+        });
+        const out = await purgeGroups(STREAM, [
+            { partition: 4, targets: [{ timestamp: 1, sequenceNumber: 0 }], signer: otherSigner },
+            { partition: 0, targets: [{ timestamp: 2, sequenceNumber: 0 }] }
+        ], signer, fetchMock);
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body).user).toBe(other.address);
+        expect(JSON.parse(fetchMock.mock.calls[1][1].body).user).toBe(wallet.address);
+        expect(out).toMatchObject({ providers: 1, erasedOn: 1, targets: 2 });
+    });
+});
+
+describe('stored query', () => {
+    const storedUrl = (base, partition) => `${base}/streams/${encodeURIComponent(STREAM)}/data/partitions/${partition}/stored`;
+
+    it('signs the purge lines with stored as the action', async () => {
+        const fields = { streamId: STREAM, partition: 4, issuedAt: 1789000000000, nonce: 'abc', targets: [{ timestamp: 10, sequenceNumber: 0 }] };
+        expect(buildStoredMessage(fields)).toBe(`pombo-storage-node\nstored\n${STREAM}\n4\n1789000000000\nabc\n10:0`);
+        const body = await signedStoredBody(STREAM, 4, fields.targets, signer, { issuedAt: fields.issuedAt, nonce: fields.nonce });
+        expect(verifyMessage(buildStoredMessage(fields), body.signature)).toBe(wallet.address);
+        await expect(signedStoredBody(STREAM, 4, [], signer)).rejects.toThrow('No stored targets');
+    });
+
+    it('reproduces every published stored vector', async () => {
+        const w = new Wallet(STORED_VECTORS.userPriv);
+        const s = { address: w.address, sign: (m) => w.signMessage(m) };
+        expect(STORED_VECTORS.vectors.length).toBeGreaterThan(0);
+        for (const v of STORED_VECTORS.vectors) {
+            const { issuedAt, nonce, targets } = v.body;
+            expect(buildStoredMessage({ streamId: v.streamId, partition: v.partition, issuedAt, nonce, targets })).toBe(v.message);
+            expect(await signedStoredBody(v.streamId, v.partition, targets, s, { issuedAt, nonce })).toEqual(v.body);
+        }
+    });
+
+    it('collects the rows some provider reports present, and null when none answers', async () => {
+        const providers = [
+            { nodeAddress: '0xa', urls: ['https://a.example'] },
+            { nodeAddress: '0xb', urls: ['https://b1.example', 'https://b2.example'] }
+        ];
+        const targets = [{ timestamp: 1, sequenceNumber: 0 }, { timestamp: 2, sequenceNumber: 0 }];
+        const fetchMock = vi.fn(async (url, init) => {
+            if (url.startsWith('https://a.example')) return jsonResponse(200, { results: [{ timestamp: 1, sequenceNumber: 0, result: 'present' }, { timestamp: 2, sequenceNumber: 0, result: 'absent' }] });
+            if (url.startsWith('https://b1.example')) throw new Error('down');
+            return jsonResponse(200, { results: [{ timestamp: 2, sequenceNumber: 0, result: 'present' }] });
+        });
+        const present = await storedOn(providers, STREAM, 4, targets, signer, fetchMock);
+        expect([...present]).toEqual(['1:0', '2:0']);
+        expect(fetchMock.mock.calls.map(([u]) => u)).toEqual([storedUrl('https://a.example', 4), storedUrl('https://b1.example', 4), storedUrl('https://b2.example', 4)]);
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ user: wallet.address, targets });
+
+        const dead = vi.fn(async () => { throw new Error('down'); });
+        expect(await storedOn(providers, STREAM, 4, targets, signer, dead)).toBeNull();
+        const refused = vi.fn(async () => jsonResponse(404, {}));
+        expect(await storedOn(providers, STREAM, 4, targets, signer, refused)).toBeNull();
     });
 });
 

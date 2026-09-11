@@ -1,0 +1,50 @@
+{
+  "userPriv": "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+  "user": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "vectors": [
+    {
+      "name": "one announce row on the messages partition",
+      "streamId": "0x7ea24eb97d400a76f8d96be92c4e7fce576aedb9/Pombo-DM-1",
+      "partition": 0,
+      "message": "pombo-storage-node\nstored\n0x7ea24eb97d400a76f8d96be92c4e7fce576aedb9/Pombo-DM-1\n0\n1789000000000\n0f1e2d3c4b5a69788796a5b4c3d2e1f0\n1788999000000:0",
+      "body": {
+        "user": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "issuedAt": 1789000000000,
+        "nonce": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "signature": "0xd07e265899f1027f273f7d9f1f1a74b858f0bd5cf17d0bb67dca0cf85caaad55346eb0cac279822644d1f33746be85a94382edf54020c5e7cf16fca113d0255f1c",
+        "targets": [
+          {
+            "timestamp": 1788999000000,
+            "sequenceNumber": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "three chunk rows of a DM file on its first chunk partition, in the order sent",
+      "streamId": "0x7ea24eb97d400a76f8d96be92c4e7fce576aedb9/Pombo-DM-1",
+      "partition": 4,
+      "message": "pombo-storage-node\nstored\n0x7ea24eb97d400a76f8d96be92c4e7fce576aedb9/Pombo-DM-1\n4\n1789000001000\n00000000000000000000000000000001\n1788999000000:0\n1788999000250:0\n1788999000250:1",
+      "body": {
+        "user": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "issuedAt": 1789000001000,
+        "nonce": "00000000000000000000000000000001",
+        "signature": "0x694356ecdc9f9bf39f74c282127351384dad9a0ff86456e7753b05a835a1826337de7389bbeaa19b39a1ce562975e5a5470e75fd09e8fcd24362a620e50031af1c",
+        "targets": [
+          {
+            "timestamp": 1788999000000,
+            "sequenceNumber": 0
+          },
+          {
+            "timestamp": 1788999000250,
+            "sequenceNumber": 0
+          },
+          {
+            "timestamp": 1788999000250,
+            "sequenceNumber": 1
+          }
+        ]
+      }
+    }
+  ]
+}

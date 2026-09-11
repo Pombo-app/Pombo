@@ -48,6 +48,7 @@ import { channelManager } from './channels.js';
 import { getChannelIdentity } from './channelIdentity.js';
 import { dmManager } from './dm.js';
 import { STORAGE_FILE, MESSAGE_STREAM, storageChunkPartition } from './streamConstants.js';
+import { storedOn, keySigner } from './storagePurge.js';
 import { epochKeyManager, usesEpochKeys } from './epochKeyManager.js';
 import { epochKeyCrypto } from './epochKeyCrypto.js';
 
@@ -1293,8 +1294,16 @@ class StorageMediaController {
      *   "read failed" — the auto-tune must NOT treat a failed read as loss.
      * @returns {Promise<Set<number>>}
      */
-    async readStoredIndices(sid, windows, tsIndex, bases, label, onProgress, stats = null, expectedPublisher = null) {
+    async readStoredIndices(sid, windows, tsIndex, bases, label, onProgress, stats = null, expectedPublisher = null, storedKey = null) {
         const found = new Set();
+        if (storedKey) {
+            const present = await this.storedIndices(sid, windows, tsIndex, storedKey, label);
+            if (present) {
+                present.forEach((i) => found.add(i));
+                if (onProgress) onProgress(found, windows.length, windows.length);
+                return found;
+            }
+        }
         // Whose rows count as ours. Normally our wallet, but a DM transfer
         // publishes its chunks under a throwaway identity — verify has to look
         // for THAT address, or every chunk reads back as foreign and repair
@@ -1607,13 +1616,14 @@ class StorageMediaController {
             // foreign and repair concludes the upload is missing.
             let chunkIdentity = null;
             let chunkPublisher = null;
+            let chunkPrivateKey = null;
             if (isDM) {
                 const EthereumKeyPairIdentity = window.EthereumKeyPairIdentity;
                 if (!EthereumKeyPairIdentity) {
                     throw new Error('EthereumKeyPairIdentity not exposed — check streamr-bundle.js');
                 }
-                chunkIdentity = EthereumKeyPairIdentity.fromPrivateKey(
-                    dmCrypto.generateEphemeralPrivateKey());
+                chunkPrivateKey = dmCrypto.generateEphemeralPrivateKey();
+                chunkIdentity = EthereumKeyPairIdentity.fromPrivateKey(chunkPrivateKey);
                 chunkPublisher = await chunkIdentity.getUserId();
             } else if (channel?.wireIdentity === 'sealed') {
                 // Sealed: chunks travel under the SHARED publish key —
@@ -1658,6 +1668,15 @@ class StorageMediaController {
                 }
                 return m;
             };
+
+            const chunkRows = () => {
+                const rows = [];
+                for (let i = 0; i < chunkTsHist.length; i++) {
+                    for (const t of (chunkTsHist[i] || [])) rows.push({ streamId: messageStreamId, partition: chunkPartition(i), timestamp: t, sequenceNumber: 0 });
+                }
+                return rows;
+            };
+            const announceRows = () => (dmManager.rowsOf?.(messageId) || []).filter((r) => r.partition === MESSAGE_STREAM.MESSAGES);
 
             const allPartitionWindows = (from, to) =>
                 Array.from({ length: STORAGE_FILE.CHUNK_PARTITIONS }, (_, k) => ({ partition: firstChunkPartition + k, from, to }));
@@ -1860,7 +1879,7 @@ class StorageMediaController {
                         const step = Math.max(1, Math.floor(cand.length / 5));
                         for (let k = 0; k < cand.length && sample.length < 5; k += step) sample.push(cand[k]);
                         const probeStats = { winsOk: 0, winsFailed: 0, rows: 0, foreignRows: 0 };
-                        const found = await this.readStoredIndices(messageStreamId, windowsForIndices(sample), tsIndexForVerify(), bases, 'auto-tune probe', undefined, probeStats, chunkPublisher);
+                        const found = await this.readStoredIndices(messageStreamId, windowsForIndices(sample), tsIndexForVerify(), bases, 'auto-tune probe', undefined, probeStats, chunkPublisher, chunkPrivateKey);
                         found.forEach(x => stored.add(x));
                         const missed = sample.filter(i => !found.has(i));
                         if (missed.length > 0) {
@@ -1876,7 +1895,7 @@ class StorageMediaController {
                                 // Double-read before cutting: a chunk missing on
                                 // node A may simply not have replicated yet.
                                 await sleep(2500);
-                                const found2 = await this.readStoredIndices(messageStreamId, windowsForIndices(missed), tsIndexForVerify(), bases, 'cut confirmation', undefined, null, chunkPublisher);
+                                const found2 = await this.readStoredIndices(messageStreamId, windowsForIndices(missed), tsIndexForVerify(), bases, 'cut confirmation', undefined, null, chunkPublisher, chunkPrivateKey);
                                 found2.forEach(x => stored.add(x));
                                 const confirmed = missed.filter(i => !found2.has(i));
                                 if (confirmed.length === 0) return;
@@ -2031,7 +2050,8 @@ class StorageMediaController {
                             emitPhase(`Verifying: ${stored.size}/${tc} confirmed…`, 'verifying');
                         },
                         null,
-                        chunkPublisher
+                        chunkPublisher,
+                        chunkPrivateKey
                     );
                     found.forEach(x => stored.add(x));
                     missing = missingIdx();
@@ -2048,7 +2068,7 @@ class StorageMediaController {
                     while (missing.length > 0 && stalledReal < 2 && zeroProgress < 24 && performance.now() - scStart < 5 * 60000) {
                         await sleep(2500);
                         const before = missing.length;
-                        const found2 = await this.readStoredIndices(messageStreamId, windowsForIndices(missing), tsIndexForVerify(), bases, 'drain', undefined, null, chunkPublisher);
+                        const found2 = await this.readStoredIndices(messageStreamId, windowsForIndices(missing), tsIndexForVerify(), bases, 'drain', undefined, null, chunkPublisher, chunkPrivateKey);
                         found2.forEach(x => stored.add(x));
                         missing = missingIdx();
                         updVerifyBar();
@@ -2081,7 +2101,7 @@ class StorageMediaController {
                         const wait = r === 0 ? 2000 : Math.max(0, 2000 - lastRepairReadMs);
                         if (wait > 0) await sleep(wait);
                         const tRead2 = performance.now();
-                        const found = await this.readStoredIndices(messageStreamId, windowsForIndices(missing), tsIndexForVerify(), bases, `post-repair pass ${pass}`, undefined, null, chunkPublisher);
+                        const found = await this.readStoredIndices(messageStreamId, windowsForIndices(missing), tsIndexForVerify(), bases, `post-repair pass ${pass}`, undefined, null, chunkPublisher, chunkPrivateKey);
                         found.forEach(x => stored.add(x));
                         const before = missing.length;
                         missing = missingIdx();
@@ -2146,6 +2166,7 @@ class StorageMediaController {
                 const pub = await dmManager.sealAndPublish(
                     messageStreamId, channel.peerAddress, cleanAnnouncement);
                 if (pub && typeof pub.timestamp === 'number') annTss.push(pub.timestamp);
+                dmManager.rememberFileRows?.(messageId, chunkRows(), chunkPrivateKey);
             } else {
                 const pub = await streamrController.publishMessage(messageStreamId, announcement, password);
                 if (pub && typeof pub.timestamp === 'number') annTss.push(pub.timestamp);
@@ -2170,7 +2191,7 @@ class StorageMediaController {
                 emitPhase(`Confirming announcement (${a}/${annWaits.length})…`, 'announce');
                 await sleep(annWaits[a - 1]);
                 try {
-                    annStored = await this.isAnnounceStored(messageStreamId, annTss, bases);
+                    annStored = await this.isAnnounceStored(messageStreamId, annTss, bases, isDM ? announceRows() : null);
                 } catch (e) { Logger.warn(`announce confirmation error: ${e.message}`); }
                 if (!annStored && a === 3) {
                     Logger.warn('Announce still not visible — one-off safety republish');
@@ -2224,8 +2245,54 @@ class StorageMediaController {
     }
 
     /** Announce visibility check on P0, matching by publish timestamp. */
-    async isAnnounceStored(messageStreamId, annTss, bases) {
+    /**
+     * The verify by the node's `stored` endpoint: exact per row and signed by
+     * the key that wrote the chunks, for a stream the writer may not read (a
+     * peer's inbox). Null when no provider offers it, so the caller reads.
+     */
+    async storedIndices(sid, windows, tsIndex, privateKey, label) {
+        let providers;
+        try { providers = await storageEndpoints.providersWith(sid, 'stored'); } catch { return null; }
+        if (!providers?.length) return null;
+        const byPartition = new Map();
+        for (const [key, i] of tsIndex) {
+            const [p, ts] = key.split(':').map(Number);
+            if (!windows.some((w) => w.partition === p && ts >= w.from && ts <= w.to)) continue;
+            if (!byPartition.has(p)) byPartition.set(p, []);
+            byPartition.get(p).push({ timestamp: ts, sequenceNumber: 0, index: i });
+        }
+        const signer = keySigner(privateKey);
+        const found = new Set();
+        for (const [partition, rows] of byPartition) {
+            const present = await storedOn(providers, sid, partition, rows.map(({ timestamp, sequenceNumber }) => ({ timestamp, sequenceNumber })), signer);
+            if (present === null) {
+                Logger.warn(`${label}: stored query unanswered on P${partition} — reading instead`);
+                return null;
+            }
+            for (const r of rows) if (present.has(`${r.timestamp}:${r.sequenceNumber}`)) found.add(r.index);
+        }
+        return found;
+    }
+
+    /** Whether any of the announce rows is on storage, by the `stored` endpoint; null when no provider offers it. */
+    async storedRows(streamId, rows) {
+        let providers;
+        try { providers = await storageEndpoints.providersWith(streamId, 'stored'); } catch { return null; }
+        if (!providers?.length) return null;
+        for (const r of rows) {
+            const present = await storedOn(providers, streamId, r.partition, [{ timestamp: r.timestamp, sequenceNumber: r.sequenceNumber }], keySigner(r.privateKey));
+            if (present === null) return null;
+            if (present.size > 0) return true;
+        }
+        return false;
+    }
+
+    async isAnnounceStored(messageStreamId, annTss, bases, rows = null) {
         if (!annTss.length) return false;
+        if (rows?.length) {
+            const present = await this.storedRows(messageStreamId, rows);
+            if (present !== null) return present;
+        }
         const from = Math.min(...annTss) - 1500;
         const to = Math.max(...annTss) + 1500;
         const P0 = MESSAGE_STREAM.MESSAGES;

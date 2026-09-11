@@ -2436,6 +2436,7 @@ class ChannelManager {
     /** Whether deleting this own message also erases it from storage. */
     ownPurgeApplies(streamId, targetId) {
         const channel = this.channels.get(streamId);
+        if (channel?.type === 'dm') return dmManager.canPurge(streamId, targetId);
         const msg = channel?.messages?.find((m) => m.id === targetId);
         return !!(msg && this.overrides.ownPurgeSigner(channel, msg));
     }
@@ -2765,7 +2766,7 @@ class ChannelManager {
         // Which of the channel's storage providers can erase messages decides
         // whether moderation offers "Erase from storage" at all.
         const opened = this.channels.get(streamId);
-        if (opened && opened.type !== 'dm' && !opened.purgeProviders) {
+        if (opened && !opened.purgeProviders) {
             storageEndpoints.providersWith(streamId, 'purge')
                 .then((providers) => { opened.purgeProviders = providers; })
                 .catch((e) => Logger.debug('purge providers unknown:', e?.message || e));

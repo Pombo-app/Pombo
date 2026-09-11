@@ -26,6 +26,10 @@ import { identityManager } from './identity.js';
 import { relayManager } from './relayManager.js';
 import { dmCrypto } from './dmCrypto.js';
 import { mediaController } from './media.js';
+import { storageEndpoints } from './storageEndpoints.js';
+import { purgeGroups, eraseMessage, keySigner } from './storagePurge.js';
+
+const SENT_ROWS_MAX = 2000;
 
 class DMManager {
     constructor() {
@@ -40,6 +44,10 @@ class DMManager {
 
         // Conversations: peerAddress (lowercase) → messageStreamId in channelManager
         this.conversations = new Map();
+
+        /** Storage rows this session wrote to peers' inboxes, by message id, each with the throwaway key that signed it. */
+        this.sentRows = new Map();
+        this.inboxPurgeProviders = null;
 
         // Guards against concurrent getOrCreateConversation for the same peer
         // peerAddress → Promise<channel>
@@ -245,6 +253,9 @@ class DMManager {
             );
 
             Logger.info('DM: Inbox message subscription active');
+            storageEndpoints.providersWith(this.inboxMessageStreamId, 'purge')
+                .then((providers) => { this.inboxPurgeProviders = providers; })
+                .catch((e) => Logger.debug('DM: inbox purge providers unknown:', e?.message || e));
 
             // Subscribe to notification partition (DM-1 partition 3) for channel invites
             // Skip if user has muted invites
@@ -445,7 +456,83 @@ class DMManager {
      */
     async sealAndPublish(peerInboxStreamId, peerAddress, payload, partition = STREAM_CONFIG.MESSAGE_STREAM.MESSAGES) {
         const sealed = await this.sealFor(peerAddress, payload);
-        return this.publishSealed(peerInboxStreamId, sealed, partition);
+        const published = await this.publishSealed(peerInboxStreamId, sealed, partition);
+        const timestamp = published?.messageId?.timestamp ?? published?.timestamp;
+        if (typeof payload?.id === 'string' && Number.isFinite(timestamp)) {
+            this.rememberRow(payload.id, { streamId: peerInboxStreamId, partition, timestamp, sequenceNumber: 0, privateKey: sealed.ephemeralPrivateKey });
+        }
+        return published;
+    }
+
+    rememberRow(messageId, row) {
+        const rows = this.sentRows.get(messageId) || [];
+        rows.push(row);
+        this.sentRows.delete(messageId);
+        this.sentRows.set(messageId, rows);
+        if (this.sentRows.size > SENT_ROWS_MAX) this.sentRows.delete(this.sentRows.keys().next().value);
+    }
+
+    /** The chunk rows of a file this session stored for the peer, all written under one transfer key. */
+    rememberFileRows(messageId, rows, privateKey) {
+        for (const r of rows) this.rememberRow(messageId, { ...r, privateKey });
+    }
+
+    rowsOf(messageId) {
+        return this.sentRows.get(messageId) || [];
+    }
+
+    /** Whether deleting this own message also erases it from the peer's storage. */
+    canPurge(peerInboxStreamId, messageId) {
+        const channel = channelManager.channels.get(peerInboxStreamId);
+        return (channel?.purgeProviders?.length > 0) && this.rowsOf(messageId).some((r) => r.streamId === peerInboxStreamId);
+    }
+
+    /** The purge groups of a sent message, each signed by the key that wrote its rows; chunks before the announce. */
+    purgeGroupsOf(peerInboxStreamId, messageId) {
+        const byKey = new Map();
+        for (const r of this.rowsOf(messageId)) {
+            if (r.streamId !== peerInboxStreamId) continue;
+            const key = `${r.partition}|${r.privateKey}`;
+            if (!byKey.has(key)) byKey.set(key, { partition: r.partition, targets: [], signer: keySigner(r.privateKey) });
+            byKey.get(key).targets.push({ timestamp: r.timestamp, sequenceNumber: r.sequenceNumber });
+        }
+        return [...byKey.values()].sort((a, b) => (a.partition === STREAM_CONFIG.MESSAGE_STREAM.MESSAGES) - (b.partition === STREAM_CONFIG.MESSAGE_STREAM.MESSAGES));
+    }
+
+    /** Erase a sent message from the peer's storage with the keys that wrote it; null when this session holds none. */
+    async purgeSent(peerInboxStreamId, messageId) {
+        if (!this.canPurge(peerInboxStreamId, messageId)) return null;
+        const groups = this.purgeGroupsOf(peerInboxStreamId, messageId);
+        try {
+            const outcome = await purgeGroups(peerInboxStreamId, groups, groups[groups.length - 1].signer);
+            if (outcome.erasedOn > 0) this.sentRows.delete(messageId);
+            return outcome;
+        } catch (err) {
+            Logger.warn('DM: purge failed:', err?.message || err);
+            const providers = channelManager.channels.get(peerInboxStreamId)?.purgeProviders?.length || 0;
+            return { providers, erasedOn: 0, forbiddenOn: 0, unreachable: 0, error: err?.message || String(err) };
+        }
+    }
+
+    /**
+     * Erase a received message from the own inbox's storage, as its owner,
+     * and drop it from this device once some provider let it go.
+     */
+    async eraseReceived(channelStreamId, messageId) {
+        const channel = channelManager.channels.get(channelStreamId);
+        const msg = channel?.messages?.find((m) => m.id === messageId);
+        if (!channel || !msg) throw new Error('Message not found');
+        if (!this.inboxMessageStreamId) throw new Error('Inbox not initialized');
+        const signer = { address: authManager.getAddress(), sign: (m) => authManager.signMessage(m) };
+        const inbox = { ...channel, streamId: this.inboxMessageStreamId, messageStreamId: this.inboxMessageStreamId };
+        const outcome = await eraseMessage(inbox, msg, signer, channelManager.purgeOptions?.(channel));
+        if (outcome.erasedOn > 0) {
+            const idx = channel.messages.indexOf(msg);
+            if (idx >= 0) channel.messages.splice(idx, 1);
+            (channel._deletedIds ||= new Set()).add(messageId);
+            channelManager.notifyHandlers('message_deleted', { streamId: channelStreamId, targetId: messageId });
+        }
+        return outcome;
     }
 
     /**
@@ -780,6 +867,7 @@ class DMManager {
         // The cost is that a blocked peer's message is decrypted before being
         // dropped — one ECDH plus one AES-GCM, about a millisecond. That is the
         // trade sealed sender makes, and it is a good one.
+        const envelope = data;
         try {
             data = await this.openDMEnvelope(data);
         } catch {
@@ -788,6 +876,10 @@ class DMManager {
         if (!data || !data.account) {
             Logger.debug('DM: Message could not be attributed, ignoring');
             return;
+        }
+        if (data !== envelope && Number.isFinite(envelope?._timestamp)) {
+            data._timestamp = envelope._timestamp;
+            data._seq = envelope._seq;
         }
 
         const senderAddress = data.account.toLowerCase();
@@ -1323,6 +1415,7 @@ class DMManager {
         channelManager.notifyHandlers('message_deleted', { streamId: peerInboxStreamId, targetId });
 
         Logger.debug('DM: Delete sent for message:', targetId);
+        return this.purgeSent(peerInboxStreamId, targetId);
     }
 
     /**
@@ -1711,6 +1804,8 @@ class DMManager {
         this.inboxReady = false;
         this._inboxExistsCache = null;
         this.handlers = [];
+        this.sentRows.clear();
+        this.inboxPurgeProviders = null;
         dmCrypto.clear();
     }
 }
