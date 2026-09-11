@@ -294,13 +294,14 @@ describe('chunkTransferId / fileChunkGroups', () => {
         const other = { id: 'o', type: 'text', sender: '0xother', _timestamp: 1600, _seq: 0 };
         const channel = { messageStreamId: STREAM, messages: [file, text, other] };
 
+        // Chunks go before the announce, so a failed chunk pass never orphans them.
         const one = await eraseMessage(channel, file, signer, { fetchImpl: fetchMock });
         expect(one).toMatchObject({ providers: 1, erasedOn: 1, targets: 2 });
-        expect(purges).toEqual([{ partition: 0, n: 1 }, { partition: 4, n: 1 }]);
+        expect(purges).toEqual([{ partition: 4, n: 1 }, { partition: 0, n: 1 }]);
 
         purges.length = 0;
         const all = await eraseAuthorMessages(channel, '0xAUTHOR', signer, { fetchImpl: fetchMock });
         expect(all).toMatchObject({ providers: 1, erasedOn: 1, targets: 3, messages: 2, skipped: 0 });
-        expect(purges).toEqual([{ partition: 0, n: 2 }, { partition: 4, n: 1 }]);
+        expect(purges).toEqual([{ partition: 4, n: 1 }, { partition: 0, n: 2 }]);
     });
 });

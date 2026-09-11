@@ -330,11 +330,15 @@ export async function eraseMessage(channel, msg, signer, { partition = 0, fetchI
  * @returns {Promise<Array<{partition: number, targets: Array}>>}
  */
 export async function messageGroups(streamId, partition, msg, fetchImpl = fetch, openerFor = null) {
-    const groups = [{ partition, targets: [await resolveTarget(streamId, partition, msg, fetchImpl)] }];
+    const own = { partition, targets: [await resolveTarget(streamId, partition, msg, fetchImpl)] };
+    // Chunks before the announce: a pass that fails on the chunks leaves the
+    // announce in place, never chunks nobody can address any more.
+    const groups = [];
     if (msg?.type === 'storage_file_announce' && msg.metadata) {
         const openChunk = openerFor ? await openerFor(msg.metadata) : asIs;
         groups.push(...await fileChunkGroups(streamId, msg.metadata, fetchImpl, openChunk));
     }
+    groups.push(own);
     return groups;
 }
 
@@ -363,7 +367,9 @@ export async function eraseAuthorMessages(channel, address, signer, { partition 
             Logger.warn(`Erase of ${msg.id} skipped: ${e.message}`);
         }
     }
-    const groups = [...byPartition].map(([p, targets]) => ({ partition: p, targets }));
+    const groups = [...byPartition]
+        .map(([p, targets]) => ({ partition: p, targets }))
+        .sort((a, b) => Number(a.partition === partition) - Number(b.partition === partition));
     const outcome = await purgeGroups(streamId, groups, signer, fetchImpl);
     return { ...outcome, messages: theirs.length - skipped, skipped };
 }
