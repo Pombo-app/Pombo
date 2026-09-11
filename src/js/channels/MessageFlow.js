@@ -248,6 +248,10 @@ export class MessageFlow {
             }
         }
 
+        // A deleted message's row stays on storage; no later read of it
+        // brings the message back.
+        if (channel._deletedIds?.has(data.id)) return;
+
         // Check if message already exists (deduplication)
         // This handles duplicates from network AND historical messages
         const existing = channel.messages.find(m => m.id === data.id);
@@ -441,6 +445,7 @@ export class MessageFlow {
                 await mediaController.registerStoredImageManifest(streamId, data);
             }
             
+            if (channel._deletedIds?.has(data.id)) continue;
             channel.messages.push(data);
             addedCount++;
             
@@ -985,6 +990,7 @@ export class MessageFlow {
                             }
                         }
 
+                        if (channel._deletedIds?.has(msg.id)) continue;
                         channel.messages.push(msg);
                         addedCount++;
                         

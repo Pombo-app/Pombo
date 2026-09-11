@@ -1855,6 +1855,8 @@ class ChannelManager {
         // Cleared in `onHistoryComplete` (and on any error path below).
         if (channel && !channel.writeOnly && channel.type !== 'dm') {
             channel.initialLoadInProgress = true;
+            // The override read that follows re-establishes every delete.
+            channel._deletedIds = new Set();
         }
 
         // Skip network subscription for write-only channels (no subscribe permission)

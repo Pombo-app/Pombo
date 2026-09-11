@@ -115,8 +115,8 @@ export class MessageOverrides {
 
         // SECURITY: Only the original sender can edit/delete their message
         if (original.sender?.toLowerCase() !== account.toLowerCase()) {
-            Logger.warn('Override rejected: sender mismatch', { 
-                originalSender: original.sender, overrideSender: account 
+            Logger.warn('Override rejected: sender mismatch', {
+                originalSender: original.sender, overrideSender: account
             });
             return;
         }
@@ -131,6 +131,7 @@ export class MessageOverrides {
             // Remove from messages array
             const idx = channel.messages.indexOf(original);
             if (idx >= 0) channel.messages.splice(idx, 1);
+            this.rememberDeleted(channel, data.targetId);
         }
 
         if (!fromHistory) {
@@ -139,6 +140,18 @@ export class MessageOverrides {
                 targetId: data.targetId
             });
         }
+    }
+
+    /**
+     * Storage keeps a deleted message's row, and the catch-up and refresh
+     * reads bring rows back without their overrides: the id is remembered
+     * for the session so no read reinstates it.
+     * @param {Object} channel - Channel object
+     * @param {string} targetId - The deleted message
+     */
+    rememberDeleted(channel, targetId) {
+        if (!(channel._deletedIds instanceof Set)) channel._deletedIds = new Set();
+        channel._deletedIds.add(targetId);
     }
 
     /**
@@ -164,6 +177,7 @@ export class MessageOverrides {
             } else if (override.type === 'delete') {
                 msg._deleted = true;
                 msg._deletedAt = override.timestamp;
+                this.rememberDeleted(channel, targetId);
             }
             applied.push(targetId);
         }
@@ -282,6 +296,7 @@ export class MessageOverrides {
             // Apply locally first (optimistic) — remove from messages array
             const idx = channel.messages.indexOf(original);
             if (idx >= 0) channel.messages.splice(idx, 1);
+            this.rememberDeleted(channel, targetId);
 
             this.manager.notifyHandlers('message_deleted', { streamId, targetId });
 

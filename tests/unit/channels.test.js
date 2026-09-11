@@ -2546,6 +2546,18 @@ describe('ChannelManager', () => {
             expect(streamrController.publishAsChannel).not.toHaveBeenCalled();
         });
 
+        it('keeps a deleted message out of every later read of the same rows', async () => {
+            await channelManager.sendDelete(streamId, 'msg-1');
+            expect(channel.messages.map(m => m.id)).toEqual(['msg-2']);
+            await channelManager.handleTextMessage(streamId, { id: 'msg-1', type: 'text', text: 'Delete me', sender: '0xmyaddress', account: '0xmyaddress', timestamp: 1000 });
+            expect(channel.messages.map(m => m.id)).toEqual(['msg-2']);
+
+            channelManager.handleOverrideMessage(streamId, { type: 'delete', targetId: 'msg-2', account: '0xother', timestamp: 3000 }, true);
+            expect(channel.messages).toHaveLength(0);
+            await channelManager.handleTextMessage(streamId, { id: 'msg-2', type: 'text', text: 'Keep me', sender: '0xother', account: '0xother', timestamp: 2000 });
+            expect(channel.messages).toHaveLength(0);
+        });
+
         it('should route DM channels through dmManager', async () => {
             const { dmManager } = await import('../../src/js/dm.js');
             channel.type = 'dm';
