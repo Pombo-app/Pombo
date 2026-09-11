@@ -107,11 +107,12 @@ describe('storageFetch', () => {
         expect(headersOf(callsTo('format=raw')[0]).get('x-pombo-user')).toBe(identity.address);
     });
 
-    it('leaves non-gated reads and vanilla nodes alone', async () => {
+    it('reads a non-gated stream unsigned, with its storedAt, and leaves vanilla nodes alone', async () => {
         gated = new Set();
         await globalThis.fetch(readUrl(STREAM));
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-        expect(headersOf(fetchMock.mock.calls[0]).has('x-pombo-user')).toBe(false);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(headersOf(callsTo('format=raw')[0]).has('x-pombo-user')).toBe(false);
+        expect(headersOf(callsTo('format=metadata')[0]).has('x-pombo-user')).toBe(false);
 
         vi.clearAllMocks();
         gated = new Set([STREAM.replace(/-1$/, '')]);
@@ -154,6 +155,25 @@ describe('storageFetch', () => {
         expect(callsTo('format=metadata')).toHaveLength(2);
         expect(callsTo('format=raw')).toHaveLength(1);
         expect(storageFetch.lastReadError(STREAM)).toMatchObject({ status: 503, signed: true, reason: 'storedAt' });
+    });
+
+    it('asks for storedAt on a public stream too, unsigned, and refuses the page without it', async () => {
+        gated = new Set();
+        fetchMock.mockImplementation(async (url) => String(url).includes('format=metadata') ? ok([]) : ok('frames'));
+        expect((await globalThis.fetch(readUrl(STREAM))).status).toBe(200);
+        expect(callsTo('format=metadata')).toHaveLength(1);
+        expect(headersOf(callsTo('format=metadata')[0]).has('x-pombo-user')).toBe(false);
+
+        vi.clearAllMocks();
+        fetchMock.mockImplementation(async (url) => String(url).includes('format=metadata') ? ok('', 500) : ok('frames'));
+        expect((await globalThis.fetch(readUrl(STREAM))).status).toBe(503);
+        expect(storageFetch.lastReadError(STREAM)).toMatchObject({ reason: 'storedAt' });
+    });
+
+    it('never asks for storedAt on a DM inbox', async () => {
+        await globalThis.fetch(readUrl('0xabc0000000000000000000000000000000000002/Pombo-DM-1'));
+        expect(callsTo('format=metadata')).toHaveLength(0);
+        expect(callsTo('format=raw')).toHaveLength(1);
     });
 
     it('refuses the page at once when the node answers the storedAt read with an error', async () => {

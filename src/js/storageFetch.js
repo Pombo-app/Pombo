@@ -115,7 +115,9 @@ class StorageFetch {
         let identity = signer();
         const canSign = !!identity?.address && features.has(SIGNED_READS);
         let sign = canSign && gated && !/-3$/.test(streamId);
-        const wantStoredAt = gated && features.has(STORED_AT);
+        // storedAt is read wherever a page gets judged: every channel stream
+        // of a node that supplies it. DM inboxes are not covered yet.
+        const wantStoredAt = features.has(STORED_AT) && !/\/Pombo-DM-/.test(streamId);
 
         let attempt = 0;
         let signedUnprompted = false;

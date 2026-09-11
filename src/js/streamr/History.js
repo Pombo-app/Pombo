@@ -293,9 +293,9 @@ export class History {
 
                     // Epoch envelope (gated): unknown kid → skip, not error (§7.9)
                     let innerAuthor = null;
+                    const judged = storageFetch.judgeMessage(messageStreamId, partition, message);
+                    if (judged.forwardDated) continue;
                     if (this.controller.isEpochEnvelope(content)) {
-                        const judged = storageFetch.judgeMessage(messageStreamId, partition, message);
-                        if (judged.forwardDated) continue;
                         const opened = await this.controller.openEpochEnvelope(messageStreamId, content,
                             { live: false, timestamp: judged.judgeTime });
                         if (opened === null) {
@@ -696,12 +696,12 @@ export class History {
 
                     // Epoch envelope (gated): unknown kid → skip, not error (§7.9)
                     let innerAuthor = null;
+                    const judged = storageFetch.judgeMessage(streamId, partition, message);
+                    if (judged.forwardDated) {
+                        skippedCount++;
+                        continue;
+                    }
                     if (this.controller.isEpochEnvelope(content)) {
-                        const judged = storageFetch.judgeMessage(streamId, partition, message);
-                        if (judged.forwardDated) {
-                            skippedCount++;
-                            continue;
-                        }
                         const opened = await this.controller.openEpochEnvelope(streamId, content,
                             { live: false, timestamp: judged.judgeTime });
                         if (opened === null) {
