@@ -15,6 +15,7 @@ import { CONFIG } from '../config.js';
 import { mediaController } from '../media.js';
 import { adminStatePoller } from '../adminStatePoller.js';
 import { messageTime } from '../utils/messageTime.js';
+import { storageFetch } from '../storageFetch.js';
 
 export class MessageFlow {
     /**
@@ -853,9 +854,16 @@ export class MessageFlow {
             // to give the storage node enough time to walk the gap. Any
             // attempt that returns data wins immediately; we don't keep
             // retrying after success.
+            const refusal = storageFetch.lastReadError(messageStreamId, STREAM_CONFIG.MESSAGE_STREAM.MESSAGES);
+            if (refusal) {
+                channel.historyError = refusal;
+                contentResult = { ...contentResult, hasMore: false };
+            }
+
             const isEmpty = (c, o) => (c?.messages?.length || 0) === 0
                 && (o?.messages?.length || 0) === 0;
-            if (isEmpty(contentResult, overrideResult)
+            if (!refusal
+                && isEmpty(contentResult, overrideResult)
                 && beforeTimestamp > 1
                 && !signal?.aborted
                 && this.manager.switchGeneration === generationAtStart) {

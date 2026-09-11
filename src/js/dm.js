@@ -27,6 +27,7 @@ import { relayManager } from './relayManager.js';
 import { dmCrypto } from './dmCrypto.js';
 import { mediaController } from './media.js';
 import { storageEndpoints } from './storageEndpoints.js';
+import { storageFetch } from './storageFetch.js';
 import { purgeGroups, eraseMessage, keySigner } from './storagePurge.js';
 
 const SENT_ROWS_MAX = 2000;
@@ -1562,6 +1563,13 @@ class DMManager {
             );
 
             if (signal?.aborted) return { loaded: 0, hasMore: channel.hasMoreHistory, noResultsInWindow: false };
+
+            const refusal = storageFetch.lastReadError(this.inboxMessageStreamId, 0);
+            if (refusal) {
+                channel.historyError = refusal;
+                channel.hasMoreHistory = false;
+                return { loaded: 0, hasMore: false, noResultsInWindow: false };
+            }
 
             let addedCount = 0;
             const privateKey = authManager.wallet?.privateKey;

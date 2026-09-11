@@ -2134,6 +2134,23 @@ describe('DMManager', () => {
             expect(ids).toContain('ok-1');
         });
 
+        it('raises the history error and stops paging when an older inbox page was refused', async () => {
+            const { storageFetch } = await import('../../src/js/storageFetch.js');
+            dmManager.conversations.set(peerAddress, streamId);
+            const ch = channelManager.channels.get(streamId);
+            ch.hasMoreHistory = true;
+            streamrController.fetchOlderHistoryWindowed.mockResolvedValueOnce({ messages: [], hasMore: true, windowStart: 1 });
+            storageFetch.lastErrors.set(`${me}/Pombo-DM-1|0`, { status: 503, signed: true, at: Date.now(), reason: 'storedAt' });
+            try {
+                const result = await dmManager.fetchOlderDMMessages(peerAddress);
+                expect(result).toMatchObject({ loaded: 0, hasMore: false });
+                expect(ch.historyError).toMatchObject({ status: 503, reason: 'storedAt' });
+                expect(ch.hasMoreHistory).toBe(false);
+            } finally {
+                storageFetch.lastErrors.delete(`${me}/Pombo-DM-1|0`);
+            }
+        });
+
         it('carries the storage coordinates of a sealed envelope onto the opened message', async () => {
             dmCrypto.isSealed.mockReturnValueOnce(true);
             dmCrypto.open.mockResolvedValueOnce({ sender: peerAddress, message: { id: 'r-2', type: 'text', text: 'sealed', timestamp: 3 } });

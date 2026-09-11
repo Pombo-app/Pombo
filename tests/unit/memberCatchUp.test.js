@@ -81,6 +81,18 @@ describe('member catch-up', () => {
         expect(memberCatchUp.getStreamId()).toBeNull();
     });
 
+    it('reports a refused sweep to the caller', async () => {
+        vi.spyOn(authManager, 'getAddress').mockReturnValue(MEMBER);
+        const refusals = [];
+        vi.spyOn(streamrController, 'fetchHistoryAsync').mockImplementation(
+            (id, partition, count, handler, password, done) => {
+                done?.({ loaded: 0, requested: count, readError: { status: 503, signed: true, reason: 'storedAt' } });
+            });
+        memberCatchUp.start(channel(), () => {}, (r) => refusals.push(r));
+        await vi.advanceTimersByTimeAsync(CONFIG.subscriptions.memberCatchUpIntervalMs + 10);
+        expect(refusals).toEqual([{ status: 503, signed: true, reason: 'storedAt' }]);
+    });
+
     it('feeds what it finds into the ordinary ingest', async () => {
         vi.spyOn(authManager, 'getAddress').mockReturnValue(MEMBER);
         const seen = [];

@@ -1484,6 +1484,21 @@ describe('ChannelManager', () => {
             channelManager.setCurrentChannel(streamId);
         });
 
+        it('raises the history error and stops paging when the older page was refused', async () => {
+            const { storageFetch } = await import('../../src/js/storageFetch.js');
+            storageFetch.lastErrors.set(`${streamId}|0`, { status: 503, signed: false, at: Date.now(), reason: 'storedAt' });
+            streamrController.fetchOlderHistory.mockResolvedValue({ messages: [], hasMore: true });
+            try {
+                const result = await channelManager.loadMoreHistory(streamId);
+                const channel = channelManager.channels.get(streamId);
+                expect(channel.historyError).toMatchObject({ status: 503, reason: 'storedAt' });
+                expect(channel.hasMoreHistory).toBe(false);
+                expect(result).toMatchObject({ loaded: 0, hasMore: false });
+            } finally {
+                storageFetch.lastErrors.delete(`${streamId}|0`);
+            }
+        });
+
         it('should return messages when channel does not switch', async () => {
             const newMsg = { id: 'msg-old', timestamp: 500, text: 'older', sender: '0x2' };
             streamrController.fetchOlderHistory.mockResolvedValue({
