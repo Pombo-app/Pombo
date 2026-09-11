@@ -420,7 +420,11 @@ class MessageContextMenuUI {
                 const purges = providers > 0 && channelManager.ownPurgeApplies?.(ch.streamId, target.msgId);
                 const note = purges
                     ? ` It is also erased from storage on ${providers} provider${providers === 1 ? '' : 's'}.`
-                    : (providers > 0 ? ' Its copy on storage cannot be erased from this session.' : '');
+                    : (providers > 0
+                        ? (ch.wireIdentity === 'sealed'
+                            ? " Its copy on storage stays until the channel's retention ends."
+                            : ' Its copy on storage cannot be erased from this session.')
+                        : '');
                 if (!await confirmDialog({ title: 'Delete message', message: `Removed for everyone.${note}`, confirmLabel: 'Delete' })) break;
                 try {
                     const outcome = await channelManager.sendDelete(ch.streamId, target.msgId);
