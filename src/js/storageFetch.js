@@ -114,10 +114,13 @@ class StorageFetch {
         const gated = await isGated(streamId);
         let identity = signer();
         const canSign = !!identity?.address && features.has(SIGNED_READS);
-        let sign = canSign && gated && !/-3$/.test(streamId);
-        // storedAt is read wherever a page gets judged: every channel stream
-        // of a node that supplies it. DM inboxes are not covered yet.
-        const wantStoredAt = features.has(STORED_AT) && !/\/Pombo-DM-/.test(streamId);
+        // The own DM inbox is private (its SUBSCRIBE is the owner's alone),
+        // so a node that checks signatures wants one there too.
+        const ownInbox = !!identity?.address && streamId === `${identity.address.toLowerCase()}/Pombo-DM-1`;
+        let sign = canSign && (gated || ownInbox) && !/-3$/.test(streamId);
+        // storedAt is read wherever a page gets judged: every stream of a
+        // node that supplies it.
+        const wantStoredAt = features.has(STORED_AT);
 
         let attempt = 0;
         let signedUnprompted = false;

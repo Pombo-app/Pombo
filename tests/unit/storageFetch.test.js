@@ -170,10 +170,16 @@ describe('storageFetch', () => {
         expect(storageFetch.lastReadError(STREAM)).toMatchObject({ reason: 'storedAt' });
     });
 
-    it('never asks for storedAt on a DM inbox', async () => {
+    it('signs the reads of the own DM inbox, storedAt included, and not those of another inbox', async () => {
+        const own = `${identity.address.toLowerCase()}/Pombo-DM-1`;
+        await globalThis.fetch(readUrl(own));
+        expect(headersOf(callsTo('format=raw')[0]).get('x-pombo-user')).toBe(identity.address);
+        expect(headersOf(callsTo('format=metadata')[0]).get('x-pombo-user')).toBe(identity.address);
+
+        vi.clearAllMocks();
         await globalThis.fetch(readUrl('0xabc0000000000000000000000000000000000002/Pombo-DM-1'));
-        expect(callsTo('format=metadata')).toHaveLength(0);
-        expect(callsTo('format=raw')).toHaveLength(1);
+        expect(headersOf(callsTo('format=raw')[0]).has('x-pombo-user')).toBe(false);
+        expect(callsTo('format=metadata')).toHaveLength(1);
     });
 
     it('refuses the page at once when the node answers the storedAt read with an error', async () => {
