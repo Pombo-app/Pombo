@@ -521,6 +521,7 @@ export class History {
                         : message.publisherId;
 
                     if (isFutureForged(content?.timestamp, message.timestamp)) continue;
+                    if (storageFetch.judgeMessage(streamId, partition, message).forwardDated) continue;
 
                     messages.push({
                         content,
