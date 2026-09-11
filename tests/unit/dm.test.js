@@ -2119,6 +2119,21 @@ describe('DMManager', () => {
             expect(channelManager.channels.get(streamId).messages).toHaveLength(2);
         });
 
+        it('drops a live DM dated ahead of the clock or of its own envelope, and keeps one within skew', async () => {
+            const sealed = (message, extra = {}) => {
+                dmCrypto.isSealed.mockReturnValueOnce(true);
+                dmCrypto.open.mockResolvedValueOnce({ sender: peerAddress, message });
+                return dmManager.routeInboxMessage({ v: 2, epk: '0x02eph', ct: 'c', iv: 'i', e: 'aes-256-gcm', ...extra });
+            };
+            await sealed({ id: 'f-1', type: 'text', text: 'future', timestamp: Date.now() + 3600000 });
+            await sealed({ id: 'f-2', type: 'text', text: 'ahead of envelope', timestamp: Date.now() - 1000 }, { _timestamp: Date.now() - 600000, _seq: 0 });
+            await sealed({ id: 'ok-1', type: 'text', text: 'fine', timestamp: Date.now() + 60000 }, { _timestamp: Date.now(), _seq: 0 });
+            const ids = channelManager.channels.get(streamId).messages.map((m) => m.id);
+            expect(ids).not.toContain('f-1');
+            expect(ids).not.toContain('f-2');
+            expect(ids).toContain('ok-1');
+        });
+
         it('carries the storage coordinates of a sealed envelope onto the opened message', async () => {
             dmCrypto.isSealed.mockReturnValueOnce(true);
             dmCrypto.open.mockResolvedValueOnce({ sender: peerAddress, message: { id: 'r-2', type: 'text', text: 'sealed', timestamp: 3 } });

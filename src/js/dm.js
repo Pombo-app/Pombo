@@ -881,6 +881,17 @@ class DMManager {
             data._timestamp = envelope._timestamp;
             data._seq = envelope._seq;
         }
+        const skew = CONFIG.gate.timestampSkewMs;
+        if (Number.isFinite(data.timestamp)) {
+            if (data.timestamp > Date.now() + skew) {
+                Logger.warn('DM: rejecting future-dated message:', data.id, new Date(data.timestamp).toISOString());
+                return;
+            }
+            if (Number.isFinite(data._timestamp) && data.timestamp > data._timestamp + skew) {
+                Logger.warn('DM: rejecting message dated ahead of its envelope:', data.id);
+                return;
+            }
+        }
 
         const senderAddress = data.account.toLowerCase();
         const myAddress = authManager.getAddress()?.toLowerCase();
