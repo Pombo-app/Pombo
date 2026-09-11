@@ -2250,6 +2250,21 @@
         </div>
     </div>
 
+    <!-- Modal: confirm a decisive action (the app's own dialog, never the browser's) -->
+    <div id="confirm-dialog-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70]">
+        <div class="bg-[#111113] rounded-2xl w-[400px] max-w-[95vw] mx-4 shadow-2xl border border-white/[0.08] overflow-hidden">
+            <div class="p-6">
+                <h3 id="confirm-dialog-title" class="text-lg font-medium text-white/90 mb-3"></h3>
+                <p id="confirm-dialog-message" class="text-sm text-white/60 leading-relaxed"></p>
+                <p id="confirm-dialog-detail" class="hidden text-xs text-white/40 mt-2"></p>
+            </div>
+            <div class="flex border-t border-white/5">
+                <button id="confirm-dialog-cancel" class="flex-1 px-4 py-3 text-sm text-white/60 hover:text-white hover:bg-white/5 transition">Cancel</button>
+                <button id="confirm-dialog-ok" class="flex-1 px-4 py-3 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 border-l border-white/5 transition">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: Settings -->
     <!-- Settings Modal - Tabbed Layout -->
     <div id="settings-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50">

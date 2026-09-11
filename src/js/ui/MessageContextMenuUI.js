@@ -13,6 +13,8 @@
  * Add/Remove contact modals are delegated to ContactsUI via deps.
  */
 
+import { confirmDialog } from './ConfirmDialogUI.js';
+
 /** "Erased from storage on k of n providers", with what the others did. */
 function purgeOutcomeText(outcome) {
     const n = outcome.providers;
@@ -419,7 +421,7 @@ class MessageContextMenuUI {
                 const note = purges
                     ? ` It is also erased from storage on ${providers} provider${providers === 1 ? '' : 's'}.`
                     : (providers > 0 ? ' Its copy on storage cannot be erased from this session.' : '');
-                if (!confirm(`Delete this message?${note}`)) break;
+                if (!await confirmDialog({ title: 'Delete message', message: `Removed for everyone.${note}`, confirmLabel: 'Delete' })) break;
                 try {
                     const outcome = await channelManager.sendDelete(ch.streamId, target.msgId);
                     if (outcome?.error) showNotification(`Deleted, but not erased from storage: ${outcome.error}`, 'warning');
@@ -432,7 +434,7 @@ class MessageContextMenuUI {
 
             case 'admin-delete-message': {
                 if (!target.msgId) break;
-                if (!confirm('Hide this message for everyone in the channel?')) break;
+                if (!await confirmDialog({ title: 'Hide message', message: 'Hidden for everyone in the channel. You can show it again later.', confirmLabel: 'Hide' })) break;
                 const ch = channelManager?.getCurrentChannel?.();
                 if (!ch) break;
                 try {
@@ -477,7 +479,11 @@ class MessageContextMenuUI {
                 if (ch.type === 'dm') {
                     const { dmManager } = this.deps;
                     const n = dmManager?.inboxPurgeProviders?.length || 0;
-                    if (!confirm(`Erase this message from your inbox storage on ${n} provider${n === 1 ? '' : 's'}? It disappears from this device and cannot be recovered.`)) break;
+                    if (!await confirmDialog({
+                        title: 'Erase from storage',
+                        message: `Remove this message from your inbox on ${n} storage provider${n === 1 ? '' : 's'}. It disappears from this device and cannot be recovered.`,
+                        confirmLabel: 'Erase'
+                    })) break;
                     try {
                         const outcome = await dmManager.eraseReceived(ch.streamId, target.msgId);
                         showNotification(purgeOutcomeText(outcome), outcome.erasedOn === outcome.providers ? 'success' : 'warning');
@@ -487,7 +493,11 @@ class MessageContextMenuUI {
                     break;
                 }
                 const providers = ch.purgeProviders?.length || 0;
-                if (!confirm(`Erase this message from storage on ${providers} provider${providers === 1 ? '' : 's'}? It stays hidden for everyone and cannot be recovered.`)) break;
+                if (!await confirmDialog({
+                    title: 'Erase from storage',
+                    message: `Remove this message from ${providers} storage provider${providers === 1 ? '' : 's'}. It stays hidden for everyone and cannot be recovered.`,
+                    confirmLabel: 'Erase'
+                })) break;
                 try {
                     const { authManager } = await import('../auth.js');
                     const { eraseMessage } = await import('../storagePurge.js');
@@ -518,7 +528,7 @@ class MessageContextMenuUI {
                 // the two-level modal (which spends gas) is the owner's.
                 if (channelManager.isCachedModerator?.(ch.streamId)
                     && !channelManager.getCachedDeletePermission?.(ch.streamId)?.canDelete) {
-                    if (!confirm(`Hide every message from ${address.slice(0, 10)}… from now on?`)) break;
+                    if (!await confirmDialog({ title: 'Hide their messages', message: `Every message from ${address.slice(0, 10)}… is hidden from now on.`, confirmLabel: 'Hide' })) break;
                     try {
                         const { epochKeyManager } = await import('../epochKeyManager.js');
                         await channelManager.publishModAction(
@@ -599,7 +609,7 @@ class MessageContextMenuUI {
         }
 
         const short = address.slice(0, 6) + '…' + address.slice(-4);
-        if (!confirm(`Block ${short}? All messages from this user will be permanently ignored.`)) {
+        if (!await confirmDialog({ title: 'Block user', message: `All messages from ${short} will be permanently ignored.`, confirmLabel: 'Block' })) {
             return;
         }
 
