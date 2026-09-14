@@ -610,7 +610,8 @@ class UIController {
             openChatView: () => this.openChatView(),
             showNotification: (msg, type) => this.showNotification(msg, type),
             attachReactionListeners: () => this.attachReactionListeners(),
-            renderChannelList: () => this.renderChannelList()
+            renderChannelList: () => this.renderChannelList(),
+            updateOnlineUsers: (streamId, users) => this.updateOnlineUsers(streamId, users)
         });
 
         // Set up event listeners

@@ -30,6 +30,7 @@ class SubscriptionManager {
         // Preview channel state (temporary subscription, not persisted)
         this.previewChannelId = null;  // messageStreamId of channel being previewed
         this.previewPresenceInterval = null;  // Interval for presence broadcasting in preview
+        this.previewOnlineInterval = null;    // Interval that repaints who is online in preview
 
         // Switch fence for preview subscription work. Bumped on every
         // setPreviewChannel and clearPreviewChannel call so async work
@@ -685,9 +686,16 @@ class SubscriptionManager {
         
         // Publish immediately
         publishPresence();
-        
+
         // Then periodically (every 20 seconds)
         this.previewPresenceInterval = setInterval(publishPresence, CONFIG.subscriptions.previewPresenceIntervalMs);
+
+        // The joined channel repaints who is online every 5s from its own
+        // heartbeat; without this the preview's count only ever grows.
+        this.previewOnlineInterval = setInterval(() => {
+            if (this.previewChannelId !== messageStreamId) return;
+            channelManager.notifyOnlineUsersChange(messageStreamId);
+        }, 5000);
     }
 
     /**
@@ -698,6 +706,10 @@ class SubscriptionManager {
         if (this.previewPresenceInterval) {
             clearInterval(this.previewPresenceInterval);
             this.previewPresenceInterval = null;
+        }
+        if (this.previewOnlineInterval) {
+            clearInterval(this.previewOnlineInterval);
+            this.previewOnlineInterval = null;
         }
     }
 
