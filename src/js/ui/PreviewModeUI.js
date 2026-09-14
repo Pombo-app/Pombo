@@ -665,6 +665,7 @@ class PreviewModeUI {
                 chatAreaUI.isLoadingMore = false;
                 chatAreaUI._cancelPendingAutoLoad?.();
                 chatAreaUI.hideLoadingMoreIndicator();
+                chatAreaUI.hideTypingIndicator();
             }
 
             // Clear stale reactions from the previewed channel
