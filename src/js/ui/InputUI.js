@@ -1,7 +1,7 @@
 /**
  * InputUI
  * Manages message input area: text input, file attachments, sending state,
- * auto-resize, and typing indicator.
+ * auto-resize.
  */
 
 import { modalManager } from './ModalManager.js';
@@ -22,10 +22,6 @@ class InputUI {
         this.isSending = false;
         this.pendingFile = null;
         this.pendingFileType = null;
-        
-        // Typing indicator state
-        this.typingTimeout = null;
-        this.lastTypingSent = 0;
     }
 
     /**
@@ -44,9 +40,6 @@ class InputUI {
         this.messageInput = elements.messageInput;
         this.sendMessageBtn = elements.sendMessageBtn;
 
-        // Setup typing indicator
-        this.setupTypingIndicator();
-
         // Enter handling for contenteditable (insert plain '\n' instead of <div>/<br>)
         this.setupEnterKey();
 
@@ -56,32 +49,6 @@ class InputUI {
 
         // Watch for keyboard-injected <img> elements (Android Gboard / Tenor)
         this.setupKeyboardImageObserver();
-    }
-
-    /**
-     * Setup typing indicator sender
-     */
-    setupTypingIndicator() {
-        if (!this.messageInput) return;
-
-        this.messageInput.addEventListener('input', () => {
-            const { channelManager } = this.deps;
-            const now = Date.now();
-
-            // Send typing signal every 2 seconds while typing
-            if (now - this.lastTypingSent > 2000) {
-                const currentChannel = channelManager?.getCurrentChannel();
-                if (currentChannel) {
-                    channelManager.sendTypingIndicator(currentChannel.streamId);
-                }
-                this.lastTypingSent = now;
-            }
-
-            clearTimeout(this.typingTimeout);
-            this.typingTimeout = setTimeout(() => {
-                // Stop typing (no-op for now, can add notification)
-            }, 3000);
-        });
     }
 
     /**
