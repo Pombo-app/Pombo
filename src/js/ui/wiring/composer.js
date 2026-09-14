@@ -4,6 +4,7 @@
 
 import { channelManager } from '../../channels.js';
 import { chatAreaUI } from '../ChatAreaUI.js';
+import { previewModeUI } from '../PreviewModeUI.js';
 
 /**
  * @param {Object} ui - the UI controller singleton
@@ -77,8 +78,10 @@ export function attachComposer(ui) {
         // Send typing signal every 2 seconds while typing
         if (now - lastTypingSent > 2000) {
             const currentChannel = channelManager.getCurrentChannel();
-            if (currentChannel) {
-                channelManager.sendTypingIndicator(currentChannel.streamId);
+            const preview = currentChannel ? null : previewModeUI.getPreviewChannel();
+            const streamId = currentChannel?.streamId ?? preview?.streamId;
+            if (streamId) {
+                channelManager.sendTypingIndicator(streamId, preview);
             }
             lastTypingSent = now;
         }

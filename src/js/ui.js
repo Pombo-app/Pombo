@@ -610,7 +610,8 @@ class UIController {
             openChatView: () => this.openChatView(),
             showNotification: (msg, type) => this.showNotification(msg, type),
             attachReactionListeners: () => this.attachReactionListeners(),
-            renderChannelList: () => this.renderChannelList()
+            renderChannelList: () => this.renderChannelList(),
+            updateOnlineUsers: (streamId, users) => this.updateOnlineUsers(streamId, users)
         });
 
         // Set up event listeners
@@ -971,17 +972,30 @@ class UIController {
     }
 
     /**
+     * Close whatever channel or preview is open, for a navigation that must
+     * not touch history: `deselectChannel` and `exitPreviewMode(false)` leave
+     * the history stack alone, `openExploreView` pushes an entry.
+     * @private
+     */
+    async _leaveOpenChannel() {
+        if (previewModeUI.isInPreviewMode()) {
+            await previewModeUI.exitPreviewMode(false);
+            return;
+        }
+        if (channelManager.getCurrentChannel()) {
+            await this.deselectChannel();
+        }
+    }
+
+    /**
      * Navigate to a state (called by historyManager on popstate)
      * Does not push to history - used for back/forward navigation
      * @param {Object} state - State object { view, streamId?, channelInfo? }
      */
     async navigateToState(state) {
         if (!state || !state.view) {
-            // Clear any preview state first
-            if (previewModeUI.isInPreviewMode()) {
-                await previewModeUI.exitPreviewMode(false);
-            }
-            
+            await this._leaveOpenChannel();
+
             // On mobile, go back to sidebar; on desktop, show explore
             if (this.isMobileView()) {
                 this.closeChatView();
@@ -1001,11 +1015,8 @@ class UIController {
                     if (channel) {
                         await this._selectChannelWithoutHistory(state.streamId);
                     } else {
-                        // Channel not in list - clear preview and go back
-                        if (previewModeUI.isInPreviewMode()) {
-                            await previewModeUI.exitPreviewMode(false);
-                        }
-                        
+                        await this._leaveOpenChannel();
+
                         // Go back to explore/sidebar
                         if (this.isMobileView()) {
                             this.closeChatView();
@@ -1025,11 +1036,8 @@ class UIController {
 
             case 'explore':
             default:
-                // Clear preview state if active
-                if (previewModeUI.isInPreviewMode()) {
-                    await previewModeUI.exitPreviewMode(false);
-                }
-                
+                await this._leaveOpenChannel();
+
                 // On mobile, back to explore means close chat view (show sidebar)
                 // User can then click Explore button if they want explore view
                 if (this.isMobileView()) {

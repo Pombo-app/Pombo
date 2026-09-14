@@ -25,6 +25,7 @@ import { headerUI } from './ui/HeaderUI.js';
 import { settingsUI } from './ui/SettingsUI.js';
 import { contactsUI } from './ui/ContactsUI.js';
 import { chatAreaUI } from './ui/ChatAreaUI.js';
+import { previewModeUI } from './ui/PreviewModeUI.js';
 import { reactionManager } from './ui/ReactionManager.js';
 import { mediaHandler } from './ui/MediaHandler.js';
 import { walletFlows } from './walletFlows.js';import { inviteHandler } from './inviteHandler.js';
@@ -651,6 +652,10 @@ class App {
             // preview does not set.
             const currentStreamId = currentChannel?.streamId
                 ?? channelManager.previewChannel?.messageStreamId;
+            // Only gated previews are registered on the manager; the UI holds
+            // every preview, gated or not.
+            const viewedStreamId = () => channelManager.getCurrentChannel()?.streamId
+                ?? previewModeUI.getPreviewChannel()?.streamId;
             
             if (event === 'message') {
                 chatAreaUI.updateUnreadCount(data.streamId);
@@ -665,7 +670,7 @@ class App {
                     });
                 }
             } else if (event === 'typing') {
-                if (data.streamId !== currentStreamId) return;
+                if (data.streamId !== viewedStreamId()) return;
                 
                 const user = data.user;
                 const nickname = data.nickname || null;
@@ -676,20 +681,22 @@ class App {
                     typingUsers.set(data.streamId, new Map());
                 }
                 const channelTyping = typingUsers.get(data.streamId);
-                channelTyping.set(user, { time: Date.now(), nickname });
-                
-                const now = Date.now();
+                const signalAt = Date.now();
+                channelTyping.set(user, { time: signalAt, nickname });
+
                 for (const [u, info] of channelTyping) {
-                    if (now - info.time > 3000) channelTyping.delete(u);
+                    if (signalAt - info.time > 3000) channelTyping.delete(u);
                 }
                 
                 const typingList = Array.from(channelTyping.entries()).map(([addr, info]) => ({ address: addr, nickname: info.nickname }));
                 chatAreaUI.showTypingIndicator(typingList);
                 
                 setTimeout(() => {
+                    // A later keystroke re-stamped the entry: that signal owns
+                    // the clear, not this one.
+                    if (channelTyping.get(user)?.time !== signalAt) return;
                     channelTyping.delete(user);
-                    const stillCurrentChannel = channelManager.getCurrentChannel();
-                    if (stillCurrentChannel?.streamId === data.streamId) {
+                    if (viewedStreamId() === data.streamId) {
                         const remaining = Array.from(channelTyping.entries()).map(([addr, info]) => ({ address: addr, nickname: info.nickname }));
                         chatAreaUI.showTypingIndicator(remaining);
                     }

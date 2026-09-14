@@ -2555,10 +2555,11 @@ class ChannelManager {
     /**
      * Send typing indicator to EPHEMERAL stream
      * @param {string} messageStreamId - Message Stream ID (channel key)
+     * @param {Object} [previewChannel] - Preview record, which lives outside the map
      */
-    async sendTypingIndicator(messageStreamId) {
+    async sendTypingIndicator(messageStreamId, previewChannel = null) {
         try {
-            const channel = this.channels.get(messageStreamId);
+            const channel = this.channels.get(messageStreamId) || previewChannel;
             if (!channel) return;
 
             // Use ephemeral stream for typing (not stored)

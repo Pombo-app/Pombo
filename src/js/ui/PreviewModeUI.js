@@ -414,10 +414,16 @@ class PreviewModeUI {
             elements.closeChannelBtnDesktop.classList.remove('hidden');
         }
 
-        // Show online users container
+        // Show online users container, repainted for THIS channel: the count
+        // left on screen belongs to whatever was open before.
         elements.onlineHeader?.classList.remove('hidden');
         elements.onlineHeader?.classList.add('flex');
         elements.onlineSeparator?.classList.remove('hidden');
+        const streamId = ownerChannel?.streamId;
+        if (streamId) {
+            this.ui?.updateOnlineUsers(
+                streamId, this.deps.channelManager.getOnlineUsers(streamId));
+        }
     }
 
     /**
@@ -665,6 +671,7 @@ class PreviewModeUI {
                 chatAreaUI.isLoadingMore = false;
                 chatAreaUI._cancelPendingAutoLoad?.();
                 chatAreaUI.hideLoadingMoreIndicator();
+                chatAreaUI.hideTypingIndicator();
             }
 
             // Clear stale reactions from the previewed channel
