@@ -91,6 +91,16 @@ class DropdownManager {
                     icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>',
                     label: 'Edit Contact'
                 },
+                {
+                    action: 'send-dm',
+                    icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>',
+                    label: 'Send DM'
+                },
+                {
+                    action: 'copy-address',
+                    icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>',
+                    label: 'Copy address'
+                },
                 { separator: true },
                 {
                     action: 'remove-contact',
@@ -115,7 +125,7 @@ class DropdownManager {
 
         const dropdown = document.createElement('div');
         dropdown.id = menuId;
-        dropdown.className = 'fixed bg-[#111113] border border-white/10 rounded-xl shadow-2xl py-1 z-[9999] min-w-[180px] overflow-hidden';
+        dropdown.className = 'fixed bg-[#16161b] border border-white/10 rounded-xl shadow-xl py-1 z-[9999] min-w-[180px] overflow-hidden';
         dropdown.innerHTML = items.map((item) => this._renderItem(item)).join('');
 
         document.body.appendChild(dropdown);
@@ -151,7 +161,7 @@ class DropdownManager {
             : 'hover:bg-white/5 text-white/70 hover:text-white';
 
         return `
-            <button class="dropdown-action w-full text-left px-4 py-2.5 text-sm transition flex items-center gap-2 ${toneClasses}" data-action="${item.action}">
+            <button class="dropdown-action w-full text-left px-4 py-2 text-sm transition flex items-center gap-2 ${toneClasses}" data-action="${item.action}">
                 ${item.icon}
                 ${item.label}
             </button>

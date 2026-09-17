@@ -125,6 +125,17 @@ describe('storageEndpoints', () => {
         expect(rot).toContain('https://node-a.example');
     });
 
+    it('noteReadError() ignores 4xx answers but counts other errors', async () => {
+        const limit = CONFIG.storageMedia.nodeFailureLimit;
+        for (let i = 0; i < limit; i++) storageEndpoints.noteReadError('https://node-a.example', new Error('HTTP 404'));
+        let rot = await storageEndpoints.rotation('0xchan/foo-1');
+        expect(rot).toContain('https://node-a.example');
+
+        for (let i = 0; i < limit; i++) storageEndpoints.noteReadError('https://node-a.example', new Error('HTTP 503'));
+        rot = await storageEndpoints.rotation('0xchan/foo-1');
+        expect(rot).toEqual(['https://node-b.example']);
+    });
+
     it('a success resets the consecutive-failure count', async () => {
         const limit = CONFIG.storageMedia.nodeFailureLimit;
         for (let i = 0; i < limit - 1; i++) storageEndpoints.noteFailure('https://node-a.example');
