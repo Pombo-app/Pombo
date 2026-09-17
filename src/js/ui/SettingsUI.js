@@ -1,9 +1,7 @@
 import { escapeHtml as _escapeHtml, escapeAttr as _escapeAttr } from './utils.js';
 import { getAvatarHtml, downgradeEnsAvatars } from './AvatarGenerator.js';
-import { GasEstimator } from './GasEstimator.js';
 import {
     CONFIG,
-    getNetworkParams,
     loadRpcSelection,
     saveRpcSelection,
     rpcSelectionUrls,
@@ -23,7 +21,7 @@ class SettingsUI {
     constructor() {
         this.deps = {};
         this.elements = {};
-        this.settingsTabOrder = ['profile', 'devicesync', 'wallet', 'notifications', 'api', 'linkpreviews', 'privacy', 'security', 'repair', 'about'];
+        this.settingsTabOrder = ['profile', 'devicesync', 'notifications', 'api', 'linkpreviews', 'privacy', 'security', 'repair', 'about'];
         this.currentSettingsTabIndex = 0;
         this.isAnimating = false; // Prevent multiple simultaneous animations
     }
@@ -742,21 +740,6 @@ class SettingsUI {
             this.elements.copyOwnAddressBtn.addEventListener('click', () => this.copyOwnAddress());
         }
 
-        // Refresh balance button
-        const refreshBalanceBtn = document.getElementById('refresh-balance-btn');
-        if (refreshBalanceBtn) {
-            refreshBalanceBtn.addEventListener('click', () => {
-                const address = this.authManager.getAddress();
-                this.updateBalanceDisplay(address);
-            });
-        }
-
-        // Fund with MetaMask button
-        const fundMetaMaskBtn = document.getElementById('fund-metamask-btn');
-        if (fundMetaMaskBtn) {
-            fundMetaMaskBtn.addEventListener('click', () => this.handleFundWithMetaMask());
-        }
-
         // Graph API key change
         if (this.elements.settingsGraphApiKey) {
             this.elements.settingsGraphApiKey.addEventListener('change', async (e) => {
@@ -908,9 +891,6 @@ class SettingsUI {
             if (this.elements.settingsAddress) {
                 this.elements.settingsAddress.value = address || '';
             }
-
-            // Update balance field
-            this.updateBalanceDisplay(address);
 
             // Channel invites mute toggle
             const isMuted = this.notificationManager?.isMuted();
@@ -1176,7 +1156,6 @@ class SettingsUI {
         const tabLabels = {
             'profile': 'Account',
             'devicesync': 'Device Sync',
-            'wallet': 'Wallet',
             'notifications': 'Notifications',
             'api': 'API',
             'linkpreviews': 'Content',
@@ -1413,24 +1392,6 @@ class SettingsUI {
     }
 
     /**
-     * Update POL balance display
-     */
-    async updateBalanceDisplay(address) {
-        const balanceEl = document.getElementById('settings-balance');
-        if (!balanceEl) return;
-        
-        if (!address) {
-            balanceEl.textContent = 'Not connected';
-            return;
-        }
-        
-        balanceEl.textContent = 'Loading...';
-        
-        const balanceWei = await GasEstimator.getBalance(address);
-        balanceEl.textContent = GasEstimator.formatBalancePOL(balanceWei);
-    }
-
-    /**
      * Copy own address to clipboard
      */
     async copyOwnAddress() {
@@ -1443,183 +1404,6 @@ class SettingsUI {
         } catch {
             this.showNotification('Failed to copy', 'error');
         }
-    }
-
-    /**
-     * Handle funding from MetaMask
-     */
-    async handleFundWithMetaMask() {
-        const localAddress = this.authManager.getAddress();
-        if (!localAddress) {
-            this.showNotification('No account connected', 'error');
-            return;
-        }
-
-        if (typeof window.ethereum === 'undefined') {
-            this.showNotification('MetaMask not detected. Please install MetaMask.', 'error');
-            window.open('https://metamask.io/download/', '_blank');
-            return;
-        }
-
-        try {
-            const accounts = await window.ethereum.request({ 
-                method: 'eth_requestAccounts' 
-            });
-            
-            if (!accounts || accounts.length === 0) {
-                this.showNotification('MetaMask connection cancelled', 'error');
-                return;
-            }
-
-            const metamaskAddress = accounts[0];
-
-            const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-            if (chainId !== '0x89') {
-                try {
-                    await window.ethereum.request({
-                        method: 'wallet_switchEthereumChain',
-                        params: [{ chainId: '0x89' }],
-                    });
-                } catch (switchError) {
-                    if (switchError.code === 4902) {
-                        await window.ethereum.request({
-                            method: 'wallet_addEthereumChain',
-                            params: [getNetworkParams()],
-                        });
-                    } else {
-                        throw switchError;
-                    }
-                }
-            }
-
-            const amount = await this.showFundAmountPrompt();
-            if (!amount) return;
-
-            const amountWei = BigInt(Math.floor(parseFloat(amount) * 1e18));
-            const amountHex = '0x' + amountWei.toString(16);
-
-            this.showNotification('Confirm transaction in MetaMask...', 'info');
-            
-            const txHash = await window.ethereum.request({
-                method: 'eth_sendTransaction',
-                params: [{
-                    from: metamaskAddress,
-                    to: localAddress,
-                    value: amountHex,
-                }],
-            });
-
-            this.showNotification('Transaction sent! Waiting for confirmation...', 'info');
-
-            let receipt = null;
-            while (!receipt) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                receipt = await window.ethereum.request({
-                    method: 'eth_getTransactionReceipt',
-                    params: [txHash],
-                });
-            }
-
-            if (receipt.status === '0x1') {
-                this.showNotification(`Funded ${amount} POL successfully!`, 'success');
-                this.updateBalanceDisplay(localAddress);
-            } else {
-                this.showNotification('Transaction failed', 'error');
-            }
-
-        } catch (error) {
-            this.Logger?.error('MetaMask funding error:', error);
-            if (error.code === 4001) {
-                this.showNotification('Transaction cancelled', 'error');
-            } else {
-                this.showNotification('Error: ' + (error.message || 'Unknown error'), 'error');
-            }
-        }
-    }
-
-    /**
-     * Show amount prompt for MetaMask funding
-     */
-    async showFundAmountPrompt() {
-        return new Promise((resolve) => {
-            const modal = document.createElement('div');
-            modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50';
-            modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl w-[320px] overflow-hidden shadow-2xl border border-white/[0.06]">
-                    <div class="px-5 pt-5 pb-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-[15px] font-medium text-white">Fund Account</h3>
-                            <button id="close-fund-modal" class="text-white/30 hover:text-white transition p-1 -mr-1">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="px-5 pb-5">
-                        <input
-                            type="number"
-                            id="fund-amount"
-                            placeholder="Amount in POL"
-                            step="1"
-                            min="1"
-                            class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-[#8247E5]/50 transition placeholder:text-white/30 mb-3"
-                        />
-                        <div class="flex gap-2 mb-4">
-                            <button class="fund-preset flex-1 bg-white/5 hover:bg-white/10 text-white/60 px-2 py-1.5 rounded-lg text-xs transition whitespace-nowrap" data-amount="5">5 POL</button>
-                            <button class="fund-preset flex-1 bg-white/5 hover:bg-white/10 text-white/60 px-2 py-1.5 rounded-lg text-xs transition whitespace-nowrap" data-amount="10">10 POL</button>
-                            <button class="fund-preset flex-1 bg-white/5 hover:bg-white/10 text-white/60 px-2 py-1.5 rounded-lg text-xs transition whitespace-nowrap" data-amount="15">15 POL</button>
-                            <button class="fund-preset flex-1 bg-white/5 hover:bg-white/10 text-white/60 px-2 py-1.5 rounded-lg text-xs transition whitespace-nowrap" data-amount="20">20 POL</button>
-                        </div>
-                        <button id="confirm-fund-btn" class="w-full bg-[#F6851B]/10 hover:bg-[#F6851B]/20 text-[#F6851B] border border-[#F6851B]/30 px-4 py-3 rounded-xl text-sm font-medium transition flex items-center justify-center gap-2">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3"/></svg>
-                            Continue to MetaMask
-                        </button>
-                    </div>
-                </div>
-            `;
-
-            document.body.appendChild(modal);
-
-            const amountInput = modal.querySelector('#fund-amount');
-            const confirmBtn = modal.querySelector('#confirm-fund-btn');
-            const closeBtn = modal.querySelector('#close-fund-modal');
-            const presetBtns = modal.querySelectorAll('.fund-preset');
-
-            const cleanup = (result) => {
-                modal.remove();
-                resolve(result);
-            };
-
-            presetBtns.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    amountInput.value = btn.dataset.amount;
-                    amountInput.focus();
-                });
-            });
-
-            confirmBtn.addEventListener('click', () => {
-                const amount = parseFloat(amountInput.value);
-                if (!amount || amount <= 0) {
-                    amountInput.classList.add('border-red-500/50');
-                    return;
-                }
-                cleanup(amountInput.value);
-            });
-
-            amountInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    confirmBtn.click();
-                }
-            });
-
-            closeBtn.addEventListener('click', () => cleanup(null));
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) cleanup(null);
-            });
-
-            setTimeout(() => amountInput.focus(), 100);
-        });
     }
 
     /**

@@ -454,6 +454,16 @@ class App {
                 Logger.warn('Failed to init notification bell (non-critical):', bellError);
             }
 
+            try {
+                const { walletUI } = await import('./ui/WalletUI.js');
+                walletUI.init({
+                    authManager,
+                    showNotification: (msg, type) => uiController.showNotification(msg, type)
+                });
+            } catch (walletError) {
+                Logger.warn('Failed to init wallet panel (non-critical):', walletError);
+            }
+
             const savedWallets = authManager.listSavedWallets();
             headerUI.updateSwitchWalletButton(savedWallets.length > 1);
 

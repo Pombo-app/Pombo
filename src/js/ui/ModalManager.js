@@ -27,7 +27,8 @@ class ModalManager {
             'join-closed-channel-modal',
             'invite-users-modal',
             'dm-inbox-setup-modal',
-            'new-dm-modal'
+            'new-dm-modal',
+            'wallet-modal'
         ]);
         
         // Flag to prevent recursive popstate handling
