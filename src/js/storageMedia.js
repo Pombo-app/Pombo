@@ -972,7 +972,7 @@ async function fetchWindow(sid, w, onMessage, base) {
             storageEndpoints.noteSuccess(base);
             return n;
         } catch (e) {
-            storageEndpoints.noteFailure(base);
+            storageEndpoints.noteReadError(base, e);
             Logger.warn(`direct read P${w.partition} @ ${base} failed (${e.message}) — falling back to SDK resend`);
         }
     }
@@ -1343,7 +1343,7 @@ class StorageMediaController {
                             storageEndpoints.setMetaFormatSupport(base, false);
                             Logger.warn(`format=metadata unavailable on ${base} — full reads for that node`);
                         } else {
-                            storageEndpoints.noteFailure(base);
+                            storageEndpoints.noteReadError(base, e);
                             Logger.warn(`${label}: metadata read failed on ${base} (${e.message}) — full read`);
                         }
                     }
@@ -2314,7 +2314,7 @@ class StorageMediaController {
                 else await sdkFetchWindow(messageStreamId, P0, from, to, onMsg);
                 if (seen) return true;
             } catch (e) {
-                if (base) storageEndpoints.noteFailure(base);
+                if (base) storageEndpoints.noteReadError(base, e);
             }
         }
         return false;
