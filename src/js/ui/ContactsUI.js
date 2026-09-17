@@ -204,6 +204,22 @@ class ContactsUI {
                         return;
                     }
 
+                    if (action === 'send-dm') {
+                        const { dmModalsUI } = await import('./DMModalsUI.js');
+                        dmModalsUI.showNewDMModalWithAddress(contact.address);
+                        return;
+                    }
+
+                    if (action === 'copy-address') {
+                        try {
+                            await navigator.clipboard.writeText(contact.address);
+                            this.deps.showNotification?.('Address copied', 'success');
+                        } catch {
+                            this.deps.showNotification?.('Failed to copy', 'error');
+                        }
+                        return;
+                    }
+
                     if (action === 'remove-contact') {
                         this.showRemoveModal(contact.address);
                     }
