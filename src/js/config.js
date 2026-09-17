@@ -356,6 +356,12 @@ export const CONFIG = {
         keyResponderChannels: (addr) =>
             addr ? `pombo_key_responder_channels_${addr.toLowerCase()}`
                  : 'pombo_key_responder_channels',
+        // Extra ERC-20s the wallet panel lists, as addresses. Local by
+        // decision: balances are always read from the chain, so this is a
+        // per-device preference about what to look at, nothing more.
+        walletTokens: (addr) =>
+            addr ? `pombo_wallet_tokens_${addr.toLowerCase()}`
+                 : 'pombo_wallet_tokens',
 
         // Per-address keys (address is normalized to lowercase)
         secure: (addr) => `pombo_secure_${addr.toLowerCase()}`,
