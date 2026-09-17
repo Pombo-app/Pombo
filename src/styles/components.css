@@ -2739,9 +2739,25 @@ body.explore-open #explore-channels-list {
         border-color: rgba(255, 255, 255, 0.085);
     }
 
-    /* Bottom padding so list doesn't hide behind pill */
+    /* The Explore capsule above the filter row is desktop-only, so on this
+       viewport the block's own top padding and the row's margin are two gaps
+       doing one job. The row keeps its own padding, which is the breathing
+       space; the specificity beats the utility that sets the margin. */
+    .sidebar-top {
+        padding-top: 0.5rem;
+    }
+
+    #sidebar .sidebar-top > .channel-filter-tabs {
+        margin-top: 0;
+    }
+
+    /* Bottom padding so list doesn't hide behind pill, and a fade over the
+       last stretch: the list is cut mid-card otherwise. The padding is what
+       lets the final card clear the fade once it is scrolled to the end. */
     #channel-list {
         padding-bottom: 5rem;
+        -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent);
+        mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent);
     }
     
     /* Chat header adjustments */
