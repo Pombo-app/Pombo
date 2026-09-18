@@ -259,6 +259,8 @@ export const CONFIG = {
         rateWindowMs: 10000,           // Sliding window for displayed transfer rates
         endpointCacheTtlMs: 10 * 60 * 1000,  // On-chain storage endpoint cache TTL
         nodeFailureLimit: 3,           // Consecutive failures before a node leaves the rotation
+        readHeadersTimeoutMs: 30000,   // SDK history read: how long a node may take to start answering before the next URL is tried
+        nodeRecoveryProbeMs: 5 * 60 * 1000,  // How often an ejected node is probed, out of band, for readmission
         // Download
         downloadConcurrencyDesktop: 5,
         downloadConcurrencyMobile: 3,

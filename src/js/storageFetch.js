@@ -17,11 +17,19 @@
  *    timestamp, sequenceNumber). `storedAtFor` serves it to the history
  *    readers: it is the only instant the publisher did not choose.
  *  - **503 = the node cannot consult the chain.** Retried with backoff before
- *    the SDK sees it.
+ *    the SDK sees it, when no other node can be asked instead.
+ *  - **Failover between node URLs.** The SDK picks one URL at random among
+ *    the stream's providers and gives up when it fails. A resend that gets
+ *    no answer (network, no headers in time), a 5xx, or a page without the
+ *    storedAt the node owes is repeated, re-signed, against the next healthy
+ *    URL of the storageEndpoints rotation; a 4xx never is, the node answered
+ *    about the request. An ejected URL is skipped up front and probed out of
+ *    band until it recovers. Only the SDK's own resends (`format=raw`) fail
+ *    over here: the direct file reads rotate URLs in their callers.
  *
  * The last error per stream is kept so a history reader can tell the UI
  * whether the read failed for lack of access (403), lack of a valid
- * signature (401) or a node outage (503).
+ * signature (401) or a node outage (503), and which URL answered so.
  *
  * Nothing here knows the SDK: the URL alone says what the request is.
  */
@@ -62,6 +70,15 @@ export function envelopeSequenceNumber(message) {
 
 const storedAtKey = (streamId, partition, timestamp, sequenceNumber) =>
     `${streamId}|${partition}|${timestamp}|${sequenceNumber}`;
+
+/** The SDK's resends always ask for raw frames; the direct file reads never do. */
+const isRawRead = (parsed) => /(^|&)format=raw(&|$)/.test(parsed.canonicalQuery);
+
+/** What the caller gets from a node's outcome: the response, or the error the node's read died of. */
+const settle = (outcome) => {
+    if (outcome.error) throw outcome.error;
+    return outcome.response;
+};
 
 class StorageFetch {
     constructor() {
@@ -108,8 +125,80 @@ class StorageFetch {
     }
 
     async storageRead(parsed, init) {
+        // The direct reads (file windows, metadata lookups) rotate URLs in
+        // their callers; only the SDK's own resends fail over here.
+        if (!isRawRead(parsed)) {
+            return settle(await this.readFrom(parsed, init, { hasAlternative: async () => false, headersTimeoutMs: 0 }));
+        }
+
+        const { endpoints } = this.deps;
+        const label = `Storage read ${parsed.resendType} ${parsed.streamId.slice(-24)} P${parsed.partition}`;
+        // Rotation entries carry no trailing slash; the SDK's URL keeps whatever the registry had.
+        const tried = new Set([parsed.base.replace(/\/+$/, '')]);
+        let rotation = null;
+        // The rotation is resolved once per read, and only once a node has
+        // failed: a read that succeeds first time costs nothing more.
+        const untried = async () => {
+            if (!rotation) {
+                try {
+                    rotation = (await endpoints.rotation?.(parsed.streamId)) || [];
+                } catch (e) {
+                    Logger.debug(`${label}: no rotation to fail over to (${e.message})`);
+                    rotation = [];
+                }
+            }
+            return rotation.filter((u) => !tried.has(u));
+        };
+        const options = {
+            hasAlternative: async () => (await untried()).length > 0,
+            headersTimeoutMs: CONFIG.storageMedia.readHeadersTimeoutMs
+        };
+
+        let target = parsed;
+        // The SDK picked this node at random among the stream's providers.
+        // One already out of the rotation is skipped without paying for the
+        // attempt, and probed out of band so it comes back when it recovers.
+        if (endpoints.isEjected?.(parsed.base)) {
+            const next = (await untried())[0];
+            const retargeted = next ? this.retarget(parsed, next) : null;
+            if (retargeted) {
+                endpoints.probeRecovery?.(parsed.base);
+                tried.add(next);
+                target = retargeted;
+                Logger.debug(`${label}: ${parsed.base} is out of rotation, reading from ${next}`);
+            }
+        }
+        for (;;) {
+            const outcome = await this.readFrom(target, init, options);
+            // A caller that gave up is not a node that failed.
+            if (!outcome.failed || init.signal?.aborted) return settle(outcome);
+            endpoints.noteFailure?.(target.base);
+            const next = (await untried())[0];
+            const retargeted = next ? this.retarget(target, next) : null;
+            if (!retargeted) return settle(outcome);
+            outcome.abandon();
+            tried.add(next);
+            Logger.warn(`${label}: ${outcome.reason} at ${target.base}, trying ${next}`);
+            target = retargeted;
+        }
+    }
+
+    /** The same read addressed to another node URL. */
+    retarget(parsed, base) {
+        return parseStorageDataUrl(base + parsed.url.slice(parsed.base.length));
+    }
+
+    /**
+     * One node's answer to a read. The response comes back on success and on
+     * a 4xx, where the node answered about the request; a failure comes back
+     * when the node itself did not deliver (no answer, a 5xx no retry cured,
+     * a page without the storedAt it owes) and the caller may ask another.
+     * @returns {Promise<{response?: Response, error?: Error, failed?: boolean, reason?: string, abandon?: () => void}>}
+     */
+    async readFrom(parsed, init, { hasAlternative, headersTimeoutMs }) {
         const { endpoints, signer, isGated } = this.deps;
         const { streamId } = parsed;
+        const label = `Storage read ${parsed.resendType} ${streamId.slice(-24)} P${parsed.partition}`;
         const features = (await endpoints.probeCapabilities(parsed.base)) || new Set();
         const gated = await isGated(streamId);
         let identity = signer();
@@ -122,15 +211,47 @@ class StorageFetch {
         // node that supplies it.
         let wantStoredAt = features.has(STORED_AT);
 
-        let attempt = 0;
+        // One controller per node: it ends this node's raw and storedAt reads
+        // together when the read moves on, and it follows the caller's own
+        // signal so a channel switch still ends a body being streamed.
+        const outer = init.signal;
+        const attempt = new AbortController();
+        const onOuterAbort = () => attempt.abort();
+        if (outer?.aborted) attempt.abort();
+        else outer?.addEventListener?.('abort', onOuterAbort, { once: true });
+        const attemptInit = { ...init, signal: attempt.signal };
+        const abandon = () => {
+            outer?.removeEventListener?.('abort', onOuterAbort);
+            attempt.abort();
+        };
+        const failure = (reason, { error = null, response = null } = {}) =>
+            ({ failed: true, reason, error, response, abandon });
+        const errorKey = `${streamId}|${parsed.partition}`;
+
+        let retry = 0;
         let signedUnprompted = false;
         for (;;) {
             const headers = new Headers(init.headers || undefined);
             if (sign) {
                 for (const [k, v] of Object.entries(await signedReadHeaders(parsed, identity))) headers.set(k, v);
             }
-            const metadata = wantStoredAt ? this.collectStoredAt(parsed, sign ? identity : null, init) : null;
-            const resp = await this.original(parsed.url, { ...init, headers });
+            const metadata = wantStoredAt ? this.collectStoredAt(parsed, sign ? identity : null, attemptInit) : null;
+            let resp;
+            let timedOut = false;
+            const timer = headersTimeoutMs > 0
+                ? setTimeout(() => { timedOut = true; attempt.abort(); }, headersTimeoutMs)
+                : null;
+            try {
+                resp = await this.original(parsed.url, { ...attemptInit, headers });
+            } catch (e) {
+                if (outer?.aborted) return failure('abandoned by the caller', { error: e });
+                const reason = timedOut ? `no answer in ${headersTimeoutMs} ms` : `network: ${e.message}`;
+                Logger.warn(`${label}: ${reason} at ${parsed.base}`);
+                abandon();
+                return failure(reason, { error: e });
+            } finally {
+                if (timer) clearTimeout(timer);
+            }
             // A 401 is the node asking for a signature, whatever the probe
             // said (it may have timed out on a slow node) and whether or not
             // the stream was known to be gated; the identity is read again,
@@ -148,30 +269,37 @@ class StorageFetch {
                     continue;
                 }
             }
-            if (resp.status === 503 && attempt < this.retryDelays.length) {
-                Logger.warn(`Storage node ${parsed.base} cannot consult the chain (503), retrying`);
-                await sleep(this.retryDelays[attempt++]);
-                if (metadata) await metadata;
-                continue;
+            if (resp.status === 503) {
+                // The chain is unreachable from this node, not necessarily
+                // from another: the next URL is asked before this one is
+                // retried, and the backoff here only runs when there is none.
+                if (await hasAlternative()) return failure('HTTP 503', { response: resp });
+                if (retry < this.retryDelays.length) {
+                    Logger.warn(`Storage node ${parsed.base} cannot consult the chain (503), retrying`);
+                    await sleep(this.retryDelays[retry++]);
+                    if (metadata) await metadata;
+                    continue;
+                }
             }
-            const errorKey = `${streamId}|${parsed.partition}`;
             const collected = metadata ? await metadata : true;
             if (resp.ok && !collected) {
                 // History without storedAt cannot tell a forged row from a
                 // genuine one, and a node that announces storedAt owes it:
                 // the page is refused the way a node outage is.
-                this.lastErrors.set(errorKey, { status: 503, signed: sign, at: Date.now(), reason: 'storedAt' });
-                Logger.warn(`Storage read ${parsed.resendType} ${streamId.slice(-24)} P${parsed.partition}: no storedAt, page refused`);
-                return unavailable();
+                this.lastErrors.set(errorKey, { status: 503, signed: sign, at: Date.now(), reason: 'storedAt', url: parsed.base });
+                Logger.warn(`${label}: no storedAt from ${parsed.base}, page refused`);
+                abandon();
+                return failure('no storedAt', { response: unavailable() });
             }
             if (resp.ok) {
                 this.lastErrors.delete(errorKey);
-                Logger.debug(`Storage read ${parsed.resendType} ${streamId.slice(-24)} P${parsed.partition}: ok${sign ? ' signed' : ' unsigned'}${metadata ? ' +storedAt' : ' -storedAt'}`);
-            } else {
-                this.lastErrors.set(errorKey, { status: resp.status, signed: sign, at: Date.now() });
-                Logger.warn(`Storage read ${parsed.resendType} ${streamId.slice(-24)} P${parsed.partition}: HTTP ${resp.status}${sign ? ' (signed)' : ''}`);
+                endpoints.noteSuccess?.(parsed.base);
+                Logger.debug(`${label}: ok${sign ? ' signed' : ' unsigned'}${metadata ? ' +storedAt' : ' -storedAt'} from ${parsed.base}`);
+                return { response: resp };
             }
-            return resp;
+            this.lastErrors.set(errorKey, { status: resp.status, signed: sign, at: Date.now(), url: parsed.base });
+            Logger.warn(`${label}: HTTP ${resp.status}${sign ? ' (signed)' : ''} at ${parsed.base}`);
+            return resp.status >= 500 ? failure(`HTTP ${resp.status}`, { response: resp }) : { response: resp };
         }
     }
 
