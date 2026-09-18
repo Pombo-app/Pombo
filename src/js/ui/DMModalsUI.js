@@ -7,6 +7,10 @@ import { GasEstimator } from './GasEstimator.js';
 import { authManager } from '../auth.js';
 import { streamrController } from '../streamr.js';
 import { snapRetentionDays, retentionLabel } from '../utils/retention.js';
+import { CONFIG } from '../config.js';
+
+const DM_INBOX_PROBE_TRIES = 3;
+const DM_INBOX_PROBE_BACKOFF_MS = 2000;
 
 class DMModalsUI {
     constructor() {
@@ -274,30 +278,64 @@ class DMModalsUI {
      * Update sidebar DM buttons visibility based on inbox state
      */
     async updateVisibility() {
-        const setupWrap = document.getElementById('dm-inbox-setup');
-        const newBtnWrap = document.getElementById('dm-new-btn-wrap');
-
-        if (!this.dmManager || !this.authManager) {
-            setupWrap?.classList.add('hidden');
-            newBtnWrap?.classList.add('hidden');
-            return;
-        }
+        if (!this.dmManager || !this.authManager) return this.showDmButton(null, { none: true });
 
         // Only show for non-guest connected users
         if (!this.authManager.isConnected() || this.authManager.isGuestMode?.()) {
-            setupWrap?.classList.add('hidden');
-            newBtnWrap?.classList.add('hidden');
-            return;
+            return this.showDmButton(null, { none: true });
         }
 
-        const hasInbox = await this.dmManager.hasInbox();
+        if (this.readInboxKnown()) return this.showDmButton(true);
 
-        if (hasInbox) {
-            setupWrap?.classList.add('hidden');
-            newBtnWrap?.classList.remove('hidden');
-        } else {
-            setupWrap?.classList.remove('hidden');
-            newBtnWrap?.classList.add('hidden');
+        this.showDmButton(null);
+
+        for (let attempt = 0; attempt < DM_INBOX_PROBE_TRIES; attempt++) {
+            const answer = await this.dmManager.probeInbox();
+            if (answer === true) {
+                this.writeInboxKnown();
+                return this.showDmButton(true);
+            }
+            if (answer === false) return this.showDmButton(false);
+            if (attempt < DM_INBOX_PROBE_TRIES - 1) {
+                await new Promise(r => setTimeout(r, DM_INBOX_PROBE_BACKOFF_MS * (attempt + 1)));
+            }
+        }
+        this.showDmButton(false);
+    }
+
+    /** true → New DM, false → Create DM Inbox, null → the probe is running. */
+    showDmButton(state, { none = false } = {}) {
+        const wraps = {
+            true: document.getElementById('dm-new-btn-wrap'),
+            false: document.getElementById('dm-inbox-setup'),
+            null: document.getElementById('dm-checking-wrap')
+        };
+        for (const [key, el] of Object.entries(wraps)) {
+            el?.classList.toggle('hidden', none || key !== String(state));
+        }
+    }
+
+    inboxKnownKey() {
+        const addr = this.authManager?.getAddress?.();
+        return addr ? CONFIG.storageKeys.dmInboxKnown(addr) : null;
+    }
+
+    readInboxKnown() {
+        const key = this.inboxKnownKey();
+        if (!key) return false;
+        try {
+            return localStorage.getItem(key) === '1';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    writeInboxKnown() {
+        const key = this.inboxKnownKey();
+        if (!key) return;
+        try {
+            localStorage.setItem(key, '1');
+        } catch (e) {
         }
     }
 
@@ -408,6 +446,7 @@ class DMModalsUI {
         try {
             await this.dmManager.createInbox({ ...options, onProgress });
             this.showNotification('DM inbox created!', 'success');
+            this.writeInboxKnown();
             await this.updateVisibility();
             document.dispatchEvent(new CustomEvent('pombo:dm-inbox-ready'));
         } catch (err) {

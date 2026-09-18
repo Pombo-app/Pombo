@@ -254,6 +254,20 @@
                 </button>
             </div>
 
+            <!-- Shown while the inbox probe is in flight. Carries the New DM
+                 label, hidden, so the pill keeps that button's size -->
+            <div id="dm-checking-wrap" class="hidden flex justify-center px-4 pt-3 pb-32 md:pb-3">
+                <div class="relative px-5 py-2.5 bg-[#F6851B]/15 border border-[#F6851B]/30 text-sm font-medium rounded-xl inline-flex items-center gap-2">
+                    <svg class="w-4 h-4 invisible" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.5v15m7.5-7.5h-15"/>
+                    </svg>
+                    <span class="invisible">New DM</span>
+                    <span class="absolute inset-0 flex items-center justify-center">
+                        <span class="w-5 h-5 border-2 border-white/25 border-t-white rounded-full animate-spin"></span>
+                    </span>
+                </div>
+            </div>
+
             <!-- Desktop Sidebar Footer (hidden on mobile, replaced by pill) -->
             <div id="sidebar-footer-desktop" class="p-3 border-t border-white/[0.06] space-y-0.5">
                 <button id="contacts-btn-desktop" class="w-full px-3 py-2.5 rounded-xl text-sm text-white/40 hover:text-white hover:bg-white/[0.06] transition-all duration-200 flex items-center gap-2.5">
