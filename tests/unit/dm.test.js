@@ -1523,6 +1523,40 @@ describe('DMManager', () => {
         });
     });
 
+    // ==================== probeInbox() ====================
+    describe('probeInbox()', () => {
+        beforeEach(() => {
+            dmManager._inboxExistsCache = null;
+            dmManager.inboxMessageStreamId = 'test/Pombo-DM-1';
+        });
+
+        it('should answer false only when the chain says the stream is absent', async () => {
+            const notFound = new Error('Stream not found: id=test/Pombo-DM-1');
+            notFound.code = 'STREAM_NOT_FOUND';
+            streamrController.client.getStream.mockRejectedValue(notFound);
+
+            expect(await dmManager.probeInbox()).toBe(false);
+        });
+
+        it('should answer null when the probe itself failed', async () => {
+            streamrController.client.getStream.mockRejectedValue(new Error('client not connected'));
+
+            expect(await dmManager.probeInbox()).toBe(null);
+        });
+
+        it('should keep hasInbox false for an unanswered probe', async () => {
+            streamrController.client.getStream.mockRejectedValue(new Error('timeout'));
+
+            expect(await dmManager.hasInbox()).toBe(false);
+        });
+
+        it('should answer true when the stream is there', async () => {
+            streamrController.client.getStream.mockResolvedValue({ id: 'test/Pombo-DM-1' });
+
+            expect(await dmManager.probeInbox()).toBe(true);
+        });
+    });
+
     // ==================== createInbox() ====================
     describe('createInbox()', () => {
         it('should create inbox and subscribe', async () => {

@@ -143,6 +143,15 @@ class DMManager {
      * @returns {Promise<boolean>}
      */
     async hasInbox() {
+        return (await this.probeInbox()) === true;
+    }
+
+    /**
+     * Null when the probe could not be answered; only the chain reporting the
+     * stream absent counts as "no inbox".
+     * @returns {Promise<boolean|null>}
+     */
+    async probeInbox() {
         if (!this.inboxMessageStreamId) return false;
         if (this._inboxExistsCache === this.inboxMessageStreamId) return true;
 
@@ -151,7 +160,9 @@ class DMManager {
             this._inboxExistsCache = this.inboxMessageStreamId;
             return true;
         } catch (e) {
-            return false;
+            const absent = e?.code === 'STREAM_NOT_FOUND' ||
+                /not found|does not exist/i.test(e?.message || '');
+            return absent ? false : null;
         }
     }
 
