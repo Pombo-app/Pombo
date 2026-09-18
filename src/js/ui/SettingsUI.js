@@ -2098,7 +2098,7 @@ class SettingsUI {
     // === INBOX STORAGE UI ===
 
     /**
-     * Wire up event listeners for the Inbox Storage section (under Debug tab).
+     * Wire up event listeners for the Inbox Storage section (DM Inbox tab).
      * The section itself is shown/hidden by `_refreshInboxStorage` based on
      * whether an inbox exists. Listeners are attached once on init.
      */
