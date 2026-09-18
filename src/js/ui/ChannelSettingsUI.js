@@ -691,6 +691,14 @@ class ChannelSettingsUI {
             };
         }).catch(() => {});
         channelManager.onMessage((event, data) => {
+            const { showNotification } = this.deps;
+            if (event === 'admin_state_unconfirmed') {
+                showNotification?.('Moderation change not yet confirmed on storage. It will be retried when you open the channel again.', 'warning');
+            } else if (event === 'admin_state_superseded') {
+                showNotification?.('Moderation was changed from another device; the last change made here was replaced.', 'warning');
+            }
+        });
+        channelManager.onMessage((event, data) => {
             if (event !== 'admin_state_updated') return;
             if (!this._currentModerationStreamId) return;
             if (data?.streamId !== this._currentModerationStreamId) return;

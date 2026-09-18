@@ -286,6 +286,11 @@ export const CONFIG = {
         initialPollDelayMs: 5000,      // Delay before first background poll
         maxPresenceFailures: 3,        // Stop preview presence after N consecutive failures
         adminPollIntervalMs: 30000,    // Poll interval for admin-state resend
+        // A published ADMIN_STATE is read back from storage at these delays;
+        // still missing by the last one, it is republished, up to this many
+        // times before the owner is told.
+        adminConfirmDelaysMs: [5000, 10000, 20000, 40000],
+        adminConfirmRepublishLimit: 3,
         // Member catch-up on a gated channel: raw sweep of the keys and the
         // message stream, which is how a member recovers what their live
         // subscription and their key request could not get on their own.
