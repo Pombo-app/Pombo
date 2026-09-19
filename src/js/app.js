@@ -625,11 +625,9 @@ class App {
             try {
                 await relayManager.init(address);
                 Logger.info('Relay manager initialized');
-                // The DM inbox tried to register for push while starting up,
-                // which is before this line and therefore before push counts
-                // as enabled: that attempt always gave up. This is the first
-                // moment it can succeed, and it respects the preference, so a
-                // user who does not want DM notifications still gets none.
+                // Must come after the relay manager is up: the inbox's own
+                // attempt, during DM startup, runs before push counts as
+                // enabled. The preference is still honoured inside.
                 dmManager.subscribeInboxPush().catch((error) => {
                     Logger.debug('DM inbox push registration failed (non-critical):', error?.message);
                 });

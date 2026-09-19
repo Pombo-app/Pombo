@@ -125,7 +125,7 @@ class StorageFetch {
     }
 
     /**
-     * The signed-read headers for a URL someone else will fetch — the service
+     * The signed-read headers for a URL someone else will fetch: the service
      * worker verifying a push, which has no key of its own. The identity is
      * read here, from the same source every other read uses.
      * @param {string} url

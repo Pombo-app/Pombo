@@ -21,8 +21,7 @@ const STORES = {
 
 let db = null;
 
-// Used only until a channel's registration carries the providers resolved on
-// chain, so an install upgraded mid-flight keeps notifying until the next sync.
+// Fallback for a registration whose providers are not resolved yet.
 const LEGACY_STORAGE_ENDPOINTS = [
     'https://blob-storage-streamr.online',
     'https://vps2.blob-storage-streamr.online',
@@ -57,9 +56,8 @@ async function openDatabase() {
         request.onupgradeneeded = (event) => {
             const database = event.target.result;
             
-            // Channels store with index on tag. The index is NOT unique: a tag
-            // is one byte, so two of this user's own channels collide often
-            // enough to matter, and a unique index made the whole sync fail.
+            // The tag index must NOT be unique: a tag is one byte, so two of
+            // this user's own channels can hold the same one.
             if (!database.objectStoreNames.contains(STORES.CHANNELS)) {
                 const channelsStore = database.createObjectStore(STORES.CHANNELS, { keyPath: 'streamId' });
                 channelsStore.createIndex('tag', 'tag', { unique: false });
@@ -95,9 +93,9 @@ async function openDatabase() {
 }
 
 /**
- * Every channel registered under a tag, with the watermark we already notified
- * about. All of them, not the first: one byte of tag means this user's own
- * channels collide, and answering with one left the others silent forever.
+ * Every channel registered under a tag, with the watermark already notified
+ * about. ALL of them: one byte of tag collides across this user's own
+ * channels by design, so a single answer is never the whole answer.
  */
 async function getChannelsByTag(tag) {
     if (!db) await openDatabase();
@@ -241,8 +239,8 @@ async function fetchWithTimeout(url, timeout = 5000, extraHeaders = null) {
 
 /**
  * Asks an open page to sign a storage read. The key lives in the page, behind
- * the user's unlock, and must never be held here — so a wake that arrives with
- * every window closed cannot verify a private stream, and stays silent.
+ * the user's unlock, and must never be held here, so a wake that arrives with
+ * every window closed cannot verify a private stream and stays silent.
  * @returns {Promise<Object|null>} the x-pombo-* headers, or null
  */
 async function requestSignature(url) {
@@ -330,8 +328,7 @@ function getMessagePreview(channel) {
 
     // Nothing here holds the key to a channel's own encryption, and a direct
     // message arrives sealed to a key that lives in the page: all this can say
-    // is that something arrived. (The native app opens the DM envelope and
-    // shows its text; a service worker cannot.)
+    // is that something arrived.
     if (type === 'dm') {
         return 'You have a new message';
     }

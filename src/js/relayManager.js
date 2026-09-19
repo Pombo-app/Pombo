@@ -503,11 +503,9 @@ class RelayManager {
     }
 
     /**
-     * Where a stream's history actually lives, from the chain. The worker
-     * verifies a wake against these instead of an assumed address, which is
-     * also what lets a provider's URLs change without a release. An empty
-     * answer (no storage, or the chain unreachable) leaves the worker on its
-     * built-in list until the next sync.
+     * Where a stream's history actually lives, from the chain. An empty answer
+     * (no storage, or the chain unreachable) leaves the worker on its built-in
+     * list until the next sync.
      */
     async endpointsFor(streamId) {
         try {
