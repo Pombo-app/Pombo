@@ -49,6 +49,16 @@ vi.mock('../../src/js/media.js', () => ({
     }
 }));
 
+const rotation = vi.fn().mockResolvedValue([]);
+vi.mock('../../src/js/storageEndpoints.js', () => ({
+    storageEndpoints: { rotation: (...args) => rotation(...args) }
+}));
+
+const signHeadersFor = vi.fn().mockResolvedValue(null);
+vi.mock('../../src/js/storageFetch.js', () => ({
+    storageFetch: { signHeadersFor: (...args) => signHeadersFor(...args) }
+}));
+
 import { relayManager } from '../../src/js/relayManager.js';
 import { channelManager } from '../../src/js/channels.js';
 import { calculateChannelTag, calculateNativeChannelTag } from '../../src/js/pushProtocol.js';
@@ -101,19 +111,19 @@ describe('RelayManager', () => {
 
     // ==================== syncWithServiceWorker() ====================
     describe('syncWithServiceWorker()', () => {
-        it('should skip if no Service Worker controller', () => {
+        it('should skip if no Service Worker controller', async () => {
             global.navigator = {
                 serviceWorker: {
                     controller: null
                 }
             };
 
-            relayManager.syncWithServiceWorker();
+            await relayManager.syncWithServiceWorker();
 
             expect(mockPostMessage).not.toHaveBeenCalled();
         });
 
-        it('should sync public channel with correct structure', () => {
+        it('should sync public channel with correct structure', async () => {
             const streamId = 'owner/public-channel';
             channelManager.channels.set(streamId, {
                 name: 'General Chat',
@@ -121,7 +131,7 @@ describe('RelayManager', () => {
             });
             relayManager.subscribedChannels.add(streamId);
 
-            relayManager.syncWithServiceWorker();
+            await relayManager.syncWithServiceWorker();
 
             expect(mockPostMessage).toHaveBeenCalledWith({
                 type: 'SYNC_CHANNELS',
@@ -137,7 +147,7 @@ describe('RelayManager', () => {
             });
         });
 
-        it('should sync private channel with correct type', () => {
+        it('should sync private channel with correct type', async () => {
             const streamId = 'owner/private-channel';
             channelManager.channels.set(streamId, {
                 name: 'Secret Room',
@@ -145,14 +155,14 @@ describe('RelayManager', () => {
             });
             relayManager.subscribedChannels.add(streamId);
 
-            relayManager.syncWithServiceWorker();
+            await relayManager.syncWithServiceWorker();
 
             const sentData = mockPostMessage.mock.calls[0][0];
             const channelData = sentData.channels.find(c => c.streamId === streamId);
             expect(channelData.type).toBe('private');
         });
 
-        it('should sync DM channel with type dm and correct name', () => {
+        it('should sync DM channel with type dm and correct name', async () => {
             const streamId = '0xpeer/Pombo-DM-1';
             channelManager.channels.set(streamId, {
                 type: 'dm',
@@ -161,7 +171,7 @@ describe('RelayManager', () => {
             });
             relayManager.subscribedChannels.add(streamId);
 
-            relayManager.syncWithServiceWorker();
+            await relayManager.syncWithServiceWorker();
 
             const sentData = mockPostMessage.mock.calls[0][0];
             const channelData = sentData.channels.find(c => c.streamId === streamId);
@@ -169,7 +179,7 @@ describe('RelayManager', () => {
             expect(channelData.name).toBe('Alice');
         });
 
-        it('should use fallback name for DM channel without name', () => {
+        it('should use fallback name for DM channel without name', async () => {
             const streamId = '0xpeer/Pombo-DM-1';
             channelManager.channels.set(streamId, {
                 type: 'dm',
@@ -178,14 +188,14 @@ describe('RelayManager', () => {
             });
             relayManager.subscribedChannels.add(streamId);
 
-            relayManager.syncWithServiceWorker();
+            await relayManager.syncWithServiceWorker();
 
             const sentData = mockPostMessage.mock.calls[0][0];
             const channelData = sentData.channels.find(c => c.streamId === streamId);
             expect(channelData.name).toBe('Direct Message');
         });
 
-        it('should sync native channel with type native', () => {
+        it('should sync native channel with type native', async () => {
             const streamId = '0xowner/native-channel';
             channelManager.channels.set(streamId, {
                 name: 'Bob Group',
@@ -196,7 +206,7 @@ describe('RelayManager', () => {
             });
             relayManager.subscribedNativeChannels.add(streamId);
 
-            relayManager.syncWithServiceWorker();
+            await relayManager.syncWithServiceWorker();
 
             const sentData = mockPostMessage.mock.calls[0][0];
             const channelData = sentData.channels.find(c => c.streamId === streamId);
@@ -204,7 +214,7 @@ describe('RelayManager', () => {
             expect(channelData.name).toBe('Bob Group');
         });
 
-        it('should use participant nickname for native channel without name', () => {
+        it('should use participant nickname for native channel without name', async () => {
             const streamId = '0xowner/native-channel';
             channelManager.channels.set(streamId, {
                 // No name field
@@ -215,26 +225,26 @@ describe('RelayManager', () => {
             });
             relayManager.subscribedNativeChannels.add(streamId);
 
-            relayManager.syncWithServiceWorker();
+            await relayManager.syncWithServiceWorker();
 
             const sentData = mockPostMessage.mock.calls[0][0];
             const channelData = sentData.channels.find(c => c.streamId === streamId);
             expect(channelData.name).toBe('Bob');
         });
 
-        it('should use fallback for native channel without name or participants', () => {
+        it('should use fallback for native channel without name or participants', async () => {
             const streamId = '0xowner/native-channel';
             channelManager.channels.set(streamId, {});
             relayManager.subscribedNativeChannels.add(streamId);
 
-            relayManager.syncWithServiceWorker();
+            await relayManager.syncWithServiceWorker();
 
             const sentData = mockPostMessage.mock.calls[0][0];
             const channelData = sentData.channels.find(c => c.streamId === streamId);
             expect(channelData.name).toBe('Direct Message');
         });
 
-        it('should sync multiple channels of different types', () => {
+        it('should sync multiple channels of different types', async () => {
             // Add public channel
             const publicId = 'owner/public';
             channelManager.channels.set(publicId, { name: 'Public' });
@@ -250,7 +260,7 @@ describe('RelayManager', () => {
             channelManager.channels.set(nativeId, { name: 'Private Group' });
             relayManager.subscribedNativeChannels.add(nativeId);
 
-            relayManager.syncWithServiceWorker();
+            await relayManager.syncWithServiceWorker();
 
             const sentData = mockPostMessage.mock.calls[0][0];
             expect(sentData.channels).toHaveLength(3);
@@ -264,7 +274,7 @@ describe('RelayManager', () => {
             expect(nativeChannel.type).toBe('native');
         });
 
-        it('should use correct tag functions for each channel type', () => {
+        it('should use correct tag functions for each channel type', async () => {
             const publicId = 'owner/public';
             channelManager.channels.set(publicId, { name: 'Public' });
             relayManager.subscribedChannels.add(publicId);
@@ -273,59 +283,83 @@ describe('RelayManager', () => {
             channelManager.channels.set(nativeId, { name: 'Native' });
             relayManager.subscribedNativeChannels.add(nativeId);
 
-            relayManager.syncWithServiceWorker();
+            await relayManager.syncWithServiceWorker();
 
             expect(calculateChannelTag).toHaveBeenCalledWith(publicId);
             expect(calculateNativeChannelTag).toHaveBeenCalledWith(nativeId);
         });
 
-        it('should use Channel as fallback name for unknown channels', () => {
+        it('should use Channel as fallback name for unknown channels', async () => {
             const streamId = 'owner/unknown';
             relayManager.subscribedChannels.add(streamId);
             // No channel info in channelManager
 
-            relayManager.syncWithServiceWorker();
+            await relayManager.syncWithServiceWorker();
 
             const sentData = mockPostMessage.mock.calls[0][0];
             const channelData = sentData.channels.find(c => c.streamId === streamId);
             expect(channelData.name).toBe('Channel');
         });
 
-        it('should include storage endpoints from channel info', () => {
-            const customEndpoints = ['https://custom1.test', 'https://custom2.test'];
+        it('should ship the providers resolved on chain', async () => {
+            const resolved = ['https://one.test', 'https://two.test'];
+            rotation.mockResolvedValue(resolved);
             const streamId = 'owner/custom';
-            channelManager.channels.set(streamId, {
-                name: 'Custom',
-                storageEndpoints: customEndpoints
-            });
+            channelManager.channels.set(streamId, { name: 'Custom' });
             relayManager.subscribedChannels.add(streamId);
 
-            relayManager.syncWithServiceWorker();
+            await relayManager.syncWithServiceWorker();
 
             const sentData = mockPostMessage.mock.calls[0][0];
             const channelData = sentData.channels.find(c => c.streamId === streamId);
-            expect(channelData.storageEndpoints).toEqual(customEndpoints);
+            expect(channelData.storageEndpoints).toEqual(resolved);
+            expect(rotation).toHaveBeenCalledWith(streamId);
         });
 
-        it('should use default storage endpoints when not provided', () => {
+        it('should ship no endpoints when the chain cannot be read', async () => {
+            rotation.mockRejectedValue(new Error('RPC down'));
             const streamId = 'owner/default';
             channelManager.channels.set(streamId, { name: 'Default' });
             relayManager.subscribedChannels.add(streamId);
 
-            relayManager.syncWithServiceWorker();
+            await relayManager.syncWithServiceWorker();
 
             const sentData = mockPostMessage.mock.calls[0][0];
             const channelData = sentData.channels.find(c => c.streamId === streamId);
-            expect(channelData.storageEndpoints).toHaveLength(2);
-            expect(channelData.storageEndpoints[0]).toContain('blob-storage-streamr.online');
+            expect(channelData.storageEndpoints).toEqual([]);
         });
 
-        it('should detect DM inbox subscription by stream ID pattern', () => {
+        it('should mark a DM inbox as needing a signature, a public channel not', async () => {
+            const inbox = '0xme/Pombo-DM-1';
+            const open = 'owner/public-1';
+            relayManager.subscribedChannels.add(inbox);
+            relayManager.subscribedChannels.add(open);
+            channelManager.channels.set(open, { name: 'Open' });
+
+            await relayManager.syncWithServiceWorker();
+
+            const sentData = mockPostMessage.mock.calls[0][0];
+            expect(sentData.channels.find(c => c.streamId === inbox).needsSignature).toBe(true);
+            expect(sentData.channels.find(c => c.streamId === open).needsSignature).toBe(false);
+        });
+
+        it('should mark a gated channel as needing a signature', async () => {
+            const streamId = 'owner/gated-1';
+            channelManager.channels.set(streamId, { name: 'Gated', type: 'gated' });
+            relayManager.subscribedNativeChannels.add(streamId);
+
+            await relayManager.syncWithServiceWorker();
+
+            const sentData = mockPostMessage.mock.calls[0][0];
+            expect(sentData.channels.find(c => c.streamId === streamId).needsSignature).toBe(true);
+        });
+
+        it('should detect DM inbox subscription by stream ID pattern', async () => {
             const inboxStreamId = '0xmyaddress/Pombo-DM-1';
             relayManager.subscribedChannels.add(inboxStreamId);
             // No channel info for inbox (it's the user's own inbox, not stored as a channel)
 
-            relayManager.syncWithServiceWorker();
+            await relayManager.syncWithServiceWorker();
 
             const sentData = mockPostMessage.mock.calls[0][0];
             const channelData = sentData.channels.find(c => c.streamId === inboxStreamId);
@@ -333,7 +367,7 @@ describe('RelayManager', () => {
             expect(channelData.name).toBe('Direct Message');
         });
 
-        it('should NOT ship a dmPeers map to the service worker', () => {
+        it('should NOT ship a dmPeers map to the service worker', async () => {
             // Sealed sender makes the SW unable to identify a DM's sender, so a
             // peer address→name map would be unused identity data in the SW's
             // IndexedDB — it was removed. The SW must not receive it.
@@ -345,7 +379,7 @@ describe('RelayManager', () => {
             });
             relayManager.subscribedChannels.add(dmStreamId);
 
-            relayManager.syncWithServiceWorker();
+            await relayManager.syncWithServiceWorker();
 
             const sentData = mockPostMessage.mock.calls[0][0];
             expect(sentData.dmPeers).toBeUndefined();

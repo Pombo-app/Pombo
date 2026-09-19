@@ -4,14 +4,14 @@
 // to have scope over all pages.
 // ================================================
 
-const SW_VERSION = '2.4.0';
+const SW_VERSION = '2.5.0';
 
 // ================================================
 // INDEXEDDB CONFIGURATION
 // ================================================
 
 const DB_NAME = 'pombo-sw';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORES = {
     CHANNELS: 'channels',
     LAST_SEEN: 'lastSeen',
@@ -21,13 +21,17 @@ const STORES = {
 
 let db = null;
 
-// Default storage endpoints - Pombo official storage node (July 2026)
-const DEFAULT_STORAGE_ENDPOINTS = [
+// Used only until a channel's registration carries the providers resolved on
+// chain, so an install upgraded mid-flight keeps notifying until the next sync.
+const LEGACY_STORAGE_ENDPOINTS = [
     'https://blob-storage-streamr.online',
     'https://vps2.blob-storage-streamr.online',
 ];
 
 const API_PATH = '/streams/{streamId}/data/partitions/{partition}/last?count=1';
+
+// A page has to sign for us, so it must answer while the push event is alive.
+const SIGNATURE_TIMEOUT_MS = 3000;
 
 // ================================================
 // INDEXEDDB FUNCTIONS
@@ -53,11 +57,20 @@ async function openDatabase() {
         request.onupgradeneeded = (event) => {
             const database = event.target.result;
             
-            // Channels store with index on tag
+            // Channels store with index on tag. The index is NOT unique: a tag
+            // is one byte, so two of this user's own channels collide often
+            // enough to matter, and a unique index made the whole sync fail.
             if (!database.objectStoreNames.contains(STORES.CHANNELS)) {
                 const channelsStore = database.createObjectStore(STORES.CHANNELS, { keyPath: 'streamId' });
-                channelsStore.createIndex('tag', 'tag', { unique: true });
+                channelsStore.createIndex('tag', 'tag', { unique: false });
                 console.log('[SW] Created channels store with tag index');
+            } else {
+                const channelsStore = event.target.transaction.objectStore(STORES.CHANNELS);
+                if (channelsStore.indexNames.contains('tag')) {
+                    channelsStore.deleteIndex('tag');
+                }
+                channelsStore.createIndex('tag', 'tag', { unique: false });
+                console.log('[SW] Tag index rebuilt as non-unique');
             }
             
             // LastSeen store
@@ -81,40 +94,40 @@ async function openDatabase() {
     });
 }
 
-async function getChannelByTag(tag) {
+/**
+ * Every channel registered under a tag, with the watermark we already notified
+ * about. All of them, not the first: one byte of tag means this user's own
+ * channels collide, and answering with one left the others silent forever.
+ */
+async function getChannelsByTag(tag) {
     if (!db) await openDatabase();
-    
+
     return new Promise((resolve, reject) => {
         const tx = db.transaction([STORES.CHANNELS, STORES.LAST_SEEN], 'readonly');
         const channelsStore = tx.objectStore(STORES.CHANNELS);
         const lastSeenStore = tx.objectStore(STORES.LAST_SEEN);
-        
-        const tagIndex = channelsStore.index('tag');
-        const request = tagIndex.get(tag);
-        
+
+        const request = channelsStore.index('tag').getAll(tag);
+
         request.onsuccess = () => {
-            const channel = request.result;
-            if (!channel) {
-                resolve(null);
+            const channels = request.result || [];
+            if (channels.length === 0) {
+                resolve([]);
                 return;
             }
-            
-            // Get last seen timestamp
-            const lastSeenReq = lastSeenStore.get(channel.streamId);
-            lastSeenReq.onsuccess = () => {
-                resolve({
-                    ...channel,
-                    lastTimestamp: lastSeenReq.result?.timestamp || 0
-                });
-            };
-            lastSeenReq.onerror = () => {
-                resolve({
-                    ...channel,
-                    lastTimestamp: 0
-                });
-            };
+            let pending = channels.length;
+            const out = [];
+            for (const channel of channels) {
+                const lastSeenReq = lastSeenStore.get(channel.streamId);
+                const done = (timestamp) => {
+                    out.push({ ...channel, lastTimestamp: timestamp });
+                    if (--pending === 0) resolve(out);
+                };
+                lastSeenReq.onsuccess = () => done(lastSeenReq.result?.timestamp || 0);
+                lastSeenReq.onerror = () => done(0);
+            }
         };
-        
+
         request.onerror = () => reject(request.error);
     });
 }
@@ -156,6 +169,10 @@ async function syncChannelsToIndexedDB(channels) {
                     name: channel.name || 'Channel',
                     tag: channel.tag,
                     storageEndpoints: channel.storageEndpoints || [],
+                    // Whether the node serves this stream only to a signed
+                    // read. The page decides it: it knows the channel's real
+                    // type, which the labels here do not carry.
+                    needsSignature: !!channel.needsSignature,
                     lastChecked: Date.now()
                 });
             }
@@ -185,21 +202,21 @@ function buildUrl(endpoint, streamId, partition = 0) {
         .replace('{partition}', partition);
 }
 
-async function fetchWithTimeout(url, timeout = 5000) {
+async function fetchWithTimeout(url, timeout = 5000, extraHeaders = null) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
-    
+
     try {
         const response = await fetch(url, {
             method: 'GET',
-            headers: { 'Accept': 'application/json' },
+            headers: { 'Accept': 'application/json', ...(extraHeaders || {}) },
             signal: controller.signal
         });
-        
+
         clearTimeout(timeoutId);
-        
+
         if (!response.ok) {
-            return { success: false, error: `HTTP ${response.status}` };
+            return { success: false, status: response.status, error: `HTTP ${response.status}` };
         }
         
         const data = await response.json();
@@ -222,19 +239,62 @@ async function fetchWithTimeout(url, timeout = 5000) {
     }
 }
 
+/**
+ * Asks an open page to sign a storage read. The key lives in the page, behind
+ * the user's unlock, and must never be held here — so a wake that arrives with
+ * every window closed cannot verify a private stream, and stays silent.
+ * @returns {Promise<Object|null>} the x-pombo-* headers, or null
+ */
+async function requestSignature(url) {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of windows) {
+        const headers = await askClientToSign(client, url);
+        if (headers) return headers;
+    }
+    return null;
+}
+
+function askClientToSign(client, url) {
+    return new Promise((resolve) => {
+        let settled = false;
+        const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            resolve(value);
+        };
+        const timer = setTimeout(() => finish(null), SIGNATURE_TIMEOUT_MS);
+        try {
+            const channel = new MessageChannel();
+            channel.port1.onmessage = (event) => finish(event.data?.headers || null);
+            client.postMessage({ type: 'SIGN_STORAGE_READ', url }, [channel.port2]);
+        } catch (error) {
+            finish(null);
+        }
+    });
+}
+
 async function verifyChannel(channel) {
-    const { streamId, lastTimestamp, storageEndpoints } = channel;
-    
-    const endpoints = storageEndpoints?.length > 0 
-        ? storageEndpoints 
-        : DEFAULT_STORAGE_ENDPOINTS;
-    
-    // Try each endpoint until one responds
+    const { streamId, lastTimestamp, storageEndpoints, needsSignature } = channel;
+
+    const endpoints = storageEndpoints?.length > 0
+        ? storageEndpoints
+        : LEGACY_STORAGE_ENDPOINTS;
+
     for (const endpoint of endpoints) {
         try {
             const url = buildUrl(endpoint, streamId, 0);
-            const result = await fetchWithTimeout(url, 5000);
-            
+            let headers = null;
+            if (needsSignature) {
+                headers = await requestSignature(url);
+                if (!headers) {
+                    // No page to sign: every endpoint would refuse the same way.
+                    console.log('[SW] No open window to sign for', streamId);
+                    return { hasNew: false, error: 'No signer' };
+                }
+            }
+            const result = await fetchWithTimeout(url, 5000, headers);
+
             if (result.success) {
                 const hasNew = result.timestamp > lastTimestamp;
                 return {
@@ -244,11 +304,19 @@ async function verifyChannel(channel) {
                     publisherId: hasNew ? result.publisherId : null
                 };
             }
+            // A 4xx is the node answering ABOUT the request (unsigned, no
+            // access, stream gone); the next node answers the same. Only a
+            // node that failed as a node is worth asking again.
+            if (result.status >= 400 && result.status < 500) {
+                console.warn(`[SW] ${result.error} for ${streamId}`);
+                return { hasNew: false, error: result.error };
+            }
+            console.warn(`[SW] Endpoint ${endpoint}: ${result.error}`);
         } catch (error) {
             console.warn(`[SW] Endpoint ${endpoint} failed:`, error.message);
         }
     }
-    
+
     console.warn('[SW] All storage endpoints failed for', streamId);
     return { hasNew: false, error: 'All endpoints failed' };
 }
@@ -259,14 +327,18 @@ async function verifyChannel(channel) {
 
 function getMessagePreview(channel) {
     const { type, content } = channel;
-    
-    // DM/Private/native channels - content is encrypted
-    if (type === 'dm' || type === 'private' || type === 'native') {
-        return (type === 'dm' || type === 'native')
-            ? 'New direct message' 
-            : 'New encrypted message';
+
+    // Nothing here holds the key to a channel's own encryption, and a direct
+    // message arrives sealed to a key that lives in the page: all this can say
+    // is that something arrived. (The native app opens the DM envelope and
+    // shows its text; a service worker cannot.)
+    if (type === 'dm') {
+        return 'You have a new message';
     }
-    
+    if (type === 'private' || type === 'native') {
+        return 'New message';
+    }
+
     // Public channels - show content
     if (!content) {
         return 'New message';
@@ -353,34 +425,33 @@ async function handlePushWithVerification(pushData) {
             return;
         }
         
-        // Find channel by tag
-        const channel = await getChannelByTag(tag);
-        
-        if (!channel) {
+        // Every channel under this tag, since one byte collides by design.
+        const channels = await getChannelsByTag(tag);
+
+        if (channels.length === 0) {
             console.log('[SW] Channel not found for tag - ignoring (not subscribed)');
             return;
         }
-        
-        // Verify this channel via HTTP
-        console.log('[SW] Verifying channel:', channel.name || channel.streamId);
-        const result = await verifyChannel(channel);
-        
-        if (!result.hasNew) {
-            console.log('[SW] No new messages - false positive');
-            return;
+
+        for (const channel of channels) {
+            console.log('[SW] Verifying channel:', channel.name || channel.streamId);
+            const result = await verifyChannel(channel);
+
+            if (!result.hasNew) {
+                console.log('[SW] No new messages - false positive');
+                continue;
+            }
+
+            await updateLastSeen(channel.streamId, result.timestamp);
+
+            await showVerifiedNotification({
+                ...channel,
+                newTimestamp: result.timestamp,
+                content: result.content,
+                publisherId: result.publisherId
+            });
         }
-        
-        // Update lastSeen
-        await updateLastSeen(channel.streamId, result.timestamp);
-        
-        // Show notification with real data
-        await showVerifiedNotification({
-            ...channel,
-            newTimestamp: result.timestamp,
-            content: result.content,
-            publisherId: result.publisherId
-        });
-        
+
     } catch (error) {
         console.error('[SW] Verification error:', error);
         // Fallback: show generic notification

@@ -124,6 +124,21 @@ class StorageFetch {
         return this.storageRead(parsed, init || {});
     }
 
+    /**
+     * The signed-read headers for a URL someone else will fetch — the service
+     * worker verifying a push, which has no key of its own. The identity is
+     * read here, from the same source every other read uses.
+     * @param {string} url
+     * @returns {Promise<Object|null>} null when there is nothing to sign with
+     */
+    async signHeadersFor(url) {
+        const parsed = this.deps ? parseStorageDataUrl(url) : null;
+        if (!parsed) return null;
+        const identity = this.deps.signer();
+        if (!identity?.address) return null;
+        return signedReadHeaders(parsed, identity);
+    }
+
     async storageRead(parsed, init) {
         // The direct reads (file windows, metadata lookups) rotate URLs in
         // their callers; only the SDK's own resends fail over here.
