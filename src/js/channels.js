@@ -34,6 +34,7 @@ import { TtlRepublish } from './channels/TtlRepublish.js';
 import { MessageOverrides } from './channels/MessageOverrides.js';
 import { MessageFlow } from './channels/MessageFlow.js';
 import { AdminState } from './channels/AdminState.js';
+import { AdminStateConfirm } from './channels/AdminStateConfirm.js';
 import { Membership } from './channels/Membership.js';
 import { ModDeltas, MOD_ACTION_TYPE } from './channels/ModDeltas.js';
 
@@ -65,6 +66,8 @@ class ChannelManager {
         this.overrides = new MessageOverrides(this);
         this.messageFlow = new MessageFlow(this);
         this.adminState = new AdminState(this);
+        // Sees each published ADMIN_STATE to storage, republishing when it is lost.
+        this.adminConfirm = new AdminStateConfirm(this);
         this.membership = new Membership(this);
         // Moderator deltas on -1/P2, composed over the owner's snapshot.
         this.modDeltas = new ModDeltas(this);
@@ -1949,6 +1952,9 @@ class ChannelManager {
                 this._ttlRepublishOnOpen(channel, adminStreamId, pwd).catch(e => {
                     Logger.debug('TTL republish check failed (will retry next open):', e?.message);
                 });
+                // An ADMIN_STATE published here that storage never confirmed
+                // is waited for again, and republished, now that the owner is back.
+                this.adminConfirm.resume(channel.messageStreamId);
             }
         }
 

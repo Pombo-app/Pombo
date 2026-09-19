@@ -1955,6 +1955,11 @@ class StreamrController {
                 }
             }
 
+            // The admin stream is read from storage, not live, and the SDK's
+            // publish broadcasts into whatever topology exists: from a cold
+            // session that can be nobody. Wait for a neighbour, as publishAs does.
+            if (isAdminStream(streamId)) await this._awaitNeighbour(streamId, partition);
+
             const pubMsg = await this.client.publish({
                 streamId: streamId,
                 partition: partition
@@ -1967,6 +1972,23 @@ class StreamrController {
         } catch (error) {
             Logger.error('Failed to publish:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Wait, briefly, for at least one neighbour on a stream partition before
+     * broadcasting into it. Best-effort: on timeout the publish goes anyway.
+     */
+    async _awaitNeighbour(streamId, partition) {
+        if (typeof this.client?.getNode !== 'function') return;
+        const streamPartId = `${streamId}#${partition}`;
+        try {
+            await this.client.getNode().join(streamPartId, {
+                minCount: STREAM_CONFIG.PUBLISH_MIN_NEIGHBORS,
+                timeout: STREAM_CONFIG.PUBLISH_NEIGHBOR_TIMEOUT_MS
+            });
+        } catch (error) {
+            Logger.debug(`publish: no neighbours on ${streamPartId} yet (${error.message}) — publishing anyway`);
         }
     }
 

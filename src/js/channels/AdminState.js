@@ -382,7 +382,7 @@ export class AdminState {
             state: next
         };
 
-        await streamrController.publishAdminState(adminStreamId, adminMsg, channel.password || null);
+        const published = await streamrController.publishAdminState(adminStreamId, adminMsg, channel.password || null);
 
         // Optimistically apply locally so UI reflects the change immediately.
         this.manager.applyAdminState(channel, adminMsg);
@@ -390,6 +390,14 @@ export class AdminState {
             streamId: messageStreamId,
             adminState: channel.adminState,
             rev: channel.adminRev
+        });
+
+        // "Published" only means broadcast: the snapshot is read back from
+        // storage until it is there, and republished when it is not.
+        this.manager.adminConfirm?.track(messageStreamId, {
+            rev: newRev,
+            ts: adminMsg.ts,
+            envelopeTs: Number(published?.timestamp) || null
         });
 
         // Reset the poller window so we don't redundantly re-fetch our own
