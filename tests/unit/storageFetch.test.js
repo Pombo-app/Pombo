@@ -14,12 +14,14 @@ import { storageFetch } from '../../src/js/storageFetch.js';
 import { CONFIG } from '../../src/js/config.js';
 
 const BASE = 'https://1.storage.example';
+const BASE2 = 'https://2.storage.example';
 const STREAM = '0xaaaabbbbccccddddeeeeffff0000111122223333/deadbeef01-1';
 const KEYS = '0xaaaabbbbccccddddeeeeffff0000111122223333/deadbeef01-4';
 const ADMIN = '0xaaaabbbbccccddddeeeeffff0000111122223333/deadbeef01-3';
 const enc = encodeURIComponent;
 const readUrl = (stream, partition = 0, type = 'last', query = 'count=50&format=raw') =>
     `${BASE}/streams/${enc(stream)}/data/partitions/${partition}/${type}?${query}`;
+const HEADERS_TIMEOUT_MS = CONFIG.storageMedia.readHeadersTimeoutMs;
 
 const ok = (body = '', status = 200) => ({
     ok: status >= 200 && status < 300,
@@ -32,7 +34,16 @@ describe('storageFetch', () => {
     let features;
     let gated;
     let identity;
-    const endpoints = { probeCapabilities: vi.fn(async () => features) };
+    let rotationUrls;
+    let ejected;
+    const endpoints = {
+        probeCapabilities: vi.fn(async () => features),
+        rotation: vi.fn(async () => rotationUrls),
+        isEjected: vi.fn((url) => ejected.has(url)),
+        noteFailure: vi.fn(),
+        noteSuccess: vi.fn(),
+        probeRecovery: vi.fn()
+    };
 
     const install = () => storageFetch.install({
         endpoints,
@@ -49,12 +60,15 @@ describe('storageFetch', () => {
         features = new Set(['metadata', 'storedAt', 'purge', 'signedReads']);
         gated = new Set([STREAM.replace(/-1$/, '')]);
         identity = { address: '0xAbC0000000000000000000000000000000000001', sign: vi.fn(async (m) => `sig:${m.length}`) };
+        rotationUrls = [BASE];
+        ejected = new Set();
         storageFetch.retryDelays = [0, 0];
         install();
     });
 
     afterEach(() => {
         storageFetch.uninstall();
+        CONFIG.storageMedia.readHeadersTimeoutMs = HEADERS_TIMEOUT_MS;
         vi.clearAllMocks();
     });
 
@@ -287,6 +301,156 @@ describe('storageFetch', () => {
         const call = callsTo('format=raw')[0];
         expect(headersOf(call).get('x-custom')).toBe('1');
         expect(call[1].cache).toBe('no-store');
+    });
+
+    describe('failover between node URLs', () => {
+        const rawAt = (base) => callsTo('format=raw').filter((c) => String(c[0]).startsWith(base));
+        const metaAt = (base) => callsTo('format=metadata').filter((c) => String(c[0]).startsWith(base));
+        const dead = () => { throw new TypeError('Failed to fetch'); };
+        const serving = async (url) => (String(url).includes('format=metadata') ? ok([]) : ok('frames'));
+
+        beforeEach(() => {
+            rotationUrls = [BASE, BASE2];
+            gated = new Set();
+        });
+
+        it('reads from the next URL when the node gives no answer, with the storedAt read paired to it', async () => {
+            fetchMock.mockImplementation(async (url) => {
+                if (String(url).startsWith(BASE)) dead();
+                return String(url).includes('format=metadata') ? ok([{ timestamp: 1, sequenceNumber: 0, storedAt: 2 }]) : ok('frames');
+            });
+            const resp = await globalThis.fetch(readUrl(STREAM));
+            expect(resp.status).toBe(200);
+            expect(rawAt(BASE)).toHaveLength(1);
+            expect(rawAt(BASE2)).toHaveLength(1);
+            expect(metaAt(BASE2)).toHaveLength(1);
+            expect(endpoints.rotation).toHaveBeenCalledWith(STREAM);
+            expect(endpoints.noteFailure).toHaveBeenCalledWith(BASE);
+            expect(endpoints.noteSuccess).toHaveBeenCalledWith(BASE2);
+            expect(storageFetch.storedAtFor(STREAM, 0, 1, 0)).toBe(2);
+            expect(storageFetch.lastReadError(STREAM)).toBeUndefined();
+        });
+
+        it('costs nothing when the first node answers: the rotation is never consulted', async () => {
+            fetchMock.mockImplementation(serving);
+            expect((await globalThis.fetch(readUrl(STREAM))).status).toBe(200);
+            expect(endpoints.rotation).not.toHaveBeenCalled();
+            expect(endpoints.noteFailure).not.toHaveBeenCalled();
+            expect(endpoints.noteSuccess).toHaveBeenCalledWith(BASE);
+        });
+
+        it('signs the read afresh for the next URL', async () => {
+            gated = new Set([STREAM.replace(/-1$/, '')]);
+            fetchMock.mockImplementation(async (url) => {
+                if (String(url).startsWith(BASE)) dead();
+                return serving(url);
+            });
+            await globalThis.fetch(readUrl(STREAM));
+            const [first] = rawAt(BASE);
+            const [second] = rawAt(BASE2);
+            expect(headersOf(first).get('x-pombo-user')).toBe(identity.address);
+            expect(headersOf(second).get('x-pombo-user')).toBe(identity.address);
+            expect(headersOf(second).get('x-pombo-nonce')).not.toBe(headersOf(first).get('x-pombo-nonce'));
+        });
+
+        it('asks the next URL at the first 503 and backs off only on the last one', async () => {
+            fetchMock.mockImplementation(async (url) => (String(url).includes('format=metadata') ? ok([]) : ok('', 503)));
+            const resp = await globalThis.fetch(readUrl(STREAM));
+            expect(resp.status).toBe(503);
+            expect(rawAt(BASE)).toHaveLength(1);
+            expect(rawAt(BASE2)).toHaveLength(3);
+            expect(endpoints.noteFailure).toHaveBeenCalledWith(BASE);
+            expect(endpoints.noteFailure).toHaveBeenCalledWith(BASE2);
+            expect(storageFetch.lastReadError(STREAM)).toMatchObject({ status: 503, url: BASE2 });
+        });
+
+        it('never fails over on a 4xx: the node answered about the request', async () => {
+            fetchMock.mockImplementation(async (url) => (String(url).includes('format=metadata') ? ok([]) : ok('', 403)));
+            const resp = await globalThis.fetch(readUrl(STREAM));
+            expect(resp.status).toBe(403);
+            expect(rawAt(BASE)).toHaveLength(1);
+            expect(rawAt(BASE2)).toHaveLength(0);
+            expect(endpoints.noteFailure).not.toHaveBeenCalled();
+            expect(endpoints.rotation).not.toHaveBeenCalled();
+        });
+
+        it('moves on when the node does not start answering within the headers timeout', async () => {
+            CONFIG.storageMedia.readHeadersTimeoutMs = 20;
+            fetchMock.mockImplementation((url, init) => {
+                if (String(url).startsWith(BASE)) {
+                    return new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted'))));
+                }
+                return serving(url);
+            });
+            const resp = await globalThis.fetch(readUrl(STREAM));
+            expect(resp.status).toBe(200);
+            expect(rawAt(BASE)).toHaveLength(1);
+            expect(rawAt(BASE2)).toHaveLength(1);
+            expect(endpoints.noteFailure).toHaveBeenCalledWith(BASE);
+        });
+
+        it('skips a URL already out of the rotation and has it probed out of band', async () => {
+            ejected = new Set([BASE]);
+            fetchMock.mockImplementation(serving);
+            const resp = await globalThis.fetch(readUrl(STREAM));
+            expect(resp.status).toBe(200);
+            expect(rawAt(BASE)).toHaveLength(0);
+            expect(rawAt(BASE2)).toHaveLength(1);
+            expect(endpoints.probeRecovery).toHaveBeenCalledWith(BASE);
+            expect(endpoints.noteFailure).not.toHaveBeenCalled();
+        });
+
+        it('still reads from an ejected URL when it is the only one', async () => {
+            ejected = new Set([BASE]);
+            rotationUrls = [];
+            fetchMock.mockImplementation(serving);
+            const resp = await globalThis.fetch(readUrl(STREAM));
+            expect(resp.status).toBe(200);
+            expect(rawAt(BASE)).toHaveLength(1);
+            expect(endpoints.probeRecovery).not.toHaveBeenCalled();
+        });
+
+        it('does not fail over when the caller gave up', async () => {
+            const ctrl = new AbortController();
+            fetchMock.mockImplementation(async (url) => {
+                if (String(url).includes('format=metadata')) return ok([]);
+                ctrl.abort();
+                throw new Error('aborted');
+            });
+            await expect(globalThis.fetch(readUrl(STREAM), { signal: ctrl.signal })).rejects.toThrow('aborted');
+            expect(rawAt(BASE2)).toHaveLength(0);
+            expect(endpoints.noteFailure).not.toHaveBeenCalled();
+        });
+
+        it('throws the last error once every URL failed', async () => {
+            fetchMock.mockImplementation(async () => dead());
+            await expect(globalThis.fetch(readUrl(STREAM))).rejects.toThrow('Failed to fetch');
+            expect(rawAt(BASE)).toHaveLength(1);
+            expect(rawAt(BASE2)).toHaveLength(1);
+            expect(endpoints.noteFailure).toHaveBeenCalledTimes(2);
+        });
+
+        it('takes a page served without its storedAt to the next URL and counts it against the node', async () => {
+            fetchMock.mockImplementation(async (url) => {
+                if (String(url).includes('format=metadata')) return String(url).startsWith(BASE) ? ok('', 500) : ok([]);
+                return ok('frames');
+            });
+            const resp = await globalThis.fetch(readUrl(STREAM));
+            expect(resp.status).toBe(200);
+            expect(rawAt(BASE)).toHaveLength(1);
+            expect(rawAt(BASE2)).toHaveLength(1);
+            expect(endpoints.noteFailure).toHaveBeenCalledWith(BASE);
+            expect(storageFetch.lastReadError(STREAM)).toBeUndefined();
+        });
+
+        it('leaves the direct reads to their callers: nothing fails over without format=raw', async () => {
+            fetchMock.mockImplementation(async () => dead());
+            await expect(globalThis.fetch(readUrl(STREAM, 0, 'range', 'fromTimestamp=1&toTimestamp=2&format=metadata')))
+                .rejects.toThrow('Failed to fetch');
+            expect(endpoints.rotation).not.toHaveBeenCalled();
+            expect(endpoints.noteFailure).not.toHaveBeenCalled();
+            expect(fetchMock.mock.calls.every((c) => String(c[0]).startsWith(BASE))).toBe(true);
+        });
     });
 
     describe('judgeMessage', () => {

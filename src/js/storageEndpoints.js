@@ -12,7 +12,8 @@
  * browser cannot fetch from http:// or IP-literal endpoints on a https origin.
  *
  * The module also tracks per-node health for the session:
- *  - consecutive-failure ejection from the rotation (noteFailure/noteSuccess)
+ *  - consecutive-failure ejection from the rotation (noteFailure/noteSuccess),
+ *    and readmission by an out-of-band probe once ejected (probeRecovery)
  *  - the features a node announces on `GET /capabilities` (Pombo storage
  *    node fork: metadata, storedAt, purge, signedReads); vanilla nodes answer
  *    404 and are remembered as announcing nothing
@@ -47,6 +48,8 @@ class StorageEndpointResolver {
         this.capabilities = new Map();
         // url → in-flight capabilities probe
         this.capabilityProbes = new Map();
+        // url → epochMs of the last readmission probe of an ejected node
+        this.recoveryProbes = new Map();
     }
 
     /**
@@ -176,6 +179,30 @@ class StorageEndpointResolver {
         this.failures.delete(normalizeUrl(url));
     }
 
+    /** Whether a node URL has left the rotation (nodeFailureLimit failures in a row). */
+    isEjected(url) {
+        return (this.failures.get(normalizeUrl(url)) || 0) >= CONFIG.storageMedia.nodeFailureLimit;
+    }
+
+    /**
+     * Probe an ejected node out of band, at most once per nodeRecoveryProbeMs,
+     * and readmit it when it answers `/capabilities` again (a 404 is a live
+     * vanilla node). No user read pays for the probe.
+     */
+    probeRecovery(url) {
+        const u = normalizeUrl(url);
+        if (!u) return;
+        const last = this.recoveryProbes.get(u) || 0;
+        if (Date.now() - last < CONFIG.storageMedia.nodeRecoveryProbeMs) return;
+        this.recoveryProbes.set(u, Date.now());
+        this.fetchCapabilities(u).then((features) => {
+            if (features === undefined) return;
+            this.capabilities.set(u, { at: Date.now(), features });
+            this.noteSuccess(u);
+            Logger.info(`Storage node back in rotation: ${u}`);
+        });
+    }
+
     /**
      * Features a node URL announces on `GET /capabilities`. Cached per URL
      * with the endpoint TTL; concurrent probes share one request. A 404 is a
@@ -212,7 +239,8 @@ class StorageEndpointResolver {
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), CAPABILITIES_TIMEOUT_MS);
         try {
-            const resp = await fetch(`${u}/capabilities`, { signal: ctrl.signal });
+            // Never from the HTTP cache: a readmission probe must reach the node.
+            const resp = await fetch(`${u}/capabilities`, { signal: ctrl.signal, cache: 'no-store' });
             if (resp.status === 404) return new Set();
             if (!resp.ok) {
                 Logger.debug(`Capabilities probe ${u}: HTTP ${resp.status}`);
@@ -311,6 +339,7 @@ class StorageEndpointResolver {
         this.metaFormat.clear();
         this.capabilities.clear();
         this.capabilityProbes.clear();
+        this.recoveryProbes.clear();
     }
 }
 

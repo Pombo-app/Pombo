@@ -229,6 +229,40 @@ describe('storageEndpoints', () => {
             expect(storageEndpoints.supportsMetaFormat('https://node-a.example')).toBe(false);
         });
 
+        it('isEjected() follows the consecutive-failure count', () => {
+            const limit = CONFIG.storageMedia.nodeFailureLimit;
+            for (let i = 0; i < limit - 1; i++) storageEndpoints.noteFailure('https://node-a.example');
+            expect(storageEndpoints.isEjected('https://node-a.example')).toBe(false);
+            storageEndpoints.noteFailure('https://node-a.example');
+            expect(storageEndpoints.isEjected('https://node-a.example/')).toBe(true);
+            storageEndpoints.noteSuccess('https://node-a.example');
+            expect(storageEndpoints.isEjected('https://node-a.example')).toBe(false);
+        });
+
+        it('probeRecovery() readmits an ejected node once it answers again, probing at most once per interval', async () => {
+            const flush = () => new Promise((r) => setTimeout(r, 0));
+            const limit = CONFIG.storageMedia.nodeFailureLimit;
+            for (let i = 0; i < limit; i++) storageEndpoints.noteFailure('https://node-a.example');
+
+            fetchMock.mockRejectedValueOnce(new Error('still down'));
+            storageEndpoints.probeRecovery('https://node-a.example');
+            await flush();
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+            expect(storageEndpoints.isEjected('https://node-a.example')).toBe(true);
+
+            storageEndpoints.probeRecovery('https://node-a.example');
+            await flush();
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+
+            storageEndpoints.recoveryProbes.set('https://node-a.example', Date.now() - CONFIG.storageMedia.nodeRecoveryProbeMs - 1);
+            fetchMock.mockResolvedValueOnce(jsonResponse(404, {}));
+            storageEndpoints.probeRecovery('https://node-a.example');
+            await flush();
+            expect(fetchMock).toHaveBeenCalledTimes(2);
+            expect(storageEndpoints.isEjected('https://node-a.example')).toBe(false);
+            expect(storageEndpoints.capabilitiesOf('https://node-a.example').size).toBe(0);
+        });
+
         it('ignores a malformed body', async () => {
             fetchMock.mockResolvedValue(jsonResponse(200, { features: 'purge' }));
             const features = await storageEndpoints.probeCapabilities('https://node-a.example');
