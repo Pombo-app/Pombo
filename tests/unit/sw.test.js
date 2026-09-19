@@ -201,6 +201,8 @@ describe('service worker verification', () => {
         it('never repeats what was said in a channel it cannot read', () => {
             const { context } = loadWorker();
             const content = { type: 'text', text: 'secret' };
+            expect(context.getMessagePreview({ type: 'gated', content })).toBe('New message');
+            // Labels older installs may still be registered under.
             expect(context.getMessagePreview({ type: 'native', content })).toBe('New message');
             expect(context.getMessagePreview({ type: 'private', content })).toBe('New message');
         });

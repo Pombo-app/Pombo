@@ -195,7 +195,7 @@ describe('RelayManager', () => {
             expect(channelData.name).toBe('Direct Message');
         });
 
-        it('should sync native channel with type native', async () => {
+        it('should sync a gated channel under its real type', async () => {
             const streamId = '0xowner/native-channel';
             channelManager.channels.set(streamId, {
                 name: 'Bob Group',
@@ -210,7 +210,7 @@ describe('RelayManager', () => {
 
             const sentData = mockPostMessage.mock.calls[0][0];
             const channelData = sentData.channels.find(c => c.streamId === streamId);
-            expect(channelData.type).toBe('native');
+            expect(channelData.type).toBe('gated');
             expect(channelData.name).toBe('Bob Group');
         });
 
@@ -271,7 +271,7 @@ describe('RelayManager', () => {
 
             expect(publicChannel.type).toBe('public');
             expect(dmChannel.type).toBe('dm');
-            expect(nativeChannel.type).toBe('native');
+            expect(nativeChannel.type).toBe('gated');
         });
 
         it('should use correct tag functions for each channel type', async () => {

@@ -335,7 +335,11 @@ function getMessagePreview(channel) {
     if (type === 'dm') {
         return 'You have a new message';
     }
-    if (type === 'private' || type === 'native') {
+    // 'native' is what an install registered before this version called a
+    // gated channel, and 'private' can still come from a channel saved long
+    // ago: both mean "encrypted", so neither may fall through to the branch
+    // that prints what was said.
+    if (type === 'gated' || type === 'native' || type === 'private') {
         return 'New message';
     }
 
@@ -475,7 +479,7 @@ async function showVerifiedNotification(channelWithNews) {
     let title;
     if (channelWithNews.type === 'dm' || channelWithNews.type === 'dm-inbox') {
         title = 'Pombo';
-    } else if (channelWithNews.type === 'private' || channelWithNews.type === 'native') {
+    } else if (channelWithNews.type === 'gated' || channelWithNews.type === 'native' || channelWithNews.type === 'private') {
         title = channelWithNews.name || 'Pombo';
     } else {
         // Public channel: content is public by design, so the channel name

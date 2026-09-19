@@ -477,7 +477,10 @@ class RelayManager {
             
             channels.push({
                 streamId,
-                type: 'native',
+                // Only gated channels take this path. The tag prefix keeps the
+                // historical name (it is baked into every registration the
+                // relay holds), but what the worker is told is the real type.
+                type: 'gated',
                 name,
                 tag: channelTag,
                 storageEndpoints: await this.endpointsFor(streamId),
