@@ -1812,6 +1812,15 @@ body.cannot-write .reply-trigger {
     animation: spin 1s linear infinite;
 }
 
+.spinner-inline {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border-width: 2px;
+    vertical-align: -2px;
+    margin-right: 0.5rem;
+}
+
 @keyframes spin {
     to {
         transform: rotate(360deg);

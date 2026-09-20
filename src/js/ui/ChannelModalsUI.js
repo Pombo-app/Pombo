@@ -10,6 +10,9 @@ import { CONFIG } from '../config.js';
 import { snapRetentionDays, retentionLabel } from '../utils/retention.js';
 import { getErrorMessage } from '../utils/chainErrors.js';
 
+/** Floor for the re-check spinner, so a fast answer still reads as an answer. */
+const CHECK_FEEDBACK_MS = 450;
+
 class ChannelModalsUI {
     constructor() {
         this.deps = {};
@@ -877,7 +880,7 @@ class ChannelModalsUI {
         this.deps.modalManager?.hide('gate-entry-modal');
     }
 
-    async _renderGateEntry() {
+    async _renderGateEntry({ checking = false } = {}) {
         const entry = this._gateEntry;
         if (!entry) return;
         const conditionEl = document.getElementById('gate-entry-condition');
@@ -923,7 +926,13 @@ class ChannelModalsUI {
         statusEl?.classList.add('hidden');
         noteEl?.classList.add('hidden');
         actionBtn?.classList.add('hidden');
-        recheckBtn?.classList.add('hidden');
+        // A re-check runs through this render, so the button carries the wait
+        if (recheckBtn && checking) {
+            recheckBtn.disabled = true;
+            recheckBtn.innerHTML = '<span class="spinner spinner-inline"></span>Checking…';
+        } else {
+            recheckBtn?.classList.add('hidden');
+        }
         // Reopened on the element a previous payment left disabled
         if (actionBtn) actionBtn.disabled = false;
 
@@ -949,9 +958,19 @@ class ChannelModalsUI {
 
             if (recheckBtn) {
                 recheckBtn.classList.remove('hidden');
-                recheckBtn.onclick = () => {
+                if (!checking) {
+                    recheckBtn.disabled = false;
+                    recheckBtn.textContent = 'Check Again';
+                }
+                recheckBtn.onclick = async () => {
                     gateManager.invalidateAccess(entry.gateAddress, me);
-                    this._renderGateEntry();
+                    // A chain read can answer in tens of ms, and a spinner that
+                    // brief reads as a dead button
+                    await Promise.all([
+                        this._renderGateEntry({ checking: true }),
+                        new Promise((r) => setTimeout(r, CHECK_FEEDBACK_MS))
+                    ]);
+                    await this._renderGateEntry();
                 };
             }
 
