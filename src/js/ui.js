@@ -246,7 +246,7 @@ class UIController {
             getActiveChannel: () => this.getActiveChannel()
         });
 
-        // SubscriptionBannerUI — paid-gate expiry warning + renew flow (N-F)
+        // SubscriptionBannerUI — paid-gate expiry warning + renew flow
         subscriptionBannerUI.setDependencies({
             Logger,
             channelManager,
@@ -259,6 +259,10 @@ class UIController {
                     renewal: true,
                     retry: async () => {
                         subscriptionBannerUI.noteRenewed(channel.streamId);
+                        // The composer verdict was cached while the gate was
+                        // still refusing; keeping it would leave the writer
+                        // locked out of what they just paid for.
+                        delete channel._publishPermCache;
                         // Key requests sent while expired were refused
                         // silently — ask again now that the chain grants us
                         try { await epochKeyManager.retryRequestIfWaiting(channel); }
@@ -269,10 +273,12 @@ class UIController {
                 });
             },
             onStatusResolved: (streamId) => {
-                // Swap the empty-state ("waiting for keys" ↔ "expired") once
-                // the chain read lands; cheap, only fires on an empty timeline
+                // The composer and the empty state were drawn before the
+                // chain read landed, so both are decided again here.
                 const ch = channelManager.getCurrentChannel?.();
-                if (ch?.streamId === streamId && !(ch.messages?.length > 0)) {
+                if (ch?.streamId !== streamId) return;
+                this.updateReadOnlyUI(ch);
+                if (!(ch.messages?.length > 0)) {
                     chatAreaUI.renderMessages(ch.messages || []);
                 }
             }
@@ -1593,14 +1599,7 @@ class UIController {
                           (Date.now() - channel._publishPermCache.timestamp) < 60000;
         
         if (cacheValid) {
-            const canPublish = channel._publishPermCache.canPublish;
-            this.setReadOnlyInputState(!canPublish, canPublish && channel.readOnly, !canPublish);
-            
-            // Update header label with cached permission result
-            const effectiveReadOnly = !canPublish || channel.readOnly;
-            if (this.elements.currentChannelInfo) {
-                this.elements.currentChannelInfo.innerHTML = headerUI.getChannelTypeLabel(channel.type, effectiveReadOnly);
-            }
+            this._applyPublishVerdict(channel, channel._publishPermCache.canPublish);
             return;
         }
 
@@ -1629,8 +1628,7 @@ class UIController {
                 
                 // For gated/private channels, use cache or stay disabled for safety
                 if (cacheValid) {
-                    const cachedCanPublish = channel._publishPermCache.canPublish;
-                    this.setReadOnlyInputState(!cachedCanPublish, cachedCanPublish && channel.readOnly, !cachedCanPublish);
+                    this._applyPublishVerdict(channel, channel._publishPermCache.canPublish);
                 }
                 return;
             }
@@ -1644,21 +1642,12 @@ class UIController {
                 timestamp: Date.now()
             };
 
-            // Update UI based on actual permission
-            // If channel is read-only and user can publish, show "broadcast" placeholder
-            this.setReadOnlyInputState(!canPublish, canPublish && channel.readOnly, !canPublish);
-            
-            // Update header label to reflect actual read-only state (user cannot publish)
-            const effectiveReadOnly = !canPublish || channel.readOnly;
-            if (this.elements.currentChannelInfo) {
-                this.elements.currentChannelInfo.innerHTML = headerUI.getChannelTypeLabel(channel.type, effectiveReadOnly);
-            }
-            
+            this._applyPublishVerdict(channel, canPublish);
+
             Logger.debug('Permission check via SDK:', {
                 channel: channel.name,
                 canPublish: canPublish,
-                readOnly: channel.readOnly,
-                effectiveReadOnly: effectiveReadOnly
+                readOnly: channel.readOnly
             });
         } catch (error) {
             Logger.warn('Failed to check publish permission:', error);
@@ -1670,11 +1659,40 @@ class UIController {
     }
 
     /**
+     * Apply a publish verdict to the composer and the header label.
+     *
+     * A subscription that lapsed keeps its field, because there the
+     * placeholder is the instruction for getting it back, and it never turns
+     * the channel into an announcements channel: the gate refuses the writer,
+     * not the channel.
+     * @param {Object} channel
+     * @param {boolean} canPublish
+     */
+    _applyPublishVerdict(channel, canPublish) {
+        const subscription = subscriptionBannerUI.stateOf(channel.streamId);
+        const lapsed = subscription === 'expired' || subscription === 'unsubscribed';
+        if (lapsed) {
+            this.setReadOnlyInputState(true, false, false, subscription === 'expired'
+                ? 'Subscription expired, renew to write'
+                : 'Subscribe to write here');
+        } else {
+            this.setReadOnlyInputState(!canPublish, canPublish && channel.readOnly, !canPublish);
+        }
+        if (this.elements.currentChannelInfo) {
+            this.elements.currentChannelInfo.innerHTML = headerUI.getChannelTypeLabel(
+                channel.type, channel.readOnly || (!canPublish && !lapsed));
+        }
+    }
+
+    /**
      * Helper to set input state for read-only channels
      * @param {boolean} disabled - Whether input should be disabled
      * @param {boolean} canBroadcast - Whether user can broadcast (has publish permission)
+     * @param {boolean} hide - Whether to remove the composer entirely
+     * @param {string} [disabledPlaceholder] - What the disabled field should say
      */
-    setReadOnlyInputState(disabled, canBroadcast = false, hide = false) {
+    setReadOnlyInputState(disabled, canBroadcast = false, hide = false,
+        disabledPlaceholder = 'This channel is read-only') {
         const messageInput = this.elements.messageInput;
         const sendBtn = document.querySelector('#send-btn');
 
@@ -1688,7 +1706,7 @@ class UIController {
         if (disabled) {
             if (messageInput) {
                 messageInput.contentEditable = 'false';
-                messageInput.dataset.placeholder = 'This channel is read-only';
+                messageInput.dataset.placeholder = disabledPlaceholder;
                 messageInput.classList.add('cursor-not-allowed', 'opacity-50');
             }
             if (sendBtn) {
