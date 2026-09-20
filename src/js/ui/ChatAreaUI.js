@@ -323,16 +323,22 @@ class ChatAreaUI {
      * Empty-state copy for a history read the storage node refused.
      * @param {{status: number, signed: boolean}} error
      * @param {boolean} isPreview - browsing without having joined
+     * @param {boolean} hasAccess - the chain grants access right now
      * @returns {{title: string, detail: string}}
      */
-    _historyErrorText(error, isPreview) {
+    _historyErrorText(error, isPreview, hasAccess = false) {
         if (error?.reason === 'storedAt') {
             return { title: 'Channel history is temporarily unavailable', detail: 'The storage node did not say when these messages were stored. Reopen the channel to retry' };
         }
         switch (error?.status) {
             case 403:
-                return isPreview
-                    ? { title: 'History is available to members', detail: 'Join the channel to read past messages' }
+                if (isPreview) {
+                    return { title: 'History is available to members', detail: 'Join the channel to read past messages' };
+                }
+                // The chain says yes and this node says no: it is behind, and
+                // telling the reader their access ended would be a lie.
+                return hasAccess
+                    ? { title: 'Channel history is temporarily unavailable', detail: 'The storage node has not caught up with your access. Reopen the channel to retry' }
                     : { title: 'Your access to this channel has ended', detail: 'The storage node no longer serves its history to you' };
             case 401:
                 return error?.signed
@@ -640,7 +646,8 @@ class ChatAreaUI {
                 const banned = paidState === 'banned';
                 const historyError = effectiveChannel?.historyError;
                 if (historyError && !expired && !unsubscribed && !banned) {
-                    const { title, detail } = this._historyErrorText(historyError, !!previewChannel);
+                    const { title, detail } = this._historyErrorText(
+                        historyError, !!previewChannel, paidState === 'active');
                     this.messagesArea.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
                         <span class="text-sm">${title}</span>
@@ -712,10 +719,11 @@ class ChatAreaUI {
         // refused to serve more. The subscription strip already says why when
         // it is the reason.
         let historyErrorBanner = '';
-        const accessLost = ['expired', 'unsubscribed', 'banned']
-            .includes(subscriptionBannerUI.stateOf(effectiveChannel?.streamId));
+        const subscription = subscriptionBannerUI.stateOf(effectiveChannel?.streamId);
+        const accessLost = ['expired', 'unsubscribed', 'banned'].includes(subscription);
         if (effectiveChannel?.historyError && !accessLost) {
-            const { title } = this._historyErrorText(effectiveChannel.historyError, !!previewChannel);
+            const { title } = this._historyErrorText(
+                effectiveChannel.historyError, !!previewChannel, subscription === 'active');
             historyErrorBanner = `
                 <div id="history-error-banner" class="flex flex-col items-center gap-1 py-3 px-4 text-center">
                     <span class="text-sm text-white/40">${escapeHtml(title)}</span>
