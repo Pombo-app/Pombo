@@ -287,7 +287,7 @@ class GateManager {
     async checkAccessOrNull(gateAddress, userAddress) {
         const key = `${gateAddress.toLowerCase()}|${userAddress.toLowerCase()}`;
         const cached = this._accessCache.get(key);
-        if (cached && Date.now() - cached.at < CONFIG.gate.checkAccessCacheMs) {
+        if (cached && Date.now() - cached.at < this._accessTtl(cached.value)) {
             return cached.value;
         }
         let value;
@@ -300,6 +300,16 @@ class GateManager {
         }
         this._cacheAccess(key, value);
         return value;
+    }
+
+    /**
+     * A refusal is worth seconds, a grant the full TTL. The member who just
+     * paid, was unbanned or was made a moderator is exactly the one holding a
+     * cached "no", and nobody can invalidate it from the outside: without
+     * this they wait out the window before anything they bought works.
+     */
+    _accessTtl(value) {
+        return value ? CONFIG.gate.checkAccessCacheMs : CONFIG.gate.accessDenialCacheMs;
     }
 
     _cacheAccess(key, value) {
@@ -333,7 +343,7 @@ class GateManager {
     async checkAccessQuorum(gateAddress, userAddress) {
         const key = `${gateAddress.toLowerCase()}|${userAddress.toLowerCase()}`;
         const cached = this._accessCache.get(key);
-        if (cached && Date.now() - cached.at < CONFIG.gate.checkAccessCacheMs) {
+        if (cached && Date.now() - cached.at < this._accessTtl(cached.value)) {
             return { access: cached.value };
         }
 
@@ -827,7 +837,7 @@ class GateManager {
         const key = `${gateAddress.toLowerCase()}|${userAddress.toLowerCase()}`;
         this._modCache ??= new Map();
         const cached = this._modCache.get(key);
-        if (cached && Date.now() - cached.at < CONFIG.gate.checkAccessCacheMs) {
+        if (cached && Date.now() - cached.at < this._accessTtl(cached.value)) {
             return cached.value;
         }
         try {
