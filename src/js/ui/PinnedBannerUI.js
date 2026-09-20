@@ -121,11 +121,12 @@ class PinnedBannerUI {
             return;
         }
 
-        // Pins ride the open admin stream, so they keep arriving after the
-        // gate stops granting access — the channel's content must not.
-        const pins = this._accessLost(channel.streamId)
-            ? []
-            : (Array.isArray(channel.adminState?.pins) ? channel.adminState.pins : []);
+        // Pins ride the open admin stream: they resolve long before the
+        // messages they float over, and after the gate has stopped granting
+        // access. Neither is a moment to draw them in.
+        const settled = !channel.initialLoadInProgress && !this._accessLost(channel.streamId);
+        const pins = settled && Array.isArray(channel.adminState?.pins)
+            ? channel.adminState.pins : [];
         if (pins.length === 0) {
             banner.classList.add('hidden');
             this._renderCount(0);
