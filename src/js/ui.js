@@ -246,7 +246,6 @@ class UIController {
             getActiveChannel: () => this.getActiveChannel()
         });
 
-        // SubscriptionBannerUI — paid-gate expiry warning + renew flow (N-F)
         subscriptionBannerUI.setDependencies({
             Logger,
             channelManager,
@@ -259,6 +258,8 @@ class UIController {
                     renewal: true,
                     retry: async () => {
                         subscriptionBannerUI.noteRenewed(channel.streamId);
+                        // Cached while the gate was still refusing
+                        delete channel._publishPermCache;
                         // Key requests sent while expired were refused
                         // silently — ask again now that the chain grants us
                         try { await epochKeyManager.retryRequestIfWaiting(channel); }
@@ -269,10 +270,10 @@ class UIController {
                 });
             },
             onStatusResolved: (streamId) => {
-                // Swap the empty-state ("waiting for keys" ↔ "expired") once
-                // the chain read lands; cheap, only fires on an empty timeline
                 const ch = channelManager.getCurrentChannel?.();
-                if (ch?.streamId === streamId && !(ch.messages?.length > 0)) {
+                if (ch?.streamId !== streamId) return;
+                this.updateReadOnlyUI(ch);
+                if (!(ch.messages?.length > 0)) {
                     chatAreaUI.renderMessages(ch.messages || []);
                 }
             }
@@ -768,7 +769,9 @@ class UIController {
             banner: this.elements.subscriptionBanner,
             text: this.elements.subscriptionBannerText,
             renewBtn: this.elements.subscriptionBannerRenew,
-            dismissBtn: this.elements.subscriptionBannerDismiss
+            dismissBtn: this.elements.subscriptionBannerDismiss,
+            alertIcon: document.getElementById('subscription-banner-icon-alert'),
+            gavelIcon: document.getElementById('subscription-banner-icon-gavel')
         });
 
         // Initialize DM modals UI
@@ -1030,7 +1033,12 @@ class UIController {
 
             case 'preview':
                 if (state.streamId) {
-                    await previewModeUI.enterPreviewWithoutHistory(state.streamId, state.channelInfo);
+                    if (channelManager.getChannel(state.streamId)) {
+                        await this._selectChannelWithoutHistory(state.streamId);
+                        historyManager.replaceState({ view: 'channel', streamId: state.streamId });
+                    } else {
+                        await this._openDeepLinkedChannel(state.streamId);
+                    }
                 }
                 break;
 
@@ -1078,8 +1086,12 @@ class UIController {
 
             case 'preview':
                 if (state.streamId) {
-                    await previewModeUI.enterPreviewWithoutHistory(state.streamId, state.channelInfo);
-                    historyManager.replaceState(state);
+                    if (channelManager.getChannel(state.streamId)) {
+                        await this._selectChannelWithoutHistory(state.streamId);
+                        historyManager.replaceState({ view: 'channel', streamId: state.streamId });
+                    } else {
+                        await this._openDeepLinkedChannel(state.streamId);
+                    }
                 }
                 break;
 
@@ -1581,14 +1593,7 @@ class UIController {
                           (Date.now() - channel._publishPermCache.timestamp) < 60000;
         
         if (cacheValid) {
-            const canPublish = channel._publishPermCache.canPublish;
-            this.setReadOnlyInputState(!canPublish, canPublish && channel.readOnly, !canPublish);
-            
-            // Update header label with cached permission result
-            const effectiveReadOnly = !canPublish || channel.readOnly;
-            if (this.elements.currentChannelInfo) {
-                this.elements.currentChannelInfo.innerHTML = headerUI.getChannelTypeLabel(channel.type, effectiveReadOnly);
-            }
+            this._applyPublishVerdict(channel, channel._publishPermCache.canPublish);
             return;
         }
 
@@ -1617,8 +1622,7 @@ class UIController {
                 
                 // For gated/private channels, use cache or stay disabled for safety
                 if (cacheValid) {
-                    const cachedCanPublish = channel._publishPermCache.canPublish;
-                    this.setReadOnlyInputState(!cachedCanPublish, cachedCanPublish && channel.readOnly, !cachedCanPublish);
+                    this._applyPublishVerdict(channel, channel._publishPermCache.canPublish);
                 }
                 return;
             }
@@ -1632,21 +1636,12 @@ class UIController {
                 timestamp: Date.now()
             };
 
-            // Update UI based on actual permission
-            // If channel is read-only and user can publish, show "broadcast" placeholder
-            this.setReadOnlyInputState(!canPublish, canPublish && channel.readOnly, !canPublish);
-            
-            // Update header label to reflect actual read-only state (user cannot publish)
-            const effectiveReadOnly = !canPublish || channel.readOnly;
-            if (this.elements.currentChannelInfo) {
-                this.elements.currentChannelInfo.innerHTML = headerUI.getChannelTypeLabel(channel.type, effectiveReadOnly);
-            }
-            
+            this._applyPublishVerdict(channel, canPublish);
+
             Logger.debug('Permission check via SDK:', {
                 channel: channel.name,
                 canPublish: canPublish,
-                readOnly: channel.readOnly,
-                effectiveReadOnly: effectiveReadOnly
+                readOnly: channel.readOnly
             });
         } catch (error) {
             Logger.warn('Failed to check publish permission:', error);
@@ -1658,11 +1653,40 @@ class UIController {
     }
 
     /**
+     * Apply a publish verdict to the composer and the header label. Lost
+     * access keeps its field, where the placeholder is the way back in, and
+     * never marks the channel read-only: the gate refuses the writer.
+     * @param {Object} channel
+     * @param {boolean} canPublish
+     */
+    _applyPublishVerdict(channel, canPublish) {
+        const subscription = subscriptionBannerUI.stateOf(channel.streamId);
+        const placeholders = {
+            expired: 'Renew to write',
+            unsubscribed: 'Subscribe to write',
+            banned: 'You can no longer write here'
+        };
+        const lapsed = !!placeholders[subscription];
+        if (lapsed) {
+            this.setReadOnlyInputState(true, false, false, placeholders[subscription]);
+        } else {
+            this.setReadOnlyInputState(!canPublish, canPublish && channel.readOnly, !canPublish);
+        }
+        if (this.elements.currentChannelInfo) {
+            this.elements.currentChannelInfo.innerHTML = headerUI.getChannelTypeLabel(
+                channel.type, channel.readOnly || (!canPublish && !lapsed));
+        }
+    }
+
+    /**
      * Helper to set input state for read-only channels
      * @param {boolean} disabled - Whether input should be disabled
      * @param {boolean} canBroadcast - Whether user can broadcast (has publish permission)
+     * @param {boolean} hide - Whether to remove the composer entirely
+     * @param {string} [disabledPlaceholder] - What the disabled field should say
      */
-    setReadOnlyInputState(disabled, canBroadcast = false, hide = false) {
+    setReadOnlyInputState(disabled, canBroadcast = false, hide = false,
+        disabledPlaceholder = 'This channel is read-only') {
         const messageInput = this.elements.messageInput;
         const sendBtn = document.querySelector('#send-btn');
 
@@ -1676,7 +1700,7 @@ class UIController {
         if (disabled) {
             if (messageInput) {
                 messageInput.contentEditable = 'false';
-                messageInput.dataset.placeholder = 'This channel is read-only';
+                messageInput.dataset.placeholder = disabledPlaceholder;
                 messageInput.classList.add('cursor-not-allowed', 'opacity-50');
             }
             if (sendBtn) {

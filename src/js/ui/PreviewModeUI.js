@@ -507,6 +507,19 @@ class PreviewModeUI {
 
         const { channelManager, subscriptionManager, reactionManager, notificationUI } = this.deps;
 
+        // Access can lapse between browsing and joining
+        const gateAddress = this.previewChannel.gate?.address;
+        if (gateAddress) {
+            const { gateManager } = await import('../gate.js');
+            const { authManager } = await import('../auth.js');
+            const me = authManager.getAddress();
+            gateManager.invalidateAccess(gateAddress, me);
+            if (!me || !await gateManager.checkAccess(gateAddress, me)) {
+                this.ui.showNotification('You do not have access to this gated channel.', 'error');
+                return;
+            }
+        }
+
         try {
             const { streamId, channelInfo, name, type, readOnly, messages, adminState, adminRev, adminTs, adminLoaded } = this.previewChannel;
             // Capture pending overrides so any P1 edit/delete that arrived

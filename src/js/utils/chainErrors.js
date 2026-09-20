@@ -19,7 +19,7 @@ const ERROR_PATTERNS = [
             /sender\s*doesn.*have\s*enough\s*funds/i
         ],
         isGasError: true,
-        message: 'Insufficient POL for gas fees. Please add POL to your wallet on Polygon network.'
+        message: 'Not enough POL for the network fee'
     },
     {
         type: 'CALL_EXCEPTION',
@@ -30,7 +30,7 @@ const ERROR_PATTERNS = [
             /revert/i
         ],
         isGasError: true,
-        message: 'Transaction failed. This usually means insufficient POL for gas fees or the transaction was rejected.'
+        message: 'The transaction was rejected on chain'
     },
     {
         type: 'NETWORK_ERROR',
@@ -42,10 +42,13 @@ const ERROR_PATTERNS = [
             /ECONNREFUSED/i,
             /ETIMEDOUT/i,
             /fetch\s*failed/i,
+            // What the browser itself says when a request cannot leave
+            /failed\s*to\s*fetch/i,
+            /load\s*failed/i,
             /connection\s*refused/i
         ],
         isGasError: false,
-        message: 'Network error. Please check your connection and try again.'
+        message: 'Network error, try again'
     },
     {
         type: 'USER_REJECTED',
@@ -57,7 +60,7 @@ const ERROR_PATTERNS = [
             /code[:\s]*4001/i
         ],
         isGasError: false,
-        message: 'Transaction was cancelled.'
+        message: 'Transaction cancelled'
     },
     {
         type: 'NONCE_ERROR',
@@ -68,7 +71,7 @@ const ERROR_PATTERNS = [
             /already\s*known/i
         ],
         isGasError: false,
-        message: 'Transaction nonce conflict. Please wait and try again.'
+        message: 'Transaction conflict, try again'
     },
     {
         type: 'GAS_LIMIT',
@@ -78,7 +81,7 @@ const ERROR_PATTERNS = [
             /intrinsic\s*gas\s*too\s*low/i
         ],
         isGasError: true,
-        message: 'Transaction ran out of gas. Please try again with higher gas limit.'
+        message: 'The transaction ran out of gas'
     }
 ];
 
@@ -113,7 +116,7 @@ export function parseChainError(error) {
         return {
             type: 'USER_REJECTED',
             isGasError: false,
-            message: 'Transaction was cancelled.'
+            message: 'Transaction cancelled'
         };
     }
 

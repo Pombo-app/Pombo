@@ -101,6 +101,8 @@ export const CONFIG = {
         factoryAddress: '0x38A42115B96A16079F2b0b31bba2Fa183E3f448F',
         // checkAccess eth_call cache — mirrors the SDK's own ERC-1271 TTL
         checkAccessCacheMs: 10 * 60 * 1000,
+        // Refusals expire far sooner: nothing outside this client can drop one
+        accessDenialCacheMs: 30 * 1000,
         // Live messages may use the previous epoch's kid for this long after
         // a rotation (the "short tolerance" of the kid freshness rule)
         kidFreshnessToleranceMs: 10 * 60 * 1000,

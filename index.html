@@ -505,8 +505,11 @@
             <!-- Messages Area (with overlay pinned banner) -->
             <div class="messages-wrapper">
                 <div id="subscription-banner" class="subscription-banner hidden">
-                    <svg class="subscription-banner-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <svg id="subscription-banner-icon-alert" class="subscription-banner-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <svg id="subscription-banner-icon-gavel" class="subscription-banner-icon hidden" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M1 21h12v2H1zM5.245 8.07l2.83-2.827 14.14 14.142-2.828 2.828zM12.317 1l5.657 5.656-2.83 2.83-5.654-5.66zM3.825 9.485l5.657 5.657-2.828 2.828-5.657-5.657z"/>
                     </svg>
                     <span id="subscription-banner-text" class="subscription-banner-text"></span>
                     <button id="subscription-banner-renew" class="subscription-banner-renew">Renew</button>
@@ -1605,7 +1608,6 @@
             </div>
             <p id="gate-entry-condition" class="mt-5 text-sm text-white/70 text-center leading-relaxed">Loading…</p>
 
-            <p id="gate-entry-authors" class="hidden mt-2 text-xs text-center"></p>
             <p id="gate-entry-status" class="hidden mt-4 text-sm text-center"></p>
             <p id="gate-entry-note" class="hidden mt-3 text-xs text-white/30 text-center"></p>
 

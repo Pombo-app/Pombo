@@ -101,6 +101,22 @@ export const WIRE_IDENTITY = Object.freeze({
 
 const WIRE_IDENTITY_NAMES = ['visible', 'sealed'];
 
+/** A read that outlives this is a stalled endpoint, not a slow one. */
+const READ_TIMEOUT_MS = 20_000;
+/** How long a sent transaction is waited on before the user is told. */
+const CONFIRM_TIMEOUT_MS = 120_000;
+
+const withTimeout = (promise, what, ms = READ_TIMEOUT_MS) => {
+    let timer;
+    return Promise.race([
+        promise.finally(() => clearTimeout(timer)),
+        new Promise((_, reject) => {
+            timer = setTimeout(() => reject(Object.assign(
+                new Error(`${what} timed out`), { code: 'RPC_TIMEOUT' })), ms);
+        })
+    ]);
+};
+
 class GateManager {
     constructor() {
         this._provider = null;
@@ -158,12 +174,12 @@ class GateManager {
      */
     async _withProvider(op) {
         try {
-            return await op(this._getProvider());
+            return await withTimeout(op(this._getProvider()), 'The network');
         } catch (firstError) {
             if (firstError?.code === 'CALL_EXCEPTION') throw firstError;
             this._rpcIndex++;
             Logger.debug('gate: RPC failed, rotating endpoint:', firstError.message);
-            return op(this._getProvider());
+            return withTimeout(op(this._getProvider()), 'The network');
         }
     }
 
@@ -271,7 +287,7 @@ class GateManager {
     async checkAccessOrNull(gateAddress, userAddress) {
         const key = `${gateAddress.toLowerCase()}|${userAddress.toLowerCase()}`;
         const cached = this._accessCache.get(key);
-        if (cached && Date.now() - cached.at < CONFIG.gate.checkAccessCacheMs) {
+        if (cached && Date.now() - cached.at < this._accessTtl(cached.value)) {
             return cached.value;
         }
         let value;
@@ -284,6 +300,10 @@ class GateManager {
         }
         this._cacheAccess(key, value);
         return value;
+    }
+
+    _accessTtl(value) {
+        return value ? CONFIG.gate.checkAccessCacheMs : CONFIG.gate.accessDenialCacheMs;
     }
 
     _cacheAccess(key, value) {
@@ -317,7 +337,7 @@ class GateManager {
     async checkAccessQuorum(gateAddress, userAddress) {
         const key = `${gateAddress.toLowerCase()}|${userAddress.toLowerCase()}`;
         const cached = this._accessCache.get(key);
-        if (cached && Date.now() - cached.at < CONFIG.gate.checkAccessCacheMs) {
+        if (cached && Date.now() - cached.at < this._accessTtl(cached.value)) {
             return { access: cached.value };
         }
 
@@ -533,16 +553,17 @@ class GateManager {
      * @returns {Promise<string[]>} lowercase addresses
      */
     async listMembers(gateAddress, pageSize = 500) {
-        return this._withProvider(async () => {
-            const gate = this._readContract(gateAddress);
-            const total = Number(await gate.membersCount());
-            const members = [];
-            for (let offset = 0; offset < total; offset += pageSize) {
-                const page = await gate.membersAt(offset, pageSize);
-                for (const address of page) members.push(address.toLowerCase());
-            }
-            return members;
-        });
+        // A page at a time: the read deadline is per call, so a long allowlist
+        // is not mistaken for a stalled endpoint.
+        const total = Number(await this._withProvider(() =>
+            this._readContract(gateAddress).membersCount()));
+        const members = [];
+        for (let offset = 0; offset < total; offset += pageSize) {
+            const page = await this._withProvider(() =>
+                this._readContract(gateAddress).membersAt(offset, pageSize));
+            for (const address of page) members.push(address.toLowerCase());
+        }
+        return members;
     }
 
     /** Drop cached access for one user (after allow/ban) or a whole gate. */
@@ -657,9 +678,21 @@ class GateManager {
         const gate = new ethers.Contract(gateAddress, GATE_ABI, signer);
         const tx = await gate[method](...args);
         Logger.info(`gate: ${method} tx`, tx.hash);
-        await tx.wait();
+        await this._confirm(tx);
         this.invalidateAccess(gateAddress, signer.address);
         return signer.address.toLowerCase();
+    }
+
+    /** The transaction outlives the deadline, so a timeout is not a failure. */
+    async _confirm(tx) {
+        try {
+            return await tx.wait(1, CONFIRM_TIMEOUT_MS);
+        } catch (error) {
+            if (error?.code !== 'TIMEOUT') throw error;
+            throw Object.assign(
+                new Error('Transaction sent but still unconfirmed — check your wallet before trying again'),
+                { code: 'TX_UNCONFIRMED', hash: tx.hash });
+        }
     }
 
     /**
@@ -678,15 +711,16 @@ class GateManager {
         // to the TTL after a setPrice, and approving the old amount would
         // either revert the transfer or leave a dangling allowance.
         this.invalidateInfo(gateAddress);
-        const info = await this.getGateInfo(gateAddress);
+        const info = await withTimeout(this.getGateInfo(gateAddress), 'Reading the gate');
         const signer = await this._txSigner();
         const token = new ethers.Contract(info.token, TOKEN_ABI, signer);
 
         if (info.token === WRAPPED_NATIVE) {
-            const balance = await token.balanceOf(signer.address);
+            const balance = await withTimeout(token.balanceOf(signer.address), 'Reading the balance');
             if (balance < info.price) {
                 const shortfall = info.price - balance;
-                const native = await signer.provider.getBalance(signer.address);
+                const native = await withTimeout(
+                    signer.provider.getBalance(signer.address), 'Reading the balance');
                 if (native <= shortfall) {
                     throw new Error('Not enough POL to cover the subscription price');
                 }
@@ -694,21 +728,22 @@ class GateManager {
                 const wrapper = new ethers.Contract(info.token, WRAPPED_NATIVE_ABI, signer);
                 const wrapTx = await wrapper.deposit({ value: shortfall });
                 Logger.info('gate: wrap POL tx', wrapTx.hash);
-                await wrapTx.wait();
+                await this._confirm(wrapTx);
             }
         }
 
-        const allowance = await token.allowance(signer.address, gateAddress);
+        const allowance = await withTimeout(
+            token.allowance(signer.address, gateAddress), 'Reading the allowance');
         if (allowance < info.price) {
             onStep?.('approve');
             // USDT-style tokens revert on non-zero → non-zero approve
             if (allowance > 0n) {
                 const resetTx = await token.approve(gateAddress, 0n);
-                await resetTx.wait();
+                await this._confirm(resetTx);
             }
             const approveTx = await token.approve(gateAddress, info.price);
             Logger.info('gate: approve tx', approveTx.hash);
-            await approveTx.wait();
+            await this._confirm(approveTx);
         }
         onStep?.('pay');
         return this._memberCall(gateAddress, 'pay');
@@ -793,7 +828,7 @@ class GateManager {
         const key = `${gateAddress.toLowerCase()}|${userAddress.toLowerCase()}`;
         this._modCache ??= new Map();
         const cached = this._modCache.get(key);
-        if (cached && Date.now() - cached.at < CONFIG.gate.checkAccessCacheMs) {
+        if (cached && Date.now() - cached.at < this._accessTtl(cached.value)) {
             return cached.value;
         }
         try {

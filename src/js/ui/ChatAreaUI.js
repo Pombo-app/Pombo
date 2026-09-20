@@ -323,16 +323,21 @@ class ChatAreaUI {
      * Empty-state copy for a history read the storage node refused.
      * @param {{status: number, signed: boolean}} error
      * @param {boolean} isPreview - browsing without having joined
+     * @param {boolean} hasAccess - the chain grants access right now
      * @returns {{title: string, detail: string}}
      */
-    _historyErrorText(error, isPreview) {
+    _historyErrorText(error, isPreview, hasAccess = false) {
         if (error?.reason === 'storedAt') {
             return { title: 'Channel history is temporarily unavailable', detail: 'The storage node did not say when these messages were stored. Reopen the channel to retry' };
         }
         switch (error?.status) {
             case 403:
-                return isPreview
-                    ? { title: 'History is available to members', detail: 'Join the channel to read past messages' }
+                if (isPreview) {
+                    return { title: 'History is available to members', detail: 'Join the channel to read past messages' };
+                }
+                // The chain grants access and this node refuses: it is behind
+                return hasAccess
+                    ? { title: 'Channel history is temporarily unavailable', detail: 'The storage node has not caught up with your access. Reopen the channel to retry' }
                     : { title: 'Your access to this channel has ended', detail: 'The storage node no longer serves its history to you' };
             case 401:
                 return error?.signed
@@ -628,29 +633,41 @@ class ChatAreaUI {
                 const waitingForKeys =
                     effectiveChannel?.type === 'gated' &&
                     this.deps.epochKeyManager?.getWaitingInfo?.(effectiveChannel.messageStreamId)?.waiting;
-                // On a paid gate an expired subscription is indistinguishable
+                // On a paid gate a lapsed subscription is indistinguishable
                 // from "admin offline" at the key layer (refusals are silent),
-                // so the chain-read status decides which state to show.
-                const paidStatus = waitingForKeys && effectiveChannel?.gate?.address
-                    ? subscriptionBannerUI.getStatus(effectiveChannel.streamId)
+                // so the chain-read status decides. It outranks the node's
+                // refusal, which is the same lapse with no way out of it.
+                const paidState = effectiveChannel?.gate?.address
+                    ? subscriptionBannerUI.stateOf(effectiveChannel.streamId)
                     : null;
-                const subscriptionExpired = paidStatus?.paid
-                    && paidStatus.until * 1000 <= Date.now() && !paidStatus.accessNow;
+                const expired = paidState === 'expired';
+                const unsubscribed = paidState === 'unsubscribed';
+                const banned = paidState === 'banned';
                 const historyError = effectiveChannel?.historyError;
-                if (historyError) {
-                    const { title, detail } = this._historyErrorText(historyError, !!previewChannel);
+                if (historyError && !expired && !unsubscribed && !banned) {
+                    const { title, detail } = this._historyErrorText(
+                        historyError, !!previewChannel, paidState === 'active');
                     this.messagesArea.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
                         <span class="text-sm">${title}</span>
                         <span class="text-xs text-white/25">${detail}</span>
                     </div>
                 `;
-                } else if (subscriptionExpired) {
+                } else if (banned) {
                     this.messagesArea.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
-                        <span class="text-sm">Your subscription has expired</span>
-                        <span class="text-xs text-white/25">Messages stay locked until you renew — renewing extends from the current end</span>
-                        <button id="empty-state-renew-btn" class="subscription-banner-renew">Renew subscription</button>
+                        <span class="text-sm">You no longer have access to this channel</span>
+                        <span class="text-xs text-white/25">A moderator removed you</span>
+                    </div>
+                `;
+                } else if (expired || unsubscribed) {
+                    this.messagesArea.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                        <span class="text-sm">${expired ? 'Your subscription has expired' : 'No active subscription'}</span>
+                        <span class="text-xs text-white/25">${expired
+        ? 'Messages stay locked until you renew'
+        : 'Messages stay locked until you subscribe'}</span>
+                        <button id="empty-state-renew-btn" class="subscription-banner-renew">${expired ? 'Renew subscription' : 'Subscribe'}</button>
                     </div>
                 `;
                     this.messagesArea.querySelector('#empty-state-renew-btn')
@@ -698,14 +715,17 @@ class ChatAreaUI {
             `;
         }
         // What is on screen came from the local cache; the storage node
-        // refused to serve more, and the reader should know why.
+        // refused to serve more. The subscription strip already says why when
+        // it is the reason.
         let historyErrorBanner = '';
-        if (effectiveChannel?.historyError) {
-            const { title, detail } = this._historyErrorText(effectiveChannel.historyError, !!previewChannel);
+        const subscription = subscriptionBannerUI.stateOf(effectiveChannel?.streamId);
+        const accessLost = ['expired', 'unsubscribed', 'banned'].includes(subscription);
+        if (effectiveChannel?.historyError && !accessLost) {
+            const { title } = this._historyErrorText(
+                effectiveChannel.historyError, !!previewChannel, subscription === 'active');
             historyErrorBanner = `
                 <div id="history-error-banner" class="flex flex-col items-center gap-1 py-3 px-4 text-center">
                     <span class="text-sm text-white/40">${escapeHtml(title)}</span>
-                    <span class="text-xs text-white/25">${escapeHtml(detail)}</span>
                 </div>
             `;
         }

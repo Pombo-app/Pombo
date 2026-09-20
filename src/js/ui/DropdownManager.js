@@ -3,6 +3,8 @@
  * Handles channel dropdown menu and positioning logic
  */
 
+import { subscriptionBannerUI } from './SubscriptionBannerUI.js';
+
 class DropdownManager {
     constructor() {
         this.deps = {};
@@ -41,7 +43,10 @@ class DropdownManager {
         ];
 
         // "Pinned" only when channel has at least one pinned message
-        const hasPins = Array.isArray(channel?.adminState?.pins) && channel.adminState.pins.length > 0;
+        const accessLost = ['expired', 'unsubscribed', 'banned']
+            .includes(subscriptionBannerUI.stateOf(channel?.streamId));
+        const hasPins = !accessLost
+            && Array.isArray(channel?.adminState?.pins) && channel.adminState.pins.length > 0;
         if (hasPins) {
             items.push({
                 action: 'show-pinned',

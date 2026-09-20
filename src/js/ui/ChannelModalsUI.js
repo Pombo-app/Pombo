@@ -4,11 +4,14 @@
  */
 
 import { GasEstimator } from './GasEstimator.js';
-import { formatRemaining } from './SubscriptionBannerUI.js';
 import { authManager } from '../auth.js';
 import { streamrController } from '../streamr.js';
 import { CONFIG } from '../config.js';
 import { snapRetentionDays, retentionLabel } from '../utils/retention.js';
+import { getErrorMessage } from '../utils/chainErrors.js';
+
+/** Floor for the re-check spinner, so a fast answer still reads as an answer. */
+const CHECK_FEEDBACK_MS = 450;
 
 class ChannelModalsUI {
     constructor() {
@@ -874,12 +877,17 @@ class ChannelModalsUI {
 
     hideGateEntryModal() {
         this._gateEntry = null;
+        this._gateEntrySeq = (this._gateEntrySeq || 0) + 1;
         this.deps.modalManager?.hide('gate-entry-modal');
     }
 
-    async _renderGateEntry() {
+    async _renderGateEntry({ checking = false } = {}) {
         const entry = this._gateEntry;
         if (!entry) return;
+        // A slow chain read outlives the modal it was started for: everything
+        // it would paint belongs to a screen the user has already left.
+        const seq = (this._gateEntrySeq = (this._gateEntrySeq || 0) + 1);
+        const stale = () => seq !== this._gateEntrySeq;
         const conditionEl = document.getElementById('gate-entry-condition');
         const stackEl = document.getElementById('gate-entry-stack');
         const verbEl = document.getElementById('gate-entry-verb');
@@ -923,7 +931,14 @@ class ChannelModalsUI {
         statusEl?.classList.add('hidden');
         noteEl?.classList.add('hidden');
         actionBtn?.classList.add('hidden');
-        recheckBtn?.classList.add('hidden');
+        // A re-check runs through this render, so the button carries the wait
+        if (recheckBtn && checking) {
+            recheckBtn.disabled = true;
+            recheckBtn.innerHTML = '<span class="spinner spinner-inline"></span>Checking…';
+        } else {
+            recheckBtn?.classList.add('hidden');
+        }
+        if (actionBtn) actionBtn.disabled = false;
 
         const fmt = (value, decimals) => {
             const s = ethers.formatUnits(value, decimals ?? 0);
@@ -940,36 +955,27 @@ class ChannelModalsUI {
             }
         };
 
-        // Author visibility — a privacy promise the user must see BEFORE
-        // paying or entering. Fire-and-forget: the metadata read is cached.
-        const authorsEl = document.getElementById('gate-entry-authors');
-        authorsEl?.classList.add('hidden');
-        if (entry.streamId && authorsEl) {
-            import('../channels.js')
-                .then(({ channelManager }) =>
-                    channelManager.readGateFromMetadata(entry.streamId, { withMode: true }))
-                .then((flags) => {
-                    if (!flags) return;
-                    const members = flags.wireIdentity === 'sealed';
-                    authorsEl.textContent = members
-                        ? 'Sealed identity — authors readable by members only'
-                        : 'Every message is signed by its author on the wire';
-                    authorsEl.className = 'mt-2 text-xs text-center '
-                        + (members ? 'text-white/40' : 'text-amber-400/70');
-                })
-                .catch(() => { /* stays hidden */ });
-        }
-
         try {
             const { gateManager, GATE_MODE } = await import('../gate.js');
             const me = authManager.getAddress();
             const info = await gateManager.getGateInfo(entry.gateAddress);
+            if (stale()) return;
 
             if (recheckBtn) {
                 recheckBtn.classList.remove('hidden');
-                recheckBtn.onclick = () => {
+                if (!checking) {
+                    recheckBtn.disabled = false;
+                    recheckBtn.textContent = 'Check Again';
+                }
+                recheckBtn.onclick = async () => {
                     gateManager.invalidateAccess(entry.gateAddress, me);
-                    this._renderGateEntry();
+                    // A chain read can answer in tens of ms, and a spinner that
+                    // brief reads as a dead button
+                    await Promise.all([
+                        this._renderGateEntry({ checking: true }),
+                        new Promise((r) => setTimeout(r, CHECK_FEEDBACK_MS))
+                    ]);
+                    await this._renderGateEntry();
                 };
             }
 
@@ -980,6 +986,7 @@ class ChannelModalsUI {
             }
 
             const meta = await gateManager.getTokenMeta(info.token);
+            if (stale()) return;
 
             if (info.mode === GATE_MODE.PAID) {
                 const days = Number(info.duration) / 86400;
@@ -990,12 +997,18 @@ class ChannelModalsUI {
                 showStack('Subscribe', `${fmt(info.price, meta.decimals)} ${paySymbol}`,
                     `per ${daysLabel} ${days === 1 ? 'day' : 'days'}`, true);
                 const until = me ? await gateManager.paidUntil(entry.gateAddress, me) : 0n;
+                if (stale()) return;
                 const msLeft = Number(until) * 1000 - Date.now();
                 const active = msLeft > 0;
+                // Only the chain knows whether there is anything to renew
+                if (entry.renewal && until === 0n) {
+                    const titleEl = document.getElementById('gate-entry-title');
+                    if (titleEl) titleEl.textContent = entry.name ? `Subscribe to ${entry.name}` : 'Subscribe';
+                }
                 if (active) {
                     const when = new Date(Number(until) * 1000)
                         .toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
-                    showStatus(`Active until ${when} · ${formatRemaining(msLeft)} left`, 'ok');
+                    showStatus(`Active until ${when}`, 'ok');
                 } else if (until > 0n) {
                     showStatus('Subscription expired', 'bad');
                 } else {
@@ -1025,7 +1038,11 @@ class ChannelModalsUI {
                         await finishJoin(gateManager);
                     } catch (error) {
                         this.notificationUI?.hideLoadingToast();
-                        this.showNotification('Payment failed: ' + error.message, 'error');
+                        // Calling a transaction in flight failed invites a second one
+                        const unconfirmed = error.code === 'TX_UNCONFIRMED';
+                        this.showNotification(
+                            unconfirmed ? error.message : getErrorMessage(error),
+                            unconfirmed ? 'warning' : 'error');
                         actionBtn.disabled = false;
                     }
                 };
@@ -1053,6 +1070,7 @@ class ChannelModalsUI {
                 isNft ? `${meta.symbol} NFT` : `${fmt(info.minBalance, meta.decimals)} ${meta.symbol}`,
                 'in your wallet', false);
             const balance = me ? await gateManager.getTokenBalance(info.token, me) : 0n;
+            if (stale()) return;
             const holds = isNft ? balance > 0n : balance >= info.minBalance;
             if (isNft) {
                 if (holds) showStatus(`You hold ${balance} · access granted`, 'ok');
@@ -1067,7 +1085,14 @@ class ChannelModalsUI {
                 actionBtn.onclick = () => finishJoin(gateManager);
             }
         } catch (error) {
-            if (conditionEl) conditionEl.textContent = 'Could not read the gate contract: ' + error.message;
+            if (stale()) return;
+            if (conditionEl) conditionEl.textContent = getErrorMessage(error);
+            if (recheckBtn) {
+                recheckBtn.classList.remove('hidden');
+                recheckBtn.disabled = false;
+                recheckBtn.textContent = 'Check Again';
+                recheckBtn.onclick = () => this._renderGateEntry();
+            }
         }
     }
 
