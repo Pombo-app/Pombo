@@ -1086,7 +1086,6 @@ class UIController {
 
             case 'preview':
                 if (state.streamId) {
-                    // A preview link is routed by mode, like an Explore tap
                     if (channelManager.getChannel(state.streamId)) {
                         await this._selectChannelWithoutHistory(state.streamId);
                         historyManager.replaceState({ view: 'channel', streamId: state.streamId });

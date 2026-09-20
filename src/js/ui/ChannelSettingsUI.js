@@ -2237,16 +2237,17 @@ class ChannelSettingsUI {
         if (until === null || until === 0) return; // unreadable, or never paid (moderator)
         const current = this.deps.channelManager?.getCurrentChannel?.();
         if (current?.messageStreamId !== channel.messageStreamId) return;
-        const { formatRemaining, WARNING_MS } = await import('./SubscriptionBannerUI.js');
+        const { WARNING_MS } = await import('./SubscriptionBannerUI.js');
         const msLeft = until * 1000 - Date.now();
         const row = document.createElement('div');
         row.id = 'channel-settings-paid-left';
         row.className = 'flex items-center gap-3';
         const tone = msLeft <= 0 ? 'text-red-400/80' : (msLeft < WARNING_MS ? 'text-yellow-400/80' : 'text-white/70');
+        const when = new Date(until * 1000)
+            .toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
         row.innerHTML = `<span class="text-xs text-white/35 flex-shrink-0">Subscription</span>`
-            + `<span class="flex-1 min-w-0 text-xs text-right ${tone}">`
-            + (msLeft > 0 ? `${formatRemaining(msLeft)} left` : 'Expired')
-            + `</span><span class="w-3.5 flex-shrink-0"></span>`;
+            + `<span class="flex-1 min-w-0 text-xs text-right ${tone}">${escapeHtml(when)}</span>`
+            + `<span class="w-3.5 flex-shrink-0"></span>`;
         container.appendChild(row);
     }
 

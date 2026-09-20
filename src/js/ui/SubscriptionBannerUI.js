@@ -157,13 +157,13 @@ class SubscriptionBannerUI {
         els.banner.classList.toggle('subscription-banner--expired', !active);
         if (els.text) {
             els.text.textContent = {
-                active: `Subscription ends in ${formatRemaining(msLeft)} — renewing extends from the current end`,
-                expired: 'Subscription expired — new messages stay locked until you renew',
-                unsubscribed: 'No active subscription. New messages stay locked until you subscribe.',
-                banned: 'A moderator removed your access to this channel.'
+                active: `Subscription ends in ${formatRemaining(msLeft)}`,
+                expired: 'Subscription expired',
+                unsubscribed: 'No active subscription',
+                banned: 'A moderator removed your access to this channel'
             }[state];
         }
-        // Paying again buys a banned account nothing, so it is not offered.
+        // Paying again buys a banned account nothing
         els.renewBtn?.classList.toggle('hidden', state === 'banned');
         if (els.renewBtn) els.renewBtn.textContent = state === 'unsubscribed' ? 'Subscribe' : 'Renew';
         // The expired strip is the access state, not a notice — no dismissing it

@@ -335,8 +335,7 @@ class ChatAreaUI {
                 if (isPreview) {
                     return { title: 'History is available to members', detail: 'Join the channel to read past messages' };
                 }
-                // The chain says yes and this node says no: it is behind, and
-                // telling the reader their access ended would be a lie.
+                // The chain grants access and this node refuses: it is behind
                 return hasAccess
                     ? { title: 'Channel history is temporarily unavailable', detail: 'The storage node has not caught up with your access. Reopen the channel to retry' }
                     : { title: 'Your access to this channel has ended', detail: 'The storage node no longer serves its history to you' };
@@ -666,7 +665,7 @@ class ChatAreaUI {
                     <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
                         <span class="text-sm">${expired ? 'Your subscription has expired' : 'No active subscription'}</span>
                         <span class="text-xs text-white/25">${expired
-        ? 'Messages stay locked until you renew — renewing extends from the current end'
+        ? 'Messages stay locked until you renew'
         : 'Messages stay locked until you subscribe'}</span>
                         <button id="empty-state-renew-btn" class="subscription-banner-renew">${expired ? 'Renew subscription' : 'Subscribe'}</button>
                     </div>

@@ -4,11 +4,11 @@
  */
 
 import { GasEstimator } from './GasEstimator.js';
-import { formatRemaining } from './SubscriptionBannerUI.js';
 import { authManager } from '../auth.js';
 import { streamrController } from '../streamr.js';
 import { CONFIG } from '../config.js';
 import { snapRetentionDays, retentionLabel } from '../utils/retention.js';
+import { getErrorMessage } from '../utils/chainErrors.js';
 
 class ChannelModalsUI {
     constructor() {
@@ -942,26 +942,6 @@ class ChannelModalsUI {
             }
         };
 
-        // Author visibility — a privacy promise the user must see BEFORE
-        // paying or entering. Fire-and-forget: the metadata read is cached.
-        const authorsEl = document.getElementById('gate-entry-authors');
-        authorsEl?.classList.add('hidden');
-        if (entry.streamId && authorsEl) {
-            import('../channels.js')
-                .then(({ channelManager }) =>
-                    channelManager.readGateFromMetadata(entry.streamId, { withMode: true }))
-                .then((flags) => {
-                    if (!flags) return;
-                    const members = flags.wireIdentity === 'sealed';
-                    authorsEl.textContent = members
-                        ? 'Sealed identity — authors readable by members only'
-                        : 'Every message is signed by its author on the wire';
-                    authorsEl.className = 'mt-2 text-xs text-center '
-                        + (members ? 'text-white/40' : 'text-amber-400/70');
-                })
-                .catch(() => { /* stays hidden */ });
-        }
-
         try {
             const { gateManager, GATE_MODE } = await import('../gate.js');
             const me = authManager.getAddress();
@@ -1002,7 +982,7 @@ class ChannelModalsUI {
                 if (active) {
                     const when = new Date(Number(until) * 1000)
                         .toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
-                    showStatus(`Active until ${when} · ${formatRemaining(msLeft)} left`, 'ok');
+                    showStatus(`Active until ${when}`, 'ok');
                 } else if (until > 0n) {
                     showStatus('Subscription expired', 'bad');
                 } else {
@@ -1033,10 +1013,10 @@ class ChannelModalsUI {
                     } catch (error) {
                         this.notificationUI?.hideLoadingToast();
                         // Calling a transaction in flight failed invites a second one
+                        const unconfirmed = error.code === 'TX_UNCONFIRMED';
                         this.showNotification(
-                            error.code === 'TX_UNCONFIRMED'
-                                ? error.message : 'Payment failed: ' + error.message,
-                            error.code === 'TX_UNCONFIRMED' ? 'warning' : 'error');
+                            unconfirmed ? error.message : getErrorMessage(error),
+                            unconfirmed ? 'warning' : 'error');
                         actionBtn.disabled = false;
                     }
                 };
