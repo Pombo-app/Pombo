@@ -19,6 +19,7 @@
 import { previewModeUI } from './PreviewModeUI.js';
 import { formatAddress } from './utils.js';
 import { identityManager } from '../identity.js';
+import { subscriptionBannerUI } from './SubscriptionBannerUI.js';
 
 class PinnedBannerUI {
     constructor() {
@@ -102,6 +103,11 @@ class PinnedBannerUI {
         );
     }
 
+    _accessLost(streamId) {
+        return ['expired', 'unsubscribed', 'banned']
+            .includes(subscriptionBannerUI.stateOf(streamId));
+    }
+
     /** Re-render banner from current channel state. Safe to call repeatedly. */
     update() {
         if (!this.elements?.banner) return;
@@ -115,7 +121,11 @@ class PinnedBannerUI {
             return;
         }
 
-        const pins = Array.isArray(channel.adminState?.pins) ? channel.adminState.pins : [];
+        // Pins ride the open admin stream, so they keep arriving after the
+        // gate stops granting access — the channel's content must not.
+        const pins = this._accessLost(channel.streamId)
+            ? []
+            : (Array.isArray(channel.adminState?.pins) ? channel.adminState.pins : []);
         if (pins.length === 0) {
             banner.classList.add('hidden');
             this._renderCount(0);
