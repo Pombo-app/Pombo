@@ -924,8 +924,7 @@ class ChannelModalsUI {
         noteEl?.classList.add('hidden');
         actionBtn?.classList.add('hidden');
         recheckBtn?.classList.add('hidden');
-        // The modal is reopened on the same element it was left on, so a
-        // payment that disabled the button owns it until this line runs.
+        // Reopened on the element a previous payment left disabled
         if (actionBtn) actionBtn.disabled = false;
 
         const fmt = (value, decimals) => {
@@ -995,8 +994,7 @@ class ChannelModalsUI {
                 const until = me ? await gateManager.paidUntil(entry.gateAddress, me) : 0n;
                 const msLeft = Number(until) * 1000 - Date.now();
                 const active = msLeft > 0;
-                // "Renew" is the caller's guess; only the chain knows whether
-                // there was ever a subscription to renew.
+                // Only the chain knows whether there is anything to renew
                 if (entry.renewal && until === 0n) {
                     const titleEl = document.getElementById('gate-entry-title');
                     if (titleEl) titleEl.textContent = entry.name ? `Subscribe to ${entry.name}` : 'Subscribe';
@@ -1034,8 +1032,7 @@ class ChannelModalsUI {
                         await finishJoin(gateManager);
                     } catch (error) {
                         this.notificationUI?.hideLoadingToast();
-                        // A transaction still in flight is not a failed one:
-                        // saying "failed" invites a second payment.
+                        // Calling a transaction in flight failed invites a second one
                         this.showNotification(
                             error.code === 'TX_UNCONFIRMED'
                                 ? error.message : 'Payment failed: ' + error.message,

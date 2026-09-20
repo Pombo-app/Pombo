@@ -507,9 +507,8 @@ class PreviewModeUI {
 
         const { channelManager, subscriptionManager, reactionManager, notificationUI } = this.deps;
 
-        // The preview was opened against the gate, but access can lapse
-        // between browsing and joining, and this path saves the channel
-        // without asking the chain again.
+        // Access can lapse between browsing and joining, and this path saves
+        // the channel without asking the chain again.
         const gateAddress = this.previewChannel.gate?.address;
         if (gateAddress) {
             const { gateManager } = await import('../gate.js');

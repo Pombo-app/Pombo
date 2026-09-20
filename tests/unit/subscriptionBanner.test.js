@@ -88,6 +88,20 @@ describe('stateOf', () => {
         expect(subscriptionBannerUI.stateOf(STREAM)).toBe(null);
     });
 
+    it('calls a banned member banned, whatever they paid', async () => {
+        gateManager.getGateMembers.mockResolvedValue([member({
+            paidUntil: nowSec() + DAY, banned: true, access: false
+        })]);
+        await settle();
+        expect(subscriptionBannerUI.stateOf(STREAM)).toBe('banned');
+    });
+
+    it('bans a moderator too, because the contract does', async () => {
+        gateManager.getGateMembers.mockResolvedValue([member({ moderator: true, banned: true, access: false })]);
+        await settle();
+        expect(subscriptionBannerUI.stateOf(STREAM)).toBe('banned');
+    });
+
     it('says nothing about a gate that is not paid', async () => {
         gateManager.getGateInfo.mockResolvedValue({ mode: 1, owner: OWNER });
         await settle();

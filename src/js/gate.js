@@ -302,12 +302,6 @@ class GateManager {
         return value;
     }
 
-    /**
-     * A refusal is worth seconds, a grant the full TTL. The member who just
-     * paid, was unbanned or was made a moderator is exactly the one holding a
-     * cached "no", and nobody can invalidate it from the outside: without
-     * this they wait out the window before anything they bought works.
-     */
     _accessTtl(value) {
         return value ? CONFIG.gate.checkAccessCacheMs : CONFIG.gate.accessDenialCacheMs;
     }
@@ -688,11 +682,7 @@ class GateManager {
         return signer.address.toLowerCase();
     }
 
-    /**
-     * Wait for a sent transaction, but never forever: a hung wait leaves the
-     * caller's UI mid-action with nothing to say. The transaction is alive
-     * either way, so the timeout must not read as a failure.
-     */
+    /** The transaction outlives the deadline, so a timeout is not a failure. */
     async _confirm(tx) {
         try {
             return await tx.wait(1, CONFIRM_TIMEOUT_MS);

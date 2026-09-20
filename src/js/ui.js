@@ -259,9 +259,7 @@ class UIController {
                     renewal: true,
                     retry: async () => {
                         subscriptionBannerUI.noteRenewed(channel.streamId);
-                        // The composer verdict was cached while the gate was
-                        // still refusing; keeping it would leave the writer
-                        // locked out of what they just paid for.
+                        // Cached while the gate was still refusing
                         delete channel._publishPermCache;
                         // Key requests sent while expired were refused
                         // silently — ask again now that the chain grants us
@@ -273,8 +271,7 @@ class UIController {
                 });
             },
             onStatusResolved: (streamId) => {
-                // The composer and the empty state were drawn before the
-                // chain read landed, so both are decided again here.
+                // Both were drawn before the chain read landed
                 const ch = channelManager.getCurrentChannel?.();
                 if (ch?.streamId !== streamId) return;
                 this.updateReadOnlyUI(ch);
@@ -1089,9 +1086,7 @@ class UIController {
 
             case 'preview':
                 if (state.streamId) {
-                    // A preview link is still routed by mode: browsing before
-                    // committing is for gates you already satisfy, and a paid
-                    // one belongs on its entry screen.
+                    // A preview link is routed by mode, like an Explore tap
                     if (channelManager.getChannel(state.streamId)) {
                         await this._selectChannelWithoutHistory(state.streamId);
                         historyManager.replaceState({ view: 'channel', streamId: state.streamId });
@@ -1659,22 +1654,22 @@ class UIController {
     }
 
     /**
-     * Apply a publish verdict to the composer and the header label.
-     *
-     * A subscription that lapsed keeps its field, because there the
-     * placeholder is the instruction for getting it back, and it never turns
-     * the channel into an announcements channel: the gate refuses the writer,
-     * not the channel.
+     * Apply a publish verdict to the composer and the header label. Lost
+     * access keeps its field, where the placeholder is the way back in, and
+     * never marks the channel read-only: the gate refuses the writer.
      * @param {Object} channel
      * @param {boolean} canPublish
      */
     _applyPublishVerdict(channel, canPublish) {
         const subscription = subscriptionBannerUI.stateOf(channel.streamId);
-        const lapsed = subscription === 'expired' || subscription === 'unsubscribed';
+        const placeholders = {
+            expired: 'Subscription expired, renew to write',
+            unsubscribed: 'Subscribe to write here',
+            banned: 'You can no longer write in this channel'
+        };
+        const lapsed = !!placeholders[subscription];
         if (lapsed) {
-            this.setReadOnlyInputState(true, false, false, subscription === 'expired'
-                ? 'Subscription expired, renew to write'
-                : 'Subscribe to write here');
+            this.setReadOnlyInputState(true, false, false, placeholders[subscription]);
         } else {
             this.setReadOnlyInputState(!canPublish, canPublish && channel.readOnly, !canPublish);
         }

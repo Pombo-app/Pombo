@@ -7,11 +7,10 @@
  * The time-left line lives in Channel Details / Access (ChannelSettingsUI),
  * not in the chat header.
  *
- * This is where the subscription state is decided for the whole app: the
- * banner, the empty timeline and the composer all read stateOf() instead of
- * comparing timestamps themselves. Status reads are cached here for
- * STATUS_TTL_MS, so update() is safe to call on every render, and a renewal
- * must go through noteRenewed() to drop the cached state.
+ * The banner, the empty timeline and the composer all read stateOf() rather
+ * than compare timestamps themselves. Status reads are cached here for
+ * STATUS_TTL_MS, so update() is safe on every render, and a renewal must go
+ * through noteRenewed() to drop that cache.
  */
 
 /** Show the renew warning when less than this remains. */
@@ -33,7 +32,7 @@ class SubscriptionBannerUI {
     constructor() {
         this.deps = {};
         this.elements = null;
-        // streamId → { paid, until (unix sec), exempt, at }
+        // streamId → { paid, until (unix sec), owner, moderator, banned, at }
         this._status = new Map();
         // streamIds whose <3-day warning was dismissed this session
         this._dismissedWarn = new Set();
@@ -62,15 +61,18 @@ class SubscriptionBannerUI {
     }
 
     /**
-     * Where the viewer stands with this channel's subscription. Sync by
-     * design: the empty-state renderer and the composer read it while
-     * rendering. Null while unresolved, on a channel that is not a paid gate,
-     * and for an owner or moderator, who never pay.
-     * @returns {'active'|'expired'|'unsubscribed'|null}
+     * Where the viewer stands with this channel. Sync by design: the
+     * empty-state renderer and the composer read it while rendering.
+     *
+     * The order is the gate contract's: owner above all, then the ban, then
+     * the moderator role, and only then the clock.
+     * @returns {'active'|'expired'|'unsubscribed'|'banned'|null}
      */
     stateOf(streamId) {
         const entry = this._status.get(streamId);
-        if (!entry?.paid || entry.exempt) return null;
+        if (!entry?.paid || entry.owner) return null;
+        if (entry.banned) return 'banned';
+        if (entry.moderator) return null;
         if (!entry.until) return 'unsubscribed';
         return entry.until * 1000 > Date.now() ? 'active' : 'expired';
     }
@@ -107,19 +109,19 @@ class SubscriptionBannerUI {
             if (!me) return;
             const info = await gateManager.getGateInfo(channel.gate.address);
             if (info.mode !== GATE_MODE.PAID) {
-                this._status.set(streamId, { paid: false, until: 0, exempt: true, at: Date.now() });
+                this._status.set(streamId, { paid: false, until: 0, at: Date.now() });
                 return;
             }
-            // One states() call answers owner, moderator and paidUntil at the
-            // same block, and refreshes the access cache a lapsed
-            // subscription would otherwise leave reading true for its TTL.
+            // One states() call answers every flag at the same block
             const rows = await gateManager.getGateMembers(channel.gate.address, [me]);
             const mine = rows.find((row) => row.address === me.toLowerCase());
             if (!mine) return; // chain unreachable — keep the last state
             this._status.set(streamId, {
                 paid: true,
                 until: mine.paidUntil,
-                exempt: mine.isOwner || mine.moderator,
+                owner: mine.isOwner,
+                moderator: mine.moderator,
+                banned: mine.banned,
                 at: Date.now()
             });
             // The empty-state renderer reads stateOf() synchronously — give
@@ -154,22 +156,22 @@ class SubscriptionBannerUI {
 
         els.banner.classList.toggle('subscription-banner--expired', !active);
         if (els.text) {
-            els.text.textContent = active
-                ? `Subscription ends in ${formatRemaining(msLeft)} — renewing extends from the current end`
-                : state === 'expired'
-                    ? 'Subscription expired — new messages stay locked until you renew'
-                    : 'No active subscription. New messages stay locked until you subscribe.';
+            els.text.textContent = {
+                active: `Subscription ends in ${formatRemaining(msLeft)} — renewing extends from the current end`,
+                expired: 'Subscription expired — new messages stay locked until you renew',
+                unsubscribed: 'No active subscription. New messages stay locked until you subscribe.',
+                banned: 'A moderator removed your access to this channel.'
+            }[state];
         }
+        // Paying again buys a banned account nothing, so it is not offered.
+        els.renewBtn?.classList.toggle('hidden', state === 'banned');
         if (els.renewBtn) els.renewBtn.textContent = state === 'unsubscribed' ? 'Subscribe' : 'Renew';
         // The expired strip is the access state, not a notice — no dismissing it
         els.dismissBtn?.classList.toggle('hidden', !active);
         els.banner.classList.remove('hidden');
     }
 
-    /**
-     * Wake up when the subscription lapses. A channel left open renders once
-     * and would otherwise keep showing the warning it drew before the cutoff.
-     */
+    /** Wake up at the cutoff: a channel left open renders once. */
     _armExpiry(streamId, msLeft) {
         clearTimeout(this._expiryTimer);
         this._expiryTimer = setTimeout(() => {

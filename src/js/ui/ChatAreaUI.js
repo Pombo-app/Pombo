@@ -630,19 +630,28 @@ class ChatAreaUI {
                     this.deps.epochKeyManager?.getWaitingInfo?.(effectiveChannel.messageStreamId)?.waiting;
                 // On a paid gate a lapsed subscription is indistinguishable
                 // from "admin offline" at the key layer (refusals are silent),
-                // so the chain-read status decides which state to show.
-                const paidState = waitingForKeys && effectiveChannel?.gate?.address
+                // so the chain-read status decides. It outranks the node's
+                // refusal, which is the same lapse with no way out of it.
+                const paidState = effectiveChannel?.gate?.address
                     ? subscriptionBannerUI.stateOf(effectiveChannel.streamId)
                     : null;
                 const expired = paidState === 'expired';
                 const unsubscribed = paidState === 'unsubscribed';
+                const banned = paidState === 'banned';
                 const historyError = effectiveChannel?.historyError;
-                if (historyError) {
+                if (historyError && !expired && !unsubscribed && !banned) {
                     const { title, detail } = this._historyErrorText(historyError, !!previewChannel);
                     this.messagesArea.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
                         <span class="text-sm">${title}</span>
                         <span class="text-xs text-white/25">${detail}</span>
+                    </div>
+                `;
+                } else if (banned) {
+                    this.messagesArea.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                        <span class="text-sm">You no longer have access to this channel</span>
+                        <span class="text-xs text-white/25">A moderator removed it, and paying again would not restore it</span>
                     </div>
                 `;
                 } else if (expired || unsubscribed) {
@@ -700,14 +709,16 @@ class ChatAreaUI {
             `;
         }
         // What is on screen came from the local cache; the storage node
-        // refused to serve more, and the reader should know why.
+        // refused to serve more. The subscription strip already says why when
+        // it is the reason.
         let historyErrorBanner = '';
-        if (effectiveChannel?.historyError) {
-            const { title, detail } = this._historyErrorText(effectiveChannel.historyError, !!previewChannel);
+        const accessLost = ['expired', 'unsubscribed', 'banned']
+            .includes(subscriptionBannerUI.stateOf(effectiveChannel?.streamId));
+        if (effectiveChannel?.historyError && !accessLost) {
+            const { title } = this._historyErrorText(effectiveChannel.historyError, !!previewChannel);
             historyErrorBanner = `
                 <div id="history-error-banner" class="flex flex-col items-center gap-1 py-3 px-4 text-center">
                     <span class="text-sm text-white/40">${escapeHtml(title)}</span>
-                    <span class="text-xs text-white/25">${escapeHtml(detail)}</span>
                 </div>
             `;
         }
