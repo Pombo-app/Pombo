@@ -42,6 +42,9 @@ const ERROR_PATTERNS = [
             /ECONNREFUSED/i,
             /ETIMEDOUT/i,
             /fetch\s*failed/i,
+            // What the browser itself says when a request cannot leave
+            /failed\s*to\s*fetch/i,
+            /load\s*failed/i,
             /connection\s*refused/i
         ],
         isGasError: false,
