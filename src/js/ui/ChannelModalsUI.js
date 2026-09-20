@@ -924,6 +924,9 @@ class ChannelModalsUI {
         noteEl?.classList.add('hidden');
         actionBtn?.classList.add('hidden');
         recheckBtn?.classList.add('hidden');
+        // The modal is reopened on the same element it was left on, so a
+        // payment that disabled the button owns it until this line runs.
+        if (actionBtn) actionBtn.disabled = false;
 
         const fmt = (value, decimals) => {
             const s = ethers.formatUnits(value, decimals ?? 0);
@@ -992,6 +995,12 @@ class ChannelModalsUI {
                 const until = me ? await gateManager.paidUntil(entry.gateAddress, me) : 0n;
                 const msLeft = Number(until) * 1000 - Date.now();
                 const active = msLeft > 0;
+                // "Renew" is the caller's guess; only the chain knows whether
+                // there was ever a subscription to renew.
+                if (entry.renewal && until === 0n) {
+                    const titleEl = document.getElementById('gate-entry-title');
+                    if (titleEl) titleEl.textContent = entry.name ? `Subscribe to ${entry.name}` : 'Subscribe';
+                }
                 if (active) {
                     const when = new Date(Number(until) * 1000)
                         .toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
@@ -1025,7 +1034,12 @@ class ChannelModalsUI {
                         await finishJoin(gateManager);
                     } catch (error) {
                         this.notificationUI?.hideLoadingToast();
-                        this.showNotification('Payment failed: ' + error.message, 'error');
+                        // A transaction still in flight is not a failed one:
+                        // saying "failed" invites a second payment.
+                        this.showNotification(
+                            error.code === 'TX_UNCONFIRMED'
+                                ? error.message : 'Payment failed: ' + error.message,
+                            error.code === 'TX_UNCONFIRMED' ? 'warning' : 'error');
                         actionBtn.disabled = false;
                     }
                 };
