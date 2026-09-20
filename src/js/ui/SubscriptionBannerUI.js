@@ -140,8 +140,7 @@ class SubscriptionBannerUI {
                 banned: mine.banned,
                 at: Date.now()
             });
-            // The empty-state renderer reads stateOf() synchronously — give
-            // it a chance to swap "waiting for keys" for "expired" now
+            // The empty-state renderer reads stateOf() synchronously
             this.deps.onStatusResolved?.(streamId);
         } catch (error) {
             this.deps.Logger?.debug?.('subscription status refresh failed:', error?.message);

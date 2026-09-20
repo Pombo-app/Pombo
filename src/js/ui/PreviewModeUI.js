@@ -507,8 +507,7 @@ class PreviewModeUI {
 
         const { channelManager, subscriptionManager, reactionManager, notificationUI } = this.deps;
 
-        // Access can lapse between browsing and joining, and this path saves
-        // the channel without asking the chain again.
+        // Access can lapse between browsing and joining
         const gateAddress = this.previewChannel.gate?.address;
         if (gateAddress) {
             const { gateManager } = await import('../gate.js');

@@ -246,7 +246,6 @@ class UIController {
             getActiveChannel: () => this.getActiveChannel()
         });
 
-        // SubscriptionBannerUI — paid-gate expiry warning + renew flow
         subscriptionBannerUI.setDependencies({
             Logger,
             channelManager,
@@ -271,7 +270,6 @@ class UIController {
                 });
             },
             onStatusResolved: (streamId) => {
-                // Both were drawn before the chain read landed
                 const ch = channelManager.getCurrentChannel?.();
                 if (ch?.streamId !== streamId) return;
                 this.updateReadOnlyUI(ch);

@@ -938,7 +938,6 @@ class ChannelModalsUI {
         } else {
             recheckBtn?.classList.add('hidden');
         }
-        // Reopened on the element a previous payment left disabled
         if (actionBtn) actionBtn.disabled = false;
 
         const fmt = (value, decimals) => {
