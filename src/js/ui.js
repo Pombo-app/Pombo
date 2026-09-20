@@ -771,7 +771,9 @@ class UIController {
             banner: this.elements.subscriptionBanner,
             text: this.elements.subscriptionBannerText,
             renewBtn: this.elements.subscriptionBannerRenew,
-            dismissBtn: this.elements.subscriptionBannerDismiss
+            dismissBtn: this.elements.subscriptionBannerDismiss,
+            alertIcon: document.getElementById('subscription-banner-icon-alert'),
+            gavelIcon: document.getElementById('subscription-banner-icon-gavel')
         });
 
         // Initialize DM modals UI

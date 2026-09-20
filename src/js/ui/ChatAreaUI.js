@@ -657,7 +657,7 @@ class ChatAreaUI {
                     this.messagesArea.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
                         <span class="text-sm">You no longer have access to this channel</span>
-                        <span class="text-xs text-white/25">A moderator removed it, and paying again would not restore it</span>
+                        <span class="text-xs text-white/25">A moderator removed you</span>
                     </div>
                 `;
                 } else if (expired || unsubscribed) {

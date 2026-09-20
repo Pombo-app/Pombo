@@ -1195,6 +1195,8 @@ body.cannot-write .reply-trigger {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    /* One line or two, the strip keeps the height the Renew button gives it */
+    min-height: 44px;
     padding: 0.4375rem 0.75rem;
     font-size: 0.8125rem;
     color: #fbbf24;

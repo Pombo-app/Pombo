@@ -45,7 +45,7 @@ class SubscriptionBannerUI {
         this.deps = { ...this.deps, ...deps };
     }
 
-    /** @param {Object} elements - { banner, text, renewBtn, dismissBtn } */
+    /** @param {Object} elements - { banner, text, renewBtn, dismissBtn, alertIcon, gavelIcon } */
     init(elements) {
         this.elements = elements;
         elements?.renewBtn?.addEventListener('click', () => this.renewCurrent());
@@ -69,12 +69,28 @@ class SubscriptionBannerUI {
      * @returns {'active'|'expired'|'unsubscribed'|'banned'|null}
      */
     stateOf(streamId) {
+        if (this._clientBanned(streamId)) return 'banned';
         const entry = this._status.get(streamId);
         if (!entry?.paid || entry.owner) return null;
         if (entry.banned) return 'banned';
         if (entry.moderator) return null;
         if (!entry.until) return 'unsubscribed';
         return entry.until * 1000 > Date.now() ? 'active' : 'expired';
+    }
+
+    /**
+     * A ban the moderators keep in ADMIN_STATE rather than on the gate. It
+     * hides the author's messages for everyone, so writing here reaches
+     * nobody; the reader is told the same thing either way.
+     */
+    _clientBanned(streamId) {
+        const channel = this._resolveChannel();
+        if (channel?.streamId !== streamId) return false;
+        const me = this.deps.authManager?.getAddress?.()?.toLowerCase();
+        const banned = channel?.adminState?.bannedMembers;
+        // Entries are {address, sinceEpoch}; older snapshots carry plain strings
+        return !!me && Array.isArray(banned)
+            && banned.some((e) => String(e?.address ?? e).toLowerCase() === me);
     }
 
     /** Drop the cached status after a renewal so the next render re-reads. */
@@ -145,7 +161,8 @@ class SubscriptionBannerUI {
             return;
         }
 
-        const msLeft = this._status.get(channel.streamId).until * 1000 - Date.now();
+        // A client ban applies to channels with no gate, which have no entry
+        const msLeft = (this._status.get(channel.streamId)?.until ?? 0) * 1000 - Date.now();
         const active = state === 'active';
         if (active) this._armExpiry(channel.streamId, msLeft);
 
@@ -163,8 +180,11 @@ class SubscriptionBannerUI {
                 banned: 'A moderator removed your access to this channel'
             }[state];
         }
+        const banned = state === 'banned';
+        els.alertIcon?.classList.toggle('hidden', banned);
+        els.gavelIcon?.classList.toggle('hidden', !banned);
         // Paying again buys a banned account nothing
-        els.renewBtn?.classList.toggle('hidden', state === 'banned');
+        els.renewBtn?.classList.toggle('hidden', banned);
         if (els.renewBtn) els.renewBtn.textContent = state === 'unsubscribed' ? 'Subscribe' : 'Renew';
         // The expired strip is the access state, not a notice — no dismissing it
         els.dismissBtn?.classList.toggle('hidden', !active);
