@@ -877,12 +877,17 @@ class ChannelModalsUI {
 
     hideGateEntryModal() {
         this._gateEntry = null;
+        this._gateEntrySeq = (this._gateEntrySeq || 0) + 1;
         this.deps.modalManager?.hide('gate-entry-modal');
     }
 
     async _renderGateEntry({ checking = false } = {}) {
         const entry = this._gateEntry;
         if (!entry) return;
+        // A slow chain read outlives the modal it was started for: everything
+        // it would paint belongs to a screen the user has already left.
+        const seq = (this._gateEntrySeq = (this._gateEntrySeq || 0) + 1);
+        const stale = () => seq !== this._gateEntrySeq;
         const conditionEl = document.getElementById('gate-entry-condition');
         const stackEl = document.getElementById('gate-entry-stack');
         const verbEl = document.getElementById('gate-entry-verb');
@@ -955,6 +960,7 @@ class ChannelModalsUI {
             const { gateManager, GATE_MODE } = await import('../gate.js');
             const me = authManager.getAddress();
             const info = await gateManager.getGateInfo(entry.gateAddress);
+            if (stale()) return;
 
             if (recheckBtn) {
                 recheckBtn.classList.remove('hidden');
@@ -981,6 +987,7 @@ class ChannelModalsUI {
             }
 
             const meta = await gateManager.getTokenMeta(info.token);
+            if (stale()) return;
 
             if (info.mode === GATE_MODE.PAID) {
                 const days = Number(info.duration) / 86400;
@@ -991,6 +998,7 @@ class ChannelModalsUI {
                 showStack('Subscribe', `${fmt(info.price, meta.decimals)} ${paySymbol}`,
                     `per ${daysLabel} ${days === 1 ? 'day' : 'days'}`, true);
                 const until = me ? await gateManager.paidUntil(entry.gateAddress, me) : 0n;
+                if (stale()) return;
                 const msLeft = Number(until) * 1000 - Date.now();
                 const active = msLeft > 0;
                 // Only the chain knows whether there is anything to renew
@@ -1063,6 +1071,7 @@ class ChannelModalsUI {
                 isNft ? `${meta.symbol} NFT` : `${fmt(info.minBalance, meta.decimals)} ${meta.symbol}`,
                 'in your wallet', false);
             const balance = me ? await gateManager.getTokenBalance(info.token, me) : 0n;
+            if (stale()) return;
             const holds = isNft ? balance > 0n : balance >= info.minBalance;
             if (isNft) {
                 if (holds) showStatus(`You hold ${balance} · access granted`, 'ok');
@@ -1077,7 +1086,14 @@ class ChannelModalsUI {
                 actionBtn.onclick = () => finishJoin(gateManager);
             }
         } catch (error) {
-            if (conditionEl) conditionEl.textContent = 'Could not read the gate contract: ' + error.message;
+            if (stale()) return;
+            if (conditionEl) conditionEl.textContent = getErrorMessage(error);
+            if (recheckBtn) {
+                recheckBtn.classList.remove('hidden');
+                recheckBtn.disabled = false;
+                recheckBtn.textContent = 'Check Again';
+                recheckBtn.onclick = () => this._renderGateEntry();
+            }
         }
     }
 
