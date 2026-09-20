@@ -628,14 +628,14 @@ class ChatAreaUI {
                 const waitingForKeys =
                     effectiveChannel?.type === 'gated' &&
                     this.deps.epochKeyManager?.getWaitingInfo?.(effectiveChannel.messageStreamId)?.waiting;
-                // On a paid gate an expired subscription is indistinguishable
+                // On a paid gate a lapsed subscription is indistinguishable
                 // from "admin offline" at the key layer (refusals are silent),
                 // so the chain-read status decides which state to show.
-                const paidStatus = waitingForKeys && effectiveChannel?.gate?.address
-                    ? subscriptionBannerUI.getStatus(effectiveChannel.streamId)
+                const paidState = waitingForKeys && effectiveChannel?.gate?.address
+                    ? subscriptionBannerUI.stateOf(effectiveChannel.streamId)
                     : null;
-                const subscriptionExpired = paidStatus?.paid
-                    && paidStatus.until * 1000 <= Date.now() && !paidStatus.accessNow;
+                const expired = paidState === 'expired';
+                const unsubscribed = paidState === 'unsubscribed';
                 const historyError = effectiveChannel?.historyError;
                 if (historyError) {
                     const { title, detail } = this._historyErrorText(historyError, !!previewChannel);
@@ -645,12 +645,14 @@ class ChatAreaUI {
                         <span class="text-xs text-white/25">${detail}</span>
                     </div>
                 `;
-                } else if (subscriptionExpired) {
+                } else if (expired || unsubscribed) {
                     this.messagesArea.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
-                        <span class="text-sm">Your subscription has expired</span>
-                        <span class="text-xs text-white/25">Messages stay locked until you renew — renewing extends from the current end</span>
-                        <button id="empty-state-renew-btn" class="subscription-banner-renew">Renew subscription</button>
+                        <span class="text-sm">${expired ? 'Your subscription has expired' : 'No active subscription'}</span>
+                        <span class="text-xs text-white/25">${expired
+        ? 'Messages stay locked until you renew — renewing extends from the current end'
+        : 'Messages stay locked until you subscribe'}</span>
+                        <button id="empty-state-renew-btn" class="subscription-banner-renew">${expired ? 'Renew subscription' : 'Subscribe'}</button>
                     </div>
                 `;
                     this.messagesArea.querySelector('#empty-state-renew-btn')

@@ -1,20 +1,24 @@
 /**
  * SubscriptionBannerUI
  *
- * Paid-channel subscription chrome (N-F): a static strip above the messages
- * list — amber "ends in N days" inside the warning window, red "expired"
- * with a Renew CTA after the cutoff (Q5: no grace period — paidUntil is a
- * hard stop). The time-left line lives in Channel Details / Access
- * (ChannelSettingsUI), not in the chat header.
+ * Paid-channel subscription chrome: a static strip above the messages list —
+ * amber "ends in N days" inside the warning window, red "expired" with a
+ * Renew CTA after the cutoff (no grace period: paidUntil is a hard stop).
+ * The time-left line lives in Channel Details / Access (ChannelSettingsUI),
+ * not in the chat header.
  *
- * Status reads are cached here for STATUS_TTL_MS on top of gateManager's own
- * 10-min caches, so update() is safe to call on every render. A renewal must
- * go through noteRenewed() to drop both layers at once.
+ * This is where the subscription state is decided for the whole app: the
+ * banner, the empty timeline and the composer all read stateOf() instead of
+ * comparing timestamps themselves. Status reads are cached here for
+ * STATUS_TTL_MS, so update() is safe to call on every render, and a renewal
+ * must go through noteRenewed() to drop the cached state.
  */
 
-/** Show the renew warning when less than this remains (§7.14). */
+/** Show the renew warning when less than this remains. */
 export const WARNING_MS = 3 * 24 * 60 * 60 * 1000;
 const STATUS_TTL_MS = 60_000;
+/** Ceiling for the expiry wake-up, which re-arms until the cutoff passes. */
+const EXPIRY_TIMER_CEILING_MS = 30 * 60 * 1000;
 
 /** "12 days" / "1 day" / "5h" / "less than an hour" */
 export function formatRemaining(msLeft) {
@@ -29,11 +33,12 @@ class SubscriptionBannerUI {
     constructor() {
         this.deps = {};
         this.elements = null;
-        // streamId → { paid, until (unix sec), accessNow, at }
+        // streamId → { paid, until (unix sec), exempt, at }
         this._status = new Map();
         // streamIds whose <3-day warning was dismissed this session
         this._dismissedWarn = new Set();
         this._refreshing = new Set();
+        this._expiryTimer = null;
     }
 
     /** @param {Object} deps - { channelManager, authManager, Logger, onRenew, onStatusResolved } */
@@ -57,13 +62,17 @@ class SubscriptionBannerUI {
     }
 
     /**
-     * The last resolved status for a channel, or null while unresolved.
-     * Sync by design — ChatAreaUI's empty-state renderer reads it to decide
-     * between "waiting for keys" and "subscription expired".
-     * @returns {{paid: boolean, until: number, accessNow: boolean}|null}
+     * Where the viewer stands with this channel's subscription. Sync by
+     * design: the empty-state renderer and the composer read it while
+     * rendering. Null while unresolved, on a channel that is not a paid gate,
+     * and for an owner or moderator, who never pay.
+     * @returns {'active'|'expired'|'unsubscribed'|null}
      */
-    getStatus(streamId) {
-        return this._status.get(streamId) || null;
+    stateOf(streamId) {
+        const entry = this._status.get(streamId);
+        if (!entry?.paid || entry.exempt) return null;
+        if (!entry.until) return 'unsubscribed';
+        return entry.until * 1000 > Date.now() ? 'active' : 'expired';
     }
 
     /** Drop the cached status after a renewal so the next render re-reads. */
@@ -97,17 +106,23 @@ class SubscriptionBannerUI {
             const me = this.deps.authManager?.getAddress?.();
             if (!me) return;
             const info = await gateManager.getGateInfo(channel.gate.address);
-            if (info.mode !== GATE_MODE.PAID || info.owner === me.toLowerCase()) {
-                this._status.set(streamId, { paid: false, until: 0, accessNow: true, at: Date.now() });
+            if (info.mode !== GATE_MODE.PAID) {
+                this._status.set(streamId, { paid: false, until: 0, exempt: true, at: Date.now() });
                 return;
             }
-            const until = await gateManager.paidUntilCached(channel.gate.address, me);
-            if (until === null) return; // chain unreachable — keep the last state
-            // until === 0 with access is a moderator (never pays) — no banner
-            const accessNow = until * 1000 > Date.now()
-                || await gateManager.checkAccess(channel.gate.address, me);
-            this._status.set(streamId, { paid: true, until, accessNow, at: Date.now() });
-            // The empty-state renderer reads getStatus() synchronously — give
+            // One states() call answers owner, moderator and paidUntil at the
+            // same block, and refreshes the access cache a lapsed
+            // subscription would otherwise leave reading true for its TTL.
+            const rows = await gateManager.getGateMembers(channel.gate.address, [me]);
+            const mine = rows.find((row) => row.address === me.toLowerCase());
+            if (!mine) return; // chain unreachable — keep the last state
+            this._status.set(streamId, {
+                paid: true,
+                until: mine.paidUntil,
+                exempt: mine.isOwner || mine.moderator,
+                at: Date.now()
+            });
+            // The empty-state renderer reads stateOf() synchronously — give
             // it a chance to swap "waiting for keys" for "expired" now
             this.deps.onStatusResolved?.(streamId);
         } catch (error) {
@@ -122,25 +137,17 @@ class SubscriptionBannerUI {
         const els = this.elements;
         if (!els?.banner) return;
         const channel = this._resolveChannel();
-        const entry = channel ? this._status.get(channel.streamId) : null;
-        if (!channel?.gate?.address || !entry?.paid) {
+        const state = channel ? this.stateOf(channel.streamId) : null;
+        if (!state) {
             this._hideAll();
             return;
         }
 
-        const msLeft = entry.until * 1000 - Date.now();
-        const active = msLeft > 0;
+        const msLeft = this._status.get(channel.streamId).until * 1000 - Date.now();
+        const active = state === 'active';
+        if (active) this._armExpiry(channel.streamId, msLeft);
 
-        if (active && msLeft >= WARNING_MS) {
-            els.banner.classList.add('hidden');
-            return;
-        }
-        if (active && this._dismissedWarn.has(channel.streamId)) {
-            els.banner.classList.add('hidden');
-            return;
-        }
-        if (!active && entry.accessNow) {
-            // Moderator on a paid gate — access without a subscription
+        if (active && (msLeft >= WARNING_MS || this._dismissedWarn.has(channel.streamId))) {
             els.banner.classList.add('hidden');
             return;
         }
@@ -149,14 +156,30 @@ class SubscriptionBannerUI {
         if (els.text) {
             els.text.textContent = active
                 ? `Subscription ends in ${formatRemaining(msLeft)} — renewing extends from the current end`
-                : 'Subscription expired — new messages stay locked until you renew';
+                : state === 'expired'
+                    ? 'Subscription expired — new messages stay locked until you renew'
+                    : 'No active subscription. New messages stay locked until you subscribe.';
         }
+        if (els.renewBtn) els.renewBtn.textContent = state === 'unsubscribed' ? 'Subscribe' : 'Renew';
         // The expired strip is the access state, not a notice — no dismissing it
         els.dismissBtn?.classList.toggle('hidden', !active);
         els.banner.classList.remove('hidden');
     }
 
+    /**
+     * Wake up when the subscription lapses. A channel left open renders once
+     * and would otherwise keep showing the warning it drew before the cutoff.
+     */
+    _armExpiry(streamId, msLeft) {
+        clearTimeout(this._expiryTimer);
+        this._expiryTimer = setTimeout(() => {
+            this._status.delete(streamId);
+            this.update();
+        }, Math.min(msLeft + 1000, EXPIRY_TIMER_CEILING_MS));
+    }
+
     _hideAll() {
+        clearTimeout(this._expiryTimer);
         this.elements?.banner?.classList.add('hidden');
     }
 
