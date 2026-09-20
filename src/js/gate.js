@@ -174,12 +174,12 @@ class GateManager {
      */
     async _withProvider(op) {
         try {
-            return await op(this._getProvider());
+            return await withTimeout(op(this._getProvider()), 'The network');
         } catch (firstError) {
             if (firstError?.code === 'CALL_EXCEPTION') throw firstError;
             this._rpcIndex++;
             Logger.debug('gate: RPC failed, rotating endpoint:', firstError.message);
-            return op(this._getProvider());
+            return withTimeout(op(this._getProvider()), 'The network');
         }
     }
 
@@ -553,16 +553,17 @@ class GateManager {
      * @returns {Promise<string[]>} lowercase addresses
      */
     async listMembers(gateAddress, pageSize = 500) {
-        return this._withProvider(async () => {
-            const gate = this._readContract(gateAddress);
-            const total = Number(await gate.membersCount());
-            const members = [];
-            for (let offset = 0; offset < total; offset += pageSize) {
-                const page = await gate.membersAt(offset, pageSize);
-                for (const address of page) members.push(address.toLowerCase());
-            }
-            return members;
-        });
+        // A page at a time: the read deadline is per call, so a long allowlist
+        // is not mistaken for a stalled endpoint.
+        const total = Number(await this._withProvider(() =>
+            this._readContract(gateAddress).membersCount()));
+        const members = [];
+        for (let offset = 0; offset < total; offset += pageSize) {
+            const page = await this._withProvider(() =>
+                this._readContract(gateAddress).membersAt(offset, pageSize));
+            for (const address of page) members.push(address.toLowerCase());
+        }
+        return members;
     }
 
     /** Drop cached access for one user (after allow/ban) or a whole gate. */
