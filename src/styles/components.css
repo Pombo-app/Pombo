@@ -1256,7 +1256,7 @@ body.cannot-write .reply-trigger {
 /* The strip sits in flex flow above the messages area, so the floating
    pinned pill must clear it when both are visible. */
 .messages-wrapper:has(.subscription-banner:not(.hidden)) .pinned-banner {
-    top: calc(0.625rem + 36px);
+    top: calc(1.125rem + 36px);
 }
 
 /* ----- Reply Bar ----- */

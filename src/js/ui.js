@@ -1662,9 +1662,9 @@ class UIController {
     _applyPublishVerdict(channel, canPublish) {
         const subscription = subscriptionBannerUI.stateOf(channel.streamId);
         const placeholders = {
-            expired: 'Subscription expired, renew to write',
-            unsubscribed: 'Subscribe to write here',
-            banned: 'You can no longer write in this channel'
+            expired: 'Renew to write',
+            unsubscribed: 'Subscribe to write',
+            banned: 'You can no longer write here'
         };
         const lapsed = !!placeholders[subscription];
         if (lapsed) {
