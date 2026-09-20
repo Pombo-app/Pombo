@@ -8,6 +8,8 @@ import { Logger } from './logger.js';
 import { CONFIG as APP_CONFIG } from './config.js';
 import { streamrController } from './streamr.js';
 import { channelManager } from './channels.js';
+import { storageEndpoints } from './storageEndpoints.js';
+import { storageFetch } from './storageFetch.js';
 import { withCircuitBreaker, getCircuitState } from './utils/retry.js';
 import {
     calculateChannelTag,
@@ -58,7 +60,7 @@ class RelayManager {
         // Listener for Service Worker messages
         if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
             navigator.serviceWorker.addEventListener('message', (event) => {
-                this.handleServiceWorkerMessage(event.data);
+                this.handleServiceWorkerMessage(event.data, event.ports?.[0]);
             });
         }
     }
@@ -403,23 +405,18 @@ class RelayManager {
      * Sync monitored channels to Service Worker for push verification.
      * SW uses this to verify push notifications via HTTP.
      */
-    syncWithServiceWorker() {
+    async syncWithServiceWorker() {
         if (!navigator.serviceWorker?.controller) {
             Logger.debug('No Service Worker controller - skipping sync');
             return;
         }
-        
+
+        try {
         const channels = [];
         // DM peer address→name map is no longer shipped to the SW: sealed
         // sender makes the SW unable to identify a DM's sender, so it would be
         // unused peer-identity data sitting in the SW's IndexedDB. The push
         // notification for a DM is deliberately generic (see sw.js).
-
-        // Default storage endpoints - Pombo official storage node (July 2026)
-        const DEFAULT_STORAGE_ENDPOINTS = [
-            'https://blob-storage-streamr.online',
-            'https://vps2.blob-storage-streamr.online',
-        ];
 
         // Public/password channels (and DM inboxes)
         for (const streamId of this.subscribedChannels) {
@@ -450,10 +447,13 @@ class RelayManager {
                 type,
                 name,
                 tag: channelTag,
-                storageEndpoints: channelInfo?.storageEndpoints || DEFAULT_STORAGE_ENDPOINTS
+                storageEndpoints: await this.endpointsFor(streamId),
+                // A DM inbox is private (its SUBSCRIBE is the owner's alone),
+                // so a Pombo node serves it only to a signed read.
+                needsSignature: type === 'dm' || isDMInbox
             });
         }
-        
+
         // Native channels (group chats, not DMs)
         for (const streamId of this.subscribedNativeChannels) {
             const channelInfo = channelManager.channels.get(streamId);
@@ -477,19 +477,43 @@ class RelayManager {
             
             channels.push({
                 streamId,
-                type: 'native',
+                // Only gated channels take this path. The tag prefix keeps the
+                // historical name (it is baked into every registration the
+                // relay holds), but what the worker is told is the real type.
+                type: 'gated',
                 name,
                 tag: channelTag,
-                storageEndpoints: channelInfo?.storageEndpoints || DEFAULT_STORAGE_ENDPOINTS
+                storageEndpoints: await this.endpointsFor(streamId),
+                needsSignature: channelInfo?.type === 'gated'
             });
         }
-        
+
         navigator.serviceWorker.controller.postMessage({
             type: 'SYNC_CHANNELS',
             channels
         });
 
         Logger.debug('Synced', channels.length, 'channels to Service Worker');
+        } catch (error) {
+            // Every caller fires this and forgets; resolving the endpoints
+            // reaches the chain, so a failure here must not surface as an
+            // unhandled rejection.
+            Logger.warn('Service Worker sync failed:', error?.message);
+        }
+    }
+
+    /**
+     * Where a stream's history actually lives, from the chain. An empty answer
+     * (no storage, or the chain unreachable) leaves the worker on its built-in
+     * list until the next sync.
+     */
+    async endpointsFor(streamId) {
+        try {
+            return await storageEndpoints.rotation(streamId);
+        } catch (error) {
+            Logger.debug(`No storage endpoints for ${streamId.slice(-24)}: ${error.message}`);
+            return [];
+        }
     }
     
     /**
@@ -740,10 +764,23 @@ class RelayManager {
     /**
      * Handler for Service Worker messages.
      */
-    handleServiceWorkerMessage(data) {
+    handleServiceWorkerMessage(data, port) {
         if (!data || !data.type) return;
-        
+
         switch (data.type) {
+            case 'SIGN_STORAGE_READ':
+                // The service worker holds no key and must not: it asks this
+                // page to sign the read that verifies a wake. Answering null
+                // is normal (guest, locked, or a URL that is not a read) and
+                // the worker then stays silent.
+                storageFetch.signHeadersFor(data.url)
+                    .catch((error) => {
+                        Logger.debug('Could not sign a storage read for the SW:', error?.message);
+                        return null;
+                    })
+                    .then((headers) => port?.postMessage({ headers: headers || null }));
+                break;
+
             case 'NEW_MESSAGE':
                 // New verified message from SW
                 Logger.debug('New verified message:', data.streamId?.slice(0, 20));
