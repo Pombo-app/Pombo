@@ -1030,7 +1030,12 @@ class UIController {
 
             case 'preview':
                 if (state.streamId) {
-                    await previewModeUI.enterPreviewWithoutHistory(state.streamId, state.channelInfo);
+                    if (channelManager.getChannel(state.streamId)) {
+                        await this._selectChannelWithoutHistory(state.streamId);
+                        historyManager.replaceState({ view: 'channel', streamId: state.streamId });
+                    } else {
+                        await this._openDeepLinkedChannel(state.streamId);
+                    }
                 }
                 break;
 
@@ -1078,8 +1083,15 @@ class UIController {
 
             case 'preview':
                 if (state.streamId) {
-                    await previewModeUI.enterPreviewWithoutHistory(state.streamId, state.channelInfo);
-                    historyManager.replaceState(state);
+                    // A preview link is still routed by mode: browsing before
+                    // committing is for gates you already satisfy, and a paid
+                    // one belongs on its entry screen.
+                    if (channelManager.getChannel(state.streamId)) {
+                        await this._selectChannelWithoutHistory(state.streamId);
+                        historyManager.replaceState({ view: 'channel', streamId: state.streamId });
+                    } else {
+                        await this._openDeepLinkedChannel(state.streamId);
+                    }
                 }
                 break;
 
