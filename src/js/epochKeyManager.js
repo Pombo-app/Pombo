@@ -2032,7 +2032,15 @@ class EpochKeyManager {
                 epochInForce = epoch;
             }
         }
-        return entry.epoch === epochInForce;
+        if (entry.epoch === epochInForce) return true;
+        // A rotation is two clocks: an author already on the new epoch lands
+        // just before its announce, so the window opens backwards by the same
+        // tolerance the current-epoch branch grants forwards.
+        const own = s.announces.get(entry.epoch);
+        if (!own) return false;
+        const ownValidFrom = own.validFrom ?? own.timestamp ?? 0;
+        return ownValidFrom > timestamp
+            && ownValidFrom - timestamp <= CONFIG.gate.kidFreshnessToleranceMs;
     }
 
     _cryptoKey(entry) {

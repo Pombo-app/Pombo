@@ -103,4 +103,40 @@ describe('epochKeyManager.getKeyForKid (freshness wiring)', () => {
         epochKeyManager.state.delete(streamId);
     });
 
+    /**
+     * A rotation is two clocks. The rotator stamps validFrom with its own, the
+     * author stamps the message with theirs, so an author who had already
+     * adopted the new epoch can land just BEFORE its announce. Measured on a
+     * real channel at ~2s, and every such message was unreadable for good.
+     */
+    describe('a message that beat its own announce', () => {
+        it('opens when the gap is the clock skew of a rotation', () => {
+            const s = makeState();
+            const rotatedAt = s.announces.get(3).validFrom;
+            expect(epochKeyManager._kidIsFresh(s, 'kid-3', s.epochs.get('kid-3'),
+                { live: false, timestamp: rotatedAt - 2251 })).toBe(true);
+        });
+
+        it('opens right up to the tolerance', () => {
+            const s = makeState();
+            const rotatedAt = s.announces.get(3).validFrom;
+            expect(epochKeyManager._kidIsFresh(s, 'kid-3', s.epochs.get('kid-3'),
+                { live: false, timestamp: rotatedAt - TOL })).toBe(true);
+        });
+
+        it('stays shut beyond it — that is backdating, not skew', () => {
+            const s = makeState();
+            const rotatedAt = s.announces.get(3).validFrom;
+            expect(epochKeyManager._kidIsFresh(s, 'kid-3', s.epochs.get('kid-3'),
+                { live: false, timestamp: rotatedAt - TOL - 1 })).toBe(false);
+        });
+
+        it('never re-opens an OLDER kid, which is what the rule is for', () => {
+            const s = makeState();
+            // kid-1 long retired: its window closed when epoch 2 began.
+            expect(epochKeyManager._kidIsFresh(s, 'kid-1', s.epochs.get('kid-1'),
+                { live: false, timestamp: NOW - 1000 })).toBe(false);
+        });
+    });
+
 });
