@@ -38,6 +38,8 @@ import { AdminStateConfirm } from './channels/AdminStateConfirm.js';
 import { Membership } from './channels/Membership.js';
 import { ModDeltas, MOD_ACTION_TYPE } from './channels/ModDeltas.js';
 
+const GATE_REPAIR_WAIT_MS = 10_000;
+
 class ChannelManager {
     constructor() {
         this.channels = new Map(); // streamId -> channel object
@@ -256,17 +258,30 @@ class ChannelManager {
      * of record — local persistence is only a warm-start cache of it.
      * @private
      */
-    async _repairGateAddress(channel) {
+    _repairGateAddress(channel) {
         // One in-flight repair per channel — the hydrator fires on every
         // load/sync pass and repairs must not stack.
-        this._gateRepairsPending ??= new Set();
-        if (this._gateRepairsPending.has(channel.messageStreamId)) return;
-        this._gateRepairsPending.add(channel.messageStreamId);
-        try {
-            await this._doRepairGateAddress(channel);
-        } finally {
-            this._gateRepairsPending.delete(channel.messageStreamId);
-        }
+        this._gateRepairs ??= new Map();
+        const pending = this._gateRepairs.get(channel.messageStreamId);
+        if (pending) return pending;
+        const run = this._doRepairGateAddress(channel)
+            .finally(() => this._gateRepairs.delete(channel.messageStreamId));
+        this._gateRepairs.set(channel.messageStreamId, run);
+        return run;
+    }
+
+    /**
+     * Blocks until a pending gate repair for this channel has landed.
+     * `usesEpochKeys` reads the gate to decide whether the epoch flow runs at
+     * all, so starting it mid-repair skips the channel's keys with no retry.
+     */
+    async awaitGateRepair(messageStreamId) {
+        const pending = this._gateRepairs?.get(messageStreamId);
+        if (!pending) return;
+        await Promise.race([
+            pending.catch(() => {}),
+            new Promise(resolve => setTimeout(resolve, GATE_REPAIR_WAIT_MS))
+        ]);
     }
 
     async _doRepairGateAddress(channel) {
@@ -2211,6 +2226,8 @@ class ChannelManager {
 
         await streamrController.subscribeToKeysStream(keysStreamId, (data, publisherId, timestamp) =>
             epochKeyManager.handleKeysMessage(channel, data, publisherId, timestamp));
+
+        await this.awaitGateRepair(channel.messageStreamId);
 
         // FAST PATH: with persisted keys+announces the channel decrypts
         // immediately — the -4 resend becomes a background reconcile (which
