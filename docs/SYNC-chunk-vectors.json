@@ -1,0 +1,537 @@
+{
+  "limit": 200,
+  "split": [
+    {
+      "what": "a snapshot that fits travels as itself, with no framing",
+      "payload": {
+        "type": "sync",
+        "v": 1,
+        "ts": 1789000005000,
+        "data": {
+          "channels": [
+            {
+              "messageStreamId": "0xowner/chan-1",
+              "name": "fits"
+            }
+          ]
+        }
+      },
+      "messages": [
+        {
+          "type": "sync",
+          "v": 1,
+          "ts": 1789000005000,
+          "data": {
+            "channels": [
+              {
+                "messageStreamId": "0xowner/chan-1",
+                "name": "fits"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "what": "a big snapshot becomes chunks numbered from zero, then its manifest",
+      "payload": {
+        "type": "sync",
+        "v": 1,
+        "ts": 1789000000000,
+        "data": {
+          "channels": [
+            {
+              "messageStreamId": "0xowner/chan-1",
+              "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            }
+          ]
+        }
+      },
+      "messages": [
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 0,
+          "chunkCount": 5,
+          "data": "{\"type\":\"sync\",\"v\":1,\"ts\":1789000000000,\"data\":{\"channels\":[{\"messageStreamId\":\"0xowner/chan-1\",\"name\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 1,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 2,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 3,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 4,
+          "chunkCount": 5,
+          "data": "xxxx\"}]}}"
+        },
+        {
+          "type": "sync_manifest",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkCount": 5
+        }
+      ]
+    }
+  ],
+  "reassemble": [
+    {
+      "what": "a complete run rebuilds the snapshot byte for byte",
+      "messages": [
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 0,
+          "chunkCount": 5,
+          "data": "{\"type\":\"sync\",\"v\":1,\"ts\":1789000000000,\"data\":{\"channels\":[{\"messageStreamId\":\"0xowner/chan-1\",\"name\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 1,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 2,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 3,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 4,
+          "chunkCount": 5,
+          "data": "xxxx\"}]}}"
+        },
+        {
+          "type": "sync_manifest",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkCount": 5
+        }
+      ],
+      "payloads": [
+        {
+          "type": "sync",
+          "v": 1,
+          "ts": 1789000000000,
+          "data": {
+            "channels": [
+              {
+                "messageStreamId": "0xowner/chan-1",
+                "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "what": "arrival order does not matter",
+      "messages": [
+        {
+          "type": "sync_manifest",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkCount": 5
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 4,
+          "chunkCount": 5,
+          "data": "xxxx\"}]}}"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 3,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 2,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 1,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 0,
+          "chunkCount": 5,
+          "data": "{\"type\":\"sync\",\"v\":1,\"ts\":1789000000000,\"data\":{\"channels\":[{\"messageStreamId\":\"0xowner/chan-1\",\"name\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      ],
+      "payloads": [
+        {
+          "type": "sync",
+          "v": 1,
+          "ts": 1789000000000,
+          "data": {
+            "channels": [
+              {
+                "messageStreamId": "0xowner/chan-1",
+                "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "what": "two runs and a whole snapshot in one window stay apart",
+      "messages": [
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 0,
+          "chunkCount": 5,
+          "data": "{\"type\":\"sync\",\"v\":1,\"ts\":1789000000000,\"data\":{\"channels\":[{\"messageStreamId\":\"0xowner/chan-1\",\"name\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 1,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 2,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 3,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 4,
+          "chunkCount": 5,
+          "data": "xxxx\"}]}}"
+        },
+        {
+          "type": "sync_manifest",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkCount": 5
+        },
+        {
+          "type": "sync",
+          "v": 1,
+          "ts": 1789000005000,
+          "data": {
+            "channels": [
+              {
+                "messageStreamId": "0xowner/chan-1",
+                "name": "fits"
+              }
+            ]
+          }
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000009000,
+          "syncId": "runB",
+          "chunkIndex": 0,
+          "chunkCount": 5,
+          "data": "{\"type\":\"sync\",\"v\":1,\"ts\":1789000009000,\"data\":{\"channels\":[{\"messageStreamId\":\"0xowner/chan-1\",\"name\":\"yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000009000,
+          "syncId": "runB",
+          "chunkIndex": 1,
+          "chunkCount": 5,
+          "data": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000009000,
+          "syncId": "runB",
+          "chunkIndex": 2,
+          "chunkCount": 5,
+          "data": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000009000,
+          "syncId": "runB",
+          "chunkIndex": 3,
+          "chunkCount": 5,
+          "data": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000009000,
+          "syncId": "runB",
+          "chunkIndex": 4,
+          "chunkCount": 5,
+          "data": "yyyy\"}]}}"
+        },
+        {
+          "type": "sync_manifest",
+          "v": 1,
+          "ts": 1789000009000,
+          "syncId": "runB",
+          "chunkCount": 5
+        }
+      ],
+      "payloads": [
+        {
+          "type": "sync",
+          "v": 1,
+          "ts": 1789000005000,
+          "data": {
+            "channels": [
+              {
+                "messageStreamId": "0xowner/chan-1",
+                "name": "fits"
+              }
+            ]
+          }
+        },
+        {
+          "type": "sync",
+          "v": 1,
+          "ts": 1789000000000,
+          "data": {
+            "channels": [
+              {
+                "messageStreamId": "0xowner/chan-1",
+                "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              }
+            ]
+          }
+        },
+        {
+          "type": "sync",
+          "v": 1,
+          "ts": 1789000009000,
+          "data": {
+            "channels": [
+              {
+                "messageStreamId": "0xowner/chan-1",
+                "name": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "what": "a run whose head fell out of the window is dropped whole",
+      "messages": [
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 1,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 2,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 3,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 4,
+          "chunkCount": 5,
+          "data": "xxxx\"}]}}"
+        },
+        {
+          "type": "sync_manifest",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkCount": 5
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "what": "a run with no manifest is not assumed complete",
+      "messages": [
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 0,
+          "chunkCount": 5,
+          "data": "{\"type\":\"sync\",\"v\":1,\"ts\":1789000000000,\"data\":{\"channels\":[{\"messageStreamId\":\"0xowner/chan-1\",\"name\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 1,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 2,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 3,
+          "chunkCount": 5,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000000000,
+          "syncId": "runA",
+          "chunkIndex": 4,
+          "chunkCount": 5,
+          "data": "xxxx\"}]}}"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "what": "a run whose chunks do not form JSON is dropped",
+      "messages": [
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1,
+          "syncId": "bad",
+          "chunkIndex": 0,
+          "chunkCount": 1,
+          "data": "{oops"
+        },
+        {
+          "type": "sync_manifest",
+          "v": 1,
+          "ts": 1,
+          "syncId": "bad",
+          "chunkCount": 1
+        }
+      ],
+      "payloads": []
+    }
+  ]
+}
