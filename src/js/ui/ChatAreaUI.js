@@ -705,7 +705,9 @@ class ChatAreaUI {
         const currentAddress = authManager?.getAddress();
 
         let historyStartIndicator = '';
-        if (!hasMoreHistory) {
+        // A refused read also clears hasMoreHistory, and there the start is
+        // unknown, not reached.
+        if (!hasMoreHistory && !effectiveChannel?.historyError) {
             historyStartIndicator = `
                 <div class="flex justify-center py-4">
                     <div class="text-white/[0.12] text-xs">

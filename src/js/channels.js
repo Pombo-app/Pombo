@@ -2083,9 +2083,11 @@ class ChannelManager {
 
             // A storage node that refused the read (no access, bad signature,
             // chain unreachable) is not "no more history": the empty state
-            // says why, and nothing keeps polling for older pages.
+            // says why, and nothing keeps polling for older pages. Exhaustion
+            // is the paginate's to decide, so a clean read reopens what a
+            // refusal closed.
             channel.historyError = stats?.readError || null;
-            if (channel.historyError) channel.hasMoreHistory = false;
+            channel.hasMoreHistory = !channel.historyError;
 
             channel.initialLoadInProgress = false;
             
