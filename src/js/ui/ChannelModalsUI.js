@@ -1019,7 +1019,9 @@ class ChannelModalsUI {
                     noteEl.textContent = 'Renewing extends from the current end.';
                 }
                 const startPay = async () => {
+                    const idleLabel = actionBtn.textContent;
                     actionBtn.disabled = true;
+                    actionBtn.innerHTML = '<span class="spinner spinner-inline"></span>Paying…';
                     // Renewal: the modal's job ends at the click — the toast
                     // narrates the payment from here. (First-time pay keeps
                     // the modal up: on failure it is the retry context.)
@@ -1044,6 +1046,7 @@ class ChannelModalsUI {
                             unconfirmed ? error.message : getErrorMessage(error),
                             unconfirmed ? 'warning' : 'error');
                         actionBtn.disabled = false;
+                        actionBtn.textContent = idleLabel;
                     }
                 };
                 if (actionBtn) {
