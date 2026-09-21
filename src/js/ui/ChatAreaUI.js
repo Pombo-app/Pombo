@@ -678,7 +678,7 @@ class ChatAreaUI {
                     <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
                         <div class="spinner" style="width: 24px; height: 24px;"></div>
                         <span class="text-sm">Waiting for channel keys…</span>
-                        <span class="text-xs text-white/25">Another member needs to be online to share them</span>
+                        <span class="text-xs text-white/25">Requested from the channel, this can take a moment</span>
                     </div>
                 `
                         : `
