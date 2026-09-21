@@ -25,6 +25,11 @@ import { dmManager } from './dm.js';
 import { identityManager } from './identity.js';
 import { mergePayloadSeries as mergeSyncPayloadSeries, mergeSentMessages as mergeSyncSentMessages, mergeSentReactions as mergeSyncSentReactions, mergeState as mergeSyncState, mergeChannels as mergeSyncChannels, mergeEpochKeys as mergeSyncEpochKeys } from './syncMerge.js';
 import { syncWorkerClient } from './workers/syncWorkerClient.js';
+import { cryptoManager } from './crypto.js';
+import { splitSyncPayload, reassembleSyncPayloads } from './syncChunks.js';
+
+/** A snapshot is a RUN of messages, so the window must hold several of them. */
+const SYNC_FETCH_COUNT = 60;
 
 const getNow = () => (
     typeof performance !== 'undefined' && typeof performance.now === 'function'
@@ -384,12 +389,16 @@ class SyncManager {
             // longer read "this account is online and syncing right now" off
             // the publisherId.
             const myAddress = authManager.getAddress();
-            await dmManager.sealAndPublish(
-                inboxStreamId,
-                myAddress,
-                payload,
-                STREAM_CONFIG.MESSAGE_STREAM.SYNC
-            );
+            const messages = splitSyncPayload(payload, cryptoManager.generateRandomHex(8));
+            Logger.info('Sync: push', {
+                bytes: JSON.stringify(payload).length,
+                channels: state.channels?.length ?? 0,
+                messages: messages.length
+            });
+            for (const message of messages) {
+                await dmManager.sealAndPublish(
+                    inboxStreamId, myAddress, message, STREAM_CONFIG.MESSAGE_STREAM.SYNC);
+            }
 
             this.lastSyncTs = payload.ts;
             Logger.info('Sync: Pushed state to storage nodes', { ts: payload.ts });
@@ -461,7 +470,7 @@ class SyncManager {
             const messages = await streamrController.fetchPartitionHistory(
                 inboxStreamId,
                 STREAM_CONFIG.MESSAGE_STREAM.SYNC,
-                options.limit || 10
+                options.limit || SYNC_FETCH_COUNT
             );
             const fetchCompletedAt = getNow();
 
@@ -518,7 +527,8 @@ class SyncManager {
                             continue;
                         }
                         Logger.debug('Sync: Decrypted payload', { type: payload.type, v: payload.v });
-                        if (payload.type === 'sync' && payload.v === 1) {
+                        if (payload.v === 1
+                                && ['sync', 'sync_chunk', 'sync_manifest'].includes(payload.type)) {
                             out.push(payload);
                         }
                     } catch (e) {
@@ -528,7 +538,10 @@ class SyncManager {
                 return out;
             };
 
-            const decrypted = await decryptBatch(messages);
+            const reassemble = (list) => reassembleSyncPayloads(
+                list, (info) => Logger.warn('Sync: dropped an incomplete run', info));
+
+            const decrypted = reassemble(await decryptBatch(messages));
             const decryptCompletedAt = getNow();
 
             Logger.info('Sync: Valid payloads found:', { count: decrypted.length });
@@ -558,9 +571,9 @@ class SyncManager {
                     const retryMessages = await streamrController.fetchPartitionHistory(
                         inboxStreamId,
                         STREAM_CONFIG.MESSAGE_STREAM.SYNC,
-                        options.limit || 10
+                        options.limit || SYNC_FETCH_COUNT
                     );
-                    const retryDecrypted = await decryptBatch(retryMessages);
+                    const retryDecrypted = reassemble(await decryptBatch(retryMessages));
                     freshPayloads = retryDecrypted.filter(payload => !appliedTs.has(payload.ts));
                 }
 

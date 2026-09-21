@@ -82,13 +82,11 @@ class ChannelSettingsUI {
         // Check if in preview mode
         const isPreviewMode = this.deps.isInPreviewMode?.() || false;
 
-        // Determine effective read-only state from cached publish permission
-        // If user cannot publish, treat as read-only regardless of channel.readOnly flag
-        const canPublish = currentChannel._publishPermCache?.canPublish;
-        const effectiveReadOnly = canPublish === false || currentChannel.readOnly;
-
-        // Update channel info
-        this.elements.channelSettingsType.innerHTML = this.deps.getChannelTypeLabel(currentChannel.type, effectiveReadOnly, true);
+        // The chips describe the CHANNEL, so the announcements one is the
+        // contract's readOnly, reconciled once per session. Whether this
+        // account may write is a different fact, and the composer says it.
+        this.elements.channelSettingsType.innerHTML =
+            this.deps.getChannelTypeLabel(currentChannel.type, currentChannel.readOnly, true);
         this._applyTypeChips();
         this._applyGateAccessLabel(currentChannel);
         this._applyWireIdentityLine(currentChannel);

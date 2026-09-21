@@ -1399,4 +1399,44 @@ describe('ChannelManager Extended', () => {
             expect(goodHandler).toHaveBeenCalled();
         });
     });
+
+    /**
+     * A refusal closes pagination so nothing keeps hammering a node that said
+     * no. It must not outlive itself: renewing a lapsed gate used to leave the
+     * channel unpaginable until the whole page was reloaded, because only the
+     * refusal branch ever wrote the flag.
+     */
+    describe('pagination after a refused history read', () => {
+        const streamId = 'stream-refused-1';
+
+        /** Drives the initial load and hands `stats` to its completion callback. */
+        async function loadWith(stats) {
+            channelManager.channels.set(streamId, {
+                type: 'public', messages: [], reactions: {},
+                ephemeralStreamId: `${streamId}-ephemeral`
+            });
+            streamrController.subscribeToDualStream.mockImplementation(
+                async (_m, _e, _h, _p, _c, onHistoryComplete) => { await onHistoryComplete?.(stats); }
+            );
+            await channelManager.subscribeToChannel(streamId);
+            return channelManager.channels.get(streamId);
+        }
+
+        it('closes pagination while the node is refusing', async () => {
+            const channel = await loadWith({ readError: { status: 403, signed: true, at: Date.now() } });
+            expect(channel.historyError).toEqual(expect.objectContaining({ status: 403 }));
+            expect(channel.hasMoreHistory).toBe(false);
+        });
+
+        it('reopens it on the next clean read, with no page reload', async () => {
+            const channel = await loadWith({ readError: { status: 403, signed: true, at: Date.now() } });
+            expect(channel.hasMoreHistory).toBe(false);
+
+            channelManager.channels.delete(streamId);
+            const after = await loadWith({ readError: null });
+
+            expect(after.historyError).toBe(null);
+            expect(after.hasMoreHistory).toBe(true);
+        });
+    });
 });

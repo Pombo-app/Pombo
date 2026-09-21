@@ -678,7 +678,7 @@ class ChatAreaUI {
                     <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
                         <div class="spinner" style="width: 24px; height: 24px;"></div>
                         <span class="text-sm">Waiting for channel keys…</span>
-                        <span class="text-xs text-white/25">Another member needs to be online to share them</span>
+                        <span class="text-xs text-white/25">Requested from the channel, this can take a moment</span>
                     </div>
                 `
                         : `
@@ -705,7 +705,9 @@ class ChatAreaUI {
         const currentAddress = authManager?.getAddress();
 
         let historyStartIndicator = '';
-        if (!hasMoreHistory) {
+        // A refused read also clears hasMoreHistory, and there the start is
+        // unknown, not reached.
+        if (!hasMoreHistory && !effectiveChannel?.historyError) {
             historyStartIndicator = `
                 <div class="flex justify-center py-4">
                     <div class="text-white/[0.12] text-xs">

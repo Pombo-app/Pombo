@@ -718,7 +718,8 @@ class MediaController {
             imageId,
             blob: prepared.blob,
             password,
-            dmPeer
+            dmPeer,
+            channel
         });
 
         const manifest = await this.createSignedStoredImageManifest({
@@ -735,12 +736,12 @@ class MediaController {
             qualityUsed: prepared.qualityUsed
         });
 
-        await this.assertStoredImagePayloadFits(manifest, password, dmPeer, 'image manifest');
+        await this.assertStoredImagePayloadFits(manifest, password, dmPeer, 'image manifest', channel);
 
         for (const chunkPayload of chunkPayloads) {
-            await this.publishStoredImagePayload(messageStreamId, chunkPayload, password, dmPeer);
+            await this.publishStoredImagePayload(messageStreamId, chunkPayload, password, dmPeer, channel);
         }
-        await this.publishStoredImagePayload(messageStreamId, manifest, password, dmPeer);
+        await this.publishStoredImagePayload(messageStreamId, manifest, password, dmPeer, channel);
 
         this.cacheImage(imageId, finalDataUrl);
 
@@ -1183,7 +1184,7 @@ class MediaController {
         });
     }
 
-    async createStoredImageChunkPayloads({ imageId, blob, password = null, dmPeer = null }) {
+    async createStoredImageChunkPayloads({ imageId, blob, password = null, dmPeer = null, channel = null }) {
         const sourceBytes = new Uint8Array(await this.blobToArrayBuffer(blob));
         const payloadLimit = Math.max(
             1024,
@@ -1211,7 +1212,7 @@ class MediaController {
                     data: this.arrayBufferToBase64(chunkBytes)
                 };
 
-                const payloadBytes = await this.measureStoredImagePayloadBytes(candidate, password, dmPeer);
+                const payloadBytes = await this.measureStoredImagePayloadBytes(candidate, password, dmPeer, channel);
                 if (payloadBytes <= payloadLimit) {
                     payload = candidate;
                     offset += rawChunkBytes;
@@ -1243,7 +1244,7 @@ class MediaController {
         return chunkPayloads;
     }
 
-    async measureStoredImagePayloadBytes(payload, password = null, dmPeer = null) {
+    async measureStoredImagePayloadBytes(payload, password = null, dmPeer = null, channel = null) {
         if (dmPeer) {
             // Sealing is the only honest way to size this: the envelope carries
             // an ephemeral public key and the sender proof on top of the
@@ -1258,6 +1259,13 @@ class MediaController {
             return new TextEncoder().encode(encryptedPayload).length;
         }
 
+        // Same reason as the DM branch: a gated channel sends the epoch
+        // envelope, base64 and all, not this plaintext.
+        if (channel?.type === 'gated' || channel?.gate?.address) {
+            return await streamrController.epochWireBytes(
+                channel, channel.messageStreamId, payload);
+        }
+
         return new TextEncoder().encode(JSON.stringify(payload)).length;
     }
 
@@ -1268,12 +1276,12 @@ class MediaController {
         return payloadBytes;
     }
 
-    async assertStoredImagePayloadFits(payload, password = null, dmPeer = null, label = 'image payload') {
-        const payloadBytes = await this.measureStoredImagePayloadBytes(payload, password, dmPeer);
+    async assertStoredImagePayloadFits(payload, password = null, dmPeer = null, label = 'image payload', channel = null) {
+        const payloadBytes = await this.measureStoredImagePayloadBytes(payload, password, dmPeer, channel);
         return this.assertPayloadBytesFit(payloadBytes, label);
     }
 
-    async publishStoredImagePayload(messageStreamId, payload, password = null, dmPeer = null) {
+    async publishStoredImagePayload(messageStreamId, payload, password = null, dmPeer = null, channel = null) {
         if (dmPeer) {
             // Seal ONCE and publish that exact envelope. Sizing one envelope and
             // sending a freshly sealed second one would measure a different
@@ -1286,7 +1294,7 @@ class MediaController {
             return;
         }
 
-        await this.assertStoredImagePayloadFits(payload, password, null);
+        await this.assertStoredImagePayloadFits(payload, password, null, 'image payload', channel);
         await streamrController.publishMessage(messageStreamId, payload, password);
     }
 

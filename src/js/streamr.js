@@ -2585,6 +2585,42 @@ class StreamrController {
     }
 
     /**
+     * Bytes [publishEpochEncrypted] would hand the transport for this payload.
+     *
+     * The ciphertext travels base64 inside the envelope, ~1.4x the payload,
+     * and a Sealed channel adds the authorship wrapper on top. Past the
+     * DataChannel's max-message-size the transport throws inside the SDK,
+     * where the publisher never sees it, so a split must count these bytes.
+     * Mirrors the publish, and a test holds the two together.
+     */
+    async epochWireBytes(channel, streamId, payload) {
+        const { epochKeyManager, usesSharedPublish } = await import('./epochKeyManager.js');
+        const { epochKeyCrypto } = await import('./epochKeyCrypto.js');
+
+        const key = await epochKeyManager.getCurrentKey(channel.messageStreamId);
+        if (!key) {
+            throw new Error(`No epoch key for ${channel.messageStreamId} — cannot size a gated payload`);
+        }
+
+        let plaintext = stripLocalFields(payload);
+        if (usesSharedPublish(channel) && !isAdminStream(streamId)) {
+            const auth = epochKeyManager.getAuthorship(channel);
+            if (!auth) {
+                throw new Error('No wallet available to bind the channel pseudonym');
+            }
+            const { authorship } = await import('./authorship.js');
+            plaintext = authorship.seal(
+                channel.messageStreamId, plaintext,
+                { privateKey: auth.privateKey, publicKey: auth.publicKey },
+                auth.bindProof);
+        }
+
+        const epochWrapper = await epochKeyCrypto.encryptWithEpochKey(plaintext, key.cryptoKey);
+        const envelope = { e: 'epoch-aes-gcm', k: key.kid, ct: epochWrapper.ct, iv: epochWrapper.iv };
+        return new TextEncoder().encode(JSON.stringify(envelope)).length;
+    }
+
+    /**
      * Re-key a Sealed channel's shared publish grants: the new key's
      * address gains publish+subscribe on -1/-2 and the old one loses
      * everything — one setPermissions tx per stream (an assignment with an

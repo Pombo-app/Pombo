@@ -666,6 +666,13 @@ class EpochKeyManager {
                 Logger.info('epochKeys: no announce yet on', channel.keysStreamId.slice(-30),
                     '— waiting for the admin');
             }
+            // No anchor: the mint guard refused, or the announce aged out of
+            // storage. Either way the keys are on other members and asking is
+            // the only way left, admin or not. A virgin channel never reaches
+            // here; the bootstrap above gives it epoch 1.
+            if (s.announces.size === 0 && (s.epochs.size > 0 || this.isOwnAdmin(channel))) {
+                await this._sendKeyRequest(channel, s, { anchorless: true });
+            }
             return;
         }
 
@@ -677,7 +684,7 @@ class EpochKeyManager {
         }
 
         if (this._missingEpochs(s).length > 0 || this._needsPubKey(channel, s)
-                || this._needsInteractionsKey(channel, s)) {
+                || this._needsInteractionsKey(channel, s) || s.missingKids?.size > 0) {
             await this._sendKeyRequest(channel, s);
         }
     }
@@ -1620,18 +1627,28 @@ class EpochKeyManager {
      * account's static pubkey, so a v2 wrap answered days later still opens.
      * Only the request id persists — no key material.
      */
-    async _sendKeyRequest(channel, s) {
+    async _sendKeyRequest(channel, s, { anchorless = false } = {}) {
         const interval = s.requestAttempts < REQUEST_FAST_ATTEMPTS
             ? REQUEST_RETRY_FAST_MS : REQUEST_MIN_INTERVAL_MS;
         if (s.pendingRequest && (Date.now() - s.pendingRequest.sentAt) < interval) {
             return;
         }
         const missing = this._missingEpochs(s);
-        if (missing.length === 0 && !this._needsPubKey(channel, s)) return;
+        // Kids seen on the wire that no held key opens. _missingEpochs is
+        // announced-minus-adopted, so an epoch whose announce never arrived
+        // has no other evidence than these.
+        const stranded = [...(s.missingKids || [])]
+            .map((kid) => parseInt(String(kid).split('.')[0], 10))
+            .filter(Number.isInteger);
+        // `anchorless`: no announce to name what is missing, so the request
+        // asks from the first epoch and takes whatever a member still holds.
+        if (!anchorless && missing.length === 0 && stranded.length === 0
+                && !this._needsPubKey(channel, s)) return;
 
         const { privateKey, publicKey } = epochKeyCrypto.generateRequestKeypair();
         const requestId = cryptoManager.generateRandomHex(16);
-        const fromEpoch = missing.length > 0 ? Math.min(...missing) : 1;
+        const fromEpoch = missing.length > 0 ? Math.min(...missing)
+            : stranded.length > 0 ? Math.min(...stranded) : 1;
         const spk = this._myStaticPubkey();
 
         s.requestAttempts += 1;
@@ -2015,7 +2032,15 @@ class EpochKeyManager {
                 epochInForce = epoch;
             }
         }
-        return entry.epoch === epochInForce;
+        if (entry.epoch === epochInForce) return true;
+        // A rotation is two clocks: an author already on the new epoch lands
+        // just before its announce, so the window opens backwards by the same
+        // tolerance the current-epoch branch grants forwards.
+        const own = s.announces.get(entry.epoch);
+        if (!own) return false;
+        const ownValidFrom = own.validFrom ?? own.timestamp ?? 0;
+        return ownValidFrom > timestamp
+            && ownValidFrom - timestamp <= CONFIG.gate.kidFreshnessToleranceMs;
     }
 
     _cryptoKey(entry) {

@@ -2626,4 +2626,66 @@ describe('ChannelManager', () => {
             expect(channelManager.channels.get(streamId).exposure).toBe('hidden');
         });
     });
+
+    describe('gate repair', () => {
+        const streamId = '0xowner/gateless-1';
+
+        beforeEach(() => {
+            channelManager._gateRepairs = new Map();
+        });
+
+        it('shares one in-flight repair between callers', async () => {
+            let land;
+            const repair = vi.spyOn(channelManager, '_doRepairGateAddress')
+                .mockImplementation(() => new Promise(resolve => { land = resolve; }));
+            const channel = { messageStreamId: streamId, type: 'gated' };
+
+            const first = channelManager._repairGateAddress(channel);
+            const second = channelManager._repairGateAddress(channel);
+
+            expect(repair).toHaveBeenCalledTimes(1);
+            expect(second).toBe(first);
+
+            land();
+            await first;
+        });
+
+        it('holds a waiter until the gate lands', async () => {
+            let land;
+            vi.spyOn(channelManager, '_doRepairGateAddress')
+                .mockImplementation(() => new Promise(resolve => { land = resolve; }));
+            const channel = { messageStreamId: streamId, type: 'gated' };
+            channelManager._repairGateAddress(channel);
+
+            let released = false;
+            const waiter = channelManager.awaitGateRepair(streamId)
+                .then(() => { released = true; });
+            await Promise.resolve();
+            expect(released).toBe(false);
+
+            channel.gate = { address: '0x' + 'ab'.repeat(20) };
+            land();
+            await waiter;
+
+            expect(released).toBe(true);
+            expect(channel.gate.address).toBeTruthy();
+        });
+
+        it('returns at once when no repair is in flight', async () => {
+            await expect(channelManager.awaitGateRepair(streamId)).resolves.toBeUndefined();
+        });
+
+        it('releases the waiter when the repair fails', async () => {
+            let fail;
+            vi.spyOn(channelManager, '_doRepairGateAddress')
+                .mockImplementation(() => new Promise((_, reject) => { fail = reject; }));
+            channelManager._repairGateAddress({ messageStreamId: streamId, type: 'gated' })
+                .catch(() => {});
+
+            const waiter = channelManager.awaitGateRepair(streamId);
+            fail(new Error('no gate address in stream metadata'));
+
+            await expect(waiter).resolves.toBeUndefined();
+        });
+    });
 });
