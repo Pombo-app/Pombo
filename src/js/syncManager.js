@@ -25,6 +25,19 @@ import { dmManager } from './dm.js';
 import { identityManager } from './identity.js';
 import { mergePayloadSeries as mergeSyncPayloadSeries, mergeSentMessages as mergeSyncSentMessages, mergeSentReactions as mergeSyncSentReactions, mergeState as mergeSyncState, mergeChannels as mergeSyncChannels, mergeEpochKeys as mergeSyncEpochKeys } from './syncMerge.js';
 import { syncWorkerClient } from './workers/syncWorkerClient.js';
+import { cryptoManager } from './crypto.js';
+
+/**
+ * Characters of cleartext per wire message. Sealing base64s the ciphertext, so
+ * the envelope lands around a third larger — this budget keeps it clear of the
+ * network's message ceiling, which drops anything over it without telling the
+ * publisher. Same number as the Android side, or a split push would not
+ * reassemble there.
+ */
+const SYNC_CHUNK_CHARS = 150 * 1024;
+
+/** A snapshot is a RUN of messages, so the window must hold several of them. */
+const SYNC_FETCH_COUNT = 60;
 
 const getNow = () => (
     typeof performance !== 'undefined' && typeof performance.now === 'function'
@@ -384,12 +397,33 @@ class SyncManager {
             // longer read "this account is online and syncing right now" off
             // the publisherId.
             const myAddress = authManager.getAddress();
-            await dmManager.sealAndPublish(
-                inboxStreamId,
-                myAddress,
-                payload,
-                STREAM_CONFIG.MESSAGE_STREAM.SYNC
-            );
+            const serialised = JSON.stringify(payload);
+            Logger.info('Sync: push size', {
+                bytes: serialised.length, channels: state.channels?.length ?? 0
+            });
+            // Over the wire ceiling the network drops the message with no error
+            // the publisher can see, so an account whose state outgrew it would
+            // report successful pushes forever. Split it, the way blobs split.
+            if (serialised.length <= SYNC_CHUNK_CHARS) {
+                await dmManager.sealAndPublish(
+                    inboxStreamId, myAddress, payload, STREAM_CONFIG.MESSAGE_STREAM.SYNC);
+            } else {
+                const syncId = cryptoManager.generateRandomHex(8);
+                const chunkCount = Math.ceil(serialised.length / SYNC_CHUNK_CHARS);
+                Logger.info('Sync: splitting push', { syncId, chunkCount });
+                for (let i = 0; i < chunkCount; i++) {
+                    await dmManager.sealAndPublish(inboxStreamId, myAddress, {
+                        type: 'sync_chunk', v: 1, ts: payload.ts, syncId,
+                        chunkIndex: i, chunkCount,
+                        data: serialised.slice(i * SYNC_CHUNK_CHARS, (i + 1) * SYNC_CHUNK_CHARS)
+                    }, STREAM_CONFIG.MESSAGE_STREAM.SYNC);
+                }
+                // Last, so a reader holding the manifest knows the run is
+                // complete rather than still arriving.
+                await dmManager.sealAndPublish(inboxStreamId, myAddress, {
+                    type: 'sync_manifest', v: 1, ts: payload.ts, syncId, chunkCount
+                }, STREAM_CONFIG.MESSAGE_STREAM.SYNC);
+            }
 
             this.lastSyncTs = payload.ts;
             Logger.info('Sync: Pushed state to storage nodes', { ts: payload.ts });
@@ -461,7 +495,7 @@ class SyncManager {
             const messages = await streamrController.fetchPartitionHistory(
                 inboxStreamId,
                 STREAM_CONFIG.MESSAGE_STREAM.SYNC,
-                options.limit || 10
+                options.limit || SYNC_FETCH_COUNT
             );
             const fetchCompletedAt = getNow();
 
@@ -518,7 +552,8 @@ class SyncManager {
                             continue;
                         }
                         Logger.debug('Sync: Decrypted payload', { type: payload.type, v: payload.v });
-                        if (payload.type === 'sync' && payload.v === 1) {
+                        if (payload.v === 1
+                                && ['sync', 'sync_chunk', 'sync_manifest'].includes(payload.type)) {
                             out.push(payload);
                         }
                     } catch (e) {
@@ -528,7 +563,44 @@ class SyncManager {
                 return out;
             };
 
-            const decrypted = await decryptBatch(messages);
+            /**
+             * A snapshot too big for one message arrives as a run of chunks
+             * closed by a manifest. A run missing any chunk is not half a
+             * snapshot, it is none: its JSON would not parse, so it waits for
+             * the next push instead of being applied truncated.
+             */
+            const reassemble = (list) => {
+                const whole = list.filter(p => p.type === 'sync');
+                const parts = new Map();      // syncId -> Map(index, data)
+                const expected = new Map();   // syncId -> chunkCount
+                for (const p of list) {
+                    if (p.type === 'sync_chunk' && p.syncId && typeof p.data === 'string') {
+                        if (!parts.has(p.syncId)) parts.set(p.syncId, new Map());
+                        parts.get(p.syncId).set(p.chunkIndex, p.data);
+                    } else if (p.type === 'sync_manifest' && p.syncId) {
+                        expected.set(p.syncId, p.chunkCount);
+                    }
+                }
+                for (const [syncId, count] of expected) {
+                    const got = parts.get(syncId);
+                    if (!count || !got || got.size !== count) {
+                        Logger.warn('Sync: run incomplete — skipping',
+                            { syncId, have: got?.size ?? 0, want: count });
+                        continue;
+                    }
+                    let joined = '';
+                    for (let i = 0; i < count; i++) joined += got.get(i) ?? '';
+                    try {
+                        const payload = JSON.parse(joined);
+                        if (payload?.type === 'sync' && payload.v === 1) whole.push(payload);
+                    } catch (e) {
+                        Logger.warn('Sync: run did not parse', { syncId, error: e.message });
+                    }
+                }
+                return whole;
+            };
+
+            const decrypted = reassemble(await decryptBatch(messages));
             const decryptCompletedAt = getNow();
 
             Logger.info('Sync: Valid payloads found:', { count: decrypted.length });
@@ -558,9 +630,9 @@ class SyncManager {
                     const retryMessages = await streamrController.fetchPartitionHistory(
                         inboxStreamId,
                         STREAM_CONFIG.MESSAGE_STREAM.SYNC,
-                        options.limit || 10
+                        options.limit || SYNC_FETCH_COUNT
                     );
-                    const retryDecrypted = await decryptBatch(retryMessages);
+                    const retryDecrypted = reassemble(await decryptBatch(retryMessages));
                     freshPayloads = retryDecrypted.filter(payload => !appliedTs.has(payload.ts));
                 }
 
