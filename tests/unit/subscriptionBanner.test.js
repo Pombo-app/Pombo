@@ -144,6 +144,30 @@ describe('the strip', () => {
     });
 });
 
+describe('a client ban on a channel with no gate', () => {
+    it('says so, where the composer already refused to write', async () => {
+        channel = {
+            streamId: STREAM, name: 'Open',
+            adminState: { bannedMembers: [{ address: ME, sinceEpoch: 1 }] }
+        };
+        subscriptionBannerUI.update();
+        await Promise.resolve();
+        expect(subscriptionBannerUI.stateOf(STREAM)).toBe('banned');
+        expect(elements.banner.classList.contains('hidden')).toBe(false);
+        expect(elements.text.textContent).toMatch(/A moderator removed/);
+        expect(elements.gavelIcon.classList.contains('hidden')).toBe(false);
+        expect(elements.renewBtn.classList.contains('hidden')).toBe(true);
+    });
+
+    it('asks the chain nothing about a channel that has no gate', async () => {
+        channel = { streamId: STREAM, name: 'Open' };
+        subscriptionBannerUI.update();
+        await Promise.resolve();
+        expect(gateManager.getGateInfo).not.toHaveBeenCalled();
+        expect(elements.banner.classList.contains('hidden')).toBe(true);
+    });
+});
+
 describe('the icon', () => {
     const shown = (el) => !el.classList.contains('hidden');
 

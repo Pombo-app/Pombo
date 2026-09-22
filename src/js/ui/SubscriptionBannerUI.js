@@ -104,13 +104,15 @@ class SubscriptionBannerUI {
     update() {
         if (!this.elements?.banner) return;
         const channel = this._resolveChannel();
-        if (!channel?.gate?.address) {
+        if (!channel) {
             this._hideAll();
             return;
         }
-        const entry = this._status.get(channel.streamId);
-        if (!entry || Date.now() - entry.at > STATUS_TTL_MS) {
-            this._refresh(channel);
+        if (channel.gate?.address) {
+            const entry = this._status.get(channel.streamId);
+            if (!entry || Date.now() - entry.at > STATUS_TTL_MS) {
+                this._refresh(channel);
+            }
         }
         this._render();
     }
