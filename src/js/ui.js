@@ -770,6 +770,7 @@ class UIController {
             text: this.elements.subscriptionBannerText,
             renewBtn: this.elements.subscriptionBannerRenew,
             dismissBtn: this.elements.subscriptionBannerDismiss,
+            clockIcon: document.getElementById('subscription-banner-icon-clock'),
             alertIcon: document.getElementById('subscription-banner-icon-alert'),
             gavelIcon: document.getElementById('subscription-banner-icon-gavel')
         });

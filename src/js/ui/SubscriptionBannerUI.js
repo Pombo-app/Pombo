@@ -45,7 +45,7 @@ class SubscriptionBannerUI {
         this.deps = { ...this.deps, ...deps };
     }
 
-    /** @param {Object} elements - { banner, text, renewBtn, dismissBtn, alertIcon, gavelIcon } */
+    /** @param {Object} elements - { banner, text, renewBtn, dismissBtn, clockIcon, alertIcon, gavelIcon } */
     init(elements) {
         this.elements = elements;
         elements?.renewBtn?.addEventListener('click', () => this.renewCurrent());
@@ -180,7 +180,8 @@ class SubscriptionBannerUI {
             }[state];
         }
         const banned = state === 'banned';
-        els.alertIcon?.classList.toggle('hidden', banned);
+        els.clockIcon?.classList.toggle('hidden', !active);
+        els.alertIcon?.classList.toggle('hidden', active || banned);
         els.gavelIcon?.classList.toggle('hidden', !banned);
         // Paying again buys a banned account nothing
         els.renewBtn?.classList.toggle('hidden', banned);

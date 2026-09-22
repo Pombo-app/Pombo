@@ -1,6 +1,7 @@
 /**
  * SubscriptionBannerUI Tests
- * Covers: stateOf across the three member states, and what the strip says.
+ * Covers: stateOf across the three member states, and what the strip says
+ * and shows.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -53,7 +54,9 @@ beforeEach(async () => {
     channel = { streamId: STREAM, name: 'Paid', gate: { address: GATE } };
     elements = {
         banner: hiddenElement('div'), text: hiddenElement('span'),
-        renewBtn: hiddenElement('button'), dismissBtn: hiddenElement('button')
+        renewBtn: hiddenElement('button'), dismissBtn: hiddenElement('button'),
+        clockIcon: hiddenElement('svg'), alertIcon: hiddenElement('svg'),
+        gavelIcon: hiddenElement('svg')
     };
     subscriptionBannerUI.init(elements);
     subscriptionBannerUI.setDependencies({
@@ -138,5 +141,38 @@ describe('the strip', () => {
         expect(elements.banner.classList.contains('hidden')).toBe(false);
         expect(elements.text.textContent).toMatch(/ends in 2 days/);
         expect(elements.dismissBtn.classList.contains('hidden')).toBe(false);
+    });
+});
+
+describe('the icon', () => {
+    const shown = (el) => !el.classList.contains('hidden');
+
+    it('counts down with a clock while access still holds', async () => {
+        gateManager.getGateMembers.mockResolvedValue([member({ paidUntil: nowSec() + 2 * DAY })]);
+        await settle();
+        expect([shown(elements.clockIcon), shown(elements.alertIcon), shown(elements.gavelIcon)])
+            .toEqual([true, false, false]);
+    });
+
+    it('turns to an alert once the subscription has lapsed', async () => {
+        gateManager.getGateMembers.mockResolvedValue([member({ paidUntil: nowSec() - 60, access: false })]);
+        await settle();
+        expect([shown(elements.clockIcon), shown(elements.alertIcon), shown(elements.gavelIcon)])
+            .toEqual([false, true, false]);
+    });
+
+    it('alerts a member who never paid', async () => {
+        await settle();
+        expect([shown(elements.clockIcon), shown(elements.alertIcon), shown(elements.gavelIcon)])
+            .toEqual([false, true, false]);
+    });
+
+    it('keeps the gavel for a removal by a moderator', async () => {
+        gateManager.getGateMembers.mockResolvedValue([member({
+            paidUntil: nowSec() + DAY, banned: true, access: false
+        })]);
+        await settle();
+        expect([shown(elements.clockIcon), shown(elements.alertIcon), shown(elements.gavelIcon)])
+            .toEqual([false, false, true]);
     });
 });
