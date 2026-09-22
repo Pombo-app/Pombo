@@ -542,7 +542,8 @@ class UIController {
             mediaController,
             storageMediaController,
             showNotification: (msg, type) => this.showNotification(msg, type),
-            getActiveChannel: () => this.getActiveChannel()
+            getActiveChannel: () => this.getActiveChannel(),
+            onRetrySend: (msgId) => this.handleRetrySend(msgId)
         });
         chatAreaUI.init({
             messagesArea: this.elements.messagesArea,
@@ -1361,6 +1362,20 @@ class UIController {
     /**
      * Handle send message
      */
+    /**
+     * Publish again a message whose bubble says "Not sent".
+     * @param {string} msgId
+     */
+    async handleRetrySend(msgId) {
+        const currentChannel = channelManager.getCurrentChannel();
+        if (!currentChannel || !msgId) return;
+        try {
+            await channelManager.resendMessage(currentChannel.streamId, msgId);
+        } catch (error) {
+            this.showNotification('Failed to send message: ' + error.message, 'error');
+        }
+    }
+
     async handleSendMessage() {
         // DEBOUNCE: Prevent rapid double-clicks from sending duplicates
         if (inputUI.getIsSending()) {

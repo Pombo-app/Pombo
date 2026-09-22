@@ -180,6 +180,23 @@ class ChatAreaUI {
         this.replyToText = elements.replyToText;
         this.messageInput = elements.messageInput;
         this._wireAdminStateHandler();
+        this._wireRetryHandler();
+    }
+
+    /**
+     * Delegated: retry buttons are redrawn with their bubble.
+     * @private
+     */
+    _wireRetryHandler() {
+        if (!this.messagesArea || this._retryWiredArea === this.messagesArea) return;
+        this.messagesArea.addEventListener('click', (e) => {
+            const btn = e.target.closest?.('.message-retry');
+            if (!btn || !this.messagesArea.contains(btn)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            this.deps.onRetrySend?.(btn.dataset.msgId);
+        });
+        this._retryWiredArea = this.messagesArea;
     }
 
     /**

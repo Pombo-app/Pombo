@@ -2547,6 +2547,7 @@ class ChannelManager {
     awaitAllFlushes(streamId) { return this.messageFlow.awaitAllFlushes(streamId); }
     handleMediaMessage(streamId, data, account) { return this.messageFlow.handleMediaMessage(streamId, data, account); }
     sendMessage(messageStreamId, text, replyTo = null) { return this.messageFlow.sendMessage(messageStreamId, text, replyTo); }
+    resendMessage(messageStreamId, messageId) { return this.messageFlow.resendMessage(messageStreamId, messageId); }
     publishWithRetry(messageStreamId, message, password = null, retryCount = 0) { return this.messageFlow.publishWithRetry(messageStreamId, message, password, retryCount); }
     sortMessagesByTimestamp(channel) { return this.messageFlow.sortMessagesByTimestamp(channel); }
     loadMoreHistory(messageStreamId) { return this.messageFlow.loadMoreHistory(messageStreamId); }

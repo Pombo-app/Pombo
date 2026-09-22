@@ -561,50 +561,7 @@ export class MessageFlow {
                 return await dmManager.sendMessage(messageStreamId, text, replyTo);
             }
 
-            // Check publish permission using Streamr SDK (real-time on-chain check)
-            // This applies to ALL channel types - the SDK handles public permissions correctly
-            const currentAddress = authManager.getAddress();
-            if (!currentAddress) {
-                throw new Error('Not authenticated');
-            }
-
-            // Check cached permission first (set by UI or previous check)
-            let canPublish = false;
-            const cacheValid = channel._publishPermCache?.address?.toLowerCase() === currentAddress.toLowerCase() &&
-                              channel._publishPermCache?.timestamp && 
-                              (Date.now() - channel._publishPermCache.timestamp) < 60000; // 1 min cache
-            
-            if (cacheValid) {
-                canPublish = channel._publishPermCache.canPublish;
-            } else {
-                // Check via Streamr SDK (real-time on-chain)
-                try {
-                    const result = await streamrController.hasPublishPermission(messageStreamId, true);
-                    
-                    // Handle RPC error - be optimistic and try to publish anyway
-                    if (result.rpcError) {
-                        Logger.warn('RPC error checking publish permission, proceeding optimistically');
-                        canPublish = true;
-                    } else {
-                        canPublish = result.hasPermission;
-                        // Cache the result (only if we got a definitive answer)
-                        channel._publishPermCache = {
-                            address: currentAddress,
-                            canPublish: canPublish,
-                            timestamp: Date.now()
-                        };
-                    }
-                    Logger.debug('Publish permission check via SDK:', { streamId: messageStreamId, canPublish, rpcError: result.rpcError });
-                } catch (error) {
-                    Logger.warn('Failed to check publish permission via SDK:', error);
-                    // On error, try to publish anyway - the network will reject if no permission
-                    canPublish = true;
-                }
-            }
-
-            if (!canPublish) {
-                throw new Error('You do not have permission to send messages in this channel.');
-            }
+            await this._assertMayPublish(channel, messageStreamId);
 
             // DEDUPLICATION: Use content-based key to block duplicate sends synchronously
             // This key is created BEFORE the async createSignedMessage to prevent
@@ -636,32 +593,12 @@ export class MessageFlow {
             // Notify handlers to update UI immediately (with pending indicator)
             this.manager.notifyHandlers('message', { streamId: messageStreamId, message: message });
 
-            // Publish to MESSAGE stream (stored)
-            await this.manager.publishWithRetry(messageStreamId, message, channel.password);
-            
-            // Mark as sent (remove pending flag)
-            message.pending = false;
-            
-            // For write-only channels, persist sent messages locally
-            // (no subscribe permission = can't fetch history from network)
-            if (channel.writeOnly) {
-                await secureStorage.addSentMessage(messageStreamId, message);
-            }
-            
-            // Notify UI that message is confirmed
-            this.manager.notifyHandlers('message_confirmed', { streamId: messageStreamId, messageId: message.id });
-
-            // Send wake signals to other channel members (async, don't await)
-            this.manager.sendWakeSignals(messageStreamId).catch(err => {
-                Logger.debug('Wake signals failed (non-critical):', err.message);
-            });
-
-            Logger.debug('Message sent to messageStream:', message.id);
+            await this._publishTracked(channel, message);
         } catch (error) {
             Logger.error('Failed to send message:', error);
-            // Message stays in local storage with pending flag
-            // User can see it failed and retry manually
-            this.manager.notifyHandlers('message_failed', { streamId: messageStreamId, messageId: message?.id, error: error.message });
+            if (!message?.failed) {
+                this.manager.notifyHandlers('message_failed', { streamId: messageStreamId, messageId: message?.id, error: error.message });
+            }
             throw error;
         } finally {
             // Always clean up the sending lock
@@ -670,7 +607,123 @@ export class MessageFlow {
             }
         }
     }
-    
+
+    /**
+     * Send again a message whose publish failed. The bubble keeps its id and
+     * timestamp; only the publish is repeated.
+     * @param {string} messageStreamId - Message Stream ID (channel key)
+     * @param {string} messageId - Id of the failed message
+     * @returns {Promise<Object|null>} The message, or null when there is nothing to resend
+     */
+    async resendMessage(messageStreamId, messageId) {
+        const channel = this.manager.channels.get(messageStreamId);
+        if (!channel) {
+            throw new Error('Channel not found');
+        }
+        if (channel.type === 'dm') {
+            return await dmManager.resendMessage(messageStreamId, messageId);
+        }
+        const message = channel.messages.find(m => m.id === messageId && m.failed);
+        if (!message) return null;
+
+        const sendKey = `${messageStreamId}:resend:${messageId}`;
+        if (this.sendingMessages.has(sendKey)) return message;
+        this.sendingMessages.add(sendKey);
+        try {
+            await this._assertMayPublish(channel, messageStreamId);
+            message.pending = true;
+            message.failed = false;
+            delete message.failError;
+            this.manager.notifyHandlers('message_sending', { streamId: messageStreamId, messageId, message });
+            await this._publishTracked(channel, message);
+            return message;
+        } finally {
+            this.sendingMessages.delete(sendKey);
+        }
+    }
+
+    /**
+     * Publish a message already on the timeline and settle its send state.
+     * @param {Object} channel
+     * @param {Object} message - Pending message, present in channel.messages
+     */
+    async _publishTracked(channel, message) {
+        const messageStreamId = channel.messageStreamId;
+        try {
+            await this.manager.publishWithRetry(messageStreamId, message, channel.password);
+        } catch (error) {
+            message.pending = false;
+            message.failed = true;
+            message.failError = error.message;
+            this.manager.notifyHandlers('message_failed', { streamId: messageStreamId, messageId: message.id, message, error: error.message });
+            throw error;
+        }
+
+        message.pending = false;
+        message.failed = false;
+        delete message.failError;
+
+        // For write-only channels, persist sent messages locally
+        // (no subscribe permission = can't fetch history from network)
+        if (channel.writeOnly) {
+            await secureStorage.addSentMessage(messageStreamId, message);
+        }
+
+        this.manager.notifyHandlers('message_confirmed', { streamId: messageStreamId, messageId: message.id, message });
+
+        // Send wake signals to other channel members (async, don't await)
+        this.manager.sendWakeSignals(messageStreamId).catch(err => {
+            Logger.debug('Wake signals failed (non-critical):', err.message);
+        });
+
+        Logger.debug('Message sent to messageStream:', message.id);
+    }
+
+    /**
+     * Refuse before the bubble exists. A verdict is kept for a minute; an
+     * unreachable chain lets the publish through, the network refuses what it must.
+     * @param {Object} channel
+     * @param {string} messageStreamId
+     */
+    async _assertMayPublish(channel, messageStreamId) {
+        const currentAddress = authManager.getAddress();
+        if (!currentAddress) {
+            throw new Error('Not authenticated');
+        }
+
+        let canPublish = false;
+        const cacheValid = channel._publishPermCache?.address?.toLowerCase() === currentAddress.toLowerCase() &&
+                          channel._publishPermCache?.timestamp &&
+                          (Date.now() - channel._publishPermCache.timestamp) < 60000;
+
+        if (cacheValid) {
+            canPublish = channel._publishPermCache.canPublish;
+        } else {
+            try {
+                const result = await streamrController.hasPublishPermission(messageStreamId, true);
+                if (result.rpcError) {
+                    Logger.warn('RPC error checking publish permission, proceeding optimistically');
+                    canPublish = true;
+                } else {
+                    canPublish = result.hasPermission;
+                    channel._publishPermCache = {
+                        address: currentAddress,
+                        canPublish: canPublish,
+                        timestamp: Date.now()
+                    };
+                }
+                Logger.debug('Publish permission check via SDK:', { streamId: messageStreamId, canPublish, rpcError: result.rpcError });
+            } catch (error) {
+                Logger.warn('Failed to check publish permission via SDK:', error);
+                canPublish = true;
+            }
+        }
+
+        if (!canPublish) {
+            throw new Error('You do not have permission to send messages in this channel.');
+        }
+    }
+
     /**
      * Publish message with retry mechanism
      * @param {string} messageStreamId - Message Stream ID

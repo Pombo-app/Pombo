@@ -107,6 +107,37 @@ describe('ChatAreaUI', () => {
         vi.restoreAllMocks();
     });
 
+    // ==================== retry ====================
+    describe('retry button', () => {
+        it('hands a Retry click to onRetrySend with the message id', () => {
+            const onRetrySend = vi.fn();
+            chatAreaUI.setDependencies({ onRetrySend });
+            const area = document.getElementById('messages-area');
+            area.innerHTML = `
+                <div class="message-entry message-failed" data-msg-id="m1">
+                    <div class="message-footer">
+                        <button type="button" class="message-retry" data-msg-id="m1">Retry</button>
+                    </div>
+                </div>`;
+
+            area.querySelector('.message-retry').click();
+
+            expect(onRetrySend).toHaveBeenCalledTimes(1);
+            expect(onRetrySend).toHaveBeenCalledWith('m1');
+        });
+
+        it('ignores clicks elsewhere in the bubble', () => {
+            const onRetrySend = vi.fn();
+            chatAreaUI.setDependencies({ onRetrySend });
+            const area = document.getElementById('messages-area');
+            area.innerHTML = '<div class="message-entry" data-msg-id="m2"><div class="message-content">text</div></div>';
+
+            area.querySelector('.message-content').click();
+
+            expect(onRetrySend).not.toHaveBeenCalled();
+        });
+    });
+
     // ==================== startEdit ====================
     describe('startEdit()', () => {
         function setupChannel(messages = []) {
