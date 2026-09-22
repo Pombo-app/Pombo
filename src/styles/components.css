@@ -1201,8 +1201,10 @@ body.cannot-write .reply-trigger {
     font-size: 0.8125rem;
     color: #fbbf24;
     background: rgba(251, 191, 36, 0.08);
-    border-top: 1px solid rgba(251, 191, 36, 0.15);
-    border-bottom: 1px solid rgba(251, 191, 36, 0.15);
+    border: 1px solid rgba(251, 191, 36, 0.15);
+    border-top: none;
+    border-bottom-left-radius: 0.75rem;
+    border-bottom-right-radius: 0.75rem;
 }
 
 .subscription-banner.hidden {
@@ -1212,8 +1214,7 @@ body.cannot-write .reply-trigger {
 .subscription-banner--expired {
     color: #f87171;
     background: rgba(248, 113, 113, 0.08);
-    border-top-color: rgba(248, 113, 113, 0.18);
-    border-bottom-color: rgba(248, 113, 113, 0.18);
+    border-color: rgba(248, 113, 113, 0.18);
 }
 
 .subscription-banner-icon {
@@ -1259,6 +1260,20 @@ body.cannot-write .reply-trigger {
    pinned pill must clear it when both are visible. */
 .messages-wrapper:has(.subscription-banner:not(.hidden)) .pinned-banner {
     top: calc(1.125rem + 36px);
+}
+
+@media (min-width: 768px) {
+    .subscription-banner,
+    .pinned-banner-name,
+    .pinned-banner-text {
+        font-size: 0.875rem;
+    }
+
+    .subscription-banner-icon,
+    .pinned-banner-icon {
+        width: 1.0625rem;
+        height: 1.0625rem;
+    }
 }
 
 /* ----- Reply Bar ----- */
