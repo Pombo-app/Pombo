@@ -265,6 +265,24 @@ describe('ChannelManager - Additional Coverage', () => {
             expect(channelManager.channels.has(streamId)).toBe(true);
         });
 
+        it('a creator joining their own gated channel from a link gets the gate from the metadata', async () => {
+            streamrController.checkPermissions.mockResolvedValue({
+                canSubscribe: true, canPublish: true, isOwner: true
+            });
+            const gate = '0x' + 'ab'.repeat(20);
+            vi.spyOn(channelManager, 'readGateFromMetadata').mockResolvedValue(gate);
+            vi.spyOn(channelManager, 'saveChannels').mockResolvedValue(undefined);
+            vi.spyOn(channelManager, 'subscribeToChannel').mockResolvedValue(undefined);
+
+            const channel = await channelManager.joinChannel(streamId, null, {
+                type: 'gated', createdBy: '0xmyaddress'
+            });
+
+            expect(channel.type).toBe('gated');
+            expect(channel.gate).toEqual({ address: gate });
+            expect(channel.keysStreamId).toBeTruthy();
+        });
+
         it('persists to storage and channel order', async () => {
             streamrController.checkPermissions.mockResolvedValue({
                 canSubscribe: true, canPublish: true, isOwner: false
