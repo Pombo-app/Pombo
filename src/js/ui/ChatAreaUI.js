@@ -654,9 +654,7 @@ class ChatAreaUI {
                 // from "admin offline" at the key layer (refusals are silent),
                 // so the chain-read status decides. It outranks the node's
                 // refusal, which is the same lapse with no way out of it.
-                const paidState = effectiveChannel?.gate?.address
-                    ? subscriptionBannerUI.stateOf(effectiveChannel.streamId)
-                    : null;
+                const paidState = subscriptionBannerUI.stateOf(effectiveChannel?.streamId);
                 const expired = paidState === 'expired';
                 const unsubscribed = paidState === 'unsubscribed';
                 const banned = paidState === 'banned';
