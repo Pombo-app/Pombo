@@ -1251,6 +1251,67 @@ describe('DMManager', () => {
             );
         });
 
+        it('marks a failed DM and resends it under the same id', async () => {
+            const peerAddress = '0xpeeraaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+            const streamId = `${peerAddress}/Pombo-DM-1`;
+            const channel = {
+                messageStreamId: streamId,
+                type: 'dm',
+                peerAddress,
+                messages: []
+            };
+            channelManager.channels.set(streamId, channel);
+
+            streamrController.getDMPublicKey.mockResolvedValueOnce(null);
+            dmCrypto.peerPublicKeys.clear();
+
+            await expect(dmManager.sendMessage(streamId, 'Fail')).rejects.toThrow();
+
+            expect(channel.messages).toHaveLength(1);
+            const message = channel.messages[0];
+            expect(message).toMatchObject({ pending: false, failed: true });
+            expect(message.failError).toContain('peer public key');
+            expect(streamrController.publishAs).not.toHaveBeenCalled();
+
+            const resent = await dmManager.resendMessage(streamId, message.id);
+
+            expect(resent).toBe(message);
+            expect(channel.messages).toHaveLength(1);
+            expect(message).toMatchObject({ pending: false, failed: false });
+            expect(message.failError).toBeUndefined();
+            expect(streamrController.publishAs).toHaveBeenCalledTimes(1);
+            const sealedInput = dmCrypto.seal.mock.calls[0][0];
+            expect(sealedInput.id).toBe(message.id);
+            expect(sealedInput).not.toHaveProperty('failed');
+            expect(sealedInput).not.toHaveProperty('failError');
+            expect(channelManager.notifyHandlers).toHaveBeenCalledWith(
+                'message_sending',
+                expect.objectContaining({ streamId, messageId: message.id, message })
+            );
+            expect(channelManager.notifyHandlers).toHaveBeenCalledWith(
+                'message_confirmed',
+                expect.objectContaining({ streamId, messageId: message.id, message })
+            );
+        });
+
+        it('resends nothing for a DM that did not fail', async () => {
+            const peerAddress = '0xpeeraaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+            const streamId = `${peerAddress}/Pombo-DM-1`;
+            const channel = {
+                messageStreamId: streamId,
+                type: 'dm',
+                peerAddress,
+                messages: []
+            };
+            channelManager.channels.set(streamId, channel);
+
+            await dmManager.sendMessage(streamId, 'Fine');
+            streamrController.publishAs.mockClear();
+
+            expect(await dmManager.resendMessage(streamId, channel.messages[0].id)).toBeNull();
+            expect(streamrController.publishAs).not.toHaveBeenCalled();
+        });
+
         it('should send wake signals after sending', async () => {
             const peerAddress = '0xpeeraaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
             const streamId = `${peerAddress}/Pombo-DM-1`;

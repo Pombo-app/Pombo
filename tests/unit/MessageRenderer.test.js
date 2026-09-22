@@ -489,6 +489,44 @@ describe('MessageRenderer', () => {
             expect(result).toContain('Hello');
             expect(result).toContain('12:00');
         });
+
+        it('says where an unsettled publish stands', () => {
+            const base = { id: 'msg-state', sender: '0xABC', text: 'Hello', type: 'text' };
+
+            const pending = messageRenderer.buildMessageHTML(
+                { ...base, pending: true }, true, '12:00', { html: '' }, 'Alice'
+            );
+            expect(pending).toContain('message-entry own-message');
+            expect(pending).toContain(' message-pending"');
+            expect(pending).toContain('sending…');
+            expect(pending).not.toContain('message-retry');
+
+            const failed = messageRenderer.buildMessageHTML(
+                { ...base, failed: true, failError: 'No epoch key' }, true, '12:00', { html: '' }, 'Alice'
+            );
+            expect(failed).toContain(' message-failed"');
+            expect(failed).toContain('Not sent');
+            expect(failed).toContain('title="No epoch key"');
+            expect(failed).toContain('class="message-retry text-xs text-red-400" data-msg-id="msg-state"');
+            expect(failed).not.toContain('sending…');
+
+            const sent = messageRenderer.buildMessageHTML(base, true, '12:00', { html: '' }, 'Alice');
+            expect(sent).not.toContain('message-status');
+            expect(sent).not.toContain('message-pending');
+            expect(sent).not.toContain('message-failed');
+
+            const undelivered = messageRenderer.buildMessageHTML(
+                { ...base, failed: true, undelivered: true, failError: 'Not delivered: the storage node did not record this message' },
+                true, '12:00', { html: '' }, 'Alice'
+            );
+            expect(undelivered).toContain(' message-failed"');
+            expect(undelivered).toContain('>Not delivered</span>');
+            expect(undelivered).toContain('class="message-retry text-xs text-red-400" data-msg-id="msg-state"');
+
+            const delivered = messageRenderer.buildMessageHTML({ ...base, delivered: true }, true, '12:00', { html: '' }, 'Alice');
+            expect(delivered).toContain(' message-delivered"');
+            expect(delivered).not.toContain('message-status');
+        });
         
         it('should build message HTML for other\'s message', () => {
             const msg = {

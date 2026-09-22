@@ -722,6 +722,18 @@ class App {
                 if (data.streamId === currentStreamId) {
                     reactionManager.handleIncomingReaction(data.messageId, data.emoji, data.user, data.action || 'add');
                 }
+            } else if (event === 'message_sending' || event === 'message_confirmed'
+                || event === 'message_delivered' || event === 'message_failed') {
+                // The bubble is already on screen; redraw it with its send state.
+                if (data.streamId === currentStreamId && data.message) {
+                    const channel = channelManager.getCurrentChannel();
+                    if (channel && chatAreaUI.updateMessage(data.message) === false) {
+                        chatAreaUI.renderMessages(channel.messages, () => {
+                            uiController.attachReactionListeners();
+                            mediaHandler.attachLightboxListeners();
+                        });
+                    }
+                }
             } else if (event === 'message_edited') {
                 if (data.streamId === currentStreamId) {
                     const channel = channelManager.getCurrentChannel();

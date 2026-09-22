@@ -957,6 +957,22 @@ body {
     margin-left: -4px;
 }
 
+.message-pending .message-bubble {
+    opacity: 0.6;
+}
+
+.message-footer .message-status {
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.message-footer .message-retry {
+    flex-shrink: 0;
+    line-height: 1;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
 .reaction-badge {
     background-color: rgba(255, 255, 255, 0.08);
     color: rgba(255, 255, 255, 0.8);

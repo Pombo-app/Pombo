@@ -836,8 +836,21 @@ class MessageRenderer {
             : '';
         const bubbleStyle = msg._hidden ? ' style="opacity:0.45"' : '';
 
+        // Storage uploads draw their own progress; every other bubble says
+        // where its publish stands until the publish settles.
+        const sendState = msgType === 'storage_file_announce' ? ''
+            : msg.pending ? ' message-pending'
+            : msg.failed ? ' message-failed'
+            : msg.delivered ? ' message-delivered'
+            : '';
+        const sendStateHtml = sendState === ' message-pending'
+            ? '<span class="message-status text-xs text-white/40">sending…</span>'
+            : sendState === ' message-failed'
+                ? `<span class="message-status message-status--failed text-xs text-red-400" title="${escapeAttr(msg.failError || '')}">${msg.undelivered ? 'Not delivered' : 'Not sent'}</span><button type="button" class="message-retry text-xs text-red-400" data-msg-id="${escapeAttr(msgId)}">Retry</button>`
+                : '';
+
         return `
-            <div class="message-entry ${isOwn ? 'own-message' : 'other-message'} ${groupClass} ${spacingClass}${msg._hidden ? ' message-hidden' : ''}" data-msg-id="${escapeAttr(msgId)}" data-sender="${escapeAttr(msg.sender || '')}" data-type="${escapeAttr(msgType)}"${emojiAttr}>
+            <div class="message-entry ${isOwn ? 'own-message' : 'other-message'} ${groupClass} ${spacingClass}${msg._hidden ? ' message-hidden' : ''}${sendState}" data-msg-id="${escapeAttr(msgId)}" data-sender="${escapeAttr(msg.sender || '')}" data-type="${escapeAttr(msgType)}"${emojiAttr}>
                 <div class="message-bubble"${bubbleStyle}>
                     ${moderationHtml}
                     ${senderRowHtml}
@@ -847,6 +860,7 @@ class MessageRenderer {
                         ${reactionsHtml}
                         ${msg._edited ? '<span class="message-edited text-xs text-white/25">(edited)</span>' : ''}
                         <span class="message-time text-xs text-white/40">${time}</span>
+                        ${sendStateHtml}
                     </div>
                     ${msg.verified && !msg.verified.valid && msg.signature ? '<div class="text-xs text-red-400 mt-1">⚠️ Invalid signature</div>' : ''}
                     <span class="reply-trigger reply-btn" data-msg-id="${escapeAttr(msgId)}" title="Reply"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17l-5-5 5-5"/><path d="M4 12h11a4 4 0 0 1 4 4v4"/></svg></span>

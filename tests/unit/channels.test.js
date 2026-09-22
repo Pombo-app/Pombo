@@ -2158,6 +2158,64 @@ describe('ChannelManager', () => {
             channelManager.publishWithRetry = originalPublish;
         });
 
+        it('marks the message failed and resends it under the same id', async () => {
+            const handler = vi.fn();
+            channelManager.onMessage(handler);
+            const originalPublish = channelManager.publishWithRetry.bind(channelManager);
+            channelManager.publishWithRetry = vi.fn()
+                .mockRejectedValueOnce(new Error('Publish failed'))
+                .mockResolvedValue(undefined);
+
+            await expect(channelManager.sendMessage(streamId, 'hello')).rejects.toThrow('Publish failed');
+            expect(channel.messages[0]).toMatchObject({
+                id: 'msg_signed', pending: false, failed: true, failError: 'Publish failed'
+            });
+            expect(handler).toHaveBeenCalledWith('message_failed', expect.objectContaining({
+                streamId, messageId: 'msg_signed', message: channel.messages[0]
+            }));
+
+            const resent = await channelManager.resendMessage(streamId, 'msg_signed');
+
+            expect(resent).toBe(channel.messages[0]);
+            expect(channel.messages).toHaveLength(1);
+            expect(channel.messages[0]).toMatchObject({ id: 'msg_signed', pending: false, failed: false });
+            expect(channel.messages[0].failError).toBeUndefined();
+            expect(channelManager.publishWithRetry).toHaveBeenCalledTimes(2);
+            expect(channelManager.publishWithRetry).toHaveBeenLastCalledWith(streamId, channel.messages[0], null);
+            expect(handler).toHaveBeenCalledWith('message_sending', expect.objectContaining({
+                streamId, messageId: 'msg_signed', message: channel.messages[0]
+            }));
+            expect(handler).toHaveBeenCalledWith('message_confirmed', expect.objectContaining({
+                streamId, messageId: 'msg_signed', message: channel.messages[0]
+            }));
+
+            channelManager.publishWithRetry = originalPublish;
+        });
+
+        it('keeps the message failed when the resend fails again', async () => {
+            const originalPublish = channelManager.publishWithRetry.bind(channelManager);
+            channelManager.publishWithRetry = vi.fn().mockRejectedValue(new Error('Still down'));
+
+            await expect(channelManager.sendMessage(streamId, 'hello')).rejects.toThrow('Still down');
+            await expect(channelManager.resendMessage(streamId, 'msg_signed')).rejects.toThrow('Still down');
+
+            expect(channel.messages).toHaveLength(1);
+            expect(channel.messages[0]).toMatchObject({ pending: false, failed: true, failError: 'Still down' });
+
+            channelManager.publishWithRetry = originalPublish;
+        });
+
+        it('resends nothing for a message that did not fail', async () => {
+            await channelManager.sendMessage(streamId, 'hello');
+            const publishSpy = vi.spyOn(channelManager, 'publishWithRetry');
+
+            expect(await channelManager.resendMessage(streamId, 'msg_signed')).toBeNull();
+            expect(await channelManager.resendMessage(streamId, 'unknown')).toBeNull();
+
+            expect(publishSpy).not.toHaveBeenCalled();
+            publishSpy.mockRestore();
+        });
+
         it('should clean up sendingMessages lock even on failure', async () => {
             const originalPublish = channelManager.publishWithRetry.bind(channelManager);
             channelManager.publishWithRetry = vi.fn().mockRejectedValue(new Error('Fail'));

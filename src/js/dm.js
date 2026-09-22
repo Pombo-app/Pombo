@@ -1313,6 +1313,43 @@ class DMManager {
             message
         });
 
+        await this._publishDm(channel, message);
+        return message;
+    }
+
+    /**
+     * Send again a DM whose publish failed, keeping its id and timestamp.
+     * @param {string} peerInboxStreamId
+     * @param {string} messageId
+     * @returns {Promise<Object|null>} The message, or null when there is nothing to resend
+     */
+    async resendMessage(peerInboxStreamId, messageId) {
+        const channel = channelManager.channels.get(peerInboxStreamId);
+        if (!channel || channel.type !== 'dm') {
+            throw new Error('DM channel not found');
+        }
+        const message = channel.messages.find(m => m.id === messageId && m.failed);
+        if (!message) return null;
+
+        message.pending = true;
+        message.failed = false;
+        delete message.failError;
+        channelManager.notifyHandlers('message_sending', {
+            streamId: peerInboxStreamId,
+            messageId,
+            message
+        });
+        await this._publishDm(channel, message);
+        return message;
+    }
+
+    /**
+     * Seal and publish a DM already on the timeline, settling its send state.
+     * @param {Object} channel - DM channel
+     * @param {Object} message - Pending message, present in channel.messages
+     */
+    async _publishDm(channel, message) {
+        const peerInboxStreamId = channel.messageStreamId;
         try {
             // E2E encrypt before publishing — NEVER send plaintext DMs
             const privateKey = authManager.wallet?.privateKey;
@@ -1325,22 +1362,23 @@ class DMManager {
                 throw new Error('Cannot send DM: peer address not found');
             }
 
-            const { pending, _dmSent, verified, ...cleanMessage } = message;
+            const { pending, failed, failError, _dmSent, verified, ...cleanMessage } = message;
 
             // Sealed sender: published under a throwaway identity, so the inbox
             // stream no longer carries the (sender → recipient) edge.
             await this.sealAndPublish(peerInboxStreamId, peerAddress, cleanMessage);
 
-            // Mark as sent
             message.pending = false;
+            message.failed = false;
+            delete message.failError;
 
             // Persist locally (we can't read from peer's inbox, so save our sent copy)
             await secureStorage.addSentMessage(peerInboxStreamId, message);
 
-            // Notify confirmed
             channelManager.notifyHandlers('message_confirmed', {
                 streamId: peerInboxStreamId,
-                messageId: message.id
+                messageId: message.id,
+                message
             });
 
             Logger.debug('DM: Message sent to', peerInboxStreamId);
@@ -1351,15 +1389,17 @@ class DMManager {
             });
         } catch (error) {
             Logger.error('DM: Failed to send message:', error.message);
+            message.pending = false;
+            message.failed = true;
+            message.failError = error.message;
             channelManager.notifyHandlers('message_failed', {
                 streamId: peerInboxStreamId,
                 messageId: message.id,
+                message,
                 error: error.message
             });
             throw error;
         }
-
-        return message;
     }
 
     /**

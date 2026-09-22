@@ -2919,6 +2919,42 @@ class StreamrController {
     }
 
     /**
+     * Envelope coordinates of what storage holds in a window of the message
+     * stream. Raw: nothing is decrypted or validated on the way, the caller
+     * only matches timestamps and publishers. Throws when the read fails, so
+     * an unreachable node is never mistaken for an empty window.
+     * @param {string} messageStreamId
+     * @param {{from: number, to: number, partition?: number}} window - envelope timestamps, inclusive
+     * @returns {Promise<Array<{timestamp: number, publisherId: string}>>}
+     */
+    async resendMessageEnvelopes(messageStreamId, { from, to, partition = STREAM_CONFIG.MESSAGE_STREAM.MESSAGES }) {
+        if (!this.client) {
+            throw new Error('Streamr client not initialized');
+        }
+        const startedAt = Date.now();
+        const resend = await this.client.resend(
+            { streamId: messageStreamId, partition },
+            { from: { timestamp: from }, to: { timestamp: to }, raw: true }
+        );
+        const rows = [];
+        for await (const message of resend) {
+            const timestamp = typeof message.getTimestamp === 'function'
+                ? message.getTimestamp()
+                : (message.timestamp ?? 0);
+            const publisherId = String(typeof message.getPublisherId === 'function'
+                ? message.getPublisherId()
+                : (message.publisherId ?? '')).toLowerCase();
+            rows.push({ timestamp, publisherId });
+        }
+        // A refused read drains as empty; only a read that was answered counts.
+        const readError = storageFetch.lastReadError(messageStreamId, partition);
+        if (readError && readError.at >= startedAt) {
+            throw new Error(`storage read refused: HTTP ${readError.status}`);
+        }
+        return rows;
+    }
+
+    /**
      * Live subscription to a channel's keys stream (-4).
      *
      * Raw handler on purpose: the epoch protocol validates KEY_ANNOUNCE

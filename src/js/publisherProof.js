@@ -143,7 +143,7 @@ export function applyAccount(data, account) {
 export function stripLocalFields(data) {
     if (!data || typeof data !== 'object') return data;
     const {
-        verified, pending, _dmSent,
+        verified, pending, failed, failError, delivered, undelivered, _dmSent,
         sender, account, signature, channelId,
         ...networkMessage
     } = data;
