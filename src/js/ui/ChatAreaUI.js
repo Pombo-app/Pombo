@@ -656,6 +656,9 @@ class ChatAreaUI {
                 } else if (banned) {
                     this.messagesArea.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                        <svg class="w-6 h-6 text-white/25" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M1 21h12v2H1zM5.245 8.07l2.83-2.827 14.14 14.142-2.828 2.828zM12.317 1l5.657 5.656-2.83 2.83-5.654-5.66zM3.825 9.485l5.657 5.657-2.828 2.828-5.657-5.657z"/>
+                        </svg>
                         <span class="text-sm">You no longer have access to this channel</span>
                         <span class="text-xs text-white/25">A moderator removed you</span>
                     </div>
