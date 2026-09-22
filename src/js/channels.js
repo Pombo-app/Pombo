@@ -35,6 +35,7 @@ import { MessageOverrides } from './channels/MessageOverrides.js';
 import { MessageFlow } from './channels/MessageFlow.js';
 import { AdminState } from './channels/AdminState.js';
 import { AdminStateConfirm } from './channels/AdminStateConfirm.js';
+import { DeliveryConfirm } from './channels/DeliveryConfirm.js';
 import { Membership } from './channels/Membership.js';
 import { ModDeltas, MOD_ACTION_TYPE } from './channels/ModDeltas.js';
 
@@ -70,6 +71,7 @@ class ChannelManager {
         this.adminState = new AdminState(this);
         // Sees each published ADMIN_STATE to storage, republishing when it is lost.
         this.adminConfirm = new AdminStateConfirm(this);
+        this.deliveryConfirm = new DeliveryConfirm(this);
         this.membership = new Membership(this);
         // Moderator deltas on -1/P2, composed over the owner's snapshot.
         this.modDeltas = new ModDeltas(this);

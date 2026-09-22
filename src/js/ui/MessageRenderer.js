@@ -841,11 +841,12 @@ class MessageRenderer {
         const sendState = msgType === 'storage_file_announce' ? ''
             : msg.pending ? ' message-pending'
             : msg.failed ? ' message-failed'
+            : msg.delivered ? ' message-delivered'
             : '';
         const sendStateHtml = sendState === ' message-pending'
             ? '<span class="message-status text-xs text-white/40">sending…</span>'
             : sendState === ' message-failed'
-                ? `<span class="message-status message-status--failed text-xs text-red-400" title="${escapeAttr(msg.failError || '')}">Not sent</span><button type="button" class="message-retry text-xs text-red-400" data-msg-id="${escapeAttr(msgId)}">Retry</button>`
+                ? `<span class="message-status message-status--failed text-xs text-red-400" title="${escapeAttr(msg.failError || '')}">${msg.undelivered ? 'Not delivered' : 'Not sent'}</span><button type="button" class="message-retry text-xs text-red-400" data-msg-id="${escapeAttr(msgId)}">Retry</button>`
                 : '';
 
         return `

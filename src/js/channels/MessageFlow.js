@@ -649,8 +649,11 @@ export class MessageFlow {
      */
     async _publishTracked(channel, message) {
         const messageStreamId = channel.messageStreamId;
+        delete message.delivered;
+        delete message.undelivered;
+        let published;
         try {
-            await this.manager.publishWithRetry(messageStreamId, message, channel.password);
+            published = await this.manager.publishWithRetry(messageStreamId, message, channel.password);
         } catch (error) {
             message.pending = false;
             message.failed = true;
@@ -670,6 +673,7 @@ export class MessageFlow {
         }
 
         this.manager.notifyHandlers('message_confirmed', { streamId: messageStreamId, messageId: message.id, message });
+        this.manager.deliveryConfirm?.track(channel, message, published);
 
         // Send wake signals to other channel members (async, don't await)
         this.manager.sendWakeSignals(messageStreamId).catch(err => {
@@ -733,8 +737,9 @@ export class MessageFlow {
      */
     async publishWithRetry(messageStreamId, message, password = null, retryCount = 0) {
         try {
-            await streamrController.publishMessage(messageStreamId, message, password);
+            const published = await streamrController.publishMessage(messageStreamId, message, password);
             Logger.info('Text message published to messageStream:', message.id);
+            return published;
         } catch (error) {
             if (retryCount < this.MAX_RETRIES) {
                 Logger.warn(`Publish failed, retrying (${retryCount + 1}/${this.MAX_RETRIES})...`);
