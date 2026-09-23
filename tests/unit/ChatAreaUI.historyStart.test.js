@@ -32,7 +32,7 @@ vi.mock('../../src/js/ui/PinnedBannerUI.js', () => ({
     pinnedBannerUI: { update: vi.fn() }
 }));
 vi.mock('../../src/js/ui/SubscriptionBannerUI.js', () => ({
-    subscriptionBannerUI: { update: vi.fn(), stateOf: vi.fn(() => 'active') }
+    subscriptionBannerUI: { update: vi.fn(), stateOf: vi.fn(() => 'active'), hasAccess: vi.fn(() => true) }
 }));
 vi.mock('../../src/js/ui/MessageGrouper.js', () => ({
     analyzeMessageGroups: vi.fn(() => []),
@@ -122,5 +122,32 @@ describe('the start-of-history line', () => {
         });
         expect(claimsTheStart(html)).toBe(false);
         expect(html).not.toContain('history-error-banner');
+    });
+});
+
+describe('the refusal banner over the messages', () => {
+    const refused = { hasMoreHistory: false, historyError: { status: 403, signed: true, at: Date.now() } };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        document.body.innerHTML = '<div id="messages-area"></div><div id="message-input" contenteditable="true"></div>';
+        chatAreaUI.init({
+            messagesArea: document.getElementById('messages-area'),
+            messageInput: document.getElementById('message-input')
+        });
+    });
+
+    it('tells a moderator the node is behind, not that their access ended', () => {
+        subscriptionBannerUI.stateOf.mockReturnValue(null);
+        subscriptionBannerUI.hasAccess.mockReturnValue(true);
+        const html = render(refused);
+        expect(html).toContain('Channel history is temporarily unavailable');
+        expect(html).not.toContain('Your access to this channel has ended');
+    });
+
+    it('tells a member of a token gate who lost access that it ended', () => {
+        subscriptionBannerUI.stateOf.mockReturnValue(null);
+        subscriptionBannerUI.hasAccess.mockReturnValue(false);
+        expect(render(refused)).toContain('Your access to this channel has ended');
     });
 });

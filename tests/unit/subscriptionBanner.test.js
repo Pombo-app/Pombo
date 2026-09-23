@@ -113,6 +113,40 @@ describe('stateOf', () => {
     });
 });
 
+describe('hasAccess', () => {
+    const accessWith = async (row) => {
+        gateManager.getGateMembers.mockResolvedValue([member(row)]);
+        await settle();
+        return subscriptionBannerUI.hasAccess(STREAM);
+    };
+
+    it('lets a moderator in whose subscription lapsed', async () => {
+        expect(await accessWith({ moderator: true, paidUntil: nowSec() - 60 })).toBe(true);
+    });
+
+    it('lets the owner in without paying', async () => {
+        expect(await accessWith({ isOwner: true })).toBe(true);
+    });
+
+    it('lets a live subscription in', async () => {
+        expect(await accessWith({ paidUntil: nowSec() + DAY })).toBe(true);
+    });
+
+    it('keeps a lapsed subscription out', async () => {
+        expect(await accessWith({ paidUntil: nowSec() - 60, access: false })).toBe(false);
+    });
+
+    it('keeps a banned moderator out', async () => {
+        expect(await accessWith({ moderator: true, banned: true, access: false })).toBe(false);
+    });
+
+    it('says no for a gate that is not paid', async () => {
+        gateManager.getGateInfo.mockResolvedValue({ mode: 1, owner: OWNER });
+        await settle();
+        expect(subscriptionBannerUI.hasAccess(STREAM)).toBe(false);
+    });
+});
+
 describe('the strip', () => {
     it('offers Subscribe, not Renew, to a member who never paid', async () => {
         await settle();

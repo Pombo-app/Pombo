@@ -661,7 +661,7 @@ class ChatAreaUI {
                 const historyError = effectiveChannel?.historyError;
                 if (historyError && !expired && !unsubscribed && !banned) {
                     const { title, detail } = this._historyErrorText(
-                        historyError, !!previewChannel, paidState === 'active');
+                        historyError, !!previewChannel, subscriptionBannerUI.hasAccess(effectiveChannel?.streamId));
                     this.messagesArea.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
                         <span class="text-sm">${title}</span>
@@ -742,7 +742,7 @@ class ChatAreaUI {
         const accessLost = ['expired', 'unsubscribed', 'banned'].includes(subscription);
         if (effectiveChannel?.historyError && !accessLost) {
             const { title } = this._historyErrorText(
-                effectiveChannel.historyError, !!previewChannel, subscription === 'active');
+                effectiveChannel.historyError, !!previewChannel, subscriptionBannerUI.hasAccess(effectiveChannel.streamId));
             historyErrorBanner = `
                 <div id="history-error-banner" class="flex flex-col items-center gap-1 py-3 px-4 text-center">
                     <span class="text-sm text-white/40">${escapeHtml(title)}</span>

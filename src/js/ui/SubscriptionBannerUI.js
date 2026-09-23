@@ -79,6 +79,17 @@ class SubscriptionBannerUI {
     }
 
     /**
+     * Whether the paid gate lets the viewer in right now: the owner and the
+     * moderators never pay. False when unresolved or not a paid gate.
+     */
+    hasAccess(streamId) {
+        if (this._clientBanned(streamId)) return false;
+        const entry = this._status.get(streamId);
+        if (!entry?.paid || entry.banned) return false;
+        return !!(entry.owner || entry.moderator || this.stateOf(streamId) === 'active');
+    }
+
+    /**
      * A ban the moderators keep in ADMIN_STATE rather than on the gate. It
      * hides the author's messages for everyone, so writing here reaches
      * nobody; the reader is told the same thing either way.
