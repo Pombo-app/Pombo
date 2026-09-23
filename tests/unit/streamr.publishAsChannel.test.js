@@ -36,6 +36,15 @@ vi.mock('../../src/js/crypto.js', () => ({
     }
 }));
 
+const usesAccountPublish = vi.fn(() => false);
+vi.mock('../../src/js/channels.js', () => ({
+    channelManager: {
+        channels: new Map(),
+        previewChannel: null,
+        usesAccountPublish: (...a) => usesAccountPublish(...a)
+    }
+}));
+
 const { streamrController } = await import('../../src/js/streamr.js');
 const { clearChannelIdentities } = await import('../../src/js/channelIdentity.js');
 const { recoverPublisherAccount } = await import('../../src/js/publisherProof.js');
@@ -110,6 +119,27 @@ describe('publishAsChannel', () => {
         expect(published[0].content).not.toHaveProperty('pending');
         expect(published[0].content).not.toHaveProperty('_dmSent');
         expect(published[0].content.text).toBe('hi');
+    });
+
+    it('keeps the moderation display flag off the wire', async () => {
+        await streamrController.publishAsChannel('0xowner/chan-1', 0, { text: 'hi', _hidden: false });
+
+        expect(published[0].content).not.toHaveProperty('_hidden');
+    });
+
+    it('strips local state and identity on the account path of a read-only channel', async () => {
+        usesAccountPublish.mockReturnValueOnce(true);
+        const publish = vi.spyOn(streamrController, 'publish').mockResolvedValue({ timestamp: 1 });
+
+        await streamrController.publishAsChannel('0xowner/chan-1', 0, {
+            type: 'text', text: 'hi', pending: true, failed: false,
+            verified: { valid: true, trustLevel: 0 },
+            sender: account.address, account: account.address
+        });
+
+        expect(publish.mock.calls[0][2]).toEqual({ type: 'text', text: 'hi' });
+        expect(published).toHaveLength(0);
+        publish.mockRestore();
     });
 
     it('refuses the admin stream rather than publishing without permission', async () => {

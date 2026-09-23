@@ -27,7 +27,7 @@ import { executeWithRetry, executeWithRetryAndVerify } from './utils/retry.js';
 import { isRpcError, createPermissionResult } from './utils/rpcErrors.js';
 import { authManager } from './auth.js';
 import {
-    recoverPublisherAccount, applyAccount, stripLocalFields, clearPublisherProofCache
+    recoverPublisherAccount, applyAccount, stripLocalFields, dropLocalState, clearPublisherProofCache
 } from './publisherProof.js';
 import {
     getChannelIdentity, dropChannelIdentity, clearChannelIdentities
@@ -2035,7 +2035,7 @@ class StreamrController {
         //
         // Legacy messages carry their own `sender`; overwriting it is a no-op,
         // since back then publisherId WAS the wallet.
-        return applyAccount(data, account);
+        return applyAccount(dropLocalState(data), account);
     }
 
     /**
@@ -2300,7 +2300,7 @@ class StreamrController {
                 // the on-wire publisher).
                 return this.publishEpochEncrypted(channel, streamId, partition, data);
             }
-            return this.publish(streamId, partition, data, password);
+            return this.publish(streamId, partition, stripLocalFields(data), password);
         }
 
         const { identity, proof } = getChannelIdentity(streamId);

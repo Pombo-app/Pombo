@@ -67,6 +67,24 @@ describe('attachAccount (D10)', () => {
         expect(streamrController.attachAccount(null, '0xA')).toBeNull();
     });
 
+    it('drops the send state and verdict the sender shipped', () => {
+        Object.assign(data, {
+            pending: true, failed: true, failError: 'x', delivered: true, undelivered: true,
+            _dmSent: true, verified: { valid: true, trustLevel: 2 }
+        });
+        streamrController.attachAccount(data, '0xAbC123');
+        for (const field of ['pending', 'failed', 'failError', 'delivered', 'undelivered', '_dmSent', 'verified']) {
+            expect(data).not.toHaveProperty(field);
+        }
+    });
+
+    it('keeps the fields a legacy message is verified against', () => {
+        Object.assign(data, { signature: '0xsig', channelId: '0xowner/chan-1' });
+        streamrController.attachAccount(data, '0xAbC123');
+        expect(data.signature).toBe('0xsig');
+        expect(data.channelId).toBe('0xowner/chan-1');
+    });
+
     it('overwrites a spoofed account supplied by the sender', () => {
         // `account` is derived from the transport, never trusted from the wire.
         // A payload that ships its own must not win.

@@ -15,7 +15,7 @@
  */
 
 import { Logger } from './logger.js';
-import { applyAccount, stripLocalFields } from './publisherProof.js';
+import { applyAccount, stripLocalFields, dropLocalState } from './publisherProof.js';
 import { CONFIG } from './config.js';
 import { CryptoError } from './utils/errors.js';
 import { streamrController, STREAM_CONFIG } from './streamr.js';
@@ -671,7 +671,7 @@ class DMManager {
                 // The transport-level account was the ephemeral key; the proof
                 // is authoritative.
                 applyAccount(message, sender.toLowerCase());
-                return message;
+                return dropLocalState(message);
             } catch (e) {
                 // Not addressed to us, or tampered with. Either way it is not
                 // actionable — and with sealed sender we cannot tell which,
@@ -681,7 +681,7 @@ class DMManager {
             }
         }
 
-        return this.decryptDMEnvelope(data, data?.account);
+        return dropLocalState(await this.decryptDMEnvelope(data, data?.account));
     }
 
     /**
@@ -929,10 +929,6 @@ class DMManager {
             await secureStorage.clearDMLeftAt(senderAddress);
             Logger.info('DM: Conversation resurfaced from', senderAddress, '(new message after leave)');
         }
-
-        // Clean sender-side flags
-        delete data.pending;
-        delete data._dmSent;
 
         // The conversation is DERIVED from the sender, never looked up: the
         // inbox id is a deterministic function of the address, so a message
