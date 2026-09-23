@@ -304,7 +304,10 @@ export const CONFIG = {
         // message stream, which is how a member recovers what their live
         // subscription and their key request could not get on their own.
         memberCatchUpIntervalMs: 30000,
-        memberCatchUpCount: 30
+        memberCatchUpCount: 30,
+        // The storage node keeps a gate refusal for 20 s, so a renewal's
+        // history is read once more after that.
+        renewalHistoryRetryMs: 21000
     },
 
     // Push Notifications

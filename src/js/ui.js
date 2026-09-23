@@ -264,6 +264,7 @@ class UIController {
                         // silently — ask again now that the chain grants us
                         try { await epochKeyManager.retryRequestIfWaiting(channel); }
                         catch (e) { Logger.debug('post-renewal key request failed:', e.message); }
+                        channelManager.refreshHistoryAfterRenewal(channel.messageStreamId);
                         chatAreaUI.renderMessages(channel.messages || [],
                             () => this.attachReactionListeners());
                     }
@@ -275,6 +276,8 @@ class UIController {
                 this.updateReadOnlyUI(ch);
                 if (!(ch.messages?.length > 0)) {
                     chatAreaUI.renderMessages(ch.messages || []);
+                } else if (ch.historyError) {
+                    channelManager.notifyHandlers('history_batch_loaded', { streamId, loaded: 0, total: 0 });
                 }
             }
         });

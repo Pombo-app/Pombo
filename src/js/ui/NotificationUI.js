@@ -15,6 +15,15 @@ const TOAST_ICONS = {
     warning: `<svg class="toast-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>`
 };
 
+const LOADING_ICONS = {
+    chat: `<svg class="toast-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/>
+            </svg>`,
+    payment: `<svg class="toast-icon toast-icon-payment" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>`
+};
+
 class NotificationUI {
     constructor() {
         this.currentLoadingToast = null;
@@ -309,6 +318,8 @@ class NotificationUI {
      *   progress ring on the right side. Update via {@link setLoadingProgress}.
      * @param {string} [options.initialLabel] - Label shown below the ring
      *   (defaults to the toast message).
+     * @param {string} [options.icon] - 'payment' for an on-chain payment;
+     *   the chat bubble otherwise.
      * @returns {HTMLElement} - Toast element (call hideLoadingToast to dismiss)
      */
     showLoadingToast(message, subtitle = 'This may take a moment...', options = {}) {
@@ -337,9 +348,7 @@ class NotificationUI {
             : '';
 
         toast.innerHTML = `
-            <svg class="toast-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/>
-            </svg>
+            ${LOADING_ICONS[options.icon] || LOADING_ICONS.chat}
             <div class="toast-content">
                 <span class="toast-message">${escapeHtml(message)}</span>
                 ${subtitle ? `<span class="text-[11px] text-white/40 block mt-0.5">${escapeHtml(subtitle)}</span>` : ''}

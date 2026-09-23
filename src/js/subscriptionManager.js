@@ -141,8 +141,12 @@ class SubscriptionManager {
                 memberCatchUp.start(channel,
                     (data) => channelManager.handleTextMessage(messageStreamId, data),
                     (refusal) => {
-                        channel.historyError = refusal;
-                        channelManager.notifyHandlers('history_batch_loaded', { streamId: messageStreamId, loaded: 0, total: 0 });
+                        if (refusal) {
+                            channel.historyError = refusal;
+                            channelManager.notifyHandlers('history_batch_loaded', { streamId: messageStreamId, loaded: 0, total: 0 });
+                        } else if (channel.historyError) {
+                            channelManager.refreshHistory(messageStreamId);
+                        }
                     });
             }
         } catch (e) {

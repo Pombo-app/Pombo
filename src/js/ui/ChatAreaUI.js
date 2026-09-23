@@ -354,7 +354,7 @@ class ChatAreaUI {
                 }
                 // The chain grants access and this node refuses: it is behind
                 return hasAccess
-                    ? { title: 'Channel history is temporarily unavailable', detail: 'The storage node has not caught up with your access. Reopen the channel to retry' }
+                    ? { title: 'Channel history is temporarily unavailable', detail: 'The storage node has not caught up with your access yet. Retrying automatically' }
                     : { title: 'Your access to this channel has ended', detail: 'The storage node no longer serves its history to you' };
             case 401:
                 return error?.signed
@@ -661,7 +661,7 @@ class ChatAreaUI {
                 const historyError = effectiveChannel?.historyError;
                 if (historyError && !expired && !unsubscribed && !banned) {
                     const { title, detail } = this._historyErrorText(
-                        historyError, !!previewChannel, paidState === 'active');
+                        historyError, !!previewChannel, subscriptionBannerUI.hasAccess(effectiveChannel?.streamId));
                     this.messagesArea.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
                         <span class="text-sm">${title}</span>
@@ -742,7 +742,7 @@ class ChatAreaUI {
         const accessLost = ['expired', 'unsubscribed', 'banned'].includes(subscription);
         if (effectiveChannel?.historyError && !accessLost) {
             const { title } = this._historyErrorText(
-                effectiveChannel.historyError, !!previewChannel, subscription === 'active');
+                effectiveChannel.historyError, !!previewChannel, subscriptionBannerUI.hasAccess(effectiveChannel.streamId));
             historyErrorBanner = `
                 <div id="history-error-banner" class="flex flex-col items-center gap-1 py-3 px-4 text-center">
                     <span class="text-sm text-white/40">${escapeHtml(title)}</span>

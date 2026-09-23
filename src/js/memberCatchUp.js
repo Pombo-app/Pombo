@@ -33,13 +33,13 @@ function isOwner(channel) {
     return !!owner && owner === me;
 }
 
-async function tick(channel, onMessage, onRefusal = null) {
+async function tick(channel, onMessage, onRead = null) {
     await epochKeyManager.ensureChannelKeys(channel).catch(e =>
         Logger.debug('Member catch-up: key sweep failed:', e.message));
     await new Promise((resolve) => {
         let settled = false;
         const done = (stats) => {
-            if (stats?.readError && onRefusal) onRefusal(stats.readError);
+            if (stats && onRead) onRead(stats.readError || null);
             if (!settled) { settled = true; resolve(); }
         };
         try {
@@ -58,11 +58,15 @@ async function tick(channel, onMessage, onRefusal = null) {
 }
 
 export const memberCatchUp = {
-    /** Start catching up for this channel, if this account is a member of it. */
-    start(channel, onMessage, onRefusal = null) {
+    /**
+     * Start catching up for this channel, if this account is a member of it.
+     * `onRead` gets each message sweep's verdict: the node's refusal, or null
+     * when it served the read.
+     */
+    start(channel, onMessage, onRead = null) {
         if (!channel || !usesEpochKeys(channel) || channel.preview) return;
         if (isOwner(channel)) return;
-        poller.start(channel.messageStreamId, () => tick(channel, onMessage, onRefusal));
+        poller.start(channel.messageStreamId, () => tick(channel, onMessage, onRead));
     },
 
     stop(messageStreamId = null) {

@@ -75,7 +75,9 @@ vi.mock('../../src/js/channels.js', () => ({
         handlePresenceMessage: vi.fn(),
         handleTextMessage: vi.fn(),
         handleMediaMessage: vi.fn(),
-        refreshAdminState: vi.fn().mockResolvedValue(false)
+        refreshAdminState: vi.fn().mockResolvedValue(false),
+        refreshHistory: vi.fn(),
+        notifyHandlers: vi.fn()
     }
 }));
 
@@ -114,6 +116,7 @@ import { channelLatestMessageManager } from '../../src/js/channelLatestMessageMa
 import { streamrController, STREAM_CONFIG } from '../../src/js/streamr.js';
 import { secureStorage } from '../../src/js/secureStorage.js';
 import { mediaController } from '../../src/js/media.js';
+import { memberCatchUp } from '../../src/js/memberCatchUp.js';
 
 describe('SubscriptionManager', () => {
     beforeEach(() => {
@@ -214,6 +217,30 @@ describe('SubscriptionManager', () => {
             await subscriptionManager.setActiveChannel(null);
             
             expect(subscriptionManager.activeChannelId).toBeNull();
+        });
+    });
+
+    describe('member catch-up verdicts', () => {
+        it('re-reads the history when the catch-up is served again after a refusal', async () => {
+            const channel = { messages: [], historyError: null };
+            channelManager.getChannel.mockReturnValue(channel);
+            await subscriptionManager.setActiveChannel('stream1');
+            const onRead = memberCatchUp.start.mock.calls[0][2];
+
+            onRead({ status: 403, signed: true });
+            expect(channel.historyError).toEqual({ status: 403, signed: true });
+            expect(channelManager.refreshHistory).not.toHaveBeenCalled();
+
+            onRead(null);
+            expect(channelManager.refreshHistory).toHaveBeenCalledWith('stream1');
+        });
+
+        it('leaves a history the node keeps serving alone', async () => {
+            channelManager.getChannel.mockReturnValue({ messages: [], historyError: null });
+            await subscriptionManager.setActiveChannel('stream1');
+
+            memberCatchUp.start.mock.calls[0][2](null);
+            expect(channelManager.refreshHistory).not.toHaveBeenCalled();
         });
     });
 

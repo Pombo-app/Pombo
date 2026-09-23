@@ -2258,7 +2258,7 @@ class ChannelManager {
         if (!channel._epochAdoptListener) {
             channel._epochAdoptListener = true;
             epochKeyManager.onKeyAdopted(channel.messageStreamId, () =>
-                this._refreshAfterEpochKey(channel.messageStreamId));
+                this.refreshHistory(channel.messageStreamId));
         }
 
         await streamrController.subscribeToKeysStream(keysStreamId, (data, publisherId, timestamp) =>
@@ -2385,40 +2385,55 @@ class ChannelManager {
     }
 
     /**
-     * A key was adopted: messages skipped as "waiting for key" are sitting in
-     * storage — re-pull the recent window through the normal handlers (which
-     * dedupe by id) so they surface without a manual reload. Debounced:
+     * Re-pull a gated channel's recent window through the normal handlers
+     * (which dedupe by id), without a manual reload: after a key was adopted
+     * the messages skipped as "waiting for key" are sitting in storage, and
+     * after access came back so is what the storage node refused. Debounced:
      * adopting N epochs in a burst (join) fires one refresh.
      */
-    _refreshAfterEpochKey(messageStreamId) {
+    refreshHistory(messageStreamId) {
         const channel = this.channels.get(messageStreamId);
         if (!channel?.gate?.address) return;
-        clearTimeout(channel._epochRefreshTimer);
-        channel._epochRefreshTimer = setTimeout(() => {
-            this._runEpochRefresh(messageStreamId).catch(e =>
-                Logger.warn('Epoch refresh failed:', e.message));
+        clearTimeout(channel._historyRefreshTimer);
+        channel._historyRefreshTimer = setTimeout(() => {
+            this._runHistoryRefresh(messageStreamId).catch(e =>
+                Logger.warn('History refresh failed:', e.message));
         }, 1500);
     }
 
-    async _runEpochRefresh(messageStreamId) {
+    /** After a renewal: re-read now, and once more if the storage node still refused. */
+    refreshHistoryAfterRenewal(messageStreamId) {
+        const channel = this.channels.get(messageStreamId);
+        if (!channel) return;
+        this.refreshHistory(messageStreamId);
+        clearTimeout(channel._renewalRefreshTimer);
+        channel._renewalRefreshTimer = setTimeout(() => {
+            if (this.currentChannel === messageStreamId && channel.historyError) {
+                this.refreshHistory(messageStreamId);
+            }
+        }, CONFIG.subscriptions.renewalHistoryRetryMs);
+    }
+
+    async _runHistoryRefresh(messageStreamId) {
         const channel = this.channels.get(messageStreamId);
         if (!channel) return;
 
         // Never overlap the initial load or another refresh: concurrent P0/P1
         // fetches let an override land before its target and park forever in
         // _pendingOverrides. Reschedule through the debounce instead.
-        if (channel.initialLoadInProgress || channel._epochRefreshRunning) {
-            this._refreshAfterEpochKey(messageStreamId);
+        if (channel.initialLoadInProgress || channel._historyRefreshRunning) {
+            this.refreshHistory(messageStreamId);
             return;
         }
-        channel._epochRefreshRunning = true;
-        Logger.info('epochKeys: refreshing history after key adoption:', messageStreamId.slice(-20));
+        channel._historyRefreshRunning = true;
+        Logger.info('Refreshing history:', messageStreamId.slice(-20));
 
         // Same discipline as the initial-load pipeline: gate per-message
         // renders (no flash of pre-override originals), P0 before P1, then
         // flush verifications, apply pending overrides (which also prunes
         // deleted messages), and render ONCE.
         channel.initialLoadInProgress = true;
+        let contentRead = null;
         try {
             await streamrController.fetchHistoryAsync(
                 messageStreamId,
@@ -2426,7 +2441,7 @@ class ChannelManager {
                 STREAM_CONFIG.INITIAL_MESSAGES,
                 (data) => this.handleTextMessage(messageStreamId, data),
                 channel.password || null,
-                null,
+                (stats) => { contentRead = stats; },
                 false,
                 { quiet: true }
             );
@@ -2462,9 +2477,19 @@ class ChannelManager {
             await this.awaitAllFlushes(messageStreamId);
             this.applyPendingOverrides(channel);
             this.sortMessagesByTimestamp(channel);
+
+            // A clean read reopens only what a refusal closed: an exhausted
+            // history stays exhausted.
+            if (contentRead?.readError) {
+                channel.historyError = contentRead.readError;
+                channel.hasMoreHistory = false;
+            } else if (contentRead && channel.historyError) {
+                channel.historyError = null;
+                channel.hasMoreHistory = true;
+            }
         } finally {
             channel.initialLoadInProgress = false;
-            channel._epochRefreshRunning = false;
+            channel._historyRefreshRunning = false;
         }
         // The -3 artifacts fetched at open were epoch-sealed and unreadable
         // until this key arrived — pins/moderation and a hidden channel's
