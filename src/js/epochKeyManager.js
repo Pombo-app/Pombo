@@ -158,6 +158,9 @@ class EpochKeyManager {
                 // these ids opens with the account's static key, in any
                 // session of any device.
                 pendingRequests: new Map(),
+                // Ids this session sent — memory only. pendingRequests cannot
+                // say "mine": it syncs, and would hide another device's request.
+                ownRequestIds: new Set(),
                 // Epochs we already published a MEMBER_HELLO for — persisted,
                 // so reopening the channel does not re-hello.
                 helloEpochs: new Set(),
@@ -464,6 +467,49 @@ class EpochKeyManager {
         Logger.info(`epochKeys: publish key re-keyed to rev ${rev} on`, channel.keysStreamId.slice(-30));
         // Members cannot write until this announce is readable from storage —
         // verify retention exactly like a fresh epoch announce.
+        this._ensureAnnounceRetained(channel, announce).catch(() => {});
+        return rev;
+    }
+
+    /**
+     * Replace the interactions key (Sealed), as rekeyPublishKey does the publish key.
+     * @returns {Promise<number>} the new rev
+     */
+    async rekeyInteractionsKey(channel) {
+        if (!usesSharedPublish(channel)) {
+            throw new Error('rekeyInteractionsKey: not a Sealed channel');
+        }
+        if (!this.isOwnAdmin(channel)) {
+            throw new Error('rekeyInteractionsKey: only the channel admin can re-key');
+        }
+        const s = this._getState(channel.messageStreamId);
+        if (!s.loaded) {
+            this._loadPersisted(channel.messageStreamId, s);
+            s.loaded = true;
+        }
+        const oldAddress = s.intKey?.address || s.intAnnounce?.address || null;
+        const rev = Math.max(s.intKey?.rev || 0, s.intAnnounce?.rev || 0) + 1;
+        const intKey = this.mintInteractionsKey(rev);
+
+        // Chain first: a published announce for a key the network rejects
+        // would leave every member reacting into the void.
+        await streamrController.rekeyInteractionsGrants(channel, intKey.address, oldAddress);
+
+        s.intKey = { ...intKey };
+        const announce = {
+            t: KEYS_MSG_TYPE.PUB_ANNOUNCE,
+            k: 'i',
+            keyId: intKey.keyId,
+            keyHash: await epochKeyCrypto.computeKeyHash(intKey.keyHex),
+            addr: intKey.address,
+            rev
+        };
+        await streamrController.publishKeysMessage(channel.keysStreamId, announce);
+        this._applyPubAnnounce(channel, s, announce, authManager.getAddress(), Date.now());
+        s.intAnnounceFreshness = Date.now();
+        await this._persist(channel.messageStreamId, s);
+        this.onKeysAdopted?.(channel.messageStreamId, intKey.keyId);
+        Logger.info(`epochKeys: interactions key re-keyed to rev ${rev} on`, channel.keysStreamId.slice(-30));
         this._ensureAnnounceRetained(channel, announce).catch(() => {});
         return rev;
     }
@@ -1365,7 +1411,7 @@ class EpochKeyManager {
     /** A request this session sent: answering it would be talking to itself. */
     _isOwnRequest(s, requestId) {
         if (typeof requestId !== 'string' || !requestId) return false;
-        return s.pendingRequests?.has(requestId) === true
+        return s.ownRequestIds?.has(requestId) === true
             || s.pendingRequest?.requestId === requestId;
     }
 
@@ -1765,7 +1811,7 @@ class EpochKeyManager {
         // `anchorless`: no announce to name what is missing, so the request
         // asks from the first epoch and takes whatever a member still holds.
         if (!anchorless && missing.length === 0 && stranded.length === 0
-                && !this._needsPubKey(channel, s)) return;
+                && !this._needsPubKey(channel, s) && !this._needsInteractionsKey(channel, s)) return;
 
         const { privateKey, publicKey } = epochKeyCrypto.generateRequestKeypair();
         const requestId = cryptoManager.generateRandomHex(16);
@@ -1775,6 +1821,7 @@ class EpochKeyManager {
 
         s.requestAttempts += 1;
         s.pendingRequest = { requestId, privateKey, publicKey, fromEpoch, sentAt: Date.now() };
+        s.ownRequestIds.add(requestId);
         if (spk) {
             s.pendingRequests.set(requestId, { fromEpoch, sentAt: Date.now() });
             while (s.pendingRequests.size > PENDING_REQUESTS_MAX) {
@@ -2005,7 +2052,8 @@ class EpochKeyManager {
     async retryRequestIfWaiting(channel) {
         const s = this.state.get(channel.messageStreamId);
         if (!s) return false;
-        if (this._missingEpochs(s).length === 0 && !this._needsPubKey(channel, s)) return false;
+        if (this._missingEpochs(s).length === 0 && !this._needsPubKey(channel, s)
+                && !this._needsInteractionsKey(channel, s)) return false;
         await this._sendKeyRequest(channel, s);
         return true;
     }

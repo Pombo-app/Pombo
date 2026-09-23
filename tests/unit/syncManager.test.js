@@ -607,6 +607,38 @@ describe('syncManager', () => {
     });
 
     describe('mergeState', () => {
+        it('should keep a joined record over a later copy that has no join time', () => {
+            const joined = { messageStreamId: 'ch-1', joinedAt: 1000, createdAt: 1000, wireIdentity: 'sealed' };
+            const copy = { messageStreamId: 'ch-1', joinedAt: null, createdAt: 5000, wireIdentity: null };
+
+            expect(syncManager.mergeState({ channels: [joined] }, { channels: [copy] }).channels)
+                .toEqual([joined]);
+            expect(syncManager.mergeState({ channels: [copy] }, { channels: [joined] }).channels)
+                .toEqual([joined]);
+        });
+
+        it('should keep a re-join without a join time from being lost to the leave before it', () => {
+            const joined = { messageStreamId: 'ch-1', joinedAt: 1000, createdAt: 1000, wireIdentity: 'sealed' };
+            const rejoin = { messageStreamId: 'ch-1', joinedAt: null, createdAt: 3000, wireIdentity: null };
+
+            const result = syncManager.mergeState(
+                { channels: [joined] },
+                { channels: [rejoin], channelsLeftAt: { 'ch-1': 2000 } });
+
+            expect(result.channels).toEqual([joined]);
+            expect(result.channelsLeftAt['ch-1']).toBeUndefined();
+        });
+
+        it('should still let the newer of two joins win', () => {
+            const older = { messageStreamId: 'ch-1', joinedAt: 1000, name: 'older' };
+            const newer = { messageStreamId: 'ch-1', joinedAt: 2000, name: 'newer' };
+
+            expect(syncManager.mergeState({ channels: [newer] }, { channels: [older] }).channels[0].name)
+                .toBe('newer');
+            expect(syncManager.mergeState({ channels: [older] }, { channels: [newer] }).channels[0].name)
+                .toBe('newer');
+        });
+
         it('should union-merge epoch keys, base wins per entry', () => {
             const base = {
                 channels: [{ messageStreamId: 'ch-1', joinedAt: 1000 }],
@@ -638,6 +670,38 @@ describe('syncManager', () => {
             expect(result.epochKeys['ch-1'].epochs.kid2.keyHex).toBe('0xlocal');
             expect(result.epochKeys['ch-1'].announces[1].keyId).toBe('kid1');
             expect(result.epochKeys['ch-1'].currentEpoch).toBe(2);
+        });
+
+        it('should keep the interactions key when both devices hold the channel', () => {
+            const intKey = { keyId: 'i1.x', keyHex: '0xint', address: '0xaa', rev: 1 };
+            const intAnnounce = { keyId: 'i1.x', keyHash: '0xh', address: '0xaa', rev: 1 };
+            const pubKey = { keyId: 'p1.x', keyHex: '0xpub', address: '0xbb', rev: 1 };
+            const base = {
+                channels: [{ messageStreamId: 'ch-1', joinedAt: 1000 }],
+                epochKeys: { 'ch-1': { epochs: {}, currentEpoch: 1, intKey, intAnnounce } }
+            };
+            const incoming = {
+                channels: [{ messageStreamId: 'ch-1', joinedAt: 1000 }],
+                epochKeys: { 'ch-1': { epochs: {}, currentEpoch: 1, pubKey } }
+            };
+
+            const merged = syncManager.mergeState(base, incoming).epochKeys['ch-1'];
+
+            expect(merged.intKey).toEqual(intKey);
+            expect(merged.intAnnounce).toEqual(intAnnounce);
+            expect(merged.pubKey).toEqual(pubKey);
+        });
+
+        it('should let a re-keyed interactions key supersede the old one', () => {
+            const old = { keyId: 'i1.x', keyHex: '0xold', address: '0xaa', rev: 1 };
+            const reset = { keyId: 'i2.y', keyHex: '0xnew', address: '0xcc', rev: 2 };
+            const channels = [{ messageStreamId: 'ch-1', joinedAt: 1000 }];
+
+            const merged = syncManager.mergeState(
+                { channels, epochKeys: { 'ch-1': { epochs: {}, intKey: old } } },
+                { channels, epochKeys: { 'ch-1': { epochs: {}, intKey: reset } } }).epochKeys['ch-1'];
+
+            expect(merged.intKey).toEqual(reset);
         });
 
         it('should keep epoch keys when the incoming payload predates the slice', () => {

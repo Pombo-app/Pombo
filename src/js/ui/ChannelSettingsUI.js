@@ -280,6 +280,7 @@ class ChannelSettingsUI {
                 .catch(() => { /* stays hidden */ });
             this.initRotateEpochSection(currentChannel.streamId);
             this.initRekeyPublishSection(currentChannel.streamId);
+            this.initRekeyInteractionsSection(currentChannel.streamId);
             this.initAbsorbModSection(currentChannel.streamId);
             this._applyAdvancedSection();
         }
@@ -1203,7 +1204,7 @@ class ChannelSettingsUI {
     _applyAdvancedSection() {
         const wrapper = document.getElementById('mod-advanced-section');
         if (!wrapper) return;
-        const anyVisible = ['permissions-section', 'rekey-publish-section']
+        const anyVisible = ['permissions-section', 'rotate-epoch-section', 'rekey-publish-section', 'rekey-interactions-section']
             .map(id => document.getElementById(id))
             .some(el => el && !el.classList.contains('hidden'));
         wrapper.classList.toggle('hidden', !anyVisible);
@@ -1239,6 +1240,41 @@ class ChannelSettingsUI {
                 const rev = await epochKeyManager.rekeyPublishKey(channel);
                 if (status) status.textContent = `Publish key reset (rev ${rev}). Members pick it up automatically.`;
                 showNotification?.('Publish key reset', 'success');
+            } catch (error) {
+                if (status) status.textContent = '';
+                showNotification?.('Re-key failed: ' + error.message, 'error');
+            } finally {
+                button.disabled = false;
+            }
+        };
+        button.addEventListener('click', button._clickHandler);
+    }
+
+    initRekeyInteractionsSection(streamId) {
+        const section = document.getElementById('rekey-interactions-section');
+        const button = document.getElementById('rekey-interactions-btn');
+        if (!section || !button) return;
+
+        const { channelManager, showNotification } = this.deps;
+        const channel = channelManager.channels.get(streamId);
+        const show = channel?.wireIdentity === 'sealed'
+            && channelManager.isChannelOwner(streamId);
+        section.classList.toggle('hidden', !show);
+        if (!show) return;
+
+        if (button._clickHandler) button.removeEventListener('click', button._clickHandler);
+        button._clickHandler = async () => {
+            const status = document.getElementById('rekey-interactions-status');
+            button.disabled = true;
+            if (status) {
+                status.textContent = 'Re-keying — one on-chain transaction…';
+                status.classList.remove('hidden');
+            }
+            try {
+                const { epochKeyManager } = await import('../epochKeyManager.js');
+                const rev = await epochKeyManager.rekeyInteractionsKey(channel);
+                if (status) status.textContent = `Interactions key reset (rev ${rev}). Members pick it up automatically.`;
+                showNotification?.('Interactions key reset', 'success');
             } catch (error) {
                 if (status) status.textContent = '';
                 showNotification?.('Re-key failed: ' + error.message, 'error');

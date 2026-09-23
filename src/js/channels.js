@@ -172,8 +172,7 @@ class ChannelManager {
 
         // The CONTRACT is the authority on the identity mode and the
         // read-only flag; the stream-metadata copies are mutable and even
-        // erasable by a failed rename. Reconcile once per session — a
-        // mismatch only ever means the metadata copy drifted.
+        // erasable by a failed rename, and a synced copy can lose them.
         if (target.type === 'gated' && target.gate?.address) {
             this._reconcileGateAuthority(target).catch(e =>
                 Logger.warn('Gate authority read failed for', target.messageStreamId?.slice(-20), '—', e.message));
@@ -194,36 +193,45 @@ class ChannelManager {
     }
 
     async _reconcileGateAuthority(channel) {
-        this._gateAuthorityChecked ??= new Set();
-        if (this._gateAuthorityChecked.has(channel.messageStreamId)) return;
-        const { gateManager } = await import('./gate.js');
-        // Marked only once the contract has answered: a failed read must not
-        // pin the guessed mode for the session.
-        const info = await gateManager.getGateInfo(channel.gate.address);
-        this._gateAuthorityChecked.add(channel.messageStreamId);
-        const mode = info.wireIdentityName === 'sealed' ? 'sealed' : 'visible';
+        this._gateAuthority ??= new Map();
+        // Read once per session, applied on every hydrate: a sync reload can
+        // bring back another device's copy without the mode.
+        let known = this._gateAuthority.get(channel.messageStreamId);
+        if (!known) {
+            const { gateManager } = await import('./gate.js');
+            // Cached only once the contract has answered: a failed read must
+            // not pin the guessed mode for the session.
+            const info = await gateManager.getGateInfo(channel.gate.address);
+            known = {
+                mode: info.wireIdentityName === 'sealed' ? 'sealed' : 'visible',
+                readOnly: !!info.readOnly
+            };
+            // Session cache of "may I write here": _needsPubKey consults it so a
+            // plain member of a read-only channel stops requesting the shared
+            // publish key nobody may hand them.
+            if (known.readOnly) {
+                const self = authManager.getAddress();
+                known.selfMayPublish = self
+                    ? await gateManager.canModerate(channel.gate.address, self)
+                    : false;
+            }
+            this._gateAuthority.set(channel.messageStreamId, known);
+        }
+        const { mode } = known;
         let changed = false;
         delete channel._wireIdentityGuessed;
         if (channel.wireIdentity !== mode) {
             channel.wireIdentity = mode;
             changed = true;
         }
-        if (!!channel.readOnly !== info.readOnly) {
-            channel.readOnly = info.readOnly;
+        if (!!channel.readOnly !== known.readOnly) {
+            channel.readOnly = known.readOnly;
             changed = true;
         }
-        // Session cache of "may I write here": _needsPubKey consults it so a
-        // plain member of a read-only channel stops requesting the shared
-        // publish key nobody may hand them.
-        if (info.readOnly) {
-            const self = authManager.getAddress();
-            channel._selfMayPublishReadOnly = self
-                ? await gateManager.canModerate(channel.gate.address, self)
-                : false;
-        }
+        if (known.readOnly) channel._selfMayPublishReadOnly = known.selfMayPublish;
         if (changed) {
             Logger.info('Gate authority corrected the local record:',
-                channel.messageStreamId?.slice(-20), '→', mode, info.readOnly ? '(read-only)' : '');
+                channel.messageStreamId?.slice(-20), '→', mode, known.readOnly ? '(read-only)' : '');
             await this.saveChannels();
         }
     }

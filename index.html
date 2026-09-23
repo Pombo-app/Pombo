@@ -2043,26 +2043,8 @@
                                 </button>
                             </div>
 
-                            <!-- Gated channels, admin only: manual epoch rotation. Free, unlike the re-key. -->
-                            <div id="rotate-epoch-section" class="hidden p-4 bg-white/[0.03] rounded-xl border border-white/5">
-                                <div class="flex items-center justify-between mb-1">
-                                    <h4 class="text-sm font-medium text-white/90">Rotate Channel Key</h4>
-                                    <button type="button" data-hint="rotate-epoch-hint" title="Issues a new encryption key now. Anyone without current access stops reading new messages. Free — no transaction." class="p-1 -m-1 text-white/25 hover:text-white/60 transition" aria-label="About rotating the channel key">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
-                                    </button>
-                                </div>
-                                <p id="rotate-epoch-hint" class="hidden text-xs text-white/40 leading-relaxed mb-3">
-                                    Issues a new encryption key now. Anyone without current access stops reading new messages. Free — no transaction.
-                                </p>
-                                <p id="rotate-epoch-next" class="text-sm text-white/40 mb-3"></p>
-                                <button id="rotate-epoch-btn" class="w-full bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 px-4 py-2.5 rounded-xl text-sm transition">
-                                    Rotate Now
-                                </button>
-                                <p id="rotate-epoch-status" class="hidden mt-2 text-xs text-white/40"></p>
-                            </div>
-
-                            <!-- The technical surfaces: grantees and the re-key, folded away
-                                 because neither belongs in a routine visit. -->
+                            <!-- The technical surfaces: grantees, rotation and the re-keys, folded
+                                 away because none of them belongs in a routine visit. -->
                             <details id="mod-advanced-section" class="hidden group border-t border-white/5 pt-5">
                                 <summary class="text-sm text-white/40 hover:text-white/60 cursor-pointer transition list-none">
                                     <span class="group-open:hidden">▸ Advanced</span>
@@ -2083,6 +2065,23 @@
                                             <div class="text-white/30">Loading...</div>
                                         </div>
                                     </div>
+                                    <!-- Gated channels, admin only: manual epoch rotation. Free, unlike the re-key. -->
+                                    <div id="rotate-epoch-section" class="hidden p-4 bg-white/[0.03] rounded-xl border border-white/5">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <h4 class="text-sm font-medium text-white/90">Rotate Encryption Key</h4>
+                                            <button type="button" data-hint="rotate-epoch-hint" title="Issues a new encryption key now. Anyone without current access stops reading new messages. Free — no transaction." class="p-1 -m-1 text-white/25 hover:text-white/60 transition" aria-label="About rotating the encryption key">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
+                                            </button>
+                                        </div>
+                                        <p id="rotate-epoch-hint" class="hidden text-xs text-white/40 leading-relaxed mb-3">
+                                            Issues a new encryption key now. Anyone without current access stops reading new messages. Free — no transaction.
+                                        </p>
+                                        <p id="rotate-epoch-next" class="text-sm text-white/40 mb-3"></p>
+                                        <button id="rotate-epoch-btn" class="w-full bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 px-4 py-2.5 rounded-xl text-sm transition">
+                                            Rotate Now
+                                        </button>
+                                        <p id="rotate-epoch-status" class="hidden mt-2 text-xs text-white/40"></p>
+                                    </div>
                                     <!-- Members-only channels, admin only: the escape valve against ex-key-holder abuse -->
                                     <div id="rekey-publish-section" class="hidden p-4 bg-amber-500/5 rounded-xl border border-amber-500/10">
                                         <div class="flex items-center justify-between mb-1">
@@ -2098,6 +2097,21 @@
                                             Reset Publish Key
                                         </button>
                                         <p id="rekey-publish-status" class="hidden mt-2 text-xs text-white/40"></p>
+                                    </div>
+                                    <div id="rekey-interactions-section" class="hidden p-4 bg-amber-500/5 rounded-xl border border-amber-500/10">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <h4 class="text-sm font-medium text-white/90">Reset Interactions Key</h4>
+                                            <button type="button" data-hint="rekey-interactions-hint" title="For when reactions and presence stopped working because no device holds the key, or to cut off an ex-member who kept it. One transaction. Reactions sent before the reset stop verifying for anyone reading this channel outside Pombo." class="p-1 -m-1 text-white/25 hover:text-white/60 transition" aria-label="About resetting the interactions key">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
+                                            </button>
+                                        </div>
+                                        <p id="rekey-interactions-hint" class="hidden text-xs text-white/40 leading-relaxed mb-3">
+                                            For when reactions and presence stopped working because no device holds the key, or to cut off an ex-member who kept it. One transaction. Current members pick up the new key automatically, but reactions sent before the reset stop verifying for anyone reading this channel outside Pombo.
+                                        </p>
+                                        <button id="rekey-interactions-btn" class="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 px-4 py-2.5 rounded-xl text-sm transition">
+                                            Reset Interactions Key
+                                        </button>
+                                        <p id="rekey-interactions-status" class="hidden mt-2 text-xs text-white/40"></p>
                                     </div>
                                 </div>
                             </details>
