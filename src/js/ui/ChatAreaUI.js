@@ -354,7 +354,7 @@ class ChatAreaUI {
                 }
                 // The chain grants access and this node refuses: it is behind
                 return hasAccess
-                    ? { title: 'Channel history is temporarily unavailable', detail: 'The storage node has not caught up with your access. Reopen the channel to retry' }
+                    ? { title: 'Channel history is temporarily unavailable', detail: 'The storage node has not caught up with your access yet. Retrying automatically' }
                     : { title: 'Your access to this channel has ended', detail: 'The storage node no longer serves its history to you' };
             case 401:
                 return error?.signed

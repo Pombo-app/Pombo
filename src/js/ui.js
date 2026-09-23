@@ -264,6 +264,7 @@ class UIController {
                         // silently — ask again now that the chain grants us
                         try { await epochKeyManager.retryRequestIfWaiting(channel); }
                         catch (e) { Logger.debug('post-renewal key request failed:', e.message); }
+                        channelManager.refreshHistoryAfterRenewal(channel.messageStreamId);
                         chatAreaUI.renderMessages(channel.messages || [],
                             () => this.attachReactionListeners());
                     }

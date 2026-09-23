@@ -93,6 +93,22 @@ describe('member catch-up', () => {
         expect(refusals).toEqual([{ status: 503, signed: true, reason: 'storedAt' }]);
     });
 
+    it('reports a served sweep as null, and a sweep that never answered not at all', async () => {
+        vi.spyOn(authManager, 'getAddress').mockReturnValue(MEMBER);
+        const verdicts = [];
+        let answered = true;
+        vi.spyOn(streamrController, 'fetchHistoryAsync').mockImplementation(
+            (id, partition, count, handler, password, done) => {
+                if (answered) done?.({ loaded: 3, requested: count, readError: null });
+                else done?.();
+            });
+        memberCatchUp.start(channel(), () => {}, (r) => verdicts.push(r));
+        await vi.advanceTimersByTimeAsync(CONFIG.subscriptions.memberCatchUpIntervalMs + 10);
+        answered = false;
+        await vi.advanceTimersByTimeAsync(CONFIG.subscriptions.memberCatchUpIntervalMs);
+        expect(verdicts).toEqual([null]);
+    });
+
     it('feeds what it finds into the ordinary ingest', async () => {
         vi.spyOn(authManager, 'getAddress').mockReturnValue(MEMBER);
         const seen = [];
