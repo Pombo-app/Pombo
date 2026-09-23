@@ -796,7 +796,9 @@ class EpochKeyManager {
             epoch: s.currentEpoch,
             keyId: announce.keyId,
             keyHash: entry.keyHash,
-            validFrom: Date.now()
+            // A reader that only ever sees this copy judges the epoch's
+            // history by it: a later validFrom drops that history as backdated.
+            validFrom: announce.validFrom ?? Date.now()
         };
         await streamrController.publishKeysMessage(channel.keysStreamId, reannounce);
         s.announceFreshness.set(s.currentEpoch, Date.now());
