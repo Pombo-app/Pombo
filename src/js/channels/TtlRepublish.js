@@ -197,34 +197,38 @@ export class TtlRepublish {
                     Logger.debug('CHANNEL_IMAGE TTL republish skipped: encrypted payload without password');
                     return;
                 }
-                const freshPayload = {
-                    ...payload,
-                    rev: (typeof payload.rev === 'number' ? payload.rev : 0) + 1,
-                    ts: Date.now(),
-                    createdBy: payload.createdBy || myAddress
-                };
                 Logger.info('CHANNEL_IMAGE nearing storage TTL — owner republishing', {
                     streamId: channel.messageStreamId.slice(-20),
                     ageDays: ageDays(payload.ts),
-                    storageDays,
-                    rev: freshPayload.rev
+                    storageDays
                 });
-                await streamrController.publishChannelImage(
-                    adminStreamId, freshPayload, payload.encrypted ? pwd : null);
-                // Keep the local rev counter ahead of the retained entry so a
-                // later image change never publishes a lower rev.
-                channel.channelImageRev = Math.max(channel.channelImageRev || 0, freshPayload.rev);
-                await channelImageManager.setLocal(adminStreamId, {
-                    hash: freshPayload.hash,
-                    dataUrl: freshPayload.data,
-                    encrypted: !!freshPayload.encrypted,
-                    ts: freshPayload.ts,
-                    rev: freshPayload.rev,
-                    owner: freshPayload.createdBy
-                });
+                await this.republishImage(channel, adminStreamId, payload, pwd);
             }
         } catch (e) {
             Logger.debug('CHANNEL_IMAGE TTL republish failed (will retry next open):', e?.message);
         }
+    }
+
+    async republishImage(channel, adminStreamId, payload, pwd) {
+        const freshPayload = {
+            ...payload,
+            rev: (typeof payload.rev === 'number' ? payload.rev : 0) + 1,
+            ts: Date.now(),
+            createdBy: payload.createdBy || authManager.getAddress()
+        };
+        const published = await streamrController.publishChannelImage(
+            adminStreamId, freshPayload, payload.encrypted ? pwd : null);
+        // Keep the local rev counter ahead of the retained entry so a
+        // later image change never publishes a lower rev.
+        channel.channelImageRev = Math.max(channel.channelImageRev || 0, freshPayload.rev);
+        await channelImageManager.setLocal(adminStreamId, {
+            hash: freshPayload.hash,
+            dataUrl: freshPayload.data,
+            encrypted: !!freshPayload.encrypted,
+            ts: freshPayload.ts,
+            rev: freshPayload.rev,
+            owner: freshPayload.createdBy
+        });
+        return published;
     }
 }

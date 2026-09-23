@@ -957,6 +957,53 @@ describe('storage writes go only where they are needed', () => {
             await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });
             expect(streamrController.addStorageNodeToStream).toHaveBeenCalledWith('s-3', expect.any(Object));
         });
+
+        // Once the node is assigned a read can land on it and find nothing,
+        // so what the copy needs is read before the write.
+        it('reads what the copy needs before the write, and copies to the added node after it', async () => {
+            channelManager.channels.set('s-1', gated());
+            reads(
+                state([OTHER], 180), state([OTHER], 180), state([OTHER], 180), state([OTHER], 180),
+                state([OTHER, NODE], 180)
+            );
+            const order = [];
+            const snapshot = { image: null };
+            vi.spyOn(channelManager.storageCopy, 'prepare').mockImplementationOnce(async () => {
+                order.push('prepare');
+                return snapshot;
+            });
+            streamrController.addStorageNodeToStream.mockImplementation(async () => {
+                order.push('add');
+                return { success: true };
+            });
+            const copyTo = vi.spyOn(channelManager.storageCopy, 'copyTo').mockResolvedValueOnce('present');
+
+            await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });
+            expect(order).toEqual(['prepare', 'add', 'add', 'add', 'add']);
+            expect(copyTo).toHaveBeenCalledWith('s-1', NODE, snapshot);
+        });
+
+        it('copies nothing when the node never reached the admin and keys streams', async () => {
+            channelManager.channels.set('s-1', gated());
+            reads(state([OTHER], 180));
+            vi.spyOn(channelManager.storageCopy, 'prepare').mockResolvedValueOnce({ image: null });
+            streamrController.addStorageNodeToStream.mockResolvedValue({ success: false, error: 'reverted' });
+            const copyTo = vi.spyOn(channelManager.storageCopy, 'copyTo');
+
+            await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });
+            expect(copyTo).not.toHaveBeenCalled();
+        });
+
+        it('forgets the cached providers of every stored stream', async () => {
+            const { storageEndpoints } = await import('../../src/js/storageEndpoints.js');
+            channelManager.channels.set('s-1', gated());
+            reads(state([NODE], 180));
+            vi.spyOn(channelManager.storageCopy, 'prepare').mockResolvedValueOnce(null);
+            const invalidate = vi.spyOn(storageEndpoints, 'invalidate');
+
+            await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });
+            expect(invalidate.mock.calls.map(([id]) => id)).toEqual(['s-1', 's-3', 's-4', 's-5']);
+        });
     });
 
     describe('removeChannelStorageNode()', () => {

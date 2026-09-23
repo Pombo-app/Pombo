@@ -296,6 +296,17 @@ describe('storageEndpoints', () => {
             expect(fetchMock).toHaveBeenCalledTimes(3);
         });
 
+        it('probeStream says when a provider did not answer the probe', async () => {
+            fetchMock.mockImplementation((url) => url.startsWith('https://node-b.example')
+                ? Promise.reject(new Error('Failed to fetch'))
+                : Promise.resolve(jsonResponse(404, {})));
+
+            const providers = await storageEndpoints.probeStream('0xchan/foo-1');
+
+            expect(providers.map((p) => p.answered)).toEqual([true, false]);
+            expect(providers[1].features.size).toBe(0);
+        });
+
         it('probeStream on a stream without storage is empty and probes nothing', async () => {
             mockClient.getStream.mockResolvedValue({ getStorageNodes: () => Promise.resolve([]) });
             expect(await storageEndpoints.probeStream('0xchan/none-1')).toEqual([]);

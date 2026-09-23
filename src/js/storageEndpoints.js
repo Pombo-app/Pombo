@@ -275,8 +275,9 @@ class StorageEndpointResolver {
     /**
      * Resolve a stream's providers and probe every URL in parallel.
      * @param {string} streamId
-     * @returns {Promise<Array<{nodeAddress: string, urls: string[], features: Set<string>}>>}
-     *   `features` is the union over the provider's URLs
+     * @returns {Promise<Array<{nodeAddress: string, urls: string[], features: Set<string>, answered: boolean}>>}
+     *   `features` is the union over the provider's URLs; `answered` is false
+     *   when one of them did not answer the probe
      */
     async probeStream(streamId) {
         const nodes = await this.resolve(streamId);
@@ -287,7 +288,8 @@ class StorageEndpointResolver {
             for (const u of n.urls) {
                 for (const f of this.capabilitiesOf(u) || []) features.add(f);
             }
-            return { nodeAddress: n.nodeAddress, urls: n.urls, features };
+            const answered = n.urls.every((u) => this.capabilitiesOf(u) !== undefined);
+            return { nodeAddress: n.nodeAddress, urls: n.urls, features, answered };
         });
     }
 

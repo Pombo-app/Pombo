@@ -293,6 +293,10 @@ export const CONFIG = {
         // times before the owner is told.
         adminConfirmDelaysMs: [5000, 10000, 20000, 40000],
         adminConfirmRepublishLimit: 3,
+        // A provider just added is asked for the copy at these delays; the copy
+        // is published again this many times while still missing there.
+        storageCopyDelaysMs: [5000, 10000, 20000, 40000],
+        storageCopyRepublishLimit: 2,
         // A published message is read back from storage at these delays;
         // still missing by the last one, it is marked undelivered.
         deliveryConfirmDelaysMs: [5000, 10000, 20000, 40000],
