@@ -1037,6 +1037,7 @@ class ChannelModalsUI {
                             );
                         });
                         this.notificationUI?.hideLoadingToast();
+                        this.showNotification(entry.renewal ? 'Subscription renewed' : 'Subscription paid', 'success');
                         await finishJoin(gateManager);
                     } catch (error) {
                         this.notificationUI?.hideLoadingToast();
