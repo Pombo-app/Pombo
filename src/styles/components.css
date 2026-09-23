@@ -1564,6 +1564,11 @@ body.cannot-write .reply-trigger {
     flex-shrink: 0;
 }
 
+.toast-icon-payment {
+    width: 22px;
+    height: 22px;
+}
+
 .toast.confirm {
     align-items: flex-start;
 }

@@ -1027,13 +1027,14 @@ class ChannelModalsUI {
                     // the modal up: on failure it is the retry context.)
                     if (entry.renewal) this.hideGateEntryModal();
                     try {
-                        this.notificationUI?.showLoadingToast('Paying subscription...', 'Confirm may take a moment');
+                        this.notificationUI?.showLoadingToast('Paying subscription...', 'Confirm may take a moment', { icon: 'payment' });
                         await gateManager.pay(entry.gateAddress, (step) => {
                             this.notificationUI?.showLoadingToast(
                                 step === 'wrap' ? 'Wrapping POL...'
                                     : step === 'approve' ? 'Approving token...'
                                         : 'Paying subscription...',
-                                'Waiting for the transaction'
+                                'Waiting for the transaction',
+                                { icon: 'payment' }
                             );
                         });
                         this.notificationUI?.hideLoadingToast();

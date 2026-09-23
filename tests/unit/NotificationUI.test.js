@@ -230,6 +230,19 @@ describe('NotificationUI', () => {
             const toast = container.querySelector('.toast.loading');
             expect(toast.innerHTML).not.toContain('<b>');
         });
+
+        it('draws the payment icon for a payment and the chat bubble otherwise', () => {
+            const dollar = 'M12 8c-1.657';
+            const bubble = 'M8.625 12a.375';
+
+            notificationUI.showLoadingToast('Paying subscription...', 'Confirm may take a moment', { icon: 'payment' });
+            let icon = container.querySelector('.toast.loading .toast-icon path').getAttribute('d');
+            expect(icon.startsWith(dollar)).toBe(true);
+
+            notificationUI.showLoadingToast('Joining channel...');
+            icon = container.querySelector('.toast.loading .toast-icon path').getAttribute('d');
+            expect(icon.startsWith(bubble)).toBe(true);
+        });
     });
 
     describe('hideLoadingToast()', () => {
