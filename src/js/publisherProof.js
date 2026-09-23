@@ -142,12 +142,24 @@ export function applyAccount(data, account) {
  */
 export function stripLocalFields(data) {
     if (!data || typeof data !== 'object') return data;
-    const {
-        verified, pending, failed, failError, delivered, undelivered, _dmSent,
-        sender, account, signature, channelId,
-        ...networkMessage
-    } = data;
-    return networkMessage;
+    const { sender, account, signature, channelId, ...networkMessage } = data;
+    return dropLocalState(networkMessage);
+}
+
+const LOCAL_STATE_FIELDS = ['verified', 'pending', 'failed', 'failError', 'delivered', 'undelivered', '_dmSent'];
+
+/**
+ * Drop the sender's local UI state from a received payload: the ingress
+ * counterpart to stripLocalFields. Identity fields stay: legacy messages are
+ * verified against their own `signature` and `channelId`.
+ *
+ * @param {Object} data - Payload (mutated in place)
+ * @returns {Object} The same object, for chaining
+ */
+export function dropLocalState(data) {
+    if (!data || typeof data !== 'object') return data;
+    for (const field of LOCAL_STATE_FIELDS) delete data[field];
+    return data;
 }
 
 /**

@@ -636,7 +636,11 @@ describe('DMManager', () => {
                 timestamp: Date.now(),
                 sender: peerAddress,
                 pending: true,       // sender-side flag (should be stripped)
-                _dmSent: true        // sender-side flag (should be stripped)
+                _dmSent: true,       // sender-side flag (should be stripped)
+                failed: true,
+                failError: 'x',
+                delivered: true,
+                undelivered: true
             });
 
             await dmManager.routeInboxMessage({
@@ -653,8 +657,31 @@ describe('DMManager', () => {
             // Sender-side flags must be stripped
             expect(channel.messages[0]._dmSent).toBeUndefined();
             expect(channel.messages[0].pending).toBeUndefined();
+            expect(channel.messages[0].failed).toBeUndefined();
+            expect(channel.messages[0].failError).toBeUndefined();
+            expect(channel.messages[0].delivered).toBeUndefined();
+            expect(channel.messages[0].undelivered).toBeUndefined();
             // account must be restored from envelope
             expect(channel.messages[0].account).toBe(peerAddress);
+        });
+
+        it('drops the send state sealed inside a peer envelope', async () => {
+            const peerAddress = '0xpeer999999999999999999999999999999999999';
+            dmCrypto.isSealed.mockReturnValueOnce(true);
+            dmCrypto.open.mockResolvedValueOnce({
+                sender: peerAddress,
+                message: {
+                    id: 'sealed-1', text: 'hi', pending: true, failed: true, failError: 'x',
+                    delivered: true, undelivered: true, _dmSent: true,
+                    verified: { valid: true, trustLevel: 2 }
+                }
+            });
+
+            const opened = await dmManager.openDMEnvelope({ v: 2, epk: '0x02eph', ct: 'c', iv: 'i', e: 'aes-256-gcm' });
+
+            expect(opened).toEqual({
+                id: 'sealed-1', text: 'hi', account: peerAddress, sender: peerAddress
+            });
         });
 
         it('should silently drop messages that fail to decrypt', async () => {
@@ -2310,6 +2337,24 @@ describe('DMManager', () => {
             expect(ch.messages[0]._dmReceived).toBe(true);
             expect(ch.oldestTimestamp).toBe(100);
             expect(result).toEqual({ loaded: 1, hasMore: true, noResultsInWindow: false });
+        });
+
+        it('drops the send state a peer shipped with an older message', async () => {
+            streamrController.fetchOlderHistoryWindowed.mockResolvedValueOnce({
+                messages: [{
+                    publisherId: peerAddress,
+                    content: {
+                        id: 'old-2', text: 'old', timestamp: 100,
+                        pending: true, failed: true, failError: 'x', undelivered: true, _dmSent: true
+                    }
+                }],
+                hasMore: false
+            });
+            await dmManager.fetchOlderDMMessages(peerAddress);
+            const [msg] = channelManager.channels.get(streamId).messages;
+            for (const field of ['pending', 'failed', 'failError', 'undelivered', '_dmSent']) {
+                expect(msg).not.toHaveProperty(field);
+            }
         });
 
         it('should skip own and other-peer messages', async () => {
