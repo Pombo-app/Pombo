@@ -190,6 +190,7 @@ import { dmManager } from '../../src/js/dm.js';
 import { dmCrypto } from '../../src/js/dmCrypto.js';
 import { relayManager } from '../../src/js/relayManager.js';
 import { Logger } from '../../src/js/logger.js';
+import { gateManager } from '../../src/js/gate.js';
 
 describe('ChannelManager - Additional Coverage', () => {
     beforeEach(() => {
@@ -877,6 +878,50 @@ describe('ChannelManager - Additional Coverage', () => {
 
             const ch = channelManager.channels.get(streamId);
             expect(ch._deletePermCache.address).toBe('0xmyaddress');
+        });
+    });
+
+    // ==================== gate authority ====================
+    describe('gate authority', () => {
+        const syncedWithoutMode = () => ({
+            messageStreamId: '0xowner/sealed-1', type: 'gated',
+            gate: { address: '0x7a3ee479b790578fb9ce885aa3356f79c4df0305' }, wireIdentity: null
+        });
+        let save;
+
+        beforeEach(() => {
+            channelManager._gateAuthority = new Map();
+            save = vi.spyOn(channelManager, 'saveChannels').mockResolvedValue(undefined);
+        });
+
+        afterEach(() => save.mockRestore());
+
+        it('applies the gate mode again to a copy a sync reload brings back', async () => {
+            gateManager.getGateInfo.mockResolvedValueOnce({ readOnly: false, wireIdentityName: 'sealed' });
+
+            const first = syncedWithoutMode();
+            await channelManager._reconcileGateAuthority(first);
+            const reloaded = syncedWithoutMode();
+            await channelManager._reconcileGateAuthority(reloaded);
+
+            expect(first.wireIdentity).toBe('sealed');
+            expect(reloaded.wireIdentity).toBe('sealed');
+            expect(reloaded._wireIdentityGuessed).toBeUndefined();
+            expect(gateManager.getGateInfo).toHaveBeenCalledTimes(1);
+            expect(save).toHaveBeenCalledTimes(2);
+        });
+
+        it('keeps the read-only write verdict on the reloaded copy', async () => {
+            gateManager.getGateInfo.mockResolvedValueOnce({ readOnly: true, wireIdentityName: 'sealed' });
+            gateManager.canModerate.mockResolvedValueOnce(true);
+
+            await channelManager._reconcileGateAuthority(syncedWithoutMode());
+            const reloaded = syncedWithoutMode();
+            await channelManager._reconcileGateAuthority(reloaded);
+
+            expect(reloaded.readOnly).toBe(true);
+            expect(reloaded._selfMayPublishReadOnly).toBe(true);
+            expect(gateManager.canModerate).toHaveBeenCalledTimes(1);
         });
     });
 
