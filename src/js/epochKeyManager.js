@@ -1348,8 +1348,13 @@ class EpochKeyManager {
         s.announces.set(epoch, incoming);
         if (epoch > s.currentEpoch) {
             s.currentEpoch = epoch;
+            this._forgetGrants(channel);
         }
         return true;
+    }
+
+    _forgetGrants(channel) {
+        if (channel?.gate?.address) gateManager.invalidateGrants(channel.gate.address);
     }
 
     /**
@@ -1417,12 +1422,9 @@ class EpochKeyManager {
         // No gate (repair pending) means no access check is possible — never
         // hand out keys on an unverifiable request.
         if (!channel.gate?.address) return;
+        if (!this._hasUnwrappedFor(channel, s, request)) return;
 
-        // The write-cut for ex-members lives HERE (N-C). The requester
-        // authenticated as an author (sticky isValidSignature), but the epoch
-        // key only goes to whoever passes the CURRENT gate. Fail-closed: RPC
-        // trouble means no wrap from us; the requester's retry finds a
-        // healthier responder.
+        // Fail closed: on RPC trouble no wrap from us, the requester's retry finds another responder.
         if (!request.requester) return;
         const { access: ok, warn } = await gateManager.checkAccessQuorum(
             channel.gate.address, request.requester);
@@ -1580,6 +1582,17 @@ class EpochKeyManager {
         if (sent > 0) {
             Logger.debug(`epochKeys: answered request ${request.requestId} with ${sent} ${staticKey ? 'v2 ' : ''}wrap(s)`);
         }
+    }
+
+    _hasUnwrappedFor(channel, s, request) {
+        const covered = s.seenWraps.get(request.requestId) || new Set();
+        const fromEpoch = Number.isInteger(request.fromEpoch) ? request.fromEpoch : 1;
+        for (const [keyId, entry] of s.epochs) {
+            if (entry.epoch >= fromEpoch && !covered.has(keyId)) return true;
+        }
+        if (!usesSharedPublish(channel)) return false;
+        return [[s.pubKey, s.pubAnnounce], [s.intKey, s.intAnnounce]].some(([key, announce]) =>
+            key && announce?.keyId === key.keyId && !covered.has(key.keyId));
     }
 
     _recordRequester(s, publisherId, messageStreamId = null) {
@@ -1791,6 +1804,7 @@ class EpochKeyManager {
         s.epochs.set(keyId, { keyHex, keyHash, epoch, cryptoKey: null });
         if (epoch > s.currentEpoch) {
             s.currentEpoch = epoch;
+            this._forgetGrants(channel);
         }
         s.missingKids?.delete(keyId);
         s.requestAttempts = 0;   // future rotations start on the fast retry again
