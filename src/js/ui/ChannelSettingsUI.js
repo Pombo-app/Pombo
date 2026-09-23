@@ -1204,7 +1204,7 @@ class ChannelSettingsUI {
     _applyAdvancedSection() {
         const wrapper = document.getElementById('mod-advanced-section');
         if (!wrapper) return;
-        const anyVisible = ['permissions-section', 'rekey-publish-section', 'rekey-interactions-section']
+        const anyVisible = ['permissions-section', 'rotate-epoch-section', 'rekey-publish-section', 'rekey-interactions-section']
             .map(id => document.getElementById(id))
             .some(el => el && !el.classList.contains('hidden'));
         wrapper.classList.toggle('hidden', !anyVisible);
