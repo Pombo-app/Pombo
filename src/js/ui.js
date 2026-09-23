@@ -276,6 +276,8 @@ class UIController {
                 this.updateReadOnlyUI(ch);
                 if (!(ch.messages?.length > 0)) {
                     chatAreaUI.renderMessages(ch.messages || []);
+                } else if (ch.historyError) {
+                    channelManager.notifyHandlers('history_batch_loaded', { streamId, loaded: 0, total: 0 });
                 }
             }
         });
