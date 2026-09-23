@@ -172,8 +172,8 @@ export function mergeEpochKeys(base, incoming, keepIds = null) {
         const helloEpochs = [...new Set([
             ...(b.helloEpochs || []), ...(i.helloEpochs || [])
         ])].filter(Number.isInteger).sort((x, y) => x - y);
-        // Publish key: higher rev wins (a re-key must supersede on every
-        // device); ties keep base, like the other slices.
+        // Shared keys (publish and interactions): higher rev wins (a re-key
+        // must supersede on every device); ties keep base, like the other slices.
         const higherRev = (x, y) => {
             if (!x) return y;
             if (!y) return x;
@@ -181,10 +181,14 @@ export function mergeEpochKeys(base, incoming, keepIds = null) {
         };
         const pubKey = higherRev(b.pubKey, i.pubKey);
         const pubAnnounce = higherRev(b.pubAnnounce, i.pubAnnounce);
+        const intKey = higherRev(b.intKey, i.intKey);
+        const intAnnounce = higherRev(b.intAnnounce, i.intAnnounce);
         result[streamId] = {
             epochs, announces, currentEpoch, pendingRequests, helloEpochs,
             ...(pubKey ? { pubKey } : {}),
-            ...(pubAnnounce ? { pubAnnounce } : {})
+            ...(pubAnnounce ? { pubAnnounce } : {}),
+            ...(intKey ? { intKey } : {}),
+            ...(intAnnounce ? { intAnnounce } : {})
         };
     }
 
