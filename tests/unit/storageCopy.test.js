@@ -23,22 +23,32 @@ vi.mock('../../src/js/streamr.js', () => ({
         resendChannelImage: (...args) => resendChannelImage(...args),
         publishPasswordChallenge: (...args) => publishPasswordChallenge(...args)
     },
-    STREAM_CONFIG: { ADMIN_STREAM: { MODERATION: 0, CHANNEL_IMAGE: 1, PASSWORD_CHALLENGE: 2 } },
+    STREAM_CONFIG: {
+        ADMIN_STREAM: { MODERATION: 0, CHANNEL_IMAGE: 1, PASSWORD_CHALLENGE: 2 },
+        KEYS_STREAM: { KEY_EXCHANGE: 0 }
+    },
     deriveAdminId: (id) => id.replace(/-1$/, '-3')
 }));
 vi.mock('../../src/js/auth.js', () => ({
     authManager: { getAddress: () => OWNER, signMessage: async () => '0xsig' }
 }));
 const probeStream = vi.fn();
+const resolveProviders = vi.fn();
 vi.mock('../../src/js/storageEndpoints.js', () => ({
-    storageEndpoints: { probeStream: (...args) => probeStream(...args), hasFeature: () => true }
+    storageEndpoints: {
+        probeStream: (...args) => probeStream(...args),
+        resolve: (...args) => resolveProviders(...args),
+        hasFeature: () => true
+    }
 }));
 const storedOn = vi.fn();
 vi.mock('../../src/js/storagePurge.js', () => ({ storedOn: (...args) => storedOn(...args) }));
 const republishAnchors = vi.fn();
+const currentAnchorKeyIds = vi.fn();
 vi.mock('../../src/js/epochKeyManager.js', () => ({
     epochKeyManager: {
         republishAnchors: (...args) => republishAnchors(...args),
+        currentAnchorKeyIds: (...args) => currentAnchorKeyIds(...args),
         loadPersistedState: () => {}
     },
     usesEpochKeys: (channel) => !!channel?.gate?.address && !!channel?.keysStreamId
@@ -245,5 +255,83 @@ describe('StorageCopy.resume()', () => {
         expect(manager.notifyHandlers)
             .toHaveBeenCalledWith('storage_copy_confirmed', { streamId: STREAM, node: NEW_NODE });
         expect(copy.pending(STREAM)).toEqual([]);
+    });
+});
+
+describe('StorageCopy.ensureRemainingHold()', () => {
+    const OLD = { nodeAddress: '0x' + 'dd'.repeat(20), urls: ['https://old.example'] };
+    const STAYING = { nodeAddress: NEW_NODE, urls: ['https://new.example'] };
+    const ANNOUNCE = { content: { t: 'key_announce', epoch: 7, keyId: '7.cur' } };
+    const SEALED = { content: { e: 'epoch-aes-gcm' } };
+    let serves;   // `${url}|${streamId}|${partition}` → rows that provider serves
+
+    const serve = (provider, streamId, partition, rows) =>
+        serves.set(`${provider.urls[0]}|${streamId}|${partition}`, rows);
+
+    beforeEach(() => {
+        serves = new Map();
+        resolveProviders.mockResolvedValue([OLD, STAYING]);
+        currentAnchorKeyIds.mockReturnValue(['7.cur']);
+        globalThis.fetch = vi.fn(async (url) => {
+            const [, base, streamId, partition] =
+                url.match(/^(https:\/\/[^/]+)\/streams\/([^/]+)\/data\/partitions\/(\d+)\/last/);
+            const rows = serves.get(`${base}|${decodeURIComponent(streamId)}|${partition}`) || [];
+            return { ok: true, json: async () => rows };
+        });
+        serve(OLD, KEYS, 0, [ANNOUNCE]);
+        serve(OLD, ADMIN, 0, [SEALED]);
+    });
+
+    it('lets the removal go on when the provider that stays holds everything', async () => {
+        serve(STAYING, KEYS, 0, [ANNOUNCE]);
+        serve(STAYING, ADMIN, 0, [SEALED]);
+
+        await copy.ensureRemainingHold(STREAM, OLD.nodeAddress);
+
+        expect(republishAnchors).not.toHaveBeenCalled();
+    });
+
+    it('copies what the provider that stays lacks, then lets the removal go on', async () => {
+        providerStoresEverything();
+        serve(STAYING, ADMIN, 0, [SEALED]);
+        republishAnchors.mockImplementation(async () => {
+            serve(STAYING, KEYS, 0, [ANNOUNCE]);
+            const ts = ++clock;
+            held.add(`${KEYS}|0|${ts}`);
+            return [{ partition: 0, timestamp: ts, sequenceNumber: 0 }];
+        });
+
+        await copy.ensureRemainingHold(STREAM, OLD.nodeAddress);
+
+        expect(republishAnchors).toHaveBeenCalledTimes(1);
+        expect(manager.notifyHandlers).toHaveBeenCalledWith('storage_copy_before_remove', { streamId: STREAM });
+    });
+
+    it('refuses the removal while the provider that stays still lacks it', async () => {
+        await expect(copy.ensureRemainingHold(STREAM, OLD.nodeAddress)).rejects.toThrow(/was not removed/);
+    });
+
+    it('asks for the image only when the provider leaving serves one', async () => {
+        serve(STAYING, KEYS, 0, [ANNOUNCE]);
+        serve(STAYING, ADMIN, 0, [SEALED]);
+        serve(OLD, ADMIN, 1, [SEALED]);
+
+        await expect(copy.ensureRemainingHold(STREAM, OLD.nodeAddress)).rejects.toThrow(/was not removed/);
+    });
+
+    it('protects nothing when the provider leaving is the last one', async () => {
+        resolveProviders.mockResolvedValue([OLD]);
+
+        await copy.ensureRemainingHold(STREAM, OLD.nodeAddress);
+
+        expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it('checks nothing for an account that does not own the channel', async () => {
+        manager.isChannelOwner.mockReturnValue(false);
+
+        await copy.ensureRemainingHold(STREAM, OLD.nodeAddress);
+
+        expect(resolveProviders).not.toHaveBeenCalled();
     });
 });

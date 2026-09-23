@@ -1028,6 +1028,16 @@ describe('storage writes go only where they are needed', () => {
             expect(result.sent).toBe(0);
         });
 
+        it('removes nothing while the providers that stay lack what the channel needs', async () => {
+            channelManager.channels.set('s-1', gated());
+            reads(state([NODE, OTHER], 180));
+            vi.spyOn(channelManager.storageCopy, 'ensureRemainingHold')
+                .mockRejectedValueOnce(new Error('was not removed'));
+
+            await expect(channelManager.removeChannelStorageNode('s-1', NODE)).rejects.toThrow('was not removed');
+            expect(streamrController.removeStorageFromStream).not.toHaveBeenCalled();
+        });
+
         // A stream we could not read has an empty node list, which looks
         // exactly like one that never carried the node. Skipping on that
         // would leave the node assigned with the UI reporting it removed.

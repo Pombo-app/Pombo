@@ -1651,6 +1651,7 @@ class ChannelManager {
         const addr = String(nodeAddress || '').toLowerCase();
         const has = (stream) => stream.nodes.some(n => String(n).toLowerCase() === addr);
 
+        await this.storageCopy.ensureRemainingHold(messageStreamId, addr);
         const result = await this._applyToStoredStreams(
             messageStreamId,
             (stream) => !stream.read || has(stream),

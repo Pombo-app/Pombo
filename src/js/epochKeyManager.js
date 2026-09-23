@@ -1074,6 +1074,14 @@ class EpochKeyManager {
         return published;
     }
 
+    currentAnchorKeyIds(channel) {
+        if (!usesEpochKeys(channel)) return [];
+        this.loadPersistedState(channel.messageStreamId);
+        const s = this._getState(channel.messageStreamId);
+        return [s.announces.get(s.currentEpoch)?.keyId, s.pubAnnounce?.keyId, s.intAnnounce?.keyId]
+            .filter(Boolean);
+    }
+
     // ==================== PROTOCOL HANDLERS ====================
 
     /**

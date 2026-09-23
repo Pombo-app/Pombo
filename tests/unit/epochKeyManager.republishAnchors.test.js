@@ -93,6 +93,10 @@ describe('epochKeyManager.republishAnchors()', () => {
         })));
     });
 
+    it('names the announces a member needs for the keys in use now', () => {
+        expect(epochKeyManager.currentAnchorKeyIds(channel)).toEqual(['3.c', 'p2.x', 'i1.y']);
+    });
+
     it('publishes nothing for a member', async () => {
         vi.spyOn(epochKeyManager, 'isOwnAdmin').mockReturnValue(false);
 

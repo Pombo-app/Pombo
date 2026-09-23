@@ -15,6 +15,9 @@ import { epochKeyManager, usesEpochKeys } from '../epochKeyManager.js';
 const STORAGE_KEY = 'pombo_storage_copy_pending';
 const ADMIN = STREAM_CONFIG.ADMIN_STREAM;
 const ITEMS = ['keys', 'admin', 'image', 'password'];
+const READ_TIMEOUT_MS = 15000;
+// The SDK picks a provider per read: a few tries find the one still holding it.
+const IMAGE_READ_ATTEMPTS = 4;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export class StorageCopy {
@@ -74,9 +77,7 @@ export class StorageCopy {
                 .catch((e) => Logger.warn('storage copy: admin state not loaded:', e?.message));
         }
         if (usesEpochKeys(channel)) epochKeyManager.loadPersistedState(messageStreamId);
-        const image = await streamrController.resendChannelImage(adminStreamId, { password })
-            .catch(() => null);
-        return { image: image?.data && image?.hash ? image : null };
+        return { image: await this._readImage(channel, 1) };
     }
 
     /** @returns {Promise<'present'|'unverifiable'|'missing'|'gone'|'failed'>} */
@@ -101,6 +102,100 @@ export class StorageCopy {
         return this.prepare(messageStreamId)
             .then((snapshot) => Promise.all(nodes.map((node) => this.copyTo(messageStreamId, node, snapshot))))
             .catch((e) => Logger.warn('storage copy resume failed:', e?.message));
+    }
+
+    async ensureRemainingHold(messageStreamId, leavingAddress) {
+        const channel = this._ownedChannel(messageStreamId);
+        if (!channel) return;
+        const leaving = String(leavingAddress).toLowerCase();
+        const lacking = await this._lacking(channel, leaving);
+        if (lacking.size === 0) return;
+
+        this.manager.notifyHandlers('storage_copy_before_remove', { streamId: messageStreamId });
+        const snapshot = { image: await this._readImage(channel) };
+        for (const node of lacking) await this.copyTo(messageStreamId, node, snapshot);
+        if ((await this._lacking(channel, leaving)).size > 0) {
+            throw new Error('The storage provider that stays does not hold this channel\'s keys and settings yet, '
+                + 'so the old one was not removed. Try again in a minute.');
+        }
+    }
+
+    async _lacking(channel, leaving) {
+        const adminStreamId = this._adminStreamId(channel);
+        const keyIds = epochKeyManager.currentAnchorKeyIds(channel);
+        const checks = [
+            // The -3 is judged against the leaving provider itself: whatever
+            // it serves there must still be served once it is gone.
+            ...[ADMIN.MODERATION, ADMIN.CHANNEL_IMAGE, ADMIN.PASSWORD_CHALLENGE].map((partition) => ({
+                streamId: adminStreamId,
+                partition,
+                count: 1,
+                expected: async (gone) => {
+                    const rows = await this._readLast(gone, adminStreamId, partition, 1);
+                    if (rows) return rows.length > 0;
+                    return partition === ADMIN.MODERATION ? (channel.adminRev || 0) > 0
+                        : partition === ADMIN.PASSWORD_CHALLENGE && channel.type === 'password';
+                },
+                holds: (rows) => rows.length > 0
+            }))
+        ];
+        if (keyIds.length > 0) {
+            checks.push({
+                streamId: channel.keysStreamId,
+                partition: STREAM_CONFIG.KEYS_STREAM.KEY_EXCHANGE,
+                count: 1000,
+                expected: async () => true,
+                holds: (rows) => keyIds.every((keyId) => rows.some((r) => r.content?.keyId === keyId))
+            });
+        }
+
+        const lacking = new Set();
+        for (const check of checks) {
+            const providers = await storageEndpoints.resolve(check.streamId, { force: true });
+            const gone = providers.find((p) => p.nodeAddress === leaving);
+            const staying = providers.filter((p) => p.nodeAddress !== leaving);
+            if (!gone || staying.length === 0 || !(await check.expected(gone))) continue;
+            for (const provider of staying) {
+                const rows = await this._readLast(provider, check.streamId, check.partition, check.count);
+                if (!rows || !check.holds(rows)) lacking.add(provider.nodeAddress);
+            }
+        }
+        return lacking;
+    }
+
+    // Never through the SDK: its reads fail over to another provider, and this
+    // answer has to come from this one.
+    async _readLast(provider, streamId, partition, count) {
+        for (const url of provider.urls) {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), READ_TIMEOUT_MS);
+            try {
+                const resp = await fetch(
+                    `${url}/streams/${encodeURIComponent(streamId)}/data/partitions/${partition}/last?count=${count}`,
+                    { signal: ctrl.signal });
+                if (!resp.ok) continue;
+                const rows = await resp.json();
+                if (!Array.isArray(rows)) continue;
+                return rows.map((r) => {
+                    if (typeof r?.content !== 'string') return r;
+                    try { return { ...r, content: JSON.parse(r.content) }; } catch { return r; }
+                });
+            } catch (e) {
+                Logger.debug(`storage copy: read at ${url} failed:`, e?.message);
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+        return null;
+    }
+
+    async _readImage(channel, attempts = IMAGE_READ_ATTEMPTS) {
+        for (let i = 0; i < attempts; i++) {
+            const image = await streamrController.resendChannelImage(this._adminStreamId(channel),
+                { password: channel.password || null }).catch(() => null);
+            if (image?.data && image?.hash) return image;
+        }
+        return null;
     }
 
     async _copy(messageStreamId, node, snapshot) {
