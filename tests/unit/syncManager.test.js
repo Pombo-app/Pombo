@@ -607,6 +607,38 @@ describe('syncManager', () => {
     });
 
     describe('mergeState', () => {
+        it('should keep a joined record over a later copy that has no join time', () => {
+            const joined = { messageStreamId: 'ch-1', joinedAt: 1000, createdAt: 1000, wireIdentity: 'sealed' };
+            const copy = { messageStreamId: 'ch-1', joinedAt: null, createdAt: 5000, wireIdentity: null };
+
+            expect(syncManager.mergeState({ channels: [joined] }, { channels: [copy] }).channels)
+                .toEqual([joined]);
+            expect(syncManager.mergeState({ channels: [copy] }, { channels: [joined] }).channels)
+                .toEqual([joined]);
+        });
+
+        it('should keep a re-join without a join time from being lost to the leave before it', () => {
+            const joined = { messageStreamId: 'ch-1', joinedAt: 1000, createdAt: 1000, wireIdentity: 'sealed' };
+            const rejoin = { messageStreamId: 'ch-1', joinedAt: null, createdAt: 3000, wireIdentity: null };
+
+            const result = syncManager.mergeState(
+                { channels: [joined] },
+                { channels: [rejoin], channelsLeftAt: { 'ch-1': 2000 } });
+
+            expect(result.channels).toEqual([joined]);
+            expect(result.channelsLeftAt['ch-1']).toBeUndefined();
+        });
+
+        it('should still let the newer of two joins win', () => {
+            const older = { messageStreamId: 'ch-1', joinedAt: 1000, name: 'older' };
+            const newer = { messageStreamId: 'ch-1', joinedAt: 2000, name: 'newer' };
+
+            expect(syncManager.mergeState({ channels: [newer] }, { channels: [older] }).channels[0].name)
+                .toBe('newer');
+            expect(syncManager.mergeState({ channels: [older] }, { channels: [newer] }).channels[0].name)
+                .toBe('newer');
+        });
+
         it('should union-merge epoch keys, base wins per entry', () => {
             const base = {
                 channels: [{ messageStreamId: 'ch-1', joinedAt: 1000 }],

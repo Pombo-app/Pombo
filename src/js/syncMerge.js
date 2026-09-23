@@ -91,15 +91,27 @@ export function mergeChannels(baseChannels, incomingChannels, baseLeftAt, incomi
     }
 
     // Union channel entries: entry with the newest join timestamp wins;
-    // incoming wins ties (newer snapshot has fresher metadata).
+    // incoming wins ties (newer snapshot has fresher metadata). An entry with
+    // no joinedAt of its own is never a newer join than one that has it, but
+    // its time still counts as a join against a leave tombstone.
+    const replaces = (incoming, existing) => {
+        if (!!incoming.joinedAt !== !!existing.joinedAt) return !!incoming.joinedAt;
+        return joinTs(incoming) >= joinTs(existing);
+    };
     const byId = new Map();
+    const latestJoin = new Map();
+    const noteJoin = (channel) => latestJoin.set(channel.messageStreamId,
+        Math.max(latestJoin.get(channel.messageStreamId) || 0, joinTs(channel)));
     for (const channel of baseChannels || []) {
-        if (channel?.messageStreamId) byId.set(channel.messageStreamId, channel);
+        if (!channel?.messageStreamId) continue;
+        byId.set(channel.messageStreamId, channel);
+        noteJoin(channel);
     }
     for (const channel of incomingChannels || []) {
         if (!channel?.messageStreamId) continue;
+        noteJoin(channel);
         const existing = byId.get(channel.messageStreamId);
-        if (!existing || joinTs(channel) >= joinTs(existing)) {
+        if (!existing || replaces(channel, existing)) {
             byId.set(channel.messageStreamId, channel);
         }
     }
@@ -109,7 +121,7 @@ export function mergeChannels(baseChannels, incomingChannels, baseLeftAt, incomi
     const channels = [];
     for (const channel of byId.values()) {
         const leftTs = channelsLeftAt[channel.messageStreamId];
-        if (leftTs !== undefined && leftTs > joinTs(channel)) continue;
+        if (leftTs !== undefined && leftTs > latestJoin.get(channel.messageStreamId)) continue;
         channels.push(channel);
         // Prune tombstones superseded by a re-join to keep the map small
         if (leftTs !== undefined) {
