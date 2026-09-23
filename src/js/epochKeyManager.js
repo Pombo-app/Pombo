@@ -1422,6 +1422,7 @@ class EpochKeyManager {
         // No gate (repair pending) means no access check is possible — never
         // hand out keys on an unverifiable request.
         if (!channel.gate?.address) return;
+        if (!this._hasUnwrappedFor(channel, s, request)) return;
 
         // Fail closed: on RPC trouble no wrap from us, the requester's retry finds another responder.
         if (!request.requester) return;
@@ -1581,6 +1582,17 @@ class EpochKeyManager {
         if (sent > 0) {
             Logger.debug(`epochKeys: answered request ${request.requestId} with ${sent} ${staticKey ? 'v2 ' : ''}wrap(s)`);
         }
+    }
+
+    _hasUnwrappedFor(channel, s, request) {
+        const covered = s.seenWraps.get(request.requestId) || new Set();
+        const fromEpoch = Number.isInteger(request.fromEpoch) ? request.fromEpoch : 1;
+        for (const [keyId, entry] of s.epochs) {
+            if (entry.epoch >= fromEpoch && !covered.has(keyId)) return true;
+        }
+        if (!usesSharedPublish(channel)) return false;
+        return [[s.pubKey, s.pubAnnounce], [s.intKey, s.intAnnounce]].some(([key, announce]) =>
+            key && announce?.keyId === key.keyId && !covered.has(key.keyId));
     }
 
     _recordRequester(s, publisherId, messageStreamId = null) {
