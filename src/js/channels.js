@@ -1469,12 +1469,18 @@ class ChannelManager {
      * skip leaves the stream diverged with the UI reporting success, while a
      * redundant write only costs gas.
      *
+     * @param {Object} [options]
+     * @param {boolean} [options.fresh=false] - Read The Graph instead of the SDK's cached copy
      * @returns {Promise<Array<{id, kind, read: boolean, nodes: string[], storageDays: number|null}>>}
      * @private
      */
-    async _readStoredStreams(messageStreamId, channel) {
+    async _readStoredStreams(messageStreamId, channel, { fresh = false } = {}) {
         return Promise.all(this._storedStreamIds(messageStreamId, channel).map(async ({ id, kind }) => {
-            const info = await streamrController.getStreamStorageInfo(id)
+            const info = await (fresh
+                ? graphAPI.getStreamStorage(id).then((s) => ({
+                    ok: true, nodes: s.nodes.map((n) => n.nodeAddress), storageDays: s.storageDays
+                }))
+                : streamrController.getStreamStorageInfo(id))
                 .catch(() => ({ ok: false, nodes: [], storageDays: null }));
             return {
                 id,
@@ -1567,7 +1573,9 @@ class ChannelManager {
         const channel = this.channels.get(messageStreamId);
         if (!channel) throw new Error('Channel not found');
 
-        const before = await this._readStoredStreams(messageStreamId, channel);
+        // Before: The Graph, which sees changes made from other devices. After:
+        // the SDK, which follows this client's own writes before The Graph indexes them.
+        const before = await this._readStoredStreams(messageStreamId, channel, { fresh: true });
         const results = {};
         let sent = 0;
 

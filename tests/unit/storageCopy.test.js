@@ -37,7 +37,7 @@ const resolveProviders = vi.fn();
 vi.mock('../../src/js/storageEndpoints.js', () => ({
     storageEndpoints: {
         probeStream: (...args) => probeStream(...args),
-        resolve: (...args) => resolveProviders(...args),
+        resolveFresh: (...args) => resolveProviders(...args),
         hasFeature: () => true
     }
 }));
@@ -325,6 +325,20 @@ describe('StorageCopy.ensureRemainingHold()', () => {
         await copy.ensureRemainingHold(STREAM, OLD.nodeAddress);
 
         expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it('refuses the removal when the providers of the channel cannot be read', async () => {
+        resolveProviders.mockRejectedValue(new Error('Graph API error: 503'));
+
+        await expect(copy.ensureRemainingHold(STREAM, OLD.nodeAddress)).rejects.toThrow(/was not removed/);
+        expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it('refuses the removal while a provider still waiting for its copy is not listed yet', async () => {
+        resolveProviders.mockResolvedValue([OLD]);
+        copy._setPending(STREAM, NEW_NODE, true);
+
+        await expect(copy.ensureRemainingHold(STREAM, OLD.nodeAddress)).rejects.toThrow(/not confirmed yet/);
     });
 
     it('checks nothing for an account that does not own the channel', async () => {

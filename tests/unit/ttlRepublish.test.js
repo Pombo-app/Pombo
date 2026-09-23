@@ -81,7 +81,8 @@ vi.mock('../../src/js/secureStorage.js', () => ({
 vi.mock('../../src/js/graph.js', () => ({
     graphAPI: {
         getPublicPomboChannels: vi.fn().mockResolvedValue([]),
-        getStream: vi.fn().mockResolvedValue(null)
+        getStream: vi.fn().mockResolvedValue(null),
+        getStreamStorage: vi.fn().mockResolvedValue({ nodes: [], storageDays: null })
     }
 }));
 
@@ -798,11 +799,18 @@ describe('storage writes go only where they are needed', () => {
         messageStreamId: 's-1', adminStreamId: 's-3', name: 'T', type: 'public', ...extra
     });
 
-    /** Queue the reads: every stored stream before, then every one after. */
+    /** Queue the reads: every stored stream before (The Graph), then every one after (the SDK). */
     const reads = (...values) => {
+        const queue = [...values];
+        const next = () => (queue.length > 1 ? queue.shift() : queue[0]);
+        graphAPI.getStreamStorage.mockReset();
+        graphAPI.getStreamStorage.mockImplementation(async () => {
+            const v = next();
+            if (v.ok === false) throw new Error('Graph API error: 503');
+            return { nodes: v.nodes.map((n) => ({ nodeAddress: String(n).toLowerCase(), urls: [] })), storageDays: v.storageDays };
+        });
         streamrController.getStreamStorageInfo.mockReset();
-        values.forEach(v => streamrController.getStreamStorageInfo.mockResolvedValueOnce(v));
-        streamrController.getStreamStorageInfo.mockResolvedValue(values[values.length - 1]);
+        streamrController.getStreamStorageInfo.mockImplementation(async () => next());
     };
 
     beforeEach(() => {
@@ -956,6 +964,19 @@ describe('storage writes go only where they are needed', () => {
 
             await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });
             expect(streamrController.addStorageNodeToStream).toHaveBeenCalledWith('s-3', expect.any(Object));
+        });
+
+        it('decides from The Graph, which sees a node removed from another device', async () => {
+            channelManager.channels.set('s-1', plain());
+            graphAPI.getStreamStorage.mockReset();
+            graphAPI.getStreamStorage.mockResolvedValue({ nodes: [], storageDays: 180 });
+            streamrController.getStreamStorageInfo.mockReset();
+            streamrController.getStreamStorageInfo.mockResolvedValue(state([NODE], 180));
+            vi.spyOn(channelManager.storageCopy, 'prepare').mockResolvedValueOnce(null);
+
+            const result = await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });
+            expect(streamrController.addStorageNodeToStream).toHaveBeenCalledTimes(2);
+            expect(result.verified).toBe(true);
         });
 
         // Once the node is assigned a read can land on it and find nothing,

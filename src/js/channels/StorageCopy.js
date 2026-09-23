@@ -151,13 +151,32 @@ export class StorageCopy {
 
         const lacking = new Set();
         for (const check of checks) {
-            const providers = await storageEndpoints.resolve(check.streamId, { force: true });
+            let providers;
+            try {
+                providers = await storageEndpoints.resolveFresh(check.streamId);
+            } catch (e) {
+                Logger.warn('storage copy: providers of', check.streamId.slice(-20), 'unknown:', e?.message);
+                throw new Error('Could not check which storage providers this channel has, '
+                    + 'so the old one was not removed. Try again in a minute.');
+            }
             const gone = providers.find((p) => p.nodeAddress === leaving);
             const staying = providers.filter((p) => p.nodeAddress !== leaving);
-            if (!gone || staying.length === 0 || !(await check.expected(gone))) continue;
+            if (!gone) continue;
+            if (staying.length === 0) {
+                // The Graph can still miss a provider added moments ago; its pending copy names it.
+                if (this.pending(channel.messageStreamId).some((node) => node !== leaving)) {
+                    throw new Error('The copy to the new storage provider is not confirmed yet, '
+                        + 'so the old one was not removed. Try again in a minute.');
+                }
+                continue;
+            }
+            if (!(await check.expected(gone))) continue;
             for (const provider of staying) {
                 const rows = await this._readLast(provider, check.streamId, check.partition, check.count);
-                if (!rows || !check.holds(rows)) lacking.add(provider.nodeAddress);
+                const holds = !!rows && check.holds(rows);
+                Logger.debug(`storage copy: ${provider.nodeAddress.slice(0, 10)} ${holds ? 'holds' : 'lacks'} `
+                    + `${check.streamId.slice(-20)} P${check.partition}`);
+                if (!holds) lacking.add(provider.nodeAddress);
             }
         }
         return lacking;
@@ -301,7 +320,8 @@ export class StorageCopy {
             const { streamId, partition } = rows[0];
             let provider = null;
             try {
-                provider = (await storageEndpoints.probeStream(streamId)).find((p) => p.nodeAddress === node) || null;
+                provider = (await storageEndpoints.probeStream(streamId, { force: true }))
+                    .find((p) => p.nodeAddress === node) || null;
             } catch (e) {
                 Logger.debug('storage copy: providers unresolved:', e?.message);
             }

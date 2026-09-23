@@ -29,6 +29,7 @@
 import { CONFIG } from './config.js';
 import { Logger } from './logger.js';
 import { streamrController, isWebSafeStorageNodeUrl } from './streamr.js';
+import { graphAPI } from './graph.js';
 
 const normalizeUrl = (url) => String(url || '').trim().replace(/\/+$/, '');
 
@@ -58,7 +59,7 @@ class StorageEndpointResolver {
      *
      * @param {string} streamId - Message stream ID (ends with -1)
      * @param {Object} [options]
-     * @param {boolean} [options.force=false] - Bypass the cache
+     * @param {boolean} [options.force=false] - Bypass the cache and read The Graph, falling back to the SDK
      * @returns {Promise<Array<{nodeAddress: string, urls: string[]}>>} May be empty.
      */
     async resolve(streamId, { force = false } = {}) {
@@ -68,18 +69,40 @@ class StorageEndpointResolver {
             return cached.nodes;
         }
 
-        if (this.inFlight.has(streamId)) {
-            return this.inFlight.get(streamId);
+        const key = force ? `${streamId}|fresh` : streamId;
+        if (this.inFlight.has(key)) {
+            return this.inFlight.get(key);
         }
 
-        const p = this.resolveUncached(streamId)
+        const read = force
+            ? this.resolveFresh(streamId).catch((e) => {
+                Logger.warn('Storage providers not read from The Graph, asking the SDK:', e?.message);
+                return this.resolveUncached(streamId);
+            })
+            : this.resolveUncached(streamId);
+        const p = read
             .then((nodes) => {
                 this.cache.set(streamId, { at: Date.now(), nodes });
                 return nodes;
             })
-            .finally(() => this.inFlight.delete(streamId));
-        this.inFlight.set(streamId, p);
+            .finally(() => this.inFlight.delete(key));
+        this.inFlight.set(key, p);
         return p;
+    }
+
+    /**
+     * The storage nodes as The Graph has them now. The SDK keeps a stream's
+     * list for a day and only forgets it on its own writes, so a change made
+     * from another device never reaches it. Throws when The Graph does not answer.
+     */
+    async resolveFresh(streamId) {
+        const { nodes } = await graphAPI.getStreamStorage(streamId);
+        return nodes
+            .map((node) => ({
+                nodeAddress: node.nodeAddress,
+                urls: node.urls.filter((u) => isWebSafeStorageNodeUrl(u)).map(normalizeUrl)
+            }))
+            .filter((node) => node.urls.length > 0);
     }
 
     async resolveUncached(streamId) {
@@ -275,12 +298,14 @@ class StorageEndpointResolver {
     /**
      * Resolve a stream's providers and probe every URL in parallel.
      * @param {string} streamId
+     * @param {Object} [options]
+     * @param {boolean} [options.force=false] - Resolve as {@link resolve} does with force
      * @returns {Promise<Array<{nodeAddress: string, urls: string[], features: Set<string>, answered: boolean}>>}
      *   `features` is the union over the provider's URLs; `answered` is false
      *   when one of them did not answer the probe
      */
-    async probeStream(streamId) {
-        const nodes = await this.resolve(streamId);
+    async probeStream(streamId, { force = false } = {}) {
+        const nodes = await this.resolve(streamId, { force });
         const urls = nodes.flatMap((n) => n.urls);
         await Promise.all(urls.map((u) => this.probeCapabilities(u)));
         return nodes.map((n) => {

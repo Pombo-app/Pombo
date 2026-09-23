@@ -19,6 +19,11 @@ vi.mock('../../src/js/streamr.js', () => ({
     isWebSafeStorageNodeUrl: (u) => typeof u === 'string' && u.startsWith('https://') && !u.includes('localhost')
 }));
 
+const getStreamStorage = vi.fn();
+vi.mock('../../src/js/graph.js', () => ({
+    graphAPI: { getStreamStorage: (...args) => getStreamStorage(...args) }
+}));
+
 import { storageEndpoints } from '../../src/js/storageEndpoints.js';
 import { CONFIG } from '../../src/js/config.js';
 
@@ -44,6 +49,33 @@ describe('storageEndpoints', () => {
         expect(nodes).toHaveLength(2);
         expect(nodes[0]).toEqual({ nodeAddress: NODE_A.toLowerCase(), urls: ['https://node-a.example'] });
         expect(nodes[1].urls).toEqual(['https://node-b.example']);
+    });
+
+    it('reads a forced resolution from The Graph, not the SDK', async () => {
+        getStreamStorage.mockResolvedValueOnce({
+            nodes: [{ nodeAddress: NODE_B.toLowerCase(), urls: ['https://node-b.example/', 'http://insecure.example'] }],
+            storageDays: 30
+        });
+
+        const nodes = await storageEndpoints.resolve('0xchan/foo-1', { force: true });
+
+        expect(nodes).toEqual([{ nodeAddress: NODE_B.toLowerCase(), urls: ['https://node-b.example'] }]);
+        expect(mockClient.getStream).not.toHaveBeenCalled();
+    });
+
+    it('asks the SDK when The Graph does not answer a forced resolution', async () => {
+        getStreamStorage.mockRejectedValueOnce(new Error('Graph API error: 503'));
+
+        const nodes = await storageEndpoints.resolve('0xchan/foo-1', { force: true });
+
+        expect(nodes.map((n) => n.nodeAddress)).toEqual([NODE_A.toLowerCase(), NODE_B.toLowerCase()]);
+    });
+
+    it('throws from resolveFresh when The Graph does not answer', async () => {
+        getStreamStorage.mockRejectedValueOnce(new Error('Graph API error: 503'));
+
+        await expect(storageEndpoints.resolveFresh('0xchan/foo-1')).rejects.toThrow('503');
+        expect(mockClient.getStream).not.toHaveBeenCalled();
     });
 
     it('drops nodes whose metadata read fails, keeps the rest', async () => {
