@@ -1548,7 +1548,7 @@ body.cannot-write .reply-trigger {
     color: rgba(255, 255, 255, 0.9);
     font-size: 0.8125rem;
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 0.75rem;
     animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     background-color: #16161b;
@@ -1562,6 +1562,13 @@ body.cannot-write .reply-trigger {
     width: 18px;
     height: 18px;
     flex-shrink: 0;
+}
+
+.toast.confirm {
+    align-items: flex-start;
+}
+
+.toast.confirm .toast-icon {
     margin-top: 1px;
 }
 
