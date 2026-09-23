@@ -2300,7 +2300,7 @@ class StreamrController {
                 // the on-wire publisher).
                 return this.publishEpochEncrypted(channel, streamId, partition, data);
             }
-            return this.publish(streamId, partition, data, password);
+            return this.publish(streamId, partition, stripLocalFields(data), password);
         }
 
         const { identity, proof } = getChannelIdentity(streamId);
