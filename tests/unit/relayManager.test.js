@@ -143,7 +143,8 @@ describe('RelayManager', () => {
                         tag: expect.any(String),
                         storageEndpoints: expect.any(Array)
                     })
-                ])
+                ]),
+                graphUrl: expect.stringContaining('gateway.thegraph.com')
             });
         });
 

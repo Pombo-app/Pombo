@@ -10,6 +10,7 @@ import { streamrController } from './streamr.js';
 import { channelManager } from './channels.js';
 import { storageEndpoints } from './storageEndpoints.js';
 import { storageFetch } from './storageFetch.js';
+import { graphAPI } from './graph.js';
 import { withCircuitBreaker, getCircuitState } from './utils/retry.js';
 import {
     calculateChannelTag,
@@ -490,7 +491,8 @@ class RelayManager {
 
         navigator.serviceWorker.controller.postMessage({
             type: 'SYNC_CHANNELS',
-            channels
+            channels,
+            graphUrl: graphAPI.getEndpoint()
         });
 
         Logger.debug('Synced', channels.length, 'channels to Service Worker');

@@ -4,7 +4,7 @@
 // to have scope over all pages.
 // ================================================
 
-const SW_VERSION = '2.5.0';
+const SW_VERSION = '2.6.0';
 
 // ================================================
 // INDEXEDDB CONFIGURATION
@@ -21,11 +21,8 @@ const STORES = {
 
 let db = null;
 
-// Fallback for a registration whose providers are not resolved yet.
-const LEGACY_STORAGE_ENDPOINTS = [
-    'https://blob-storage-streamr.online',
-    'https://vps2.blob-storage-streamr.online',
-];
+const PROVIDERS_REFRESH_MS = 10 * 60 * 1000;
+const GRAPH_TIMEOUT_MS = 8000;
 
 const API_PATH = '/streams/{streamId}/data/partitions/{partition}/last?count=1';
 
@@ -184,6 +181,44 @@ async function syncChannelsToIndexedDB(channels) {
     });
 }
 
+async function getConfig(key) {
+    if (!db) await openDatabase();
+    return new Promise((resolve) => {
+        const request = db.transaction(STORES.CONFIG, 'readonly').objectStore(STORES.CONFIG).get(key);
+        request.onsuccess = () => resolve(request.result?.value ?? null);
+        request.onerror = () => resolve(null);
+    });
+}
+
+async function setConfig(key, value) {
+    if (!db) await openDatabase();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORES.CONFIG, 'readwrite');
+        tx.objectStore(STORES.CONFIG).put({ key, value });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+async function rememberProviders(streamId, endpoints) {
+    if (!db) await openDatabase();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORES.CHANNELS, 'readwrite');
+        const store = tx.objectStore(STORES.CHANNELS);
+        const request = store.get(streamId);
+        request.onsuccess = () => {
+            if (!request.result) return;
+            store.put({
+                ...request.result,
+                ...(endpoints.length > 0 ? { storageEndpoints: endpoints } : {}),
+                providersCheckedAt: Date.now()
+            });
+        };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
 // DM peer name sync/lookup removed: sealed sender makes the SW unable to
 // identify a DM's sender, so there was nothing left to look a name up for.
 // The empty DM_PEERS object store is left in place on existing installs
@@ -272,12 +307,77 @@ function askClientToSign(client, url) {
     });
 }
 
+// A provider taken off a stream still serves its old rows: its "nothing new" proves nothing.
 async function verifyChannel(channel) {
-    const { streamId, lastTimestamp, storageEndpoints, needsSignature } = channel;
+    const stored = channel.storageEndpoints || [];
+    const result = stored.length > 0
+        ? await verifyAt(channel, stored)
+        : { hasNew: false, error: 'No providers' };
+    if (result.hasNew || result.error === 'No signer') return result;
+    if (Date.now() - (channel.providersCheckedAt || 0) < PROVIDERS_REFRESH_MS) return result;
 
-    const endpoints = storageEndpoints?.length > 0
-        ? storageEndpoints
-        : LEGACY_STORAGE_ENDPOINTS;
+    const current = await resolveProviders(channel.streamId);
+    await rememberProviders(channel.streamId, current)
+        .catch((error) => console.warn('[SW] Could not record providers:', error?.message));
+    if (current.length === 0 || sameEndpoints(current, stored)) return result;
+    console.log('[SW] Providers of', channel.streamId, 'changed; asking the current ones');
+    return verifyAt(channel, current);
+}
+
+function sameEndpoints(a, b) {
+    return a.length === b.length && a.every((url) => b.includes(url));
+}
+
+/** Mirrors the page's isWebSafeStorageNodeUrl: https, a name, never an IP literal. */
+function isWebSafeUrl(value) {
+    try {
+        const url = new URL(value);
+        const host = url.hostname.toLowerCase();
+        if (url.protocol !== 'https:') return false;
+        if (!host || host === 'localhost' || host.endsWith('.localhost')) return false;
+        if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) || host.includes(':')) return false;
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function resolveProviders(streamId) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GRAPH_TIMEOUT_MS);
+    try {
+        const graphUrl = await getConfig('graphUrl');
+        if (!graphUrl) return [];
+        const response = await fetch(graphUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query: `{ stream(id: ${JSON.stringify(streamId)}) { storageNodes { metadata } } }`
+            }),
+            signal: controller.signal
+        });
+        if (!response.ok) return [];
+        const body = await response.json();
+        const urls = [];
+        for (const node of body?.data?.stream?.storageNodes || []) {
+            let metadata;
+            try { metadata = JSON.parse(node?.metadata || '{}'); } catch { continue; }
+            for (const raw of Array.isArray(metadata?.urls) ? metadata.urls : []) {
+                const url = typeof raw === 'string' ? raw.trim().replace(/\/+$/, '') : '';
+                if (isWebSafeUrl(url) && !urls.includes(url)) urls.push(url);
+            }
+        }
+        return urls;
+    } catch (error) {
+        console.warn('[SW] Could not ask The Graph about', streamId, error?.message);
+        return [];
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+async function verifyAt(channel, endpoints) {
+    const { streamId, lastTimestamp, needsSignature } = channel;
 
     for (const endpoint of endpoints) {
         try {
@@ -643,6 +743,7 @@ self.addEventListener('message', async (event) => {
     if (type === 'SYNC_CHANNELS') {
         console.log('[SW] Syncing channels:', event.data.channels?.length || 0);
         await syncChannelsToIndexedDB(event.data.channels || []);
+        if (event.data.graphUrl) await setConfig('graphUrl', event.data.graphUrl);
         // DM peer names are no longer synced: under sealed sender the SW cannot
         // know a DM's sender (see showVerifiedNotification), so a peer
         // address→name map here would be unused identity data — dropped.
