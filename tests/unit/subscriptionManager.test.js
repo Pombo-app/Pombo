@@ -77,6 +77,7 @@ vi.mock('../../src/js/channels.js', () => ({
         handleMediaMessage: vi.fn(),
         refreshAdminState: vi.fn().mockResolvedValue(false),
         refreshHistory: vi.fn(),
+        startEpochKeys: vi.fn(),
         notifyHandlers: vi.fn()
     }
 }));
@@ -700,6 +701,33 @@ describe('SubscriptionManager', () => {
             await subscriptionManager.promotePreviewToActive('preview-stream');
             
             expect(subscriptionManager.previewPresenceInterval).toBeNull();
+        });
+
+        it('starts, for the joined channel, what setActiveChannel would', async () => {
+            const joined = { messageStreamId: 'preview-stream', historyError: null };
+            channelManager.getChannel.mockReturnValue(joined);
+            subscriptionManager.previewChannelId = 'preview-stream';
+
+            await subscriptionManager.promotePreviewToActive('preview-stream');
+
+            expect(memberCatchUp.start).toHaveBeenCalledWith(joined, expect.any(Function), expect.any(Function));
+            expect(channelManager.startEpochKeys).toHaveBeenCalledWith(joined);
+
+            const onRead = memberCatchUp.start.mock.calls[0][2];
+            onRead({ status: 403, signed: true });
+            expect(joined.historyError).toEqual({ status: 403, signed: true });
+            onRead(null);
+            expect(channelManager.refreshHistory).toHaveBeenCalledWith('preview-stream');
+        });
+
+        it('starts nothing for a stream that is not the preview', async () => {
+            channelManager.getChannel.mockReturnValue({ messageStreamId: 'different-stream' });
+            subscriptionManager.previewChannelId = 'other-stream';
+
+            await subscriptionManager.promotePreviewToActive('different-stream');
+
+            expect(memberCatchUp.start).not.toHaveBeenCalled();
+            expect(channelManager.startEpochKeys).not.toHaveBeenCalled();
         });
 
         it('should not promote if not current preview channel', async () => {

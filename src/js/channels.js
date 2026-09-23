@@ -2020,16 +2020,7 @@ class ChannelManager {
         // BEFORE the -1 history pull below, so envelopes can already be opened.
         // Failure is non-fatal — messages park as "waiting for key" and the
         // refresh fired on key adoption recovers them.
-        if (channel?.gate?.address) {
-            try {
-                await this._setupEpochKeys(channel);
-                channel._epochSetupRetry = 0;
-            } catch (e) {
-                Logger.warn('Epoch key setup failed (messages will wait for key):', e.message);
-                this._scheduleEpochSetupRetry(channel);
-            }
-            this._rotateForLostAccess(channel).catch(() => {});
-        }
+        await this.startEpochKeys(channel);
 
         // Fire-and-forget: pull latest-message preview (-1/P0). Sidebar
         // and Explore consume the cache via channelLatestMessageManager.
@@ -2247,6 +2238,22 @@ class ChannelManager {
             read: days,
             using: keysRetentionDays(channel)
         });
+    }
+
+    /**
+     * Epoch keys for an open gated channel, then the owner's lost-access
+     * sweep. Never rejects: callers may fire and forget it.
+     */
+    async startEpochKeys(channel) {
+        if (!channel?.gate?.address) return;
+        try {
+            await this._setupEpochKeys(channel);
+            channel._epochSetupRetry = 0;
+        } catch (e) {
+            Logger.warn('Epoch key setup failed (messages will wait for key):', e.message);
+            this._scheduleEpochSetupRetry(channel);
+        }
+        this._rotateForLostAccess(channel).catch(() => {});
     }
 
     /**

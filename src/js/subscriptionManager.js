@@ -134,7 +134,11 @@ class SubscriptionManager {
             Logger.debug('Admin poller start failed (non-fatal):', e?.message || e);
         }
 
-        // A member's keys and messages need a raw sweep the owner does not.
+        this._startMemberCatchUp(messageStreamId);
+    }
+
+    /** A member's keys and messages need a raw sweep the owner does not. */
+    _startMemberCatchUp(messageStreamId) {
         try {
             const channel = channelManager.getChannel(messageStreamId);
             if (channel) {
@@ -782,9 +786,7 @@ class SubscriptionManager {
         // Stop preview presence broadcasting
         this._stopPreviewPresence();
 
-        // Stop the preview's admin-state poller — caller (PreviewModeUI)
-        // re-bootstraps admin state through channelManager and the active
-        // poller is started by setActiveChannel on the next selection. In
+        // Stop the preview's pollers; the joined channel's start below. In
         // the resend-only model there is no live -3 subscription to drop.
         try {
             if (adminStatePoller.getStreamId() === messageStreamId) {
@@ -808,6 +810,12 @@ class SubscriptionManager {
         } catch (e) {
             Logger.debug('Active admin poller start (after promote) failed (non-fatal):', e?.message || e);
         }
+
+        // The selectChannel that follows early-returns on "already active", so
+        // whatever setActiveChannel starts besides the subscription starts here.
+        this._startMemberCatchUp(messageStreamId);
+        const joined = channelManager.getChannel(messageStreamId);
+        if (joined) channelManager.startEpochKeys(joined);
 
         Logger.debug('Preview promoted - subscription reused, handlers auto-forward');
     }

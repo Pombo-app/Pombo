@@ -1296,6 +1296,63 @@ describe('ChannelManager Extended', () => {
         });
     });
 
+    // ==================== startEpochKeys ====================
+    describe('startEpochKeys', () => {
+        const gated = () => ({
+            messageStreamId: '0xowner/gated-1',
+            keysStreamId: '0xowner/gated-4',
+            type: 'gated',
+            gate: { address: '0xgate' },
+            messages: []
+        });
+        let epochKeyManager;
+
+        beforeEach(async () => {
+            vi.useFakeTimers();
+            ({ epochKeyManager } = await import('../../src/js/epochKeyManager.js'));
+            epochKeyManager.loadPersistedState = vi.fn();
+            epochKeyManager.hasCurrentKey = vi.fn().mockReturnValue(true);
+            streamrController.subscribeToKeysStream = vi.fn().mockResolvedValue(undefined);
+            vi.spyOn(channelManager, '_resolveKeysRetention').mockResolvedValue(undefined);
+            vi.spyOn(channelManager, '_rotateForLostAccess').mockResolvedValue(undefined);
+        });
+
+        afterEach(() => {
+            vi.clearAllTimers();
+            vi.useRealTimers();
+        });
+
+        it('re-reads the history when a key is adopted after the open', async () => {
+            const channel = gated();
+            channelManager.channels.set(channel.messageStreamId, channel);
+            const refresh = vi.spyOn(channelManager, 'refreshHistory').mockImplementation(() => {});
+
+            await channelManager.startEpochKeys(channel);
+
+            const [streamId, onAdopted] = epochKeyManager.onKeyAdopted.mock.calls[0];
+            expect(streamId).toBe(channel.messageStreamId);
+            onAdopted('2.c82f9fee4cf6');
+            expect(refresh).toHaveBeenCalledWith(channel.messageStreamId);
+        });
+
+        it('never rejects, and retries a setup that failed', async () => {
+            const channel = gated();
+            streamrController.subscribeToKeysStream.mockRejectedValue(new Error('cold node'));
+            const retry = vi.spyOn(channelManager, '_scheduleEpochSetupRetry').mockImplementation(() => {});
+
+            await expect(channelManager.startEpochKeys(channel)).resolves.toBeUndefined();
+            expect(retry).toHaveBeenCalledWith(channel);
+            expect(channelManager._rotateForLostAccess).toHaveBeenCalledWith(channel);
+        });
+
+        it('leaves a channel without a gate alone', async () => {
+            await channelManager.startEpochKeys({ messageStreamId: '0xowner/pub-1', type: 'public' });
+
+            expect(streamrController.subscribeToKeysStream).not.toHaveBeenCalled();
+            expect(epochKeyManager.onKeyAdopted).not.toHaveBeenCalled();
+        });
+    });
+
     // ==================== handlePresenceMessage ====================
     describe('handlePresenceMessage', () => {
         it('creates user tracking map if none exists', () => {
