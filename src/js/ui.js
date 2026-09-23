@@ -1363,6 +1363,30 @@ class UIController {
      * Handle send message
      */
     /**
+     * An admin without the current epoch key can rotate instead of waiting
+     * for a responder. Handled (true) only when the offer was shown.
+     * @param {Object|null} channel
+     * @param {Error} error - the send failure
+     * @returns {Promise<boolean>}
+     */
+    async _offerEpochRotation(channel, error) {
+        if (!channel || !/^No epoch key/.test(error?.message || '')) return false;
+        if (!epochKeyManager.isOwnAdmin(channel)) return false;
+        const rotate = await notificationUI.showConfirmToast(
+            'No key for the current epoch',
+            'Rotate to write again. Older messages stay as they are.',
+            { confirmLabel: 'Rotate', cancelLabel: 'Not now', variant: 'warning' });
+        if (!rotate) return true;
+        try {
+            await epochKeyManager.rotateEpoch(channel);
+            this.showNotification('Key rotated. Retry your message.', 'success');
+        } catch (e) {
+            this.showNotification('Rotation failed: ' + e.message, 'error');
+        }
+        return true;
+    }
+
+    /**
      * Publish again a message whose bubble says "Not sent".
      * @param {string} msgId
      */
@@ -1372,7 +1396,9 @@ class UIController {
         try {
             await channelManager.resendMessage(currentChannel.streamId, msgId);
         } catch (error) {
-            this.showNotification('Failed to send message: ' + error.message, 'error');
+            if (!(await this._offerEpochRotation(currentChannel, error))) {
+                this.showNotification('Failed to send message: ' + error.message, 'error');
+            }
         }
     }
 
@@ -1428,7 +1454,9 @@ class UIController {
             }
             // UI update happens via notifyHandlers -> addMessage (or handlePreviewMessage)
         } catch (error) {
-            this.showNotification('Failed to send message: ' + error.message, 'error');
+            if (!(await this._offerEpochRotation(currentChannel, error))) {
+                this.showNotification('Failed to send message: ' + error.message, 'error');
+            }
         } finally {
             // Always unlock sending state
             inputUI.setIsSending(false);

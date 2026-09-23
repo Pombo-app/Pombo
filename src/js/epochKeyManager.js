@@ -85,6 +85,9 @@ const REQUEST_FAST_ATTEMPTS = 4;
 // wraps, still inside this window for the storage retention that actually
 // bounds what a resend returns.
 const KEYS_HISTORY_COUNT = 1000;
+// The request id of a wrap an admin seals to its own account: every device of
+// that account opens it, no request and no responder needed.
+const SELF_WRAP_REQUEST_ID = 'self';
 
 // N-B anti-stampede (§7.10): rank × this = how long an answerer waits before
 // checking whether someone with a lower rank already covered the request.
@@ -373,6 +376,7 @@ class EpochKeyManager {
         }
         s.intKey = { ...intKey };
         await this._persist(channel.messageStreamId, s);
+        this.onKeysAdopted?.(channel.messageStreamId, intKey.keyId);
     }
 
     /** The held interactions key ({keyId, keyHex, address, rev}) or null. */
@@ -389,6 +393,7 @@ class EpochKeyManager {
         }
         s.pubKey = { ...pubKey };
         await this._persist(channel.messageStreamId, s);
+        this.onKeysAdopted?.(channel.messageStreamId, pubKey.keyId);
     }
 
     /** The held publish key ({keyId, keyHex, address, rev}) or null. */
@@ -455,6 +460,7 @@ class EpochKeyManager {
         this._applyPubAnnounce(channel, s, announce, authManager.getAddress(), Date.now());
         s.pubAnnounceFreshness = Date.now();
         await this._persist(channel.messageStreamId, s);
+        this.onKeysAdopted?.(channel.messageStreamId, pubKey.keyId);
         Logger.info(`epochKeys: publish key re-keyed to rev ${rev} on`, channel.keysStreamId.slice(-30));
         // Members cannot write until this announce is readable from storage —
         // verify retention exactly like a fresh epoch announce.
@@ -609,7 +615,8 @@ class EpochKeyManager {
                     // account key even though the requesting session is gone —
                     // collected here, adopted after every announce is applied.
                     if (data.v === 2 && (s.pendingRequests.has(data.requestId)
-                            || s.pendingRequest?.requestId === data.requestId)) {
+                            || s.pendingRequest?.requestId === data.requestId
+                            || this._isSelfWrap(channel, data))) {
                         storedV2Wraps.push(data);
                     }
                 }
@@ -905,6 +912,8 @@ class EpochKeyManager {
             Logger.info(`epochKeys: re-announced epoch ${entry.epoch} (announce was missing from storage) on`,
                 channel.keysStreamId.slice(-30));
             this._ensureAnnounceRetained(channel, announce).catch(() => {});
+            this._wrapForSelf(channel, s, { keyId, keyHex: entry.keyHex, epoch: entry.epoch })
+                .catch((e) => Logger.warn('epochKeys: self wrap failed:', e?.message));
             return;
         }
 
@@ -939,6 +948,8 @@ class EpochKeyManager {
         await this._adopt(channel, s, { keyId, keyHex, keyHash, epoch: 1 });
         Logger.info('epochKeys: bootstrapped epoch 1 on', channel.keysStreamId.slice(-30));
         this._ensureAnnounceRetained(channel, announce).catch(() => {});
+        this._wrapForSelf(channel, s, { keyId, keyHex, epoch: 1 })
+            .catch((e) => Logger.warn('epochKeys: self wrap failed:', e?.message));
     }
 
     /**
@@ -954,6 +965,9 @@ class EpochKeyManager {
             throw new Error('rotateEpoch: only the channel admin can announce a new epoch');
         }
         const s = this._getState(channel.messageStreamId);
+        // Another device of this admin may have rotated since this one last
+        // read the -4; the new epoch numbers above whatever storage holds.
+        await this._refreshAnnouncesFromStorage(channel, s);
         const epoch = Math.max(s.currentEpoch, ...[...s.announces.keys(), 0]) + 1;
 
         const keyHex = epochKeyCrypto.generateEpochKey();
@@ -971,7 +985,50 @@ class EpochKeyManager {
         await this._adopt(channel, s, { keyId, keyHex, keyHash, epoch });
         Logger.info(`epochKeys: rotated to epoch ${epoch} on`, channel.keysStreamId.slice(-30));
         this._ensureAnnounceRetained(channel, announce).catch(() => {});
+        await this._wrapForSelf(channel, s, { keyId, keyHex, epoch })
+            .catch((e) => Logger.warn('epochKeys: self wrap failed:', e?.message));
         return epoch;
+    }
+
+    /** Apply the announces storage holds on top of what this device knows. */
+    async _refreshAnnouncesFromStorage(channel, s) {
+        const entries = await streamrController.resendKeysMessages(
+            channel.keysStreamId, { last: KEYS_HISTORY_COUNT, partition: KEYS_STREAM.KEY_EXCHANGE });
+        let changed = false;
+        for (const { data, publisherId, timestamp } of entries) {
+            if (data?.t === KEYS_MSG_TYPE.KEY_ANNOUNCE
+                    && this._applyAnnounce(channel, s, data, publisherId, timestamp)) {
+                changed = true;
+            }
+        }
+        if (changed) await this._persist(channel.messageStreamId, s);
+    }
+
+    /**
+     * Seal an epoch key to the account's own static pubkey, on P1: any later
+     * session of this account opens it without a request or a responder.
+     */
+    async _wrapForSelf(channel, s, { keyId, keyHex, epoch }) {
+        const spk = this._myStaticPubkey();
+        if (!spk || !keyHex) return;
+        const envelope = {
+            t: KEYS_MSG_TYPE.KEY_WRAP,
+            v: 2,
+            requestId: SELF_WRAP_REQUEST_ID,
+            keyId,
+            epoch,
+            tag: await epochKeyCrypto.computeWrapTagV2(SELF_WRAP_REQUEST_ID, keyId),
+            ...await epochKeyCrypto.wrapEpochKeyToStatic(keyHex, spk)
+        };
+        await streamrController.publishKeysMessage(channel.keysStreamId, envelope);
+        this._recordSeenWrap(s, SELF_WRAP_REQUEST_ID, keyId);
+        Logger.info(`epochKeys: wrapped ${keyId} for this account's other devices on`,
+            channel.keysStreamId.slice(-30));
+    }
+
+    /** A v2 wrap sealed to this account by one of its own admin devices. */
+    _isSelfWrap(channel, data) {
+        return data.v === 2 && data.requestId === SELF_WRAP_REQUEST_ID && this.isOwnAdmin(channel);
     }
 
     // ==================== PROTOCOL HANDLERS ====================
@@ -1573,7 +1630,8 @@ class EpochKeyManager {
             || typeof data.tag !== 'string') return;
         if (s.epochs.has(data.keyId)) return;                             // already adopted
         const mine = s.pendingRequests.has(data.requestId)
-            || s.pendingRequest?.requestId === data.requestId;
+            || s.pendingRequest?.requestId === data.requestId
+            || this._isSelfWrap(channel, data);
         if (!mine) return;
 
         const expectedTag = await epochKeyCrypto.computeWrapTagV2(data.requestId, data.keyId);
@@ -1691,6 +1749,7 @@ class EpochKeyManager {
             s.pendingRequests.clear();
         }
         await this._persist(channel.messageStreamId, s);
+        this.onKeysAdopted?.(channel.messageStreamId, keyId);
         this._notifyAdopted(channel.messageStreamId, keyId);
         this._maybePublishHello(channel, s, keyId, epoch).catch(e =>
             Logger.debug('epochKeys: member hello failed:', e.message));

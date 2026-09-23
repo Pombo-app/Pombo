@@ -73,6 +73,9 @@ class App {
             // Wire cross-module callbacks (avoids circular dependencies and window globals)
             channelManager.onChannelsSaved = () => syncManager.scheduleAutoPush();
             identityManager.onTrustedContactsChanged = () => syncManager.scheduleAutoPush();
+            // A key this device just minted or adopted is the one thing the
+            // account's other devices cannot get anywhere else
+            epochKeyManager.onKeysAdopted = () => syncManager.scheduleAutoPush();
             epochKeyManager.setGateWarningHandler((_streamId, warning) =>
                 uiController.showNotification(warning, 'error', 8000));
             // ENS is no longer resolved during message verification (that leaked

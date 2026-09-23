@@ -943,9 +943,11 @@ class ChannelManager {
             // Direct join / Hub join of a gated channel: no invite `k` field.
             // A member holds NO stream permission (grants belong to the
             // clone), so before rejecting, check whether the stream's
-            // on-chain metadata names a gate — one extra graph read, and only
-            // on the would-have-been-rejected path.
-            if (!options.gateAddress && !permissions.canSubscribe && !permissions.canPublish) {
+            // on-chain metadata names a gate. The creator DOES hold stream
+            // permissions, so the gated type alone must trigger the read:
+            // a gated record without its gate cannot publish anywhere.
+            if (!options.gateAddress
+                    && (channelType === 'gated' || (!permissions.canSubscribe && !permissions.canPublish))) {
                 try {
                     const discovered = await this.readGateFromMetadata(messageStreamId);
                     if (discovered) {
