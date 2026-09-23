@@ -158,6 +158,9 @@ class EpochKeyManager {
                 // these ids opens with the account's static key, in any
                 // session of any device.
                 pendingRequests: new Map(),
+                // Ids this session sent — memory only. pendingRequests cannot
+                // say "mine": it syncs, and would hide another device's request.
+                ownRequestIds: new Set(),
                 // Epochs we already published a MEMBER_HELLO for — persisted,
                 // so reopening the channel does not re-hello.
                 helloEpochs: new Set(),
@@ -1365,7 +1368,7 @@ class EpochKeyManager {
     /** A request this session sent: answering it would be talking to itself. */
     _isOwnRequest(s, requestId) {
         if (typeof requestId !== 'string' || !requestId) return false;
-        return s.pendingRequests?.has(requestId) === true
+        return s.ownRequestIds?.has(requestId) === true
             || s.pendingRequest?.requestId === requestId;
     }
 
@@ -1775,6 +1778,7 @@ class EpochKeyManager {
 
         s.requestAttempts += 1;
         s.pendingRequest = { requestId, privateKey, publicKey, fromEpoch, sentAt: Date.now() };
+        s.ownRequestIds.add(requestId);
         if (spk) {
             s.pendingRequests.set(requestId, { fromEpoch, sentAt: Date.now() });
             while (s.pendingRequests.size > PENDING_REQUESTS_MAX) {
