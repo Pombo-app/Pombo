@@ -81,7 +81,8 @@ vi.mock('../../src/js/secureStorage.js', () => ({
 vi.mock('../../src/js/graph.js', () => ({
     graphAPI: {
         getPublicPomboChannels: vi.fn().mockResolvedValue([]),
-        getStream: vi.fn().mockResolvedValue(null)
+        getStream: vi.fn().mockResolvedValue(null),
+        getStreamStorage: vi.fn().mockResolvedValue({ nodes: [], storageDays: null })
     }
 }));
 
@@ -798,11 +799,18 @@ describe('storage writes go only where they are needed', () => {
         messageStreamId: 's-1', adminStreamId: 's-3', name: 'T', type: 'public', ...extra
     });
 
-    /** Queue the reads: every stored stream before, then every one after. */
+    /** Queue the reads: every stored stream before (The Graph), then every one after (the SDK). */
     const reads = (...values) => {
+        const queue = [...values];
+        const next = () => (queue.length > 1 ? queue.shift() : queue[0]);
+        graphAPI.getStreamStorage.mockReset();
+        graphAPI.getStreamStorage.mockImplementation(async () => {
+            const v = next();
+            if (v.ok === false) throw new Error('Graph API error: 503');
+            return { nodes: v.nodes.map((n) => ({ nodeAddress: String(n).toLowerCase(), urls: [] })), storageDays: v.storageDays };
+        });
         streamrController.getStreamStorageInfo.mockReset();
-        values.forEach(v => streamrController.getStreamStorageInfo.mockResolvedValueOnce(v));
-        streamrController.getStreamStorageInfo.mockResolvedValue(values[values.length - 1]);
+        streamrController.getStreamStorageInfo.mockImplementation(async () => next());
     };
 
     beforeEach(() => {
@@ -957,6 +965,66 @@ describe('storage writes go only where they are needed', () => {
             await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });
             expect(streamrController.addStorageNodeToStream).toHaveBeenCalledWith('s-3', expect.any(Object));
         });
+
+        it('decides from The Graph, which sees a node removed from another device', async () => {
+            channelManager.channels.set('s-1', plain());
+            graphAPI.getStreamStorage.mockReset();
+            graphAPI.getStreamStorage.mockResolvedValue({ nodes: [], storageDays: 180 });
+            streamrController.getStreamStorageInfo.mockReset();
+            streamrController.getStreamStorageInfo.mockResolvedValue(state([NODE], 180));
+            vi.spyOn(channelManager.storageCopy, 'prepare').mockResolvedValueOnce(null);
+
+            const result = await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });
+            expect(streamrController.addStorageNodeToStream).toHaveBeenCalledTimes(2);
+            expect(result.verified).toBe(true);
+        });
+
+        // Once the node is assigned a read can land on it and find nothing,
+        // so what the copy needs is read before the write.
+        it('reads what the copy needs before the write, and copies to the added node after it', async () => {
+            channelManager.channels.set('s-1', gated());
+            reads(
+                state([OTHER], 180), state([OTHER], 180), state([OTHER], 180), state([OTHER], 180),
+                state([OTHER, NODE], 180)
+            );
+            const order = [];
+            const snapshot = { image: null };
+            vi.spyOn(channelManager.storageCopy, 'prepare').mockImplementationOnce(async () => {
+                order.push('prepare');
+                return snapshot;
+            });
+            streamrController.addStorageNodeToStream.mockImplementation(async () => {
+                order.push('add');
+                return { success: true };
+            });
+            const copyTo = vi.spyOn(channelManager.storageCopy, 'copyTo').mockResolvedValueOnce('present');
+
+            await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });
+            expect(order).toEqual(['prepare', 'add', 'add', 'add', 'add']);
+            expect(copyTo).toHaveBeenCalledWith('s-1', NODE, snapshot);
+        });
+
+        it('copies nothing when the node never reached the admin and keys streams', async () => {
+            channelManager.channels.set('s-1', gated());
+            reads(state([OTHER], 180));
+            vi.spyOn(channelManager.storageCopy, 'prepare').mockResolvedValueOnce({ image: null });
+            streamrController.addStorageNodeToStream.mockResolvedValue({ success: false, error: 'reverted' });
+            const copyTo = vi.spyOn(channelManager.storageCopy, 'copyTo');
+
+            await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });
+            expect(copyTo).not.toHaveBeenCalled();
+        });
+
+        it('forgets the cached providers of every stored stream', async () => {
+            const { storageEndpoints } = await import('../../src/js/storageEndpoints.js');
+            channelManager.channels.set('s-1', gated());
+            reads(state([NODE], 180));
+            vi.spyOn(channelManager.storageCopy, 'prepare').mockResolvedValueOnce(null);
+            const invalidate = vi.spyOn(storageEndpoints, 'invalidate');
+
+            await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });
+            expect(invalidate.mock.calls.map(([id]) => id)).toEqual(['s-1', 's-3', 's-4', 's-5']);
+        });
     });
 
     describe('removeChannelStorageNode()', () => {
@@ -979,6 +1047,16 @@ describe('storage writes go only where they are needed', () => {
             const result = await channelManager.removeChannelStorageNode('s-1', NODE);
             expect(streamrController.removeStorageFromStream).not.toHaveBeenCalled();
             expect(result.sent).toBe(0);
+        });
+
+        it('removes nothing while the providers that stay lack what the channel needs', async () => {
+            channelManager.channels.set('s-1', gated());
+            reads(state([NODE, OTHER], 180));
+            vi.spyOn(channelManager.storageCopy, 'ensureRemainingHold')
+                .mockRejectedValueOnce(new Error('was not removed'));
+
+            await expect(channelManager.removeChannelStorageNode('s-1', NODE)).rejects.toThrow('was not removed');
+            expect(streamrController.removeStorageFromStream).not.toHaveBeenCalled();
         });
 
         // A stream we could not read has an empty node list, which looks

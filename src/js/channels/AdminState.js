@@ -434,7 +434,7 @@ export class AdminState {
         }
 
         Logger.info('Published ADMIN_STATE rev', newRev, 'for', messageStreamId.slice(-20));
-        return { rev: newRev, state: next };
+        return { rev: newRev, state: next, published };
     }
 
     // High-level convenience helpers built on top of publishAdminState ----------

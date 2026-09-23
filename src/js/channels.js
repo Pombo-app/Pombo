@@ -35,6 +35,7 @@ import { MessageOverrides } from './channels/MessageOverrides.js';
 import { MessageFlow } from './channels/MessageFlow.js';
 import { AdminState } from './channels/AdminState.js';
 import { AdminStateConfirm } from './channels/AdminStateConfirm.js';
+import { StorageCopy } from './channels/StorageCopy.js';
 import { DeliveryConfirm } from './channels/DeliveryConfirm.js';
 import { Membership } from './channels/Membership.js';
 import { ModDeltas, MOD_ACTION_TYPE } from './channels/ModDeltas.js';
@@ -71,6 +72,7 @@ class ChannelManager {
         this.adminState = new AdminState(this);
         // Sees each published ADMIN_STATE to storage, republishing when it is lost.
         this.adminConfirm = new AdminStateConfirm(this);
+        this.storageCopy = new StorageCopy(this);
         this.deliveryConfirm = new DeliveryConfirm(this);
         this.membership = new Membership(this);
         // Moderator deltas on -1/P2, composed over the owner's snapshot.
@@ -1467,12 +1469,18 @@ class ChannelManager {
      * skip leaves the stream diverged with the UI reporting success, while a
      * redundant write only costs gas.
      *
+     * @param {Object} [options]
+     * @param {boolean} [options.fresh=false] - Read The Graph instead of the SDK's cached copy
      * @returns {Promise<Array<{id, kind, read: boolean, nodes: string[], storageDays: number|null}>>}
      * @private
      */
-    async _readStoredStreams(messageStreamId, channel) {
+    async _readStoredStreams(messageStreamId, channel, { fresh = false } = {}) {
         return Promise.all(this._storedStreamIds(messageStreamId, channel).map(async ({ id, kind }) => {
-            const info = await streamrController.getStreamStorageInfo(id)
+            const info = await (fresh
+                ? graphAPI.getStreamStorage(id).then((s) => ({
+                    ok: true, nodes: s.nodes.map((n) => n.nodeAddress), storageDays: s.storageDays
+                }))
+                : streamrController.getStreamStorageInfo(id))
                 .catch(() => ({ ok: false, nodes: [], storageDays: null }));
             return {
                 id,
@@ -1565,7 +1573,9 @@ class ChannelManager {
         const channel = this.channels.get(messageStreamId);
         if (!channel) throw new Error('Channel not found');
 
-        const before = await this._readStoredStreams(messageStreamId, channel);
+        // Before: The Graph, which sees changes made from other devices. After:
+        // the SDK, which follows this client's own writes before The Graph indexes them.
+        const before = await this._readStoredStreams(messageStreamId, channel, { fresh: true });
         const results = {};
         let sent = 0;
 
@@ -1612,12 +1622,29 @@ class ChannelManager {
         const has = (stream) => stream.nodes
             .some(n => String(n).toLowerCase() === address.toLowerCase());
 
-        return this._applyToStoredStreams(
+        const snapshot = await this.storageCopy.prepare(messageStreamId).catch((e) => {
+            Logger.warn('Storage copy not prepared:', e?.message);
+            return null;
+        });
+        const result = await this._applyToStoredStreams(
             messageStreamId,
             // Unread streams are written to: absence proves nothing.
             (stream) => !stream.read || !has(stream),
             (streamId) => streamrController.addStorageNodeToStream(streamId, options)
         );
+        this._forgetStorageEndpoints(messageStreamId);
+        if (snapshot && address
+                && ['admin', 'keys'].some((kind) => result.results[kind] && result.results[kind] !== 'failed')) {
+            this.storageCopy.copyTo(messageStreamId, address, snapshot);
+        }
+        return result;
+    }
+
+    _forgetStorageEndpoints(messageStreamId) {
+        const channel = this.channels.get(messageStreamId);
+        for (const { id } of this._storedStreamIds(messageStreamId, channel)) {
+            storageEndpoints.invalidate(id);
+        }
     }
 
     /**
@@ -1632,11 +1659,14 @@ class ChannelManager {
         const addr = String(nodeAddress || '').toLowerCase();
         const has = (stream) => stream.nodes.some(n => String(n).toLowerCase() === addr);
 
-        return this._applyToStoredStreams(
+        await this.storageCopy.ensureRemainingHold(messageStreamId, addr);
+        const result = await this._applyToStoredStreams(
             messageStreamId,
             (stream) => !stream.read || has(stream),
             (streamId) => streamrController.removeStorageFromStream(streamId, nodeAddress)
         );
+        this._forgetStorageEndpoints(messageStreamId);
+        return result;
     }
 
     /**
@@ -1974,6 +2004,7 @@ class ChannelManager {
                 // An ADMIN_STATE published here that storage never confirmed
                 // is waited for again, and republished, now that the owner is back.
                 this.adminConfirm.resume(channel.messageStreamId);
+                this.storageCopy.resume(channel.messageStreamId);
             }
         }
 

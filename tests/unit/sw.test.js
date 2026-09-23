@@ -25,6 +25,7 @@ function loadWorker({ windows = [], fetchImpl = vi.fn() } = {}) {
         fetch: fetchImpl,
         AbortController,
         Headers,
+        URL,
         indexedDB: { open: vi.fn() },
         MessageChannel,
         caches: { open: vi.fn() },
@@ -168,18 +169,118 @@ describe('service worker verification', () => {
         expect(fetchImpl.mock.calls[1][0]).toContain('b.test');
     });
 
-    it('falls back to its built-in nodes when a registration has none', async () => {
-        fetchImpl.mockResolvedValue(okResponse(row));
-        const { context } = loadWorker({ windows: [], fetchImpl });
-
-        await context.verifyChannel({
-            streamId: '0xowner/public-1',
-            lastTimestamp: 0,
-            storageEndpoints: [],
-            needsSignature: false
+    describe('a channel whose storage moved', () => {
+        const STREAM = '0xowner/public-1';
+        const older = [{ timestamp: 1000, publisherId: '0xabc', content: { type: 'text', text: 'old' } }];
+        const graph = (urls) => okResponse({
+            data: { stream: { storageNodes: urls.map((u) => ({ metadata: JSON.stringify({ urls: [u] }) })) } }
         });
 
-        expect(fetchImpl.mock.calls[0][0]).toContain('blob-storage-streamr.online');
+        /** A worker whose fetches are answered by URL prefix, with The Graph configured. */
+        function worker(routes, windows = []) {
+            fetchImpl.mockImplementation(async (url) => {
+                const route = routes.find(([prefix]) => url.startsWith(prefix));
+                if (!route) throw new Error(`unexpected fetch ${url}`);
+                return route[1];
+            });
+            const { context } = loadWorker({ windows, fetchImpl });
+            context.getConfig = async (key) => (key === 'graphUrl' ? 'https://graph.test/q' : null);
+            context.rememberProviders = vi.fn(async () => {});
+            return context;
+        }
+        const graphCalls = () => fetchImpl.mock.calls.filter(([url]) => url.startsWith('https://graph.test'));
+
+        it('asks the providers the chain has now when the registered ones have nothing new', async () => {
+            const context = worker([
+                ['https://old.test', okResponse(older)],
+                ['https://graph.test', graph(['https://new.test/'])],
+                ['https://new.test', okResponse(row)]
+            ]);
+
+            const result = await context.verifyChannel({
+                streamId: STREAM, lastTimestamp: 1500, storageEndpoints: ['https://old.test'], needsSignature: false
+            });
+
+            expect(result.hasNew).toBe(true);
+            expect(context.rememberProviders).toHaveBeenCalledWith(STREAM, ['https://new.test']);
+        });
+
+        it('asks the chain when a registration has no providers at all', async () => {
+            const context = worker([
+                ['https://graph.test', graph(['https://new.test'])],
+                ['https://new.test', okResponse(row)]
+            ]);
+
+            const result = await context.verifyChannel({
+                streamId: STREAM, lastTimestamp: 0, storageEndpoints: [], needsSignature: false
+            });
+
+            expect(result.hasNew).toBe(true);
+        });
+
+        it('does not ask the chain again within the refresh window', async () => {
+            const context = worker([['https://old.test', okResponse(older)]]);
+
+            const result = await context.verifyChannel({
+                streamId: STREAM, lastTimestamp: 1500, storageEndpoints: ['https://old.test'],
+                needsSignature: false, providersCheckedAt: Date.now()
+            });
+
+            expect(result.hasNew).toBe(false);
+            expect(graphCalls()).toHaveLength(0);
+        });
+
+        it('keeps its answer when the providers have not changed', async () => {
+            const context = worker([
+                ['https://old.test', okResponse(older)],
+                ['https://graph.test', graph(['https://old.test'])]
+            ]);
+
+            const result = await context.verifyChannel({
+                streamId: STREAM, lastTimestamp: 1500, storageEndpoints: ['https://old.test'], needsSignature: false
+            });
+
+            expect(result.hasNew).toBe(false);
+            expect(fetchImpl.mock.calls.filter(([url]) => url.startsWith('https://old.test'))).toHaveLength(1);
+            expect(context.rememberProviders).toHaveBeenCalledWith(STREAM, ['https://old.test']);
+        });
+
+        it('never keeps a provider URL a page could not reach', async () => {
+            const context = worker([
+                ['https://old.test', okResponse(older)],
+                ['https://graph.test', graph(['http://plain.test', 'https://10.0.0.1', 'https://ok.test'])],
+                ['https://ok.test', okResponse(older)]
+            ]);
+
+            await context.verifyChannel({
+                streamId: STREAM, lastTimestamp: 1500, storageEndpoints: ['https://old.test'], needsSignature: false
+            });
+
+            expect(context.rememberProviders).toHaveBeenCalledWith(STREAM, ['https://ok.test']);
+        });
+
+        it('asks the chain nothing while no window is open to sign', async () => {
+            const context = worker([]);
+
+            const result = await context.verifyChannel({
+                streamId: STREAM, lastTimestamp: 0, storageEndpoints: ['https://old.test'], needsSignature: true
+            });
+
+            expect(result.hasNew).toBe(false);
+            expect(graphCalls()).toHaveLength(0);
+        });
+
+        it('stays silent when The Graph cannot be asked', async () => {
+            const context = worker([['https://old.test', okResponse(older)]]);
+            context.getConfig = async () => null;
+
+            const result = await context.verifyChannel({
+                streamId: STREAM, lastTimestamp: 1500, storageEndpoints: ['https://old.test'], needsSignature: false
+            });
+
+            expect(result.hasNew).toBe(false);
+            expect(graphCalls()).toHaveLength(0);
+        });
     });
 
     it('treats nothing newer than the watermark as a false positive', async () => {

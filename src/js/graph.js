@@ -161,6 +161,37 @@ class GraphAPI {
     }
 
     /**
+     * The storage nodes of a stream and its retention, never from a cache.
+     * Throws when The Graph does not answer.
+     * @returns {Promise<{nodes: Array<{nodeAddress: string, urls: string[]}>, storageDays: number|null}>}
+     */
+    async getStreamStorage(streamId) {
+        const data = await this.query(`
+            query GetStreamStorage($id: ID!) {
+                stream(id: $id) {
+                    metadata
+                    storageNodes(first: 100) { id metadata }
+                }
+            }
+        `, { id: streamId.toLowerCase() });
+        const parse = (json) => {
+            try { return JSON.parse(json || '{}') || {}; } catch { return {}; }
+        };
+        const stream = data?.stream;
+        const storageDays = Number(parse(stream?.metadata).storageDays);
+        return {
+            nodes: (stream?.storageNodes || []).map((node) => {
+                const urls = parse(node.metadata).urls;
+                return {
+                    nodeAddress: String(node.id).toLowerCase(),
+                    urls: Array.isArray(urls) ? urls.filter((u) => typeof u === 'string') : []
+                };
+            }),
+            storageDays: storageDays > 0 ? storageDays : null
+        };
+    }
+
+    /**
      * Get stream permissions using streamPermissions entity
      * @param {string} streamId - Stream ID
      * @returns {Promise<Array>} - Array of permission objects

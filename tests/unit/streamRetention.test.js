@@ -177,6 +177,16 @@ describe('epochKeyManager._maybeReannounceAging()', () => {
         expect(streamrController.publishKeysMessage).toHaveBeenCalled();
     });
 
+    it('keeps the epoch\'s original validFrom, so its history stays inside the window', async () => {
+        const s = stateAgedDays(0);
+        s.announceFreshness.set(2, 0);
+        const since = Date.now() - 40 * DAY;
+        s.announces.get(2).validFrom = since;
+        await epochKeyManager._maybeReannounceAging(CHANNEL({ keysStorageDays: 180 }), s);
+        expect(streamrController.publishKeysMessage).toHaveBeenCalledWith(
+            's-4', expect.objectContaining({ epoch: 2, validFrom: since }));
+    });
+
     it('does nothing without a held key to anchor', async () => {
         const s = stateAgedDays(400);
         s.epochs.clear();

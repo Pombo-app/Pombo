@@ -796,7 +796,9 @@ class EpochKeyManager {
             epoch: s.currentEpoch,
             keyId: announce.keyId,
             keyHash: entry.keyHash,
-            validFrom: Date.now()
+            // A reader that only ever sees this copy judges the epoch's
+            // history by it: a later validFrom drops that history as backdated.
+            validFrom: announce.validFrom ?? Date.now()
         };
         await streamrController.publishKeysMessage(channel.keysStreamId, reannounce);
         s.announceFreshness.set(s.currentEpoch, Date.now());
@@ -1029,6 +1031,55 @@ class EpochKeyManager {
     /** A v2 wrap sealed to this account by one of its own admin devices. */
     _isSelfWrap(channel, data) {
         return data.v === 2 && data.requestId === SELF_WRAP_REQUEST_ID && this.isOwnAdmin(channel);
+    }
+
+    /**
+     * Same content in fresh envelopes: the network drops a resent original as a duplicate.
+     * @returns {Promise<Array<{partition: number, timestamp: number, sequenceNumber: number}>>}
+     */
+    async republishAnchors(channel) {
+        if (!usesEpochKeys(channel) || !this.isOwnAdmin(channel)) return [];
+        this.loadPersistedState(channel.messageStreamId);
+        const s = this._getState(channel.messageStreamId);
+        const published = [];
+        const announce = async (data) => {
+            const message = await streamrController.publishKeysMessage(channel.keysStreamId, data);
+            published.push({
+                partition: KEYS_STREAM.KEY_EXCHANGE,
+                timestamp: Number(message?.timestamp),
+                sequenceNumber: 0
+            });
+        };
+
+        for (const epoch of [...s.announces.keys()].sort((a, b) => a - b)) {
+            const { keyId, keyHash, validFrom } = s.announces.get(epoch);
+            await announce({ t: KEYS_MSG_TYPE.KEY_ANNOUNCE, epoch, keyId, keyHash, validFrom });
+            s.announceFreshness.set(epoch, Date.now());
+        }
+        if (s.pubAnnounce) {
+            const { keyId, keyHash, address, rev } = s.pubAnnounce;
+            await announce({ t: KEYS_MSG_TYPE.PUB_ANNOUNCE, keyId, keyHash, addr: address, rev });
+            s.pubAnnounceFreshness = Date.now();
+        }
+        if (s.intAnnounce) {
+            const { keyId, keyHash, address, rev } = s.intAnnounce;
+            await announce({ t: KEYS_MSG_TYPE.PUB_ANNOUNCE, k: 'i', keyId, keyHash, addr: address, rev });
+            s.intAnnounceFreshness = Date.now();
+        }
+        for (const [keyId, entry] of s.epochs) {
+            await this._wrapForSelf(channel, s, { keyId, keyHex: entry.keyHex, epoch: entry.epoch })
+                .catch((e) => Logger.warn('epochKeys: self wrap failed:', e?.message));
+        }
+        Logger.info(`epochKeys: republished ${published.length} announce(s) on`, channel.keysStreamId.slice(-30));
+        return published;
+    }
+
+    currentAnchorKeyIds(channel) {
+        if (!usesEpochKeys(channel)) return [];
+        this.loadPersistedState(channel.messageStreamId);
+        const s = this._getState(channel.messageStreamId);
+        return [s.announces.get(s.currentEpoch)?.keyId, s.pubAnnounce?.keyId, s.intAnnounce?.keyId]
+            .filter(Boolean);
     }
 
     // ==================== PROTOCOL HANDLERS ====================

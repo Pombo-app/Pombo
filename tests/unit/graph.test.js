@@ -279,6 +279,56 @@ describe('GraphAPI', () => {
 
     // ==================== STREAM QUERIES ====================
 
+    describe('getStreamStorage', () => {
+        const answer = (stream) => {
+            globalThis.fetch = vi.fn().mockResolvedValue({
+                ok: true,
+                json: () => Promise.resolve({ data: { stream } })
+            });
+        };
+
+        it('returns each storage node with its URLs, and the retention', async () => {
+            answer({
+                metadata: JSON.stringify({ partitions: 3, storageDays: 30 }),
+                storageNodes: [
+                    { id: '0xAB', metadata: JSON.stringify({ urls: ['https://a.example', 7] }) },
+                    { id: '0xcd', metadata: 'not json' }
+                ]
+            });
+
+            const result = await graphAPI.getStreamStorage('0xOwner/chan-1');
+
+            expect(result).toEqual({
+                nodes: [
+                    { nodeAddress: '0xab', urls: ['https://a.example'] },
+                    { nodeAddress: '0xcd', urls: [] }
+                ],
+                storageDays: 30
+            });
+        });
+
+        it('asks again every time instead of answering from the cache', async () => {
+            answer({ metadata: '{}', storageNodes: [] });
+
+            await graphAPI.getStreamStorage('0xowner/chan-1');
+            await graphAPI.getStreamStorage('0xowner/chan-1');
+
+            expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+        });
+
+        it('knows no retention and no nodes for a stream The Graph does not have', async () => {
+            answer(null);
+
+            expect(await graphAPI.getStreamStorage('0xowner/gone-1')).toEqual({ nodes: [], storageDays: null });
+        });
+
+        it('throws when The Graph does not answer', async () => {
+            globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 503, statusText: 'Unavailable' });
+
+            await expect(graphAPI.getStreamStorage('0xowner/chan-1')).rejects.toThrow('Graph API error: 503');
+        });
+    });
+
     describe('getStream', () => {
         it('should fetch stream by ID', async () => {
             const mockStream = {

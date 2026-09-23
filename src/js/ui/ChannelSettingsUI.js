@@ -694,6 +694,14 @@ class ChannelSettingsUI {
                 showNotification?.('Moderation change not yet confirmed on storage. It will be retried when you open the channel again.', 'warning');
             } else if (event === 'admin_state_superseded') {
                 showNotification?.('Moderation was changed from another device; the last change made here was replaced.', 'warning');
+            } else if (event === 'storage_copy_confirmed') {
+                showNotification?.('Channel keys and settings copied to the storage provider.', 'success');
+            } else if (event === 'storage_copy_unconfirmed') {
+                showNotification?.('Could not confirm the copy on the storage provider yet. Keep the old one; it is retried when you open the channel.', 'warning');
+            } else if (event === 'storage_copy_unverifiable') {
+                showNotification?.('The storage provider cannot confirm the copy. Keep the old one for now.', 'warning');
+            } else if (event === 'storage_copy_before_remove') {
+                showNotification?.('Copying channel keys and settings to the provider that stays…', 'info');
             }
         });
         channelManager.onMessage((event, data) => {
