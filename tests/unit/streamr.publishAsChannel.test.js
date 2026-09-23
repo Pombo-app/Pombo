@@ -121,6 +121,12 @@ describe('publishAsChannel', () => {
         expect(published[0].content.text).toBe('hi');
     });
 
+    it('keeps the moderation display flag off the wire', async () => {
+        await streamrController.publishAsChannel('0xowner/chan-1', 0, { text: 'hi', _hidden: false });
+
+        expect(published[0].content).not.toHaveProperty('_hidden');
+    });
+
     it('strips local state and identity on the account path of a read-only channel', async () => {
         usesAccountPublish.mockReturnValueOnce(true);
         const publish = vi.spyOn(streamrController, 'publish').mockResolvedValue({ timestamp: 1 });

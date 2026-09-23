@@ -146,7 +146,7 @@ export function stripLocalFields(data) {
     return dropLocalState(networkMessage);
 }
 
-const LOCAL_STATE_FIELDS = ['verified', 'pending', 'failed', 'failError', 'delivered', 'undelivered', '_dmSent'];
+const LOCAL_STATE_FIELDS = ['verified', 'pending', 'failed', 'failError', 'delivered', 'undelivered', '_dmSent', '_hidden'];
 
 /**
  * Drop the sender's local UI state from a received payload: the ingress
