@@ -123,6 +123,9 @@ class GateManager {
         this._rpcIndex = 0;
         // (gate, user) → { value, at } — TTL'd like the SDK's ERC-1271 cache
         this._accessCache = new Map();
+        // gate → generation, bumped by invalidateGrants; a read that started
+        // under an older one must not write its answer back.
+        this._accessGen = new Map();
         // gate → last quorum-disagreement warning time, rate-limits the notice.
         this._warnedGates = new Map();
         // (gate, user) → { until, at } — paidUntil in unix seconds, same TTL
@@ -290,6 +293,7 @@ class GateManager {
         if (cached && Date.now() - cached.at < this._accessTtl(cached.value)) {
             return cached.value;
         }
+        const gen = this._generation(gateAddress);
         let value;
         try {
             value = await this._withProvider(() =>
@@ -298,7 +302,7 @@ class GateManager {
             Logger.warn('gate: checkAccess read failed:', error.message);
             return null;
         }
-        this._cacheAccess(key, value);
+        this._cacheAccess(key, value, gen);
         return value;
     }
 
@@ -306,7 +310,12 @@ class GateManager {
         return value ? CONFIG.gate.checkAccessCacheMs : CONFIG.gate.accessDenialCacheMs;
     }
 
-    _cacheAccess(key, value) {
+    _generation(gateAddress) {
+        return this._accessGen.get(gateAddress.toLowerCase()) || 0;
+    }
+
+    _cacheAccess(key, value, gen = null) {
+        if (gen !== null && gen !== this._generation(key.split('|')[0])) return;
         this._accessCache.set(key, { value, at: Date.now() });
         if (this._accessCache.size > 2000) {
             const oldest = this._accessCache.keys().next().value;
@@ -343,11 +352,12 @@ class GateManager {
 
         const urls = getRpcEndpoints().map(e => e.url).filter(Boolean);
         if (urls.length === 0) return { access: false };
+        const gen = this._generation(gateAddress);
 
         if (urls.length === 1) {
             const v = await this._readAccessAt(urls[0], gateAddress, userAddress);
             if (v === null) return { access: false };
-            this._cacheAccess(key, v === true);
+            this._cacheAccess(key, v === true, gen);
             return { access: v === true };
         }
 
@@ -359,11 +369,11 @@ class GateManager {
         if (responded.length === 0) return { access: false };
         if (responded.length === 1) {
             const access = responded[0] === true;
-            this._cacheAccess(key, access);
+            this._cacheAccess(key, access, gen);
             return { access };
         }
         if (a === b) {
-            this._cacheAccess(key, a === true);
+            this._cacheAccess(key, a === true, gen);
             return { access: a === true };
         }
 
@@ -378,7 +388,7 @@ class GateManager {
         }
         if (tally.yes !== tally.no) {
             const access = tally.yes > tally.no;
-            this._cacheAccess(key, access);
+            this._cacheAccess(key, access, gen);
             return { access };
         }
 
@@ -564,6 +574,19 @@ class GateManager {
             for (const address of page) members.push(address.toLowerCase());
         }
         return members;
+    }
+
+    invalidateGrants(gateAddress) {
+        const gate = gateAddress.toLowerCase();
+        this._accessGen.set(gate, this._generation(gate) + 1);
+        let dropped = 0;
+        for (const [key, entry] of this._accessCache) {
+            if (key.startsWith(`${gate}|`) && entry.value === true) {
+                this._accessCache.delete(key);
+                dropped += 1;
+            }
+        }
+        if (dropped > 0) Logger.info(`gate: new epoch on ${gate.slice(0, 10)}, access of ${dropped} member(s) will be re-checked`);
     }
 
     /** Drop cached access for one user (after allow/ban) or a whole gate. */

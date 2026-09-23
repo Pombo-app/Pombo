@@ -60,3 +60,65 @@ describe('access cache TTL', () => {
         expect(calls).toBe(1);
     });
 });
+
+describe('a new epoch drops the grants of its gate', () => {
+    const OTHER_GATE = '0x' + 'cd'.repeat(20);
+    const OTHER_USER = '0x' + '22'.repeat(20);
+    let calls;
+    let answer;
+    let release = null;
+
+    beforeEach(() => {
+        calls = 0;
+        answer = true;
+        gateManager._accessCache.clear();
+        gateManager._accessGen.clear();
+        gateManager._withProvider = (op) => op(null);
+        gateManager._readContract = () => ({
+            checkAccess: async () => {
+                calls += 1;
+                if (release) await new Promise((r) => { release = r; });
+                return answer;
+            }
+        });
+    });
+
+    afterEach(() => {
+        release = null;
+        delete gateManager._readContract;
+        delete gateManager._withProvider;
+    });
+
+    it('asks the chain again for someone granted before it', async () => {
+        await gateManager.checkAccess(GATE, USER);
+        gateManager.invalidateGrants(GATE);
+        answer = false;
+
+        expect(await gateManager.checkAccess(GATE, USER)).toBe(false);
+        expect(calls).toBe(2);
+    });
+
+    it('keeps refusals, and the grants of other gates', async () => {
+        answer = false;
+        await gateManager.checkAccess(GATE, OTHER_USER);
+        answer = true;
+        await gateManager.checkAccess(OTHER_GATE, USER);
+
+        gateManager.invalidateGrants(GATE);
+
+        expect(await gateManager.checkAccess(GATE, OTHER_USER)).toBe(false);
+        expect(await gateManager.checkAccess(OTHER_GATE, USER)).toBe(true);
+        expect(calls).toBe(2);
+    });
+
+    it('does not let a read that started before it write its grant back', async () => {
+        release = () => {};
+        const inFlight = gateManager.checkAccess(GATE, USER);
+        await Promise.resolve();
+        gateManager.invalidateGrants(GATE);
+        release();
+
+        expect(await inFlight).toBe(true);
+        expect(gateManager._accessCache.has(`${GATE}|${USER}`)).toBe(false);
+    });
+});

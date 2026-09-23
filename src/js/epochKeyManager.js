@@ -1348,8 +1348,13 @@ class EpochKeyManager {
         s.announces.set(epoch, incoming);
         if (epoch > s.currentEpoch) {
             s.currentEpoch = epoch;
+            this._forgetGrants(channel);
         }
         return true;
+    }
+
+    _forgetGrants(channel) {
+        if (channel?.gate?.address) gateManager.invalidateGrants(channel.gate.address);
     }
 
     /**
@@ -1418,11 +1423,7 @@ class EpochKeyManager {
         // hand out keys on an unverifiable request.
         if (!channel.gate?.address) return;
 
-        // The write-cut for ex-members lives HERE (N-C). The requester
-        // authenticated as an author (sticky isValidSignature), but the epoch
-        // key only goes to whoever passes the CURRENT gate. Fail-closed: RPC
-        // trouble means no wrap from us; the requester's retry finds a
-        // healthier responder.
+        // Fail closed: on RPC trouble no wrap from us, the requester's retry finds another responder.
         if (!request.requester) return;
         const { access: ok, warn } = await gateManager.checkAccessQuorum(
             channel.gate.address, request.requester);
@@ -1791,6 +1792,7 @@ class EpochKeyManager {
         s.epochs.set(keyId, { keyHex, keyHash, epoch, cryptoKey: null });
         if (epoch > s.currentEpoch) {
             s.currentEpoch = epoch;
+            this._forgetGrants(channel);
         }
         s.missingKids?.delete(keyId);
         s.requestAttempts = 0;   // future rotations start on the fast retry again
