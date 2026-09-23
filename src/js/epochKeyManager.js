@@ -472,6 +472,49 @@ class EpochKeyManager {
     }
 
     /**
+     * Replace the interactions key (Sealed), as rekeyPublishKey does the publish key.
+     * @returns {Promise<number>} the new rev
+     */
+    async rekeyInteractionsKey(channel) {
+        if (!usesSharedPublish(channel)) {
+            throw new Error('rekeyInteractionsKey: not a Sealed channel');
+        }
+        if (!this.isOwnAdmin(channel)) {
+            throw new Error('rekeyInteractionsKey: only the channel admin can re-key');
+        }
+        const s = this._getState(channel.messageStreamId);
+        if (!s.loaded) {
+            this._loadPersisted(channel.messageStreamId, s);
+            s.loaded = true;
+        }
+        const oldAddress = s.intKey?.address || s.intAnnounce?.address || null;
+        const rev = Math.max(s.intKey?.rev || 0, s.intAnnounce?.rev || 0) + 1;
+        const intKey = this.mintInteractionsKey(rev);
+
+        // Chain first: a published announce for a key the network rejects
+        // would leave every member reacting into the void.
+        await streamrController.rekeyInteractionsGrants(channel, intKey.address, oldAddress);
+
+        s.intKey = { ...intKey };
+        const announce = {
+            t: KEYS_MSG_TYPE.PUB_ANNOUNCE,
+            k: 'i',
+            keyId: intKey.keyId,
+            keyHash: await epochKeyCrypto.computeKeyHash(intKey.keyHex),
+            addr: intKey.address,
+            rev
+        };
+        await streamrController.publishKeysMessage(channel.keysStreamId, announce);
+        this._applyPubAnnounce(channel, s, announce, authManager.getAddress(), Date.now());
+        s.intAnnounceFreshness = Date.now();
+        await this._persist(channel.messageStreamId, s);
+        this.onKeysAdopted?.(channel.messageStreamId, intKey.keyId);
+        Logger.info(`epochKeys: interactions key re-keyed to rev ${rev} on`, channel.keysStreamId.slice(-30));
+        this._ensureAnnounceRetained(channel, announce).catch(() => {});
+        return rev;
+    }
+
+    /**
      * Session authorship material for our own publishes in a Sealed
      * channel: pseudonym keypair + account bind proof, minted lazily once
      * per session per channel. Memory only — members resolve the ACCOUNT

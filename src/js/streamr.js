@@ -2642,6 +2642,24 @@ class StreamrController {
     }
 
     /**
+     * Re-key a Sealed channel's interactions grants on -5 and -2 in ONE
+     * transaction: the new key's address gains publish, the old one loses it.
+     */
+    async rekeyInteractionsGrants(channel, newAddress, oldAddress) {
+        const assignments = [
+            { userId: newAddress.toLowerCase(), permissions: ['publish'] },
+            ...(oldAddress ? [{ userId: oldAddress.toLowerCase(), permissions: [] }] : [])
+        ];
+        const items = [
+            channel.interactionsStreamId || deriveInteractionsId(channel.messageStreamId),
+            channel.ephemeralStreamId
+        ].filter(Boolean).map((streamId) => ({ streamId, assignments }));
+        await executeWithRetry('rekeyInteractionsGrants', async () => {
+            await this.client.setPermissions(...items);
+        });
+    }
+
+    /**
      * Identity for the channel's SHARED publish key, cached per keyId — a
      * re-key changes the keyId and naturally mints the replacement.
      */
