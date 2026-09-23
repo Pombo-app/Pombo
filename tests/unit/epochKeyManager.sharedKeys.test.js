@@ -116,6 +116,26 @@ describe('shared keys in a Sealed channel', () => {
         });
     });
 
+    describe('a member missing only the interactions key', () => {
+        beforeEach(() => {
+            vi.spyOn(epochKeyManager, '_persist').mockResolvedValue(undefined);
+            const s = epochKeyManager.state.get(STREAM);
+            s.announces = new Map([[1, { keyId: '1.k' }]]);
+            s.intKey = null;
+        });
+
+        it('asks for it', async () => {
+            await epochKeyManager._sendKeyRequest(channel, epochKeyManager.state.get(STREAM));
+
+            expect(published.some((m) => m.t === 'key_request')).toBe(true);
+        });
+
+        it('keeps asking while it waits', async () => {
+            expect(await epochKeyManager.retryRequestIfWaiting(channel)).toBe(true);
+            expect(published.some((m) => m.t === 'key_request')).toBe(true);
+        });
+    });
+
     it('hands out no shared key on a record that does not say Sealed', async () => {
         vi.spyOn(gateManager, 'getGateInfo').mockResolvedValue({ readOnly: false });
 

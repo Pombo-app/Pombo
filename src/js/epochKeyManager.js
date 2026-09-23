@@ -1768,7 +1768,7 @@ class EpochKeyManager {
         // `anchorless`: no announce to name what is missing, so the request
         // asks from the first epoch and takes whatever a member still holds.
         if (!anchorless && missing.length === 0 && stranded.length === 0
-                && !this._needsPubKey(channel, s)) return;
+                && !this._needsPubKey(channel, s) && !this._needsInteractionsKey(channel, s)) return;
 
         const { privateKey, publicKey } = epochKeyCrypto.generateRequestKeypair();
         const requestId = cryptoManager.generateRandomHex(16);
@@ -2009,7 +2009,8 @@ class EpochKeyManager {
     async retryRequestIfWaiting(channel) {
         const s = this.state.get(channel.messageStreamId);
         if (!s) return false;
-        if (this._missingEpochs(s).length === 0 && !this._needsPubKey(channel, s)) return false;
+        if (this._missingEpochs(s).length === 0 && !this._needsPubKey(channel, s)
+                && !this._needsInteractionsKey(channel, s)) return false;
         await this._sendKeyRequest(channel, s);
         return true;
     }
