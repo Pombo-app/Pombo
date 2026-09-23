@@ -1013,6 +1013,12 @@ class EpochKeyManager {
             throw new Error('rotateEpoch: only the channel admin can announce a new epoch');
         }
         const s = this._getState(channel.messageStreamId);
+        // _persist writes the whole state: rotating on one never loaded
+        // would replace the stored keys with the new epoch alone.
+        if (!s.loaded) {
+            this._loadPersisted(channel.messageStreamId, s);
+            s.loaded = true;
+        }
         // Another device of this admin may have rotated since this one last
         // read the -4; the new epoch numbers above whatever storage holds.
         await this._refreshAnnouncesFromStorage(channel, s);
