@@ -26,6 +26,7 @@ import { CONFIG, getRpcEndpoints } from './config.js';
 import { executeWithRetry, executeWithRetryAndVerify } from './utils/retry.js';
 import { isRpcError, createPermissionResult } from './utils/rpcErrors.js';
 import { authManager } from './auth.js';
+import { NodeRevival } from './streamr/NodeRevival.js';
 import {
     recoverPublisherAccount, applyAccount, stripLocalFields, dropLocalState, clearPublisherProofCache
 } from './publisherProof.js';
@@ -121,6 +122,14 @@ class StreamrController {
         this.messages = new MessagePipeline(this);
         this._writers = new Map();       // streamId -> { public, writers:Set, ts }
         this._writerFetches = new Map(); // streamId -> in-flight promise
+        this._clientReplacedHandlers = [];
+        this._nodeStateHandlers = [];
+        this._replacing = Promise.resolve();
+        this._session = 0;
+        this.revival = new NodeRevival({
+            networkUp: () => this._networkReachable(),
+            rebuild: () => this.replaceClient()
+        });
     }
 
     /**
@@ -233,8 +242,10 @@ class StreamrController {
     /**
      * Initialize Streamr client with signer
      * @param {Object} signer - Ethers signer from wallet (must have privateKey)
+     * @param {Object} [options]
+     * @param {boolean} [options.resubscribe] - run the onClientReplaced handlers once the node is up
      */
-    async init(signer) {
+    async init(signer, { resubscribe = false } = {}) {
         try {
             // Get StreamrClient from the global window object (exposed by the
             // self-hosted vendor bundle — see src/streamr-bundle.js)
@@ -246,7 +257,7 @@ class StreamrController {
                 throw new Error('Signer must have a privateKey');
             }
 
-            this.client = new StreamrClient({
+            const client = new StreamrClient({
                 auth: {
                     privateKey: signer.privateKey
                 },
@@ -283,9 +294,11 @@ class StreamrController {
                     rpcQuorum: 1
                 }
             });
-            
-            this.address = await this.client.getAddress();
+            this.client = client;
+
+            this.address = await client.getAddress();
             Logger.info('Streamr client initialized with address:', this.address);
+            this._watchNode(client, resubscribe);
 
             // Account identity for publishAs-based ACCOUNT publishes (keys
             // stream). The -4 stream must publish as the account — its grant is
@@ -306,6 +319,98 @@ class StreamrController {
             Logger.error('Failed to initialize Streamr client:', error);
             throw error;
         }
+    }
+
+    /**
+     * The SDK keeps a failed node start for the client's whole life, so the
+     * start is watched and a failure hands the client to the revival.
+     */
+    _watchNode(client, resubscribe = false) {
+        client.getNodeId().then(() => {
+            if (this.client !== client) return;
+            this.revival.onAlive();
+            this._nodeStateHandlers.forEach((handler) => handler(true));
+            if (resubscribe) this._resubscribe(client);
+        }, (error) => {
+            if (this.client !== client) return;
+            Logger.warn('Streamr node failed to start:', error?.message || error);
+            this.revival.onDead();
+            this._nodeStateHandlers.forEach((handler) => handler(false));
+        });
+    }
+
+    /** Called with true when a client's node comes up, false when its start fails. */
+    onNodeStateChange(handler) {
+        this._nodeStateHandlers.push(handler);
+    }
+
+    /** One JSON-RPC round trip to any of the chosen endpoints. */
+    async _networkReachable() {
+        const endpoints = getRpcEndpoints().slice(0, 3);
+        const probe = ({ url }) => fetch(url, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] }),
+            signal: AbortSignal.timeout(5000)
+        }).then((response) => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        });
+        try {
+            await Promise.any(endpoints.map(probe));
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /** Called after every client replacement, to subscribe again. */
+    onClientReplaced(handler) {
+        this._clientReplacedHandlers.push(handler);
+    }
+
+    /**
+     * Before the node is up a subscribe only waits on its start, and after a
+     * failed start there is nothing to subscribe on: so this runs once it is up.
+     */
+    async _resubscribe(client) {
+        for (const handler of this._clientReplacedHandlers) {
+            if (this.client !== client) return;
+            try {
+                await handler();
+            } catch (e) {
+                Logger.warn('Resubscribe after client replacement failed:', e?.message || e);
+            }
+        }
+    }
+
+    /**
+     * A new SDK client for this same session: the pseudonyms and caches of the
+     * session stay, the subscriptions go with the old client and every
+     * onClientReplaced handler makes its own again once the new node is up.
+     */
+    replaceClient() {
+        const run = this._replacing.catch(() => {}).then(() => this._replaceClientNow());
+        this._replacing = run;
+        return run;
+    }
+
+    async _replaceClientNow() {
+        const session = this._session;
+        const signer = authManager.getSigner();
+        if (!signer) throw new Error('No signer to rebuild the Streamr client with');
+        const old = this.client;
+        this.client = null;
+        this.subscriptions.clear();
+        if (old) {
+            // A stop that hangs must not hold the new client back.
+            await Promise.race([
+                old.destroy().catch((e) => Logger.warn('Streamr client destroy error (ignored):', e.message)),
+                new Promise((resolve) => setTimeout(resolve, 5000))
+            ]);
+        }
+        // Logged out or switched account meanwhile: the next login makes its own client.
+        if (session !== this._session) return;
+        await this.init(signer, { resubscribe: true });
     }
 
     /**
@@ -3939,7 +4044,14 @@ class StreamrController {
      * Disconnect Streamr client
      */
     async disconnect() {
-        if (this.client) {
+        this._session++;
+        this.revival.stop();
+        const client = this.client;
+        if (client) {
+            // Out before anything is awaited: a node start still pending settles
+            // during the teardown, and its watch must not see this client as current.
+            this.client = null;
+
             // Unsubscribe from all streams
             for (const streamId of this.subscriptions.keys()) {
                 try {
@@ -3950,11 +4062,10 @@ class StreamrController {
             }
 
             try {
-                await this.client.destroy();
+                await client.destroy();
             } catch (e) {
                 Logger.warn('Streamr client destroy error (ignored):', e.message);
             }
-            this.client = null;
             Logger.info('Streamr client disconnected');
         }
         
@@ -3973,26 +4084,12 @@ class StreamrController {
 
     /**
      * Reconnect Streamr client with new RPC endpoints
-     * Gets signer from authManager (avoids storing private key)
-     * Note: Active subscriptions are cleared - user needs to rejoin channels
      * @returns {Promise<boolean>} - Success status
      */
     async reconnect() {
-        const signer = authManager.getSigner();
-        if (!signer) {
-            Logger.warn('Cannot reconnect: no signer available from authManager');
-            return false;
-        }
-
         try {
             Logger.info('Reconnecting Streamr client with new RPC endpoints...');
-            
-            // Disconnect current client (clears subscriptions)
-            await this.disconnect();
-            
-            // Re-initialize with fresh signer (will use new RPC endpoints)
-            await this.init(signer);
-            
+            await this.replaceClient();
             Logger.info('Streamr client reconnected successfully');
             return true;
         } catch (error) {

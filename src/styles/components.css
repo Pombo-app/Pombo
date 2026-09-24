@@ -1910,6 +1910,39 @@ body.cannot-write .reply-trigger {
     border-radius: 2px;
 }
 
+.online-connecting,
+body.network-down #online-users-count,
+body.network-down #online-header .online-word {
+    display: none;
+}
+
+body.network-down #online-header .online-connecting {
+    display: inline;
+}
+
+/* ----- Network Dot ----- */
+.header-logo-wrap {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+}
+
+.network-dot {
+    display: none;
+    position: absolute;
+    right: 1px;
+    bottom: 2px;
+    width: 11px;
+    height: 11px;
+    border-radius: 9999px;
+    background: radial-gradient(circle at 35% 30%, #fca5a5 0%, #ef4444 45%, #991b1b 100%);
+    box-shadow: 0 0 0 2px #09090b, 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+body.network-down .network-dot {
+    display: block;
+}
+
 .rotate-180 {
     transform: rotate(180deg);
 }

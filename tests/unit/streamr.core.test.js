@@ -51,6 +51,7 @@ function createMockClient(overrides = {}) {
         subscribe: vi.fn().mockResolvedValue({ unsubscribe: vi.fn().mockResolvedValue(undefined) }),
         getStream: vi.fn().mockResolvedValue(createMockStream()),
         getAddress: vi.fn().mockResolvedValue('0xmyaddress'),
+        getNodeId: vi.fn().mockResolvedValue('node-id'),
         createStream: vi.fn().mockResolvedValue({ id: '0xowner/abcd1234-1' }),
         deleteStream: vi.fn().mockResolvedValue(undefined),
         setPermissions: vi.fn().mockResolvedValue(undefined),

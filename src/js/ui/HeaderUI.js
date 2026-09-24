@@ -244,6 +244,11 @@ class HeaderUI {
      */
     updateNetworkStatus() {}
 
+    /** The dot on the logo and "Connecting…" in place of the online count. */
+    setNetworkDown(down) {
+        document.body.classList.toggle('network-down', !!down);
+    }
+
     /**
      * Update the persistent global sync indicator in the header.
      * @param {boolean} active - Whether foreground sync is active

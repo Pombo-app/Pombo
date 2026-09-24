@@ -157,6 +157,8 @@ describe('streamrController.reconnect()', () => {
     afterEach(() => {
         streamrController.client = null;
         streamrController.address = null;
+        streamrController._clientReplacedHandlers = [];
+        vi.useRealTimers();
         vi.clearAllMocks();
     });
 
@@ -179,22 +181,128 @@ describe('streamrController.reconnect()', () => {
         streamrController.init = originalInit;
     });
 
-    it('should call disconnect before reinitializing', async () => {
-        // Mock init to avoid actual StreamrClient creation
+    it('destroys the old client before making the new one, and drops its subscriptions', async () => {
+        const originalInit = streamrController.init.bind(streamrController);
+        const order = [];
+        mockClient.destroy.mockImplementation(async () => { order.push('destroy'); });
+        streamrController.init = vi.fn().mockImplementation(async () => { order.push('init'); return true; });
+        streamrController.subscriptions.set('stream-a', { 0: { unsubscribe: vi.fn() } });
+
+        await streamrController.reconnect();
+
+        expect(order).toEqual(['destroy', 'init']);
+        expect(streamrController.init).toHaveBeenCalledWith(mockSigner, { resubscribe: true });
+        expect(streamrController.subscriptions.size).toBe(0);
+
+        streamrController.init = originalInit;
+    });
+
+    it('stays in the session: no logout, so the pseudonyms are kept', async () => {
         const originalInit = streamrController.init.bind(streamrController);
         streamrController.init = vi.fn().mockResolvedValue(true);
-        
-        // Spy on disconnect
         const disconnectSpy = vi.spyOn(streamrController, 'disconnect');
 
         await streamrController.reconnect();
 
-        expect(disconnectSpy).toHaveBeenCalled();
-        expect(streamrController.init).toHaveBeenCalledWith(mockSigner);
+        expect(disconnectSpy).not.toHaveBeenCalled();
 
-        // Restore
         streamrController.init = originalInit;
         disconnectSpy.mockRestore();
+    });
+
+    // Stands in for init: installs a client whose node start is `start` and watches it.
+    const initWithNode = (start) => vi.fn().mockImplementation(async (_signer, options) => {
+        const client = { getNodeId: vi.fn(start), destroy: vi.fn().mockResolvedValue(undefined) };
+        streamrController.client = client;
+        streamrController._watchNode(client, options?.resubscribe);
+        return true;
+    });
+
+    const quietRevival = () => [
+        vi.spyOn(streamrController.revival, 'onAlive').mockImplementation(() => {}),
+        vi.spyOn(streamrController.revival, 'onDead').mockImplementation(() => {})
+    ];
+
+    it('asks every handler to subscribe again once the new node is up, even after one fails', async () => {
+        const originalInit = streamrController.init.bind(streamrController);
+        const spies = quietRevival();
+        streamrController.init = initWithNode(() => Promise.resolve('node-id'));
+        const later = vi.fn();
+        streamrController.onClientReplaced(async () => { throw new Error('inbox'); });
+        streamrController.onClientReplaced(later);
+
+        const result = await streamrController.reconnect();
+
+        expect(result).toBe(true);
+        await vi.waitFor(() => expect(later).toHaveBeenCalledTimes(1));
+
+        streamrController.init = originalInit;
+        spies.forEach((spy) => spy.mockRestore());
+    });
+
+    it('leaves the subscribing to the next rebuild when the new node fails to start', async () => {
+        const originalInit = streamrController.init.bind(streamrController);
+        const spies = quietRevival();
+        streamrController.init = initWithNode(() => Promise.reject(new Error('Failed to connect to the entrypoints after 7 attempts')));
+        const handler = vi.fn();
+        streamrController.onClientReplaced(handler);
+
+        await streamrController.reconnect();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(handler).not.toHaveBeenCalled();
+
+        streamrController.init = originalInit;
+        spies.forEach((spy) => spy.mockRestore());
+    });
+
+    it('a node start that never settles does not hold the next replacement back', async () => {
+        const originalInit = streamrController.init.bind(streamrController);
+        const spies = quietRevival();
+        streamrController.init = initWithNode(() => new Promise(() => {}));
+
+        expect(await streamrController.reconnect()).toBe(true);
+        expect(await streamrController.reconnect()).toBe(true);
+
+        expect(streamrController.init).toHaveBeenCalledTimes(2);
+
+        streamrController.init = originalInit;
+        spies.forEach((spy) => spy.mockRestore());
+    });
+
+    it('gives up when the account changes while the old client stops', async () => {
+        const originalInit = streamrController.init.bind(streamrController);
+        streamrController.init = vi.fn().mockResolvedValue(true);
+        const handler = vi.fn();
+        streamrController.onClientReplaced(handler);
+        let stopped;
+        mockClient.destroy.mockReturnValue(new Promise((resolve) => { stopped = resolve; }));
+
+        const done = streamrController.reconnect();
+        await vi.waitFor(() => expect(mockClient.destroy).toHaveBeenCalled());
+        await streamrController.disconnect();
+        stopped();
+        await done;
+
+        expect(streamrController.init).not.toHaveBeenCalled();
+        expect(handler).not.toHaveBeenCalled();
+
+        streamrController.init = originalInit;
+    });
+
+    it('does not wait on an old client that never finishes stopping', async () => {
+        vi.useFakeTimers();
+        const originalInit = streamrController.init.bind(streamrController);
+        streamrController.init = vi.fn().mockResolvedValue(true);
+        mockClient.destroy.mockReturnValue(new Promise(() => {}));
+
+        const done = streamrController.reconnect();
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(await done).toBe(true);
+        expect(streamrController.init).toHaveBeenCalledTimes(1);
+
+        streamrController.init = originalInit;
     });
 
     it('should return true on successful reconnect', async () => {
