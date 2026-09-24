@@ -1,0 +1,376 @@
+{
+  "merge": [
+    {
+      "what": "an unstamped empty snapshot never erases unstamped values",
+      "base": {
+        "blockedPeers": [
+          "0x00000000000000000000000000000000000000b1"
+        ],
+        "dmLeftAt": {
+          "0x00000000000000000000000000000000000000d1": 1788000000000
+        },
+        "trustedContacts": {
+          "0x00000000000000000000000000000000000000c1": {
+            "nickname": "Carol",
+            "addedAt": 1788000000000
+          }
+        },
+        "username": "Bob",
+        "graphApiKey": "key-restored",
+        "sliceTs": {}
+      },
+      "incoming": {
+        "blockedPeers": [],
+        "dmLeftAt": {},
+        "trustedContacts": {},
+        "username": null,
+        "graphApiKey": null,
+        "sliceTs": {}
+      },
+      "expected": {
+        "blockedPeers": [
+          "0x00000000000000000000000000000000000000b1"
+        ],
+        "dmLeftAt": {
+          "0x00000000000000000000000000000000000000d1": 1788000000000
+        },
+        "trustedContacts": {
+          "0x00000000000000000000000000000000000000c1": {
+            "nickname": "Carol",
+            "addedAt": 1788000000000
+          }
+        },
+        "username": "Bob",
+        "graphApiKey": "key-restored",
+        "sliceTs": {
+          "graphApiKey": 0,
+          "blockedPeers": 0,
+          "dmLeftAt": 0,
+          "trustedContacts": 0,
+          "username": 0
+        }
+      }
+    },
+    {
+      "what": "unstamped values still reach a device that holds nothing",
+      "base": {
+        "blockedPeers": [],
+        "dmLeftAt": {},
+        "trustedContacts": {},
+        "username": null,
+        "graphApiKey": null,
+        "sliceTs": {}
+      },
+      "incoming": {
+        "blockedPeers": [
+          "0x00000000000000000000000000000000000000b1"
+        ],
+        "dmLeftAt": {
+          "0x00000000000000000000000000000000000000d1": 1788000000000
+        },
+        "trustedContacts": {
+          "0x00000000000000000000000000000000000000c1": {
+            "nickname": "Carol",
+            "addedAt": 1788000000000
+          }
+        },
+        "username": "Bob",
+        "graphApiKey": "key-restored",
+        "sliceTs": {}
+      },
+      "expected": {
+        "blockedPeers": [
+          "0x00000000000000000000000000000000000000b1"
+        ],
+        "dmLeftAt": {
+          "0x00000000000000000000000000000000000000d1": 1788000000000
+        },
+        "trustedContacts": {
+          "0x00000000000000000000000000000000000000c1": {
+            "nickname": "Carol",
+            "addedAt": 1788000000000
+          }
+        },
+        "username": "Bob",
+        "graphApiKey": "key-restored",
+        "sliceTs": {
+          "graphApiKey": 0,
+          "blockedPeers": 0,
+          "dmLeftAt": 0,
+          "trustedContacts": 0,
+          "username": 0
+        }
+      }
+    },
+    {
+      "what": "values stamped by the restore floor beat an empty snapshot",
+      "base": {
+        "blockedPeers": [
+          "0x00000000000000000000000000000000000000b1"
+        ],
+        "dmLeftAt": {
+          "0x00000000000000000000000000000000000000d1": 1788000000000
+        },
+        "trustedContacts": {
+          "0x00000000000000000000000000000000000000c1": {
+            "nickname": "Carol",
+            "addedAt": 1788000000000
+          }
+        },
+        "username": "Bob",
+        "graphApiKey": "key-restored",
+        "sliceTs": {
+          "blockedPeers": 1,
+          "dmLeftAt": 1,
+          "trustedContacts": 1,
+          "username": 1,
+          "graphApiKey": 1
+        }
+      },
+      "incoming": {
+        "blockedPeers": [],
+        "dmLeftAt": {},
+        "trustedContacts": {},
+        "username": null,
+        "graphApiKey": null,
+        "sliceTs": {}
+      },
+      "expected": {
+        "blockedPeers": [
+          "0x00000000000000000000000000000000000000b1"
+        ],
+        "dmLeftAt": {
+          "0x00000000000000000000000000000000000000d1": 1788000000000
+        },
+        "trustedContacts": {
+          "0x00000000000000000000000000000000000000c1": {
+            "nickname": "Carol",
+            "addedAt": 1788000000000
+          }
+        },
+        "username": "Bob",
+        "graphApiKey": "key-restored",
+        "sliceTs": {
+          "graphApiKey": 1,
+          "blockedPeers": 1,
+          "dmLeftAt": 1,
+          "trustedContacts": 1,
+          "username": 1
+        }
+      }
+    },
+    {
+      "what": "a stamped clear still propagates over older values",
+      "base": {
+        "blockedPeers": [
+          "0x00000000000000000000000000000000000000b1"
+        ],
+        "dmLeftAt": {
+          "0x00000000000000000000000000000000000000d1": 1788000000000
+        },
+        "trustedContacts": {
+          "0x00000000000000000000000000000000000000c1": {
+            "nickname": "Carol",
+            "addedAt": 1788000000000
+          }
+        },
+        "username": "Bob",
+        "graphApiKey": "key-restored",
+        "sliceTs": {
+          "blockedPeers": 100,
+          "dmLeftAt": 100,
+          "trustedContacts": 100,
+          "username": 100,
+          "graphApiKey": 100
+        }
+      },
+      "incoming": {
+        "blockedPeers": [],
+        "dmLeftAt": {},
+        "trustedContacts": {},
+        "username": null,
+        "graphApiKey": null,
+        "sliceTs": {
+          "blockedPeers": 200,
+          "dmLeftAt": 200,
+          "trustedContacts": 200,
+          "username": 200,
+          "graphApiKey": 200
+        }
+      },
+      "expected": {
+        "blockedPeers": [],
+        "dmLeftAt": {},
+        "trustedContacts": {},
+        "username": null,
+        "graphApiKey": null,
+        "sliceTs": {
+          "graphApiKey": 200,
+          "blockedPeers": 200,
+          "dmLeftAt": 200,
+          "trustedContacts": 200,
+          "username": 200
+        }
+      }
+    },
+    {
+      "what": "a newer local stamp keeps its value against an older remote one",
+      "base": {
+        "blockedPeers": [
+          "0x00000000000000000000000000000000000000b1"
+        ],
+        "dmLeftAt": {
+          "0x00000000000000000000000000000000000000d1": 1788000000000
+        },
+        "trustedContacts": {
+          "0x00000000000000000000000000000000000000c1": {
+            "nickname": "Carol",
+            "addedAt": 1788000000000
+          }
+        },
+        "username": "Bob",
+        "graphApiKey": "key-restored",
+        "sliceTs": {
+          "blockedPeers": 300,
+          "dmLeftAt": 300,
+          "trustedContacts": 300,
+          "username": 300,
+          "graphApiKey": 300
+        }
+      },
+      "incoming": {
+        "blockedPeers": [],
+        "dmLeftAt": {},
+        "trustedContacts": {},
+        "username": "Robert",
+        "graphApiKey": null,
+        "sliceTs": {
+          "username": 200
+        }
+      },
+      "expected": {
+        "blockedPeers": [
+          "0x00000000000000000000000000000000000000b1"
+        ],
+        "dmLeftAt": {
+          "0x00000000000000000000000000000000000000d1": 1788000000000
+        },
+        "trustedContacts": {
+          "0x00000000000000000000000000000000000000c1": {
+            "nickname": "Carol",
+            "addedAt": 1788000000000
+          }
+        },
+        "username": "Bob",
+        "graphApiKey": "key-restored",
+        "sliceTs": {
+          "graphApiKey": 300,
+          "blockedPeers": 300,
+          "dmLeftAt": 300,
+          "trustedContacts": 300,
+          "username": 300
+        }
+      }
+    },
+    {
+      "what": "between two unstamped values the incoming one wins",
+      "base": {
+        "blockedPeers": [
+          "0x00000000000000000000000000000000000000b1"
+        ],
+        "dmLeftAt": {
+          "0x00000000000000000000000000000000000000d1": 1788000000000
+        },
+        "trustedContacts": {
+          "0x00000000000000000000000000000000000000c1": {
+            "nickname": "Carol",
+            "addedAt": 1788000000000
+          }
+        },
+        "username": "Bob",
+        "graphApiKey": "key-restored",
+        "sliceTs": {}
+      },
+      "incoming": {
+        "blockedPeers": [
+          "0x00000000000000000000000000000000000000b2"
+        ],
+        "dmLeftAt": {
+          "0x00000000000000000000000000000000000000d1": 1788000000000
+        },
+        "trustedContacts": {
+          "0x00000000000000000000000000000000000000c1": {
+            "nickname": "Carol",
+            "addedAt": 1788000000000
+          }
+        },
+        "username": "Robert",
+        "graphApiKey": "key-restored",
+        "sliceTs": {}
+      },
+      "expected": {
+        "blockedPeers": [
+          "0x00000000000000000000000000000000000000b2"
+        ],
+        "dmLeftAt": {
+          "0x00000000000000000000000000000000000000d1": 1788000000000
+        },
+        "trustedContacts": {
+          "0x00000000000000000000000000000000000000c1": {
+            "nickname": "Carol",
+            "addedAt": 1788000000000
+          }
+        },
+        "username": "Robert",
+        "graphApiKey": "key-restored",
+        "sliceTs": {
+          "graphApiKey": 0,
+          "blockedPeers": 0,
+          "dmLeftAt": 0,
+          "trustedContacts": 0,
+          "username": 0
+        }
+      }
+    }
+  ],
+  "stamp": [
+    {
+      "what": "values without a stamp take the floor; empties and real stamps are left alone",
+      "state": {
+        "blockedPeers": [
+          "0x00000000000000000000000000000000000000b1"
+        ],
+        "dmLeftAt": {},
+        "trustedContacts": {
+          "0x00000000000000000000000000000000000000c1": {
+            "nickname": "Carol",
+            "addedAt": 1788000000000
+          }
+        },
+        "username": "Bob",
+        "graphApiKey": "key-restored",
+        "sliceTs": {
+          "trustedContacts": 1789000000000
+        }
+      },
+      "sliceTs": {
+        "trustedContacts": 1789000000000,
+        "blockedPeers": 1,
+        "username": 1,
+        "graphApiKey": 1
+      }
+    },
+    {
+      "what": "a snapshot that holds nothing stays unstamped",
+      "state": {
+        "blockedPeers": [],
+        "dmLeftAt": {},
+        "trustedContacts": {},
+        "username": null,
+        "graphApiKey": null,
+        "sliceTs": {}
+      },
+      "sliceTs": {}
+    }
+  ]
+}

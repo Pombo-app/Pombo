@@ -420,21 +420,49 @@ describe('syncManager', () => {
             
             const syncPayload = { type: 'sync', v: 1, ts: 1000, data: { channels: ['ch1'] } };
             dmCrypto.decrypt.mockResolvedValue(syncPayload);
-            secureStorage.importFromSync.mockResolvedValue({
-                hasChanges: true,
-                channelsUpdated: true,
-                contactsUpdated: false,
-                blockedPeersUpdated: false,
-                usernameUpdated: false
+            secureStorage.importFromSync.mockImplementation(async (data, { onChannelsWritten } = {}) => {
+                onChannelsWritten?.();
+                return {
+                    hasChanges: true,
+                    channelsUpdated: true,
+                    contactsUpdated: false,
+                    blockedPeersUpdated: false,
+                    usernameUpdated: false
+                };
             });
-            
+
             streamrController.fetchPartitionHistory.mockResolvedValue([
                 { content: { ct: 'enc' }, publisherId: '0xABC123', timestamp: 1000 }
             ]);
-            
+
             await syncManager.pullSync();
-            
+
             expect(channelManager.reloadChannelsFromSync).toHaveBeenCalled();
+        });
+
+        it('reloads the channel map before the import yields, so a concurrent save cannot overwrite it', async () => {
+            authManager.wallet = { privateKey: '0x1234' };
+            authManager.getAddress.mockReturnValue('0xabc123');
+            dmCrypto.decrypt.mockResolvedValue({ type: 'sync', v: 1, ts: 1000, data: { channels: ['ch1'] } });
+            const order = [];
+            secureStorage.importFromSync.mockImplementation(async (data, { onChannelsWritten } = {}) => {
+                order.push('cache written');
+                onChannelsWritten?.();
+                await Promise.resolve();
+                order.push('import yielded');
+                return { hasChanges: true, channelsUpdated: true };
+            });
+            channelManager.reloadChannelsFromSync.mockImplementation(() => {
+                order.push('map reloaded');
+                return { currentChannelRemoved: false };
+            });
+            streamrController.fetchPartitionHistory.mockResolvedValue([
+                { content: { ct: 'enc' }, publisherId: '0xABC123', timestamp: 1000 }
+            ]);
+
+            await syncManager.pullSync();
+
+            expect(order).toEqual(['cache written', 'map reloaded', 'import yielded']);
         });
 
         it('should expose currentChannelRemoved in sync_pulled changes', async () => {
@@ -444,12 +472,15 @@ describe('syncManager', () => {
             const syncPayload = { type: 'sync', v: 1, ts: 1000, data: { channels: ['ch1'] } };
             const handler = vi.fn();
             dmCrypto.decrypt.mockResolvedValue(syncPayload);
-            secureStorage.importFromSync.mockResolvedValue({
-                hasChanges: true,
-                channelsUpdated: true,
-                contactsUpdated: false,
-                blockedPeersUpdated: false,
-                usernameUpdated: false
+            secureStorage.importFromSync.mockImplementation(async (data, { onChannelsWritten } = {}) => {
+                onChannelsWritten?.();
+                return {
+                    hasChanges: true,
+                    channelsUpdated: true,
+                    contactsUpdated: false,
+                    blockedPeersUpdated: false,
+                    usernameUpdated: false
+                };
             });
             channelManager.reloadChannelsFromSync.mockReturnValue({
                 currentChannelRemoved: true,
@@ -869,10 +900,10 @@ describe('syncManager', () => {
 
         it('should clear username if incoming latest snapshot removes it', () => {
             const base = { username: 'old' };
-            const incoming = { username: null };
-            
+            const incoming = { username: null, sliceTs: { username: 10 } };
+
             const result = syncManager.mergeState(base, incoming);
-            
+
             expect(result.username).toBe(null);
         });
 
@@ -956,11 +987,22 @@ describe('syncManager', () => {
 
         it('should propagate clearDMLeftAt via latest-wins', () => {
             const base = { dmLeftAt: { '0xaaa': 100, '0xbbb': 200 } };
-            const incoming = { dmLeftAt: {} }; // all cleared remotely
+            const incoming = { dmLeftAt: {}, sliceTs: { dmLeftAt: 300 } }; // all cleared remotely
 
             const result = syncManager.mergeState(base, incoming);
 
             expect(result.dmLeftAt).toEqual({});
+        });
+
+        it('should not let an unstamped empty snapshot erase unstamped values', () => {
+            const base = { dmLeftAt: { '0xaaa': 100 }, trustedContacts: { '0x1': { nickname: 'c' } }, username: 'Bob' };
+            const incoming = { dmLeftAt: {}, trustedContacts: {}, username: null, sliceTs: {} };
+
+            const result = syncManager.mergeState(base, incoming);
+
+            expect(result.dmLeftAt).toEqual({ '0xaaa': 100 });
+            expect(result.trustedContacts).toEqual({ '0x1': { nickname: 'c' } });
+            expect(result.username).toBe('Bob');
         });
 
         it('should keep a locally newer timestamped slice over an older incoming snapshot', () => {

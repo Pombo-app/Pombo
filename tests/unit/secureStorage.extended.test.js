@@ -818,6 +818,17 @@ describe('secureStorage extended', () => {
             secureStorage.cache = null;
             expect(() => secureStorage.exportForSync()).toThrow('Storage not unlocked');
         });
+
+        it('stamps values that carry no stamp with the floor, in both exports', () => {
+            secureStorage.initAsGuest('0xStampFloor');
+            secureStorage.cache.username = 'Bob';
+            secureStorage.cache.trustedContacts = { '0x1': { nickname: 'c' } };
+            secureStorage.cache.sliceTs = { trustedContacts: 5 };
+
+            expect(secureStorage.exportForSync().sliceTs).toEqual({ trustedContacts: 5, username: 1 });
+            expect(secureStorage.exportForBackup().sliceTs).toEqual({ trustedContacts: 5, username: 1 });
+            expect(secureStorage.cache.sliceTs).toEqual({ trustedContacts: 5 });
+        });
     });
 
     // ==================== importFromSync edge cases ====================
@@ -826,6 +837,18 @@ describe('secureStorage extended', () => {
             secureStorage.isUnlocked = true;
             secureStorage.cache = null;
             await expect(secureStorage.importFromSync({})).rejects.toThrow('Storage not unlocked');
+        });
+
+        it('reports the channel write synchronously, and only when channels change', async () => {
+            secureStorage.initAsGuest('0xImportHook');
+            const seen = [];
+            const onChannelsWritten = () => seen.push(secureStorage.cache.channels.length);
+
+            const first = secureStorage.importFromSync({ channels: [{ messageStreamId: 's/a-1' }] }, { onChannelsWritten });
+            expect(seen).toEqual([1]);
+            await first;
+            await secureStorage.importFromSync({ channels: [{ messageStreamId: 's/a-1' }] }, { onChannelsWritten });
+            expect(seen).toEqual([1]);
         });
     });
 

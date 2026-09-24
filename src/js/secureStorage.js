@@ -13,6 +13,7 @@ import { Logger } from './logger.js';
 import { CONFIG } from './config.js';
 import { StorageError } from './utils/errors.js';
 import { cryptoWorkerPool } from './workers/cryptoWorkerPool.js';
+import { stampedSliceTs } from './syncMerge.js';
 
 class SecureStorage {
     constructor() {
@@ -1700,7 +1701,7 @@ class SecureStorage {
             ensCache: this.cache.ensCache || {},
             username: this.cache.username || null,
             graphApiKey: this.cache.graphApiKey || null,
-            sliceTs: this.cache.sliceTs || {}
+            sliceTs: stampedSliceTs(this.cache)
         };
     }
 
@@ -1708,9 +1709,13 @@ class SecureStorage {
      * Import merged state from sync.
      * Replaces local state with merged data from sync process.
      * @param {Object} data - Merged state from syncManager
+     * @param {Object} [options]
+     * @param {Function} [options.onChannelsWritten] - Called synchronously right after
+     *   the channel slice is written, before any await: the channel map has to be
+     *   reloaded in that same tick (a concurrent saveChannels() writes the map over it).
      * @returns {Promise<Object>} - Change summary for imported state slices
      */
-    async importFromSync(data) {
+    async importFromSync(data, { onChannelsWritten } = {}) {
         if (!this.isUnlocked || !this.cache) {
             throw new Error('Storage not unlocked');
         }
@@ -1741,6 +1746,7 @@ class SecureStorage {
                 this.cache.channels = data.channels;
                 changes.channelsUpdated = true;
                 changes.hasChanges = true;
+                onChannelsWritten?.();
             }
         }
         if (data.channelsLeftAt !== undefined && !isEqual(this.cache.channelsLeftAt, data.channelsLeftAt)) {
@@ -2040,7 +2046,7 @@ class SecureStorage {
             ensCache: this.cache.ensCache || {},
             username: this.cache.username || null,
             graphApiKey: this.cache.graphApiKey || null,
-            sliceTs: this.cache.sliceTs || {}
+            sliceTs: stampedSliceTs(this.cache)
         };
     }
 
