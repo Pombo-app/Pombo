@@ -98,6 +98,7 @@ class App {
             });
 
             streamrController.onClientReplaced(() => this.resumeAfterClientReplaced());
+            streamrController.onNodeStateChange((up) => headerUI.setNetworkDown(!up));
 
             // Wire wallet flows with app-level callbacks
             walletFlows.init({
@@ -413,6 +414,7 @@ class App {
             
             headerUI.updateWalletInfo(null);
             headerUI.updateNetworkStatus('Disconnected', false);
+            headerUI.setNetworkDown(false);
             uiController.renderChannelList();
             uiController.resetToDisconnectedState();
             
@@ -427,6 +429,7 @@ class App {
             Logger.error('Error disconnecting:', error);
             headerUI.updateWalletInfo(null);
             headerUI.updateNetworkStatus('Disconnected', false);
+            headerUI.setNetworkDown(false);
             uiController.resetToDisconnectedState();
             uiController.showNotification('Error disconnecting: ' + error.message, 'error');
         }
@@ -468,6 +471,7 @@ class App {
 
             headerUI.updateWalletInfo(address, isGuest);
             headerUI.updateNetworkStatus('Connecting to Streamr...', false);
+            headerUI.setNetworkDown(true);
 
             // Bell menu (invites + active transfers): shown the moment the
             // connected UI paints. It used to init at the END of this flow,
@@ -530,6 +534,7 @@ class App {
             const streamrAddress = await streamrController.getAddress();
             Logger.info('Streamr connected with address:', streamrAddress);
             headerUI.updateNetworkStatus('Connected to Streamr', true);
+            headerUI.setNetworkDown(false);
 
             try {
                 await identityManager.init();
@@ -693,6 +698,7 @@ class App {
         } catch (error) {
             Logger.error('Failed to initialize after wallet connection:', error);
             headerUI.updateNetworkStatus('Failed to connect to Streamr', false);
+            headerUI.setNetworkDown(true);
             throw error;
         }
     }

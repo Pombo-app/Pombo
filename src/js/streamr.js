@@ -123,6 +123,7 @@ class StreamrController {
         this._writers = new Map();       // streamId -> { public, writers:Set, ts }
         this._writerFetches = new Map(); // streamId -> in-flight promise
         this._clientReplacedHandlers = [];
+        this._nodeStateHandlers = [];
         this._replacing = Promise.resolve();
         this._session = 0;
         this.revival = new NodeRevival({
@@ -328,12 +329,19 @@ class StreamrController {
         client.getNodeId().then(() => {
             if (this.client !== client) return;
             this.revival.onAlive();
+            this._nodeStateHandlers.forEach((handler) => handler(true));
             if (resubscribe) this._resubscribe(client);
         }, (error) => {
             if (this.client !== client) return;
             Logger.warn('Streamr node failed to start:', error?.message || error);
             this.revival.onDead();
+            this._nodeStateHandlers.forEach((handler) => handler(false));
         });
+    }
+
+    /** Called with true when a client's node comes up, false when its start fails. */
+    onNodeStateChange(handler) {
+        this._nodeStateHandlers.push(handler);
     }
 
     /** One JSON-RPC round trip to any of the chosen endpoints. */

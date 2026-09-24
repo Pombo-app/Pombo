@@ -80,7 +80,10 @@
         <!-- Left side: Logo and brand -->
         <div class="flex items-center gap-3">
             <!-- Logo -->
-            <img src="favicon/favicon.svg" alt="Pombo" class="w-12 h-12 header-logo">
+            <span class="header-logo-wrap">
+                <img src="favicon/favicon.svg" alt="Pombo" class="w-12 h-12 header-logo">
+                <span class="network-dot" role="status" aria-label="Connecting to the network" title="Connecting…"></span>
+            </span>
             <!-- Pombo name -->
             <div class="flex flex-col">
                 <span class="text-[17px] font-extrabold text-white tracking-tight leading-tight">Pombo</span>
@@ -453,7 +456,8 @@
                         <div class="relative inline-flex items-center">
                             <button id="online-header" class="hidden items-center gap-1 hover:text-white/70 transition">
                                 <span id="online-users-count">0</span>
-                                <span>Online</span>
+                                <span class="online-word">Online</span>
+                                <span class="online-connecting">Connecting…</span>
                             </button>
                             <div id="online-users-list" class="absolute top-full left-0 mt-1 w-56 bg-[#1e1e1e] border border-white/10 rounded-xl p-3 z-20 hidden max-h-48 overflow-y-auto">
                                 <div class="text-white/30 text-sm text-center">No one online</div>
