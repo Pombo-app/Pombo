@@ -838,6 +838,18 @@ describe('secureStorage extended', () => {
             secureStorage.cache = null;
             await expect(secureStorage.importFromSync({})).rejects.toThrow('Storage not unlocked');
         });
+
+        it('reports the channel write synchronously, and only when channels change', async () => {
+            secureStorage.initAsGuest('0xImportHook');
+            const seen = [];
+            const onChannelsWritten = () => seen.push(secureStorage.cache.channels.length);
+
+            const first = secureStorage.importFromSync({ channels: [{ messageStreamId: 's/a-1' }] }, { onChannelsWritten });
+            expect(seen).toEqual([1]);
+            await first;
+            await secureStorage.importFromSync({ channels: [{ messageStreamId: 's/a-1' }] }, { onChannelsWritten });
+            expect(seen).toEqual([1]);
+        });
     });
 
     // ==================== getChannelLastAccess emergency sync ====================

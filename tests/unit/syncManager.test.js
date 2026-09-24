@@ -420,21 +420,49 @@ describe('syncManager', () => {
             
             const syncPayload = { type: 'sync', v: 1, ts: 1000, data: { channels: ['ch1'] } };
             dmCrypto.decrypt.mockResolvedValue(syncPayload);
-            secureStorage.importFromSync.mockResolvedValue({
-                hasChanges: true,
-                channelsUpdated: true,
-                contactsUpdated: false,
-                blockedPeersUpdated: false,
-                usernameUpdated: false
+            secureStorage.importFromSync.mockImplementation(async (data, { onChannelsWritten } = {}) => {
+                onChannelsWritten?.();
+                return {
+                    hasChanges: true,
+                    channelsUpdated: true,
+                    contactsUpdated: false,
+                    blockedPeersUpdated: false,
+                    usernameUpdated: false
+                };
             });
-            
+
             streamrController.fetchPartitionHistory.mockResolvedValue([
                 { content: { ct: 'enc' }, publisherId: '0xABC123', timestamp: 1000 }
             ]);
-            
+
             await syncManager.pullSync();
-            
+
             expect(channelManager.reloadChannelsFromSync).toHaveBeenCalled();
+        });
+
+        it('reloads the channel map before the import yields, so a concurrent save cannot overwrite it', async () => {
+            authManager.wallet = { privateKey: '0x1234' };
+            authManager.getAddress.mockReturnValue('0xabc123');
+            dmCrypto.decrypt.mockResolvedValue({ type: 'sync', v: 1, ts: 1000, data: { channels: ['ch1'] } });
+            const order = [];
+            secureStorage.importFromSync.mockImplementation(async (data, { onChannelsWritten } = {}) => {
+                order.push('cache written');
+                onChannelsWritten?.();
+                await Promise.resolve();
+                order.push('import yielded');
+                return { hasChanges: true, channelsUpdated: true };
+            });
+            channelManager.reloadChannelsFromSync.mockImplementation(() => {
+                order.push('map reloaded');
+                return { currentChannelRemoved: false };
+            });
+            streamrController.fetchPartitionHistory.mockResolvedValue([
+                { content: { ct: 'enc' }, publisherId: '0xABC123', timestamp: 1000 }
+            ]);
+
+            await syncManager.pullSync();
+
+            expect(order).toEqual(['cache written', 'map reloaded', 'import yielded']);
         });
 
         it('should expose currentChannelRemoved in sync_pulled changes', async () => {
@@ -444,12 +472,15 @@ describe('syncManager', () => {
             const syncPayload = { type: 'sync', v: 1, ts: 1000, data: { channels: ['ch1'] } };
             const handler = vi.fn();
             dmCrypto.decrypt.mockResolvedValue(syncPayload);
-            secureStorage.importFromSync.mockResolvedValue({
-                hasChanges: true,
-                channelsUpdated: true,
-                contactsUpdated: false,
-                blockedPeersUpdated: false,
-                usernameUpdated: false
+            secureStorage.importFromSync.mockImplementation(async (data, { onChannelsWritten } = {}) => {
+                onChannelsWritten?.();
+                return {
+                    hasChanges: true,
+                    channelsUpdated: true,
+                    contactsUpdated: false,
+                    blockedPeersUpdated: false,
+                    usernameUpdated: false
+                };
             });
             channelManager.reloadChannelsFromSync.mockReturnValue({
                 currentChannelRemoved: true,

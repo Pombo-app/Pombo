@@ -637,14 +637,13 @@ class SyncManager {
 
             // Apply final merged state
             const importStartedAt = getNow();
-            const importResult = await secureStorage.importFromSync(merged);
+            let reloadResult = null;
+            const importResult = await secureStorage.importFromSync(merged, {
+                onChannelsWritten: () => { reloadResult = channelManager.reloadChannelsFromSync(); }
+            });
             const importCompletedAt = getNow();
-            importResult.currentChannelRemoved = false;
-
-            // Reload channelManager if channels were updated
-            if (importResult.channelsUpdated) {
-                const reloadResult = channelManager.reloadChannelsFromSync();
-                importResult.currentChannelRemoved = !!reloadResult.currentChannelRemoved;
+            importResult.currentChannelRemoved = !!reloadResult?.currentChannelRemoved;
+            if (reloadResult) {
                 Logger.info('Sync: Reloaded channel list from sync snapshot', reloadResult);
             }
 
