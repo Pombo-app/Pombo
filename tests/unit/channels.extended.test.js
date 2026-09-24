@@ -587,6 +587,19 @@ describe('ChannelManager Extended', () => {
             flags.mockRestore();
         });
 
+        it("a failed roster read keeps the last sweep's addresses among the gate candidates", async () => {
+            const { gateManager } = await import('../../src/js/gate.js');
+            epochKeyManager.getRosterMembers.mockRejectedValueOnce(new Error('keys resend timed out'));
+            channel.accessSnapshot = ['0xmyaddress', '0xmember2'];
+            channel.rotatedForNoAccess = ['0xmember3'];
+            gateManager.getGateMembers.mockClear();
+
+            await channelManager.getGateMemberFlags(streamId);
+
+            expect(gateManager.getGateMembers.mock.calls[0][1])
+                .toEqual(expect.arrayContaining(['0xmember2', '0xmember3']));
+        });
+
         it('a ban whose rotation goes out owes nothing', async () => {
             epochKeyManager.rotateEpoch.mockResolvedValue(undefined);
 

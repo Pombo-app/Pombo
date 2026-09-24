@@ -247,6 +247,10 @@ export class Membership {
                 // out of the candidate set and the Moderation list loses the
                 // one entry it exists to show.
                 ...(channel.knownBanned || []),
+                // A failed roster read must not drop anyone the last sweep saw, or the
+                // snapshot shrinks and a later loss of access never rotates.
+                ...(channel.accessSnapshot || []),
+                ...(channel.rotatedForNoAccess || channel.rotatedForBanned || []),
                 ...epochKeyManager.getSeenRequesters(channel.messageStreamId),
                 ...roster.map(m => m.account),
                 ...onChain
