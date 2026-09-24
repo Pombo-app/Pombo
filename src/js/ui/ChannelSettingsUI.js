@@ -1834,7 +1834,12 @@ class ChannelSettingsUI {
 
             case 'ban': {
                 const { channelModalsUI } = await import('./ChannelModalsUI.js');
-                channelModalsUI.showBanMemberModal(address, currentChannel);
+                channelModalsUI.showBanMemberModal(address, currentChannel, {
+                    onBanned: () => {
+                        this.loadMembers();
+                        if (this.showModerationTab) this.loadBannedMembers(currentChannel);
+                    }
+                });
                 break;
             }
         }

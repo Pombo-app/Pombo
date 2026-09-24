@@ -746,8 +746,10 @@ class ChannelModalsUI {
      *
      * @param {string} address - Who to ban
      * @param {Object} channel - The open channel
+     * @param {Object} [options]
+     * @param {() => void} [options.onBanned] - runs once the ban went through
      */
-    showBanMemberModal(address, channel) {
+    showBanMemberModal(address, channel, { onBanned } = {}) {
         const gated = !!channel?.gate?.address;
         const me = authManager.getAddress()?.toLowerCase();
         const canClientBan = !!me && me === channel?.createdBy?.toLowerCase();
@@ -828,6 +830,7 @@ class ChannelModalsUI {
                 } finally {
                     this.notificationUI?.hideLoadingToast();
                 }
+                onBanned?.();
                 if (!erase) return;
                 try {
                     this.notificationUI?.showLoadingToast('Erasing from storage…', 'Locating their messages and files');
