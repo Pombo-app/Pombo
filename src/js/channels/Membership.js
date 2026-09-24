@@ -55,6 +55,7 @@ export class Membership {
             channel.members.push(address);
             await this.manager.saveChannels();
             Logger.info('Member allowed on gate:', address);
+            this._answerWaitingRequests(channel);
             return true;
         } catch (error) {
             Logger.error('Failed to allow member on gate:', error);
@@ -84,6 +85,7 @@ export class Membership {
             channel.members.push(...fresh);
             await this.manager.saveChannels();
             Logger.info(`Gate: ${fresh.length} member(s) allowed in one tx`);
+            this._answerWaitingRequests(channel);
             return true;
         } catch (error) {
             Logger.error('Failed to allow members on gate:', error);
@@ -175,6 +177,16 @@ export class Membership {
     }
 
     /**
+     * Answer the key requests storage holds for the channel now. The SDK keeps
+     * refusing a just-readmitted member's live requests for up to ten minutes;
+     * the stored copies are read raw, past that check.
+     */
+    _answerWaitingRequests(channel) {
+        epochKeyManager.ensureChannelKeys(channel).catch((e) =>
+            Logger.warn('Answering the stored key requests failed:', e?.message));
+    }
+
+    /**
      * Lift whichever bans the address carries. The gate ban costs a
      * transaction, so it is only sent when the contract really has them
      * banned; the free ADMIN_STATE entry is cleared alongside.
@@ -193,6 +205,7 @@ export class Membership {
                 } catch (error) {
                     throw new Error(parseChainError(error).message);
                 }
+                this._answerWaitingRequests(channel);
             }
         }
         // Ban entries are { address, sinceEpoch }; older snapshots may still

@@ -261,6 +261,15 @@ describe('ChannelManager Extended', () => {
             expect(channel.members).toContain('0xnewmember');
         });
 
+        it('answers the key requests storage holds once the member is allowed', async () => {
+            const { epochKeyManager } = await import('../../src/js/epochKeyManager.js');
+            epochKeyManager.ensureChannelKeys.mockClear();
+
+            await channelManager.addMember(streamId, '0xnewmember');
+
+            expect(epochKeyManager.ensureChannelKeys).toHaveBeenCalledWith(channelManager.channels.get(streamId));
+        });
+
         it('saves channels after update', async () => {
             const saveSpy = vi.spyOn(channelManager, 'saveChannels').mockResolvedValue(undefined);
             await channelManager.addMember(streamId, '0xnewmember');
@@ -432,6 +441,28 @@ describe('ChannelManager Extended', () => {
             expect(gateManager.unban).toHaveBeenCalledWith('0xgate', '0xmember1');
             // The free client ban is always cleared alongside.
             expect(unbanSpy).toHaveBeenCalledWith(streamId, '0xmember1');
+        });
+
+        it('an unban on the gate answers the key requests storage holds', async () => {
+            const { gateManager } = await import('../../src/js/gate.js');
+            const { epochKeyManager } = await import('../../src/js/epochKeyManager.js');
+            gateManager.getGateMembers.mockResolvedValue([{ address: '0xmember1', banned: true }]);
+            epochKeyManager.ensureChannelKeys.mockClear();
+
+            await channelManager.unbanMemberLevels(streamId, '0xmember1');
+
+            expect(epochKeyManager.ensureChannelKeys).toHaveBeenCalledWith(channelManager.channels.get(streamId));
+        });
+
+        it('lifting only the client ban reads nothing from storage', async () => {
+            const { epochKeyManager } = await import('../../src/js/epochKeyManager.js');
+            vi.spyOn(channelManager, 'unbanMember').mockResolvedValue(true);
+            channelManager.channels.get(streamId).adminState.bannedMembers = ['0xmember1'];
+            epochKeyManager.ensureChannelKeys.mockClear();
+
+            await channelManager.unbanMemberLevels(streamId, '0xmember1');
+
+            expect(epochKeyManager.ensureChannelKeys).not.toHaveBeenCalled();
         });
     });
 
