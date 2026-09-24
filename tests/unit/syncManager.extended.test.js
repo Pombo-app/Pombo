@@ -134,6 +134,10 @@ describe('syncManager extended', () => {
 
     // ==================== smartSync ====================
     describe('smartSync()', () => {
+        beforeEach(() => {
+            syncManager.markDirty();
+        });
+
         it('should skip in guest mode', async () => {
             authManager.isGuestMode.mockReturnValue(true);
             const result = await syncManager.smartSync();
@@ -144,6 +148,45 @@ describe('syncManager extended', () => {
             dmManager.hasInbox.mockResolvedValue(false);
             const result = await syncManager.smartSync();
             expect(result).toEqual({ pulled: false, pushed: false, noInbox: true });
+        });
+
+        describe('with nothing waiting to push', () => {
+            beforeEach(() => {
+                syncManager.clearDirty();
+            });
+
+            it('reads before it publishes', async () => {
+                const pullSpy = vi.spyOn(syncManager, 'pullSync').mockResolvedValue({ merged: true });
+                const pushSpy = vi.spyOn(syncManager, 'pushSync').mockResolvedValue({ type: 'sync', v: 1, ts: 1 });
+                vi.spyOn(syncManager, 'pushImageBlobs').mockResolvedValue(undefined);
+                vi.spyOn(syncManager, 'pullImageBlobs').mockResolvedValue(undefined);
+
+                const result = await syncManager.smartSync();
+
+                expect(pullSpy).toHaveBeenCalledWith(undefined);
+                expect(pullSpy.mock.invocationCallOrder[0]).toBeLessThan(pushSpy.mock.invocationCallOrder[0]);
+                expect(result).toEqual({ pulled: true, pushed: true, noInbox: false });
+            });
+
+            it('still publishes when there is no remote state yet', async () => {
+                vi.spyOn(syncManager, 'pullSync').mockResolvedValue(null);
+                const pushSpy = vi.spyOn(syncManager, 'pushSync').mockResolvedValue(undefined);
+                vi.spyOn(syncManager, 'pushImageBlobs').mockResolvedValue(undefined);
+                vi.spyOn(syncManager, 'pullImageBlobs').mockResolvedValue(undefined);
+
+                const result = await syncManager.smartSync();
+
+                expect(pushSpy).toHaveBeenCalled();
+                expect(result).toEqual({ pulled: false, pushed: true, noInbox: false });
+            });
+
+            it('does not publish a state it could not reconcile', async () => {
+                vi.spyOn(syncManager, 'pullSync').mockRejectedValue(new Error('pull fail'));
+                const pushSpy = vi.spyOn(syncManager, 'pushSync').mockResolvedValue(undefined);
+
+                await expect(syncManager.smartSync()).rejects.toThrow('pull fail');
+                expect(pushSpy).not.toHaveBeenCalled();
+            });
         });
 
         it('should push then pull on success', async () => {

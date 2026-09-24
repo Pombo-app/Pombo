@@ -986,14 +986,16 @@ class SyncManager {
     }
 
     /**
-     * Smart sync: push first (snapshot local state), then pull (accept latest remote).
-     * Push-first ensures our state is on the storage node before we pull,
-     * so leaving a channel is respected (our push without the channel is the latest).
-     * Also syncs image blobs via Partition 2.
+     * Smart sync: push and pull, state and image blobs.
+     *
+     * With local changes still waiting (dirty), push first, so our state is on
+     * the storage node before the merge and leaving a channel is respected.
+     * Otherwise pull first and push the merged state after: a device that has
+     * read nothing yet must not publish its empty state.
      *
      * Phases are independent: a push failure (e.g. transient RPC error during
      * the publish permission check) must not abort the pull, and vice versa.
-     * Throws only when BOTH phases fail; partial failures are reported in the
+     * Throws when no phase succeeded; partial failures are reported in the
      * result (pushError/pullError) — the dirty flag stays set on push failure,
      * so a later auto-push recovers.
      * @returns {Promise<{pulled: boolean, pushed: boolean, noInbox: boolean, pushError?: string, pullError?: string}>}
@@ -1018,31 +1020,49 @@ class SyncManager {
         let pullError = null;
 
         // Push phase (partition 1 state + partition 2 blobs)
-        try {
-            optimisticPayload = await this.pushSync();
-            result.pushed = true;
-            await this.pushImageBlobs();
-        } catch (err) {
-            pushError = err;
-            result.pushError = err.message;
-            Logger.warn('Sync: Smart sync push phase failed (continuing to pull)', err.message);
-            // Local state didn't reach the storage node — the dirty flag is
-            // still set; schedule a recovery push instead of waiting for the
-            // next mutation/foreground event.
-            this.scheduleAutoPush(30000);
-        }
+        const push = async () => {
+            try {
+                optimisticPayload = await this.pushSync();
+                result.pushed = true;
+                await this.pushImageBlobs();
+            } catch (err) {
+                pushError = err;
+                result.pushError = err.message;
+                Logger.warn('Sync: Smart sync push phase failed', err.message);
+                // Local state didn't reach the storage node — the dirty flag is
+                // still set; schedule a recovery push instead of waiting for the
+                // next mutation/foreground event.
+                this.scheduleAutoPush(30000);
+            }
+        };
 
         // Pull phase (partition 1 state + partition 2 blobs)
-        try {
-            const pullResult = await this.pullSync(
-                optimisticPayload ? { optimisticPayload } : undefined
-            );
-            result.pulled = pullResult !== null;
-            await this.pullImageBlobs();
-        } catch (err) {
-            pullError = err;
-            result.pullError = err.message;
-            Logger.warn('Sync: Smart sync pull phase failed', err.message);
+        const pull = async () => {
+            try {
+                const pullResult = await this.pullSync(
+                    optimisticPayload ? { optimisticPayload } : undefined
+                );
+                result.pulled = pullResult !== null;
+                await this.pullImageBlobs();
+            } catch (err) {
+                pullError = err;
+                result.pullError = err.message;
+                Logger.warn('Sync: Smart sync pull phase failed', err.message);
+            }
+        };
+
+        if (this.isDirty()) {
+            await push();
+            await pull();
+        } else {
+            await pull();
+            // Nothing local is waiting, so a state that could not be reconciled
+            // with the remote one is not worth publishing.
+            if (pullError) {
+                Logger.error('Sync: Smart sync failed (pull, nothing waiting to push)', pullError);
+                throw pullError;
+            }
+            await push();
         }
 
         if (pushError && pullError) {

@@ -318,7 +318,7 @@ describe('syncManager blob sync', () => {
 
             await syncManager.smartSync();
 
-            // Order: pushSync → pushImageBlobs → pullSync → pullImageBlobs
+            // Nothing waiting to push: pullSync → pullImageBlobs → pushSync → pushImageBlobs
             expect(pushSpy).toHaveBeenCalled();
             expect(pushBlobSpy).toHaveBeenCalled();
             expect(pullSpy).toHaveBeenCalled();
@@ -329,9 +329,9 @@ describe('syncManager blob sync', () => {
             const pushBlobOrder = pushBlobSpy.mock.invocationCallOrder[0];
             const pullOrder = pullSpy.mock.invocationCallOrder[0];
             const pullBlobOrder = pullBlobSpy.mock.invocationCallOrder[0];
-            expect(pushOrder).toBeLessThan(pushBlobOrder);
-            expect(pushBlobOrder).toBeLessThan(pullOrder);
             expect(pullOrder).toBeLessThan(pullBlobOrder);
+            expect(pullBlobOrder).toBeLessThan(pushOrder);
+            expect(pushOrder).toBeLessThan(pushBlobOrder);
         });
     });
 });

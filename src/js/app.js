@@ -545,12 +545,11 @@ class App {
                     // session unsynced until the next foreground event.
                     const runInitialSync = (attempt = 1) => {
                         syncManager.runForegroundSync('Syncing your data', async () => {
-                            // Always push-first (smartSync): local state that never
-                            // reached the storage node — including state stuck from
-                            // builds without mutation-triggered pushes — is flushed
-                            // before the pull, so the merge can't clobber it and
-                            // other devices receive it. One extra publish per
-                            // startup is negligible.
+                            // One publish per startup either way (smartSync): before
+                            // the pull when local changes never reached the storage
+                            // node, so the merge can't clobber them; after it
+                            // otherwise, so a device that has read nothing never
+                            // publishes an empty state.
                             const result = await syncManager.smartSync();
                             const pulled = result.pulled ? result : null;
                             Logger.info('Sync: Initial smart sync complete');
