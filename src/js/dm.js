@@ -18,6 +18,7 @@ import { Logger } from './logger.js';
 import { applyAccount, stripLocalFields, dropLocalState } from './publisherProof.js';
 import { CONFIG } from './config.js';
 import { CryptoError } from './utils/errors.js';
+import { NO_NETWORK, isOffline } from './utils/network.js';
 import { streamrController, STREAM_CONFIG } from './streamr.js';
 import { channelManager } from './channels.js';
 import { secureStorage } from './secureStorage.js';
@@ -1347,6 +1348,7 @@ class DMManager {
     async _publishDm(channel, message) {
         const peerInboxStreamId = channel.messageStreamId;
         try {
+            if (isOffline()) throw new Error(NO_NETWORK);
             // E2E encrypt before publishing — NEVER send plaintext DMs
             const privateKey = authManager.wallet?.privateKey;
             const peerAddress = channel.peerAddress;
