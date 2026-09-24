@@ -2396,7 +2396,12 @@ class ChannelManager {
             // Persist the PRUNED cover even when nothing is pending — a member
             // who regained access must leave the cover now, or the record of
             // the regain is lost and their next loss never rotates.
-            channel.rotatedForNoAccess = [...covered, ...pending];
+            const cover = new Set([...covered, ...pending]);
+            const same = (a, b) => a.size === b.size && [...a].every(x => b.has(x));
+            // Runs on every admin open, and each save schedules a full sync push.
+            if (same(cover, new Set((channel.rotatedForNoAccess || []).map(lower)))
+                && same(withAccess, previously)) return;
+            channel.rotatedForNoAccess = [...cover];
             channel.accessSnapshot = [...withAccess];
             await this.saveChannels();
         } catch (e) {
