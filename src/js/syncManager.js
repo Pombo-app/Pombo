@@ -31,6 +31,27 @@ import { splitSyncPayload, reassembleSyncPayloads } from './syncChunks.js';
 /** A snapshot is a RUN of messages, so the window must hold several of them. */
 const SYNC_FETCH_COUNT = 60;
 
+/** How often an open, visible app asks storage whether another device pushed. */
+const SYNC_CHECK_INTERVAL_MS = 60_000;
+
+/** Storage re-reads after a push, measured from the publish. */
+const SYNC_CONFIRM_AT_MS = [5_000, 10_000, 20_000, 40_000];
+
+/** Rows beyond our own read back with them: pushes from other devices in between. */
+const SYNC_CONFIRM_SLACK = 10;
+
+/** Blob pushes are not read back; the overlay is kept this long for them to leave. */
+const SYNC_BLOB_LEAVE_AFTER_MS = 30_000;
+
+/** A confirmed state is sent again after this long: storage keeps rows only for the inbox retention. */
+const SYNC_CONFIRMED_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Row keys of this session's own pushes, so a check does not pull them back. */
+const SYNC_OWN_ROWS_KEPT = 64;
+
+/** Every sync message has its own throwaway publisher, so this names one row. */
+const rowKey = (row) => `${row.timestamp}:${String(row.publisherId || '').toLowerCase()}`;
+
 const getNow = () => (
     typeof performance !== 'undefined' && typeof performance.now === 'function'
         ? performance.now()
@@ -70,6 +91,13 @@ class SyncManager {
         this.autoPushTimeout = null;
         this.autoPushRetryCount = 0;
         this.pushQueued = false;
+        this._pulledRowTs = 0;
+        this._ownRowKeys = new Set();
+        this._publishing = false;
+        this._confirmRun = 0;
+        this._confirmTimer = null;
+        this._blobLeaveTimer = null;
+        this._snapshotWatch = null;
     }
 
     // ==================== Sync Mode (which unprompted triggers fire) ====================
@@ -179,6 +207,53 @@ class SyncManager {
             return localStorage.getItem(key) === '1';
         } catch {
             return false;
+        }
+    }
+
+    // ==================== Confirmed state (what storage is known to hold) ====================
+
+    _confirmedKey() {
+        const address = authManager.getAddress();
+        if (!address) return null;
+        const keyFn = CONFIG.storageKeys?.syncConfirmed;
+        return keyFn ? keyFn(address) : `pombo_sync_confirmed_${address.toLowerCase()}`;
+    }
+
+    /** True when storage already holds this exact state from a recent push of ours. */
+    _isConfirmedState(hash) {
+        const key = this._confirmedKey();
+        if (!key) return false;
+        try {
+            const confirmed = JSON.parse(localStorage.getItem(key) || 'null');
+            return confirmed?.hash === hash && Date.now() - confirmed.at < SYNC_CONFIRMED_MAX_AGE_MS;
+        } catch {
+            return false;
+        }
+    }
+
+    _writeConfirmedState(hash) {
+        const key = this._confirmedKey();
+        if (!key) return;
+        try {
+            localStorage.setItem(key, JSON.stringify({ hash, at: Date.now() }));
+        } catch { /* storage unavailable — the next push is just not skipped */ }
+    }
+
+    async _stateHash(state) {
+        const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(state)));
+        return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    _notePulledRows(rows) {
+        for (const row of rows) {
+            if (row.timestamp > this._pulledRowTs) this._pulledRowTs = row.timestamp;
+        }
+    }
+
+    _noteOwnRows(rows) {
+        for (const row of rows) this._ownRowKeys.add(rowKey(row));
+        while (this._ownRowKeys.size > SYNC_OWN_ROWS_KEPT) {
+            this._ownRowKeys.delete(this._ownRowKeys.values().next().value);
         }
     }
 
@@ -373,6 +448,14 @@ class SyncManager {
         try {
             // Gather state from secureStorage
             const state = secureStorage.exportForSync();
+            const hash = await this._stateHash(state);
+            if (this._isConfirmedState(hash)) {
+                Logger.info('Sync: State unchanged since the last confirmed push, not publishing');
+                if (!this.autoPushTimeout && !this.pushQueued) {
+                    this.clearDirty();
+                }
+                return null;
+            }
 
             const payload = {
                 type: 'sync',
@@ -395,10 +478,20 @@ class SyncManager {
                 channels: state.channels?.length ?? 0,
                 messages: messages.length
             });
-            for (const message of messages) {
-                await dmManager.sealAndPublish(
-                    inboxStreamId, myAddress, message, STREAM_CONFIG.MESSAGE_STREAM.SYNC);
+            const rows = [];
+            this._publishing = true;
+            try {
+                for (const message of messages) {
+                    const published = await dmManager.sealAndPublish(
+                        inboxStreamId, myAddress, message, STREAM_CONFIG.MESSAGE_STREAM.SYNC);
+                    const id = published?.messageId;
+                    if (id) rows.push({ timestamp: id.timestamp, publisherId: id.publisherId });
+                }
+            } finally {
+                this._publishing = false;
             }
+            this._noteOwnRows(rows);
+            this._confirmPush(inboxStreamId, hash, rows);
 
             this.lastSyncTs = payload.ts;
             Logger.info('Sync: Pushed state to storage nodes', { ts: payload.ts });
@@ -419,6 +512,106 @@ class SyncManager {
             this.isSyncing = false;
             this._flushQueuedPush();
         }
+    }
+
+    /**
+     * Read a push back from storage, then take the node out of the sync
+     * partition: the overlay is only needed to publish. An unconfirmed push
+     * leaves it all the same and marks the state dirty, so the next trigger
+     * sends it again. Rows from another device met on the way are pulled.
+     */
+    _confirmPush(inboxStreamId, hash, rows) {
+        const run = ++this._confirmRun;
+        clearTimeout(this._confirmTimer);
+        const wanted = new Set(rows.map(rowKey));
+        const startedAt = Date.now();
+        const attempt = async (index) => {
+            if (run !== this._confirmRun) return;
+            let held = [];
+            try {
+                held = await streamrController.fetchPartitionHistory(
+                    inboxStreamId, STREAM_CONFIG.MESSAGE_STREAM.SYNC, wanted.size + SYNC_CONFIRM_SLACK);
+            } catch { /* an unreachable node proves nothing */ }
+            if (run !== this._confirmRun) return;
+            const seen = new Set(held.map(rowKey));
+            const confirmed = wanted.size > 0 && [...wanted].every((key) => seen.has(key));
+            if (!confirmed && index + 1 < SYNC_CONFIRM_AT_MS.length) {
+                this._confirmTimer = setTimeout(() => attempt(index + 1),
+                    Math.max(0, startedAt + SYNC_CONFIRM_AT_MS[index + 1] - Date.now()));
+                return;
+            }
+            if (confirmed) {
+                this._writeConfirmedState(hash);
+                Logger.info('Sync: Push confirmed by storage');
+            } else if (wanted.size > 0) {
+                Logger.warn('Sync: Push not confirmed by storage, it will be sent again');
+                this.markDirty();
+            }
+            const foreign = held.some((row) =>
+                !this._ownRowKeys.has(rowKey(row)) && row.timestamp > this._pulledRowTs);
+            // A push in flight re-joins the partition and leaves it when confirmed.
+            if (!this._publishing) {
+                await streamrController.leaveStreamPart(inboxStreamId, STREAM_CONFIG.MESSAGE_STREAM.SYNC);
+            }
+            if (foreign && this.isAutoSyncAllowed('foreground')) {
+                this._pullStateAndBlobs().catch((e) =>
+                    Logger.debug('Sync: Pull after confirm failed (non-critical):', e.message));
+            }
+        };
+        this._confirmTimer = setTimeout(() => attempt(0), SYNC_CONFIRM_AT_MS[0]);
+    }
+
+    async _pullStateAndBlobs() {
+        const pulled = await this.pullSync();
+        if (pulled !== null) {
+            await this.pullImageBlobs().catch((e) =>
+                Logger.debug('Sync: Image blob pull failed (non-critical):', e.message));
+        }
+        return pulled;
+    }
+
+    /**
+     * Pull when storage holds a row from another device newer than anything
+     * read here. One `last: 1` read over HTTP, no overlay: the last row of a
+     * chunked push is its small manifest.
+     * @returns {Promise<boolean>} whether a pull ran
+     */
+    async checkForNewSnapshot() {
+        if (authManager.isGuestMode() || this.isSyncing) return false;
+        if (!this.isAutoSyncAllowed('foreground')) return false;
+        if (!await dmManager.hasInbox()) return false;
+        const inboxStreamId = this.getInboxStreamId();
+        if (!inboxStreamId) return false;
+        const [newest] = await streamrController.fetchPartitionHistory(
+            inboxStreamId, STREAM_CONFIG.MESSAGE_STREAM.SYNC, 1);
+        if (!newest || this._ownRowKeys.has(rowKey(newest)) || newest.timestamp <= this._pulledRowTs) {
+            return false;
+        }
+        await this._pullStateAndBlobs();
+        return true;
+    }
+
+    /** Checks every SYNC_CHECK_INTERVAL_MS until stopped; run it only while the app is visible. */
+    startSnapshotWatch() {
+        this.stopSnapshotWatch();
+        this._snapshotWatch = setInterval(() => {
+            this.checkForNewSnapshot().catch((e) =>
+                Logger.debug('Sync: Snapshot check failed (non-critical):', e.message));
+        }, SYNC_CHECK_INTERVAL_MS);
+    }
+
+    stopSnapshotWatch() {
+        clearInterval(this._snapshotWatch);
+        this._snapshotWatch = null;
+    }
+
+    /** On disconnect: a confirmation still running would act on the next account. */
+    cancelPushConfirmation() {
+        this._confirmRun++;
+        clearTimeout(this._confirmTimer);
+        clearTimeout(this._blobLeaveTimer);
+        this._pulledRowTs = 0;
+        this._ownRowKeys.clear();
     }
 
     /**
@@ -473,6 +666,7 @@ class SyncManager {
                 options.limit || SYNC_FETCH_COUNT
             );
             const fetchCompletedAt = getNow();
+            this._notePulledRows(messages);
 
             Logger.info('Sync: Fetched messages:', { count: messages.length });
 
@@ -573,6 +767,7 @@ class SyncManager {
                         STREAM_CONFIG.MESSAGE_STREAM.SYNC,
                         options.limit || SYNC_FETCH_COUNT
                     );
+                    this._notePulledRows(retryMessages);
                     const retryDecrypted = reassemble(await decryptBatch(retryMessages));
                     freshPayloads = retryDecrypted.filter(payload => !appliedTs.has(payload.ts));
                 }
@@ -822,6 +1017,12 @@ class SyncManager {
         }
 
         Logger.debug(`Sync: pushImageBlobs done — scanned=${scanned} pushed=${count}`);
+        if (count > 0) {
+            clearTimeout(this._blobLeaveTimer);
+            this._blobLeaveTimer = setTimeout(() => {
+                streamrController.leaveStreamPart(inboxStreamId, STREAM_CONFIG.MESSAGE_STREAM.SYNC_BLOBS);
+            }, SYNC_BLOB_LEAVE_AFTER_MS);
+        }
     }
 
     /**

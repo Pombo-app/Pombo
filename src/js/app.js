@@ -259,14 +259,17 @@ class App {
         window.addEventListener('pagehide', pushOnHide);
 
         // Push immediately when app goes to background — a delayed timer may
-        // never fire on mobile (page freeze); pull on return to foreground
+        // never fire on mobile (page freeze); check for other devices' pushes
+        // on return to foreground and while visible
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden') {
+                syncManager.stopSnapshotWatch();
                 pushOnHide();
             } else if (document.visibilityState === 'visible') {
                 if (!syncManager.isAutoSyncAllowed('foreground')) return;
-                this.pullSyncedStateAndBlobs().catch((error) => {
-                    Logger.debug('Sync: Auto-pull on foreground failed (non-critical):', error.message);
+                syncManager.startSnapshotWatch();
+                syncManager.checkForNewSnapshot().catch((error) => {
+                    Logger.debug('Sync: Check on foreground failed (non-critical):', error.message);
                 });
             }
         });
@@ -356,6 +359,8 @@ class App {
             // Stop background timers that survive disconnect otherwise:
             // sync auto-push and relay token re-registration (6h interval)
             syncManager.cancelAutoPush();
+            syncManager.stopSnapshotWatch();
+            syncManager.cancelPushConfirmation();
             relayManager.stopReRegistrationTimer();
             // Drop invites of the disconnecting account so they can't be
             // re-saved under the next account's storage
@@ -588,6 +593,10 @@ class App {
                     };
                     if (syncManager.isAutoSyncAllowed('start')) {
                         runInitialSync();
+                    }
+                    if (document.visibilityState === 'visible'
+                            && syncManager.isAutoSyncAllowed('foreground')) {
+                        syncManager.startSnapshotWatch();
                     }
                 }
             } catch (dmError) {

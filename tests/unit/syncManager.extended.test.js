@@ -19,6 +19,7 @@ vi.mock('../../src/js/streamr.js', () => ({
         getDMInboxId: vi.fn().mockReturnValue('0xabc/Pombo-DM-1'),
         publish: vi.fn().mockResolvedValue(undefined),
         fetchPartitionHistory: vi.fn().mockResolvedValue([]),
+        leaveStreamPart: vi.fn().mockResolvedValue(undefined),
         setDMPublishKey: vi.fn().mockResolvedValue(undefined),
         addDMDecryptKey: vi.fn().mockResolvedValue(undefined)
     },
@@ -95,7 +96,7 @@ vi.mock('../../src/js/identity.js', () => ({
     }
 }));
 
-import { syncManager } from '../../src/js/syncManager.js';
+import { syncManager, SYNC_MODES } from '../../src/js/syncManager.js';
 import { authManager } from '../../src/js/auth.js';
 import { dmManager } from '../../src/js/dm.js';
 import { Logger } from '../../src/js/logger.js';
@@ -719,6 +720,107 @@ describe('syncManager extended', () => {
             // Mutating result should not affect remote
             result.stream1[0].text = 'modified';
             expect(remoteMsg.text).toBe('hello');
+        });
+    });
+
+    describe('overlay only while publishing, periodic check over HTTP', () => {
+        const own = (timestamp) => ({ timestamp, publisherId: '0xeph' });
+        const other = (timestamp) => ({ timestamp, publisherId: '0xother' });
+
+        beforeEach(() => {
+            vi.useFakeTimers();
+            syncManager.cancelPushConfirmation();
+            dmManager.sealAndPublish.mockResolvedValue({ messageId: { timestamp: 5000, publisherId: '0xEph' } });
+        });
+
+        afterEach(() => {
+            syncManager.cancelPushConfirmation();
+            syncManager.stopSnapshotWatch();
+            vi.useRealTimers();
+        });
+
+        it('reads a push back, leaves the sync partition, and does not publish the same state again', async () => {
+            await syncManager.pushSync();
+            streamrController.fetchPartitionHistory.mockResolvedValue([own(5000)]);
+            await vi.advanceTimersByTimeAsync(5000);
+
+            expect(streamrController.leaveStreamPart).toHaveBeenCalledWith('0xabc/Pombo-DM-1', 1);
+            dmManager.sealAndPublish.mockClear();
+            await syncManager.pushSync();
+            expect(dmManager.sealAndPublish).not.toHaveBeenCalled();
+        });
+
+        it('leaves an unconfirmed push too, and sends that state again', async () => {
+            await syncManager.pushSync();
+            streamrController.fetchPartitionHistory.mockResolvedValue([]);
+            await vi.advanceTimersByTimeAsync(40000);
+
+            expect(streamrController.fetchPartitionHistory).toHaveBeenCalledTimes(4);
+            expect(streamrController.leaveStreamPart).toHaveBeenCalledTimes(1);
+            expect(syncManager.isDirty()).toBe(true);
+            dmManager.sealAndPublish.mockClear();
+            await syncManager.pushSync();
+            expect(dmManager.sealAndPublish).toHaveBeenCalled();
+        });
+
+        it('pulls a push from another device met while confirming', async () => {
+            await syncManager.pushSync();
+            const pullSpy = vi.spyOn(syncManager, 'pullSync').mockResolvedValue(null);
+            streamrController.fetchPartitionHistory.mockResolvedValue([other(4000), own(5000)]);
+            await vi.advanceTimersByTimeAsync(5000);
+
+            expect(pullSpy).toHaveBeenCalled();
+        });
+
+        it('pulls on a check only when another device pushed something newer', async () => {
+            streamrController.fetchPartitionHistory.mockResolvedValue([other(7000)]);
+            await syncManager.pullSync();
+            const pullSpy = vi.spyOn(syncManager, 'pullSync').mockResolvedValue(null);
+
+            expect(await syncManager.checkForNewSnapshot()).toBe(false);
+            streamrController.fetchPartitionHistory.mockResolvedValue([other(8000)]);
+            expect(await syncManager.checkForNewSnapshot()).toBe(true);
+            expect(streamrController.fetchPartitionHistory).toHaveBeenLastCalledWith('0xabc/Pombo-DM-1', 1, 1);
+            expect(pullSpy).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not pull its own push back', async () => {
+            await syncManager.pushSync();
+            const pullSpy = vi.spyOn(syncManager, 'pullSync');
+            streamrController.fetchPartitionHistory.mockResolvedValue([own(5000)]);
+
+            expect(await syncManager.checkForNewSnapshot()).toBe(false);
+            expect(pullSpy).not.toHaveBeenCalled();
+        });
+
+        it('never checks in manual-only mode', async () => {
+            syncManager.setSyncMode(SYNC_MODES.MANUAL_ONLY);
+            streamrController.fetchPartitionHistory.mockResolvedValue([other(7000)]);
+
+            expect(await syncManager.checkForNewSnapshot()).toBe(false);
+            expect(streamrController.fetchPartitionHistory).not.toHaveBeenCalled();
+        });
+
+        it('checks once a minute while watched, and stops when told', async () => {
+            const checkSpy = vi.spyOn(syncManager, 'checkForNewSnapshot').mockResolvedValue(false);
+            syncManager.startSnapshotWatch();
+            await vi.advanceTimersByTimeAsync(120000);
+            expect(checkSpy).toHaveBeenCalledTimes(2);
+
+            syncManager.stopSnapshotWatch();
+            await vi.advanceTimersByTimeAsync(60000);
+            expect(checkSpy).toHaveBeenCalledTimes(2);
+        });
+
+        it('leaves the blob partition a while after pushing blobs', async () => {
+            secureStorage.getUnsyncedImages.mockReturnValueOnce((async function* () {
+                yield { imageId: 'img-1', streamId: 's', encryptedData: 'x', iv: 'y' };
+            })());
+            await syncManager.pushImageBlobs();
+
+            expect(streamrController.leaveStreamPart).not.toHaveBeenCalled();
+            await vi.advanceTimersByTimeAsync(30000);
+            expect(streamrController.leaveStreamPart).toHaveBeenCalledWith('0xabc/Pombo-DM-1', 2);
         });
     });
 });
