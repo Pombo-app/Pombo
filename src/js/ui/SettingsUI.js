@@ -1963,7 +1963,6 @@ class SettingsUI {
         this.showNotification('Reconnecting with new RPC...', 'info');
         const success = await this.streamrController.reconnect();
         if (success) {
-            await this.deps.onSyncTransportReconnected?.();
             this.showNotification('RPC updated successfully', 'success');
         } else {
             this.showNotification('RPC saved. Reload page to apply.', 'warning');

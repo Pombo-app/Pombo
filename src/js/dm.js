@@ -298,6 +298,18 @@ class DMManager {
     }
 
     /**
+     * Subscribe the inbox again on a replaced client, whose predecessor took
+     * these handles with it. The open conversation's ephemeral comes back
+     * with the active channel.
+     */
+    async resubscribeInbox() {
+        this.inboxSubscription = null;
+        this.inboxNotificationSub = null;
+        this.inboxEphemeralSubscription = null;
+        if (this.inboxMessageStreamId) await this.subscribeToInbox();
+    }
+
+    /**
      * Unsubscribe from inbox (when leaving DM tab or disconnecting)
      */
     async unsubscribeFromInbox() {

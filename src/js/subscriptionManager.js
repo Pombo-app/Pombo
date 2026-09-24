@@ -137,6 +137,17 @@ class SubscriptionManager {
         this._startMemberCatchUp(messageStreamId);
     }
 
+    /**
+     * Subscribe the open channel again on a replaced client. Not through
+     * setActiveChannel, which returns early for the channel already active.
+     */
+    async resubscribeActive() {
+        const messageStreamId = this.activeChannelId;
+        if (!messageStreamId) return;
+        const channel = channelManager.getChannel(messageStreamId);
+        await channelManager.subscribeToChannel(messageStreamId, channel?.password ?? null);
+    }
+
     /** A member's keys and messages need a raw sweep the owner does not. */
     _startMemberCatchUp(messageStreamId) {
         try {

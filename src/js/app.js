@@ -94,11 +94,10 @@ class App {
             secureStorage.onSentDataChanged = () => syncManager.scheduleAutoPush(5000);
 
             settingsUI.setDependencies({
-                connectWallet: () => walletFlows.connectWallet(),
-                onSyncTransportReconnected: () => this.pullSyncedStateAndBlobs().catch((error) => {
-                    Logger.debug('Sync: Auto-pull after reconnect failed (non-critical):', error.message);
-                })
+                connectWallet: () => walletFlows.connectWallet()
             });
+
+            streamrController.onClientReplaced(() => this.resumeAfterClientReplaced());
 
             // Wire wallet flows with app-level callbacks
             walletFlows.init({
@@ -266,6 +265,7 @@ class App {
                 syncManager.stopSnapshotWatch();
                 pushOnHide();
             } else if (document.visibilityState === 'visible') {
+                streamrController.revival.kick();
                 if (!syncManager.isAutoSyncAllowed('foreground')) return;
                 syncManager.startSnapshotWatch();
                 syncManager.checkForNewSnapshot().catch((error) => {
@@ -273,6 +273,40 @@ class App {
                 });
             }
         });
+
+        window.addEventListener('online', () => streamrController.revival.kick());
+    }
+
+    /**
+     * A replaced Streamr client took every subscription with it: make them
+     * again, and retry what only the network can carry (owed rotations, the
+     * inbox push registration, sync).
+     */
+    async resumeAfterClientReplaced() {
+        if (!authManager.isConnected()) return;
+        const steps = [
+            ['DM inbox', () => dmManager.resubscribeInbox()],
+            ['active channel', () => subscriptionManager.resubscribeActive()],
+            ['preview', async () => {
+                const preview = previewModeUI.isInPreviewMode() ? previewModeUI.getPreviewChannel() : null;
+                if (preview) await previewModeUI.enterPreviewWithoutHistory(preview.streamId, preview.channelInfo);
+            }],
+            ['owed rotations', async () => {
+                if (!authManager.isGuestMode()) channelManager.resumeOwedRotations();
+            }],
+            ['inbox push', () => dmManager.subscribeInboxPush()],
+            ['sync', async () => {
+                if (syncManager.isAutoSyncAllowed('foreground')) await syncManager.smartSync();
+            }]
+        ];
+        for (const [label, step] of steps) {
+            try {
+                await step();
+            } catch (error) {
+                Logger.warn(`Resume after client replacement (${label}) failed:`, error?.message || error);
+            }
+        }
+        Logger.info('Subscriptions resumed on the new Streamr client');
     }
 
     /**
