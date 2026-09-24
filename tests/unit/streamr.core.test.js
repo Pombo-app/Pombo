@@ -211,6 +211,21 @@ describe('StreamrController Core', () => {
         });
     });
 
+    // ==================== leaveStreamPart() ====================
+    describe('leaveStreamPart()', () => {
+        it('leaves a part it only published to, and never a subscribed one', async () => {
+            const node = { leave: vi.fn().mockResolvedValue(undefined), getStreamParts: vi.fn().mockResolvedValue([]) };
+            mockClient.getNode = vi.fn().mockReturnValue(node);
+            streamrController.subscriptions.set('0xme/Pombo-DM-1', { 0: {} });
+
+            await streamrController.leaveStreamPart('0xme/Pombo-DM-1', 0);
+            expect(node.leave).not.toHaveBeenCalled();
+
+            await streamrController.leaveStreamPart('0xme/Pombo-DM-1', 1);
+            expect(node.leave).toHaveBeenCalledWith('0xme/Pombo-DM-1#1');
+        });
+    });
+
     // ==================== publish() ====================
     describe('publish()', () => {
         it('should throw if client is null', async () => {

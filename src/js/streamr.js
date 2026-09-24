@@ -2434,6 +2434,24 @@ class StreamrController {
         return message;
     }
 
+    /**
+     * Take the node out of a stream part it joined only to publish. A part
+     * with a live subscription is left alone: the subscription rides on it.
+     * @param {string} streamId
+     * @param {number} partition
+     */
+    async leaveStreamPart(streamId, partition) {
+        if (!this.client) return;
+        if (this.subscriptions.get(streamId)?.[partition]) return;
+        try {
+            const node = this.client.getNode();
+            await node.leave(`${streamId}#${partition}`);
+            Logger.debug(`Left ${streamId} p${partition}; stream parts joined: ${(await node.getStreamParts()).length}`);
+        } catch (error) {
+            Logger.debug(`leaveStreamPart ${streamId} p${partition} failed:`, error.message);
+        }
+    }
+
     // ==================== KEYS STREAM (-4) ====================
 
     /**
