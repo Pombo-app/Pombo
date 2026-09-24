@@ -566,6 +566,27 @@ describe('ChannelManager Extended', () => {
             expect(channelManager.isRotationOwed(streamId)).toBe(true);
         });
 
+        it("the owner's sweep saves only when the gate changed what it records", async () => {
+            const flags = vi.spyOn(channelManager, 'getGateMemberFlags').mockResolvedValue([
+                { address: '0xMyAddress', access: true, isOwner: true },
+                { address: '0xmember1', access: true }
+            ]);
+
+            await channelManager._rotateForLostAccess(channel);
+            await channelManager._rotateForLostAccess(channel);
+            expect(channelManager.saveChannels).toHaveBeenCalledTimes(1);
+
+            flags.mockResolvedValue([
+                { address: '0xmyaddress', access: true, isOwner: true },
+                { address: '0xmember1', access: true },
+                { address: '0xmember2', access: true }
+            ]);
+            await channelManager._rotateForLostAccess(channel);
+            await channelManager._rotateForLostAccess(channel);
+            expect(channelManager.saveChannels).toHaveBeenCalledTimes(2);
+            flags.mockRestore();
+        });
+
         it('a ban whose rotation goes out owes nothing', async () => {
             epochKeyManager.rotateEpoch.mockResolvedValue(undefined);
 
