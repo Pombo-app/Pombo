@@ -818,6 +818,17 @@ describe('secureStorage extended', () => {
             secureStorage.cache = null;
             expect(() => secureStorage.exportForSync()).toThrow('Storage not unlocked');
         });
+
+        it('stamps values that carry no stamp with the floor, in both exports', () => {
+            secureStorage.initAsGuest('0xStampFloor');
+            secureStorage.cache.username = 'Bob';
+            secureStorage.cache.trustedContacts = { '0x1': { nickname: 'c' } };
+            secureStorage.cache.sliceTs = { trustedContacts: 5 };
+
+            expect(secureStorage.exportForSync().sliceTs).toEqual({ trustedContacts: 5, username: 1 });
+            expect(secureStorage.exportForBackup().sliceTs).toEqual({ trustedContacts: 5, username: 1 });
+            expect(secureStorage.cache.sliceTs).toEqual({ trustedContacts: 5 });
+        });
     });
 
     // ==================== importFromSync edge cases ====================

@@ -13,6 +13,7 @@ import { Logger } from './logger.js';
 import { CONFIG } from './config.js';
 import { StorageError } from './utils/errors.js';
 import { cryptoWorkerPool } from './workers/cryptoWorkerPool.js';
+import { stampedSliceTs } from './syncMerge.js';
 
 class SecureStorage {
     constructor() {
@@ -1700,7 +1701,7 @@ class SecureStorage {
             ensCache: this.cache.ensCache || {},
             username: this.cache.username || null,
             graphApiKey: this.cache.graphApiKey || null,
-            sliceTs: this.cache.sliceTs || {}
+            sliceTs: stampedSliceTs(this.cache)
         };
     }
 
@@ -2040,7 +2041,7 @@ class SecureStorage {
             ensCache: this.cache.ensCache || {},
             username: this.cache.username || null,
             graphApiKey: this.cache.graphApiKey || null,
-            sliceTs: this.cache.sliceTs || {}
+            sliceTs: stampedSliceTs(this.cache)
         };
     }
 

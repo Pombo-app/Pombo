@@ -206,6 +206,30 @@ const SLICE_DEFAULTS = {
     graphApiKey: null
 };
 
+// Older than any real stamp, so a live edit still wins; newer than the 0 of a
+// snapshot that holds nothing.
+const UNSTAMPED_VALUE_TS = 1;
+
+function isEmptySlice(value) {
+    if (value == null || value === '') return true;
+    if (Array.isArray(value)) return value.length === 0;
+    return typeof value === 'object' && Object.keys(value).length === 0;
+}
+
+/**
+ * The state's slice timestamps, with every slice that holds a value but no
+ * stamp (a restored backup, an old client) stamped UNSTAMPED_VALUE_TS.
+ * @param {Object} state - Sync/backup-shaped state
+ * @returns {Object} A new sliceTs object
+ */
+export function stampedSliceTs(state) {
+    const sliceTs = { ...(state?.sliceTs || {}) };
+    for (const key of Object.keys(SLICE_DEFAULTS)) {
+        if (!sliceTs[key] && !isEmptySlice(state?.[key])) sliceTs[key] = UNSTAMPED_VALUE_TS;
+    }
+    return sliceTs;
+}
+
 export function mergeState(base, incoming, maxSentMessages = CONFIG.dm.maxSentMessages) {
     const { channels, channelsLeftAt } = mergeChannels(
         base?.channels,
@@ -218,15 +242,19 @@ export function mergeState(base, incoming, maxSentMessages = CONFIG.dm.maxSentMe
     // recently (sliceTs) wins. This stops a pull from clobbering local
     // changes that haven't been pushed yet. Payloads from older clients have
     // no sliceTs (treated as 0) and on ties the incoming snapshot wins —
-    // preserving the previous chronological latest-wins behavior.
+    // preserving the previous chronological latest-wins behavior — except that
+    // an unstamped empty slice never replaces one that holds a value: a device
+    // that has read nothing yet publishes exactly that.
     const sliceTs = {};
     const pickSlice = (key) => {
         const baseHas = base?.[key] !== undefined;
         const incomingHas = incoming?.[key] !== undefined;
         const baseTs = base?.sliceTs?.[key] || 0;
         const incomingTs = incoming?.sliceTs?.[key] || 0;
+        const emptyOverValue = incomingTs === 0
+            && isEmptySlice(incoming?.[key]) && !isEmptySlice(base?.[key]);
 
-        if (incomingHas && (!baseHas || incomingTs >= baseTs)) {
+        if (incomingHas && !emptyOverValue && (!baseHas || incomingTs >= baseTs)) {
             sliceTs[key] = incomingTs;
             return incoming[key];
         }

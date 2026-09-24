@@ -33,7 +33,8 @@ const GENERATORS = {
     'gen_wrap_v2_vectors.mjs': 'GATED-CHANNELS-wrap-v2-vectors.json',
     'gen_storage_read_vectors.mjs': 'STORAGE-signed-read-vectors.json',
     'gen_storage_purge_vectors.mjs': 'STORAGE-purge-vectors.json',
-    'gen_storage_stored_vectors.mjs': 'STORAGE-stored-vectors.json'
+    'gen_storage_stored_vectors.mjs': 'STORAGE-stored-vectors.json',
+    'gen_sync_merge_vectors.mjs': 'SYNC-merge-vectors.json'
 };
 
 const androidDocs = (() => {

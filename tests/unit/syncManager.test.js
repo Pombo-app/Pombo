@@ -869,10 +869,10 @@ describe('syncManager', () => {
 
         it('should clear username if incoming latest snapshot removes it', () => {
             const base = { username: 'old' };
-            const incoming = { username: null };
-            
+            const incoming = { username: null, sliceTs: { username: 10 } };
+
             const result = syncManager.mergeState(base, incoming);
-            
+
             expect(result.username).toBe(null);
         });
 
@@ -956,11 +956,22 @@ describe('syncManager', () => {
 
         it('should propagate clearDMLeftAt via latest-wins', () => {
             const base = { dmLeftAt: { '0xaaa': 100, '0xbbb': 200 } };
-            const incoming = { dmLeftAt: {} }; // all cleared remotely
+            const incoming = { dmLeftAt: {}, sliceTs: { dmLeftAt: 300 } }; // all cleared remotely
 
             const result = syncManager.mergeState(base, incoming);
 
             expect(result.dmLeftAt).toEqual({});
+        });
+
+        it('should not let an unstamped empty snapshot erase unstamped values', () => {
+            const base = { dmLeftAt: { '0xaaa': 100 }, trustedContacts: { '0x1': { nickname: 'c' } }, username: 'Bob' };
+            const incoming = { dmLeftAt: {}, trustedContacts: {}, username: null, sliceTs: {} };
+
+            const result = syncManager.mergeState(base, incoming);
+
+            expect(result.dmLeftAt).toEqual({ '0xaaa': 100 });
+            expect(result.trustedContacts).toEqual({ '0x1': { nickname: 'c' } });
+            expect(result.username).toBe('Bob');
         });
 
         it('should keep a locally newer timestamped slice over an older incoming snapshot', () => {
