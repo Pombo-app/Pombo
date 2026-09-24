@@ -16,6 +16,7 @@ import { mediaController } from '../media.js';
 import { adminStatePoller } from '../adminStatePoller.js';
 import { messageTime } from '../utils/messageTime.js';
 import { storageFetch } from '../storageFetch.js';
+import { NO_NETWORK, isOffline } from '../utils/network.js';
 
 export class MessageFlow {
     /**
@@ -653,6 +654,7 @@ export class MessageFlow {
         delete message.undelivered;
         let published;
         try {
+            if (isOffline()) throw new Error(NO_NETWORK);
             await this.manager.rotationRetry?.settle(messageStreamId);
             published = await this.manager.publishWithRetry(messageStreamId, message, channel.password);
         } catch (error) {
@@ -695,6 +697,7 @@ export class MessageFlow {
         if (!currentAddress) {
             throw new Error('Not authenticated');
         }
+        if (isOffline()) return;
 
         let canPublish = false;
         const cacheValid = channel._publishPermCache?.address?.toLowerCase() === currentAddress.toLowerCase() &&

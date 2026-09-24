@@ -611,6 +611,50 @@ describe('ChannelManager Extended', () => {
     });
 
     // ==================== updateMemberPermissions ====================
+    describe('sending with no network', () => {
+        const streamId = 'stream-offline-send';
+        let channel;
+        let offline;
+
+        beforeEach(() => {
+            channel = {
+                messageStreamId: streamId,
+                streamId,
+                type: 'public',
+                members: ['0xmyaddress'],
+                messages: [],
+                reactions: {},
+                password: null,
+                ephemeralStreamId: `${streamId}-ephemeral`,
+                createdBy: '0xmyaddress'
+            };
+            channelManager.channels.set(streamId, channel);
+            identityManager.resolveENS = vi.fn().mockResolvedValue(null);
+            offline = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+        });
+
+        afterEach(() => {
+            offline.mockRestore();
+            delete identityManager.resolveENS;
+        });
+
+        it('fails at once, keeps the message for Retry, and publishes it once the network is back', async () => {
+            const { NO_NETWORK } = await import('../../src/js/utils/network.js');
+            const publish = vi.spyOn(channelManager, 'publishWithRetry').mockResolvedValue(undefined);
+
+            await expect(channelManager.sendMessage(streamId, 'hello')).rejects.toThrow(NO_NETWORK);
+            expect(channel.messages[0]).toMatchObject({ text: 'hello', pending: false, failed: true, failError: NO_NETWORK });
+
+            await expect(channelManager.resendMessage(streamId, channel.messages[0].id)).rejects.toThrow(NO_NETWORK);
+            expect(publish).not.toHaveBeenCalled();
+
+            offline.mockReturnValue(true);
+            await channelManager.resendMessage(streamId, channel.messages[0].id);
+            expect(publish).toHaveBeenCalledTimes(1);
+            expect(channel.messages[0]).toMatchObject({ failed: false });
+        });
+    });
+
     describe('updateMemberPermissions', () => {
         const streamId = 'stream-gated-3';
 

@@ -1278,6 +1278,24 @@ describe('DMManager', () => {
             );
         });
 
+        it('fails at once with no network, without sealing or publishing', async () => {
+            const { NO_NETWORK } = await import('../../src/js/utils/network.js');
+            const peerAddress = '0xpeercccccccccccccccccccccccccccccccccccc';
+            const streamId = `${peerAddress}/Pombo-DM-1`;
+            const channel = { messageStreamId: streamId, type: 'dm', peerAddress, messages: [] };
+            channelManager.channels.set(streamId, channel);
+            const offline = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+            try {
+                await expect(dmManager.sendMessage(streamId, 'Hello')).rejects.toThrow(NO_NETWORK);
+            } finally {
+                offline.mockRestore();
+            }
+
+            expect(channel.messages[0]).toMatchObject({ pending: false, failed: true, failError: NO_NETWORK });
+            expect(dmCrypto.seal).not.toHaveBeenCalled();
+            expect(streamrController.publishAs).not.toHaveBeenCalled();
+        });
+
         it('marks a failed DM and resends it under the same id', async () => {
             const peerAddress = '0xpeeraaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
             const streamId = `${peerAddress}/Pombo-DM-1`;
