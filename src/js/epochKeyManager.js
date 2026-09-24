@@ -98,13 +98,12 @@ const RANK_MAX = 8;
 
 // Stored-request answering, requests WITHOUT a static pubkey only: the
 // requester holds the ephemeral pair in memory, so a wrap for a long-gone
-// request is dead bytes. Requests that carry `spk` have no window — the v2
-// wrap opens with the account key in any later session, so any retained
-// uncovered request is worth answering.
+// request is dead bytes.
 const REQUEST_ANSWER_WINDOW_MS = 10 * 60 * 1000;
 
-// Observed-wrap suppression memory (requestId → Set(keyId)), bounded.
-const SEEN_WRAPS_MAX = 100;
+// Observed-wrap suppression memory (requestId → Set(keyId)). It must hold every
+// request one -4 read can return, or a new session answers the rest again.
+const SEEN_WRAPS_MAX = KEYS_HISTORY_COUNT;
 
 // Persisted pending-request ids (wrap v2). Bounded: a wrap for a request this
 // old answers a question nobody is asking any more, and the ids sync across
@@ -689,18 +688,9 @@ class EpochKeyManager {
 
         // N-B: answer stored requests that no wrap covers yet — a member
         // arriving later serves whoever is still waiting, so requester and
-        // key-holder no longer have to coincide in time. Requests carrying a
-        // static pubkey have no age limit (the v2 wrap opens in any later
-        // session); without one, only recent requests — the ephemeral pair
-        // lives in memory only, so a wrap for an old request is dead bytes.
+        // key-holder no longer have to coincide in time.
         if (s.epochs.size > 0) {
-            const me = (authManager.getAddress() || '').toLowerCase();
-            const now = Date.now();
-            for (const { data, publisherId, timestamp } of storedRequests) {
-                if (this._isOwnRequest(s, data.requestId)) continue;
-                const hasStatic = typeof data.spk === 'string';
-                if (!hasStatic && now - (timestamp || 0) > REQUEST_ANSWER_WINDOW_MS) continue;
-                if (typeof data.pubkey !== 'string' || typeof data.requestId !== 'string') continue;
+            for (const { data, publisherId } of this._storedRequestsToAnswer(s, storedRequests)) {
                 const rank = await this._rankFor(data.requestId, (channel.members || []).length);
                 this._scheduleAnswer(channel, {
                     requestId: data.requestId, pubkey: data.pubkey, fromEpoch: data.fromEpoch,
@@ -740,6 +730,29 @@ class EpochKeyManager {
                 || this._needsInteractionsKey(channel, s) || s.missingKids?.size > 0) {
             await this._sendKeyRequest(channel, s);
         }
+    }
+
+    /**
+     * The stored requests worth an answer. Without a static pubkey only a
+     * recent one: the ephemeral pair lives in memory, so a wrap for an old
+     * request is dead bytes. With one, only each account's newest: its v2
+     * wrap opens on any of that account's devices, and answering every older
+     * request too sends each new key once per request the account ever made.
+     */
+    _storedRequestsToAnswer(s, storedRequests, now = Date.now()) {
+        const answerable = storedRequests.filter(({ data }) =>
+            typeof data?.pubkey === 'string' && typeof data?.requestId === 'string'
+            && !this._isOwnRequest(s, data.requestId));
+        const newest = new Map();
+        for (const entry of answerable) {
+            if (typeof entry.data.spk !== 'string') continue;
+            const account = (entry.publisherId || '').toLowerCase();
+            const held = newest.get(account);
+            if (!held || (entry.timestamp || 0) >= (held.timestamp || 0)) newest.set(account, entry);
+        }
+        return answerable.filter((entry) => typeof entry.data.spk === 'string'
+            ? newest.get((entry.publisherId || '').toLowerCase()) === entry
+            : now - (entry.timestamp || 0) <= REQUEST_ANSWER_WINDOW_MS);
     }
 
     /** A Sealed channel is not writable until the announced publish
