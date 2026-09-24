@@ -490,6 +490,25 @@ describe('MessageRenderer', () => {
             expect(result).toContain('12:00');
         });
 
+        it('shows an erase from storage in progress on a hidden message until it answers', () => {
+            const base = { id: 'msg-hidden', sender: '0xDEF', text: 'spam', type: 'text', _hidden: true };
+
+            const erasing = messageRenderer.buildMessageHTML(
+                { ...base, _erasing: true }, false, '12:00', { html: '' }, 'Bob'
+            );
+            expect(erasing).toContain('Hidden by moderation<span class="message-erasing');
+
+            const erased = messageRenderer.buildMessageHTML(
+                { ...base, _erased: true }, false, '12:00', { html: '' }, 'Bob'
+            );
+            expect(erased).toContain('Hidden · erased from storage');
+            expect(erased).not.toContain('message-erasing');
+
+            const hidden = messageRenderer.buildMessageHTML(base, false, '12:00', { html: '' }, 'Bob');
+            expect(hidden).toContain('Hidden by moderation</div>');
+            expect(hidden).not.toContain('message-erasing');
+        });
+
         it('says where an unsettled publish stands', () => {
             const base = { id: 'msg-state', sender: '0xABC', text: 'Hello', type: 'text' };
 

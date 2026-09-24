@@ -291,7 +291,7 @@ class MessageContextMenuUI {
         const { dmManager } = this.deps;
         const dmErase = currentChannel?.type === 'dm' && !isSelf && !!msgId
             && (dmManager?.inboxPurgeProviders?.length > 0);
-        const showErase = dmErase || (moderates && !!msgId && !message?._erased
+        const showErase = dmErase || (moderates && !!msgId && !message?._erased && !message?._erasing
             && (currentChannel?.purgeProviders?.length > 0));
         // Cannot ban yourself or the channel admin.
         const showBan = moderates && !isSelf && !isCreator;
@@ -502,6 +502,13 @@ class MessageContextMenuUI {
                     message: `Remove this message from ${providers} storage provider${providers === 1 ? '' : 's'}. It stays hidden for everyone and cannot be recovered.`,
                     confirmLabel: 'Erase'
                 })) break;
+                const redraw = () => {
+                    if (chatAreaUI?.updateMessage?.(msg) === false) {
+                        chatAreaUI?.renderMessages?.(ch.messages, () => chatAreaUI._attachMessageListeners?.());
+                    }
+                };
+                msg._erasing = true;
+                redraw();
                 try {
                     const { authManager } = await import('../auth.js');
                     const { eraseMessage } = await import('../storagePurge.js');
@@ -517,10 +524,12 @@ class MessageContextMenuUI {
                     const outcome = await eraseMessage(ch, msg, signer, channelManager.purgeOptions?.(ch));
                     if (outcome.erasedOn > 0) msg._erased = true;
                     showNotification(purgeOutcomeText(outcome), outcome.erasedOn === outcome.providers ? 'success' : 'warning');
-                    chatAreaUI?.renderMessages?.(ch.messages, () => chatAreaUI._attachMessageListeners?.());
                 } catch (err) {
                     console.warn('Erase from storage failed:', err?.message || err);
                     showNotification(err?.message || 'Failed to erase message', 'error');
+                } finally {
+                    delete msg._erasing;
+                    redraw();
                 }
                 break;
             }

@@ -831,8 +831,11 @@ class MessageRenderer {
 
         // A moderator's view of a hidden message: dimmed, labelled, still
         // reachable by the context menu for Unhide and Erase.
+        const erasingHtml = msg._erasing && !msg._erased
+            ? '<span class="message-erasing inline-block animate-spin w-2.5 h-2.5 ml-1.5 align-middle border border-white/25 border-t-white/70 rounded-full" aria-label="Erasing from storage"></span>'
+            : '';
         const moderationHtml = msg._hidden
-            ? `<div class="message-moderation text-[11px] text-amber-400/80 mb-1">${msg._erased ? 'Hidden · erased from storage' : 'Hidden by moderation'}</div>`
+            ? `<div class="message-moderation text-[11px] text-amber-400/80 mb-1">${msg._erased ? 'Hidden · erased from storage' : 'Hidden by moderation'}${erasingHtml}</div>`
             : '';
         const bubbleStyle = msg._hidden ? ' style="opacity:0.45"' : '';
 
