@@ -44,8 +44,8 @@ class ChannelModalsUI {
     /**
      * Show notification helper
      */
-    showNotification(message, type) {
-        this.deps.showNotification?.(message, type);
+    showNotification(message, type, duration) {
+        this.deps.showNotification?.(message, type, duration);
     }
 
     /**
@@ -817,7 +817,11 @@ class ChannelModalsUI {
                 try {
                     this.notificationUI?.showLoadingToast('Banning…', 'This may take a moment');
                     await this.channelManager.banMemberLevels(channel.streamId, address, levels);
-                    this.showNotification('Member banned', 'success');
+                    if (this.channelManager.isRotationOwed(channel.streamId)) {
+                        this.showNotification('Member banned. The channel key rotates the next time the app connects.', 'warning', 5000);
+                    } else {
+                        this.showNotification('Member banned', 'success');
+                    }
                 } catch (error) {
                     this.showNotification('Failed to ban: ' + error.message, 'error');
                     return;

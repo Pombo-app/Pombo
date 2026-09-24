@@ -38,6 +38,7 @@ import { AdminStateConfirm } from './channels/AdminStateConfirm.js';
 import { StorageCopy } from './channels/StorageCopy.js';
 import { DeliveryConfirm } from './channels/DeliveryConfirm.js';
 import { Membership } from './channels/Membership.js';
+import { RotationRetry } from './channels/RotationRetry.js';
 import { ModDeltas, MOD_ACTION_TYPE } from './channels/ModDeltas.js';
 
 const GATE_REPAIR_WAIT_MS = 10_000;
@@ -75,6 +76,25 @@ class ChannelManager {
         this.storageCopy = new StorageCopy(this);
         this.deliveryConfirm = new DeliveryConfirm(this);
         this.membership = new Membership(this);
+        this.rotationRetry = new RotationRetry({
+            account: () => authManager.getAddress(),
+            rotate: async (messageStreamId) => {
+                const channel = this.channels.get(messageStreamId);
+                if (!channel) throw new Error('Channel no longer stored');
+                await epochKeyManager.rotateEpoch(channel);
+            },
+            covered: async (messageStreamId, addresses) => {
+                const channel = this.channels.get(messageStreamId);
+                if (!channel) return;
+                channel.rotatedForNoAccess = [...new Set([
+                    ...(channel.rotatedForNoAccess || channel.rotatedForBanned || []), ...addresses])];
+                await this.saveChannels();
+            },
+            stillOwned: (messageStreamId) => {
+                const channel = this.channels.get(messageStreamId);
+                return !!channel && epochKeyManager.isOwnAdmin(channel);
+            }
+        });
         // Moderator deltas on -1/P2, composed over the owner's snapshot.
         this.modDeltas = new ModDeltas(this);
     }
@@ -1419,6 +1439,14 @@ class ChannelManager {
     addMembers(messageStreamId, addresses) { return this.membership.addMembers(messageStreamId, addresses); }
     removeMember(messageStreamId, address) { return this.membership.removeMember(messageStreamId, address); }
     banMemberLevels(messageStreamId, address, levels) { return this.membership.banMemberLevels(messageStreamId, address, levels); }
+    /** A ban or removal whose key rotation has not gone out yet. */
+    isRotationOwed(messageStreamId) { return this.rotationRetry.isOwed(messageStreamId); }
+    /** Owed rotations of the gated channels this account owns, taken up once the client connects. */
+    resumeOwedRotations() {
+        this.rotationRetry.resume([...this.channels.values()]
+            .filter(ch => ch.gate?.address && epochKeyManager.isOwnAdmin(ch))
+            .map(ch => ch.messageStreamId));
+    }
     unbanMemberLevels(messageStreamId, address) { return this.membership.unbanMemberLevels(messageStreamId, address); }
     getGateMemberFlags(streamId) { return this.membership.getGateMemberFlags(streamId); }
     _rememberBanned(channel, flags) { return this.membership._rememberBanned(channel, flags); }
@@ -2337,6 +2365,8 @@ class ChannelManager {
     async _rotateForLostAccess(channel) {
         if (!channel?.gate?.address) return;
         if (!epochKeyManager.isOwnAdmin(channel)) return;
+        // The retry owns the channel's rotation until it goes out.
+        if (this.rotationRetry.isOwed(channel.messageStreamId)) return;
 
         const flags = await this.getGateMemberFlags(channel.messageStreamId);
         if (flags.length === 0) return;   // unreadable gate — judge nothing

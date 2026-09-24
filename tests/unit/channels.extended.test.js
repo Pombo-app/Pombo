@@ -261,6 +261,15 @@ describe('ChannelManager Extended', () => {
             expect(channel.members).toContain('0xnewmember');
         });
 
+        it('answers the key requests storage holds once the member is allowed', async () => {
+            const { epochKeyManager } = await import('../../src/js/epochKeyManager.js');
+            epochKeyManager.ensureChannelKeys.mockClear();
+
+            await channelManager.addMember(streamId, '0xnewmember');
+
+            expect(epochKeyManager.ensureChannelKeys).toHaveBeenCalledWith(channelManager.channels.get(streamId));
+        });
+
         it('saves channels after update', async () => {
             const saveSpy = vi.spyOn(channelManager, 'saveChannels').mockResolvedValue(undefined);
             await channelManager.addMember(streamId, '0xnewmember');
@@ -432,6 +441,138 @@ describe('ChannelManager Extended', () => {
             expect(gateManager.unban).toHaveBeenCalledWith('0xgate', '0xmember1');
             // The free client ban is always cleared alongside.
             expect(unbanSpy).toHaveBeenCalledWith(streamId, '0xmember1');
+        });
+
+        it('an unban on the gate answers the key requests storage holds', async () => {
+            const { gateManager } = await import('../../src/js/gate.js');
+            const { epochKeyManager } = await import('../../src/js/epochKeyManager.js');
+            gateManager.getGateMembers.mockResolvedValue([{ address: '0xmember1', banned: true }]);
+            epochKeyManager.ensureChannelKeys.mockClear();
+
+            await channelManager.unbanMemberLevels(streamId, '0xmember1');
+
+            expect(epochKeyManager.ensureChannelKeys).toHaveBeenCalledWith(channelManager.channels.get(streamId));
+        });
+
+        it('lifting only the client ban reads nothing from storage', async () => {
+            const { epochKeyManager } = await import('../../src/js/epochKeyManager.js');
+            vi.spyOn(channelManager, 'unbanMember').mockResolvedValue(true);
+            channelManager.channels.get(streamId).adminState.bannedMembers = ['0xmember1'];
+            epochKeyManager.ensureChannelKeys.mockClear();
+
+            await channelManager.unbanMemberLevels(streamId, '0xmember1');
+
+            expect(epochKeyManager.ensureChannelKeys).not.toHaveBeenCalled();
+        });
+    });
+
+    // ==================== the rotation a cut owes ====================
+    describe('the key rotation a ban or removal owes', () => {
+        const streamId = 'stream-gated-owed';
+        let channel;
+        let epochKeyManager;
+
+        beforeEach(async () => {
+            ({ epochKeyManager } = await import('../../src/js/epochKeyManager.js'));
+            epochKeyManager.rotateEpoch.mockReset();
+            epochKeyManager.isOwnAdmin = vi.fn().mockReturnValue(true);
+            identityManager.resolveENS = vi.fn().mockResolvedValue(null);
+            localStorage.removeItem('pombo_rotation_owed');
+            // Parks the background retry: each test drives the attempts itself.
+            channelManager.rotationRetry.sleep = () => new Promise(() => {});
+            channel = {
+                messageStreamId: streamId,
+                streamId,
+                type: 'gated',
+                gate: { address: '0xgate' },
+                members: ['0xmyaddress', '0xmember1'],
+                messages: [],
+                reactions: {},
+                password: null,
+                ephemeralStreamId: `${streamId}-ephemeral`,
+                createdBy: '0xmyaddress'
+            };
+            channelManager.channels.set(streamId, channel);
+            vi.spyOn(channelManager, 'saveChannels').mockResolvedValue(undefined);
+        });
+
+        afterEach(() => {
+            epochKeyManager.rotateEpoch.mockReset();
+            epochKeyManager.rotateEpoch.mockResolvedValue(undefined);
+            delete epochKeyManager.isOwnAdmin;
+            delete identityManager.resolveENS;
+            localStorage.removeItem('pombo_rotation_owed');
+        });
+
+        it('a ban whose rotation cannot go out keeps the member owed', async () => {
+            epochKeyManager.rotateEpoch.mockRejectedValue(new Error('connectionCount>0'));
+
+            await channelManager.banMemberLevels(streamId, '0xMember1', { protocol: true });
+
+            expect(channel.knownBanned).toContain('0xmember1');
+            expect(channel.members).not.toContain('0xmember1');
+            expect(channel.rotatedForNoAccess || []).not.toContain('0xmember1');
+            expect(channelManager.isRotationOwed(streamId)).toBe(true);
+        });
+
+        it("holds the owner's message back until the rotation goes out, then rotates before publishing", async () => {
+            const { OWED_ROTATION_MESSAGE } = await import('../../src/js/channels/RotationRetry.js');
+            epochKeyManager.rotateEpoch.mockRejectedValue(new Error('connectionCount>0'));
+            await channelManager.banMemberLevels(streamId, '0xmember1', { protocol: true });
+            const publish = vi.spyOn(channelManager, 'publishWithRetry').mockResolvedValue(undefined);
+
+            await expect(channelManager.sendMessage(streamId, 'hello')).rejects.toThrow(OWED_ROTATION_MESSAGE);
+            expect(publish).not.toHaveBeenCalled();
+            expect(channel.messages[0]).toMatchObject({ failed: true, failError: OWED_ROTATION_MESSAGE });
+
+            epochKeyManager.rotateEpoch.mockResolvedValue(undefined);
+            await channelManager.resendMessage(streamId, channel.messages[0].id);
+
+            const lastRotation = epochKeyManager.rotateEpoch.mock.invocationCallOrder.at(-1);
+            expect(lastRotation).toBeLessThan(publish.mock.invocationCallOrder[0]);
+            expect(channel.messages[0]).toMatchObject({ failed: false });
+            expect(channel.rotatedForNoAccess).toContain('0xmember1');
+            expect(channelManager.isRotationOwed(streamId)).toBe(false);
+            publish.mockRestore();
+        });
+
+        it("the owner's sweep leaves an owed rotation to the retry", async () => {
+            epochKeyManager.rotateEpoch.mockRejectedValue(new Error('connectionCount>0'));
+            await channelManager.banMemberLevels(streamId, '0xmember1', { protocol: true });
+            const flags = vi.spyOn(channelManager, 'getGateMemberFlags');
+
+            await channelManager._rotateForLostAccess(channel);
+
+            expect(flags).not.toHaveBeenCalled();
+            flags.mockRestore();
+        });
+
+        it('a session that connects with a rotation owed takes it up', async () => {
+            epochKeyManager.rotateEpoch.mockRejectedValue(new Error('connectionCount>0'));
+            await channelManager.banMemberLevels(streamId, '0xmember1', { protocol: true });
+            epochKeyManager.rotateEpoch.mockResolvedValue(undefined);
+
+            channelManager.resumeOwedRotations();
+
+            await vi.waitFor(() => expect(channelManager.isRotationOwed(streamId)).toBe(false));
+            expect(channel.rotatedForNoAccess).toContain('0xmember1');
+        });
+
+        it('a removal whose rotation cannot go out stays owed', async () => {
+            epochKeyManager.rotateEpoch.mockRejectedValue(new Error('connectionCount>0'));
+
+            await expect(channelManager.removeMember(streamId, '0xmember1')).resolves.toBe(true);
+
+            expect(channelManager.isRotationOwed(streamId)).toBe(true);
+        });
+
+        it('a ban whose rotation goes out owes nothing', async () => {
+            epochKeyManager.rotateEpoch.mockResolvedValue(undefined);
+
+            await channelManager.banMemberLevels(streamId, '0xmember1', { protocol: true });
+
+            expect(channel.rotatedForNoAccess).toContain('0xmember1');
+            expect(channelManager.isRotationOwed(streamId)).toBe(false);
         });
     });
 

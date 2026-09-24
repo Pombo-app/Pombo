@@ -484,6 +484,7 @@ class App {
 
             const deepLinkStreamId = this._getDeepLinkStreamId();
             streamrController.warmupNetwork(deepLinkStreamId);
+            if (!isGuest) channelManager.resumeOwedRotations();
 
             await mediaController.setOwner(address);
 

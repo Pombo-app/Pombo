@@ -106,6 +106,22 @@ describe('epoch keys sealed to the admin\'s own account', () => {
         expect(announces()[0].epoch).toBe(6);
     });
 
+    it('rotation on a channel this session never loaded keeps the keys already stored', async () => {
+        epochKeyManager._loadPersisted.mockRestore();
+        const { secureStorage } = await import('../../src/js/secureStorage.js');
+        vi.spyOn(secureStorage, 'getEpochKeys').mockReturnValue({
+            epochs: { '1.stored': { epoch: 1, keyHex: '0x' + '22'.repeat(32), keyHash: '0xstored' } },
+            announces: { 1: { keyId: '1.stored', keyHash: '0xstored', validFrom: 1 } },
+            currentEpoch: 1
+        });
+
+        const epoch = await epochKeyManager.rotateEpoch(channel);
+
+        expect(epoch).toBe(2);
+        const epochs = [...epochKeyManager._getState(STREAM).epochs.values()].map(e => e.epoch).sort();
+        expect(epochs).toEqual([1, 2]);
+    });
+
     it('a fresh admin session adopts the stored self wrap without asking anyone', async () => {
         const keyHash = (await epochKeyCrypto.computeKeyHash(VEC.epochKey)).toLowerCase();
         stored.set(KEYS_STREAM.KEY_EXCHANGE, [{

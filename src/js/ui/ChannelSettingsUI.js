@@ -1994,7 +1994,11 @@ class ChannelSettingsUI {
         try {
             showLoading('Removing member (on-chain transaction)...');
             await channelManager.removeMember(currentChannel.streamId, address);
-            showNotification('Member removed successfully!', 'success');
+            if (channelManager.isRotationOwed(currentChannel.streamId)) {
+                showNotification('Member removed. The channel key rotates the next time the app connects.', 'warning', 5000);
+            } else {
+                showNotification('Member removed successfully!', 'success');
+            }
             await this.loadMembers();
         } catch (error) {
             showNotification('Failed to remove member: ' + error.message, 'error');

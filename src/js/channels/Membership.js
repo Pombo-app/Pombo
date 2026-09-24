@@ -55,6 +55,7 @@ export class Membership {
             channel.members.push(address);
             await this.manager.saveChannels();
             Logger.info('Member allowed on gate:', address);
+            this._answerWaitingRequests(channel);
             return true;
         } catch (error) {
             Logger.error('Failed to allow member on gate:', error);
@@ -84,6 +85,7 @@ export class Membership {
             channel.members.push(...fresh);
             await this.manager.saveChannels();
             Logger.info(`Gate: ${fresh.length} member(s) allowed in one tx`);
+            this._answerWaitingRequests(channel);
             return true;
         } catch (error) {
             Logger.error('Failed to allow members on gate:', error);
@@ -130,11 +132,7 @@ export class Membership {
             const memberIndex = channel.members.findIndex(m => m.toLowerCase() === normalizedAddress);
             if (memberIndex !== -1) channel.members.splice(memberIndex, 1);
             await this.manager.saveChannels();
-            try {
-                await epochKeyManager.rotateEpoch(channel);
-            } catch (rotateError) {
-                Logger.warn('Epoch rotation after removal FAILED — the removed member can still read new messages until the next rotation:', rotateError.message);
-            }
+            await this.manager.rotationRetry.rotateFor(messageStreamId, [address]);
             Logger.info('Member removed from the gate allowlist:', address);
             return true;
         } catch (error) {
@@ -172,20 +170,20 @@ export class Membership {
                 ...new Set([...(channel.knownBanned || []), address.toLowerCase()])
             ];
             await this.manager.saveChannels();
-            try {
-                await epochKeyManager.rotateEpoch(channel);
-                // Covered: the deferred pass must not rotate again for this one.
-                channel.rotatedForNoAccess = [
-                    ...new Set([...(channel.rotatedForNoAccess || channel.rotatedForBanned || []),
-                        address.toLowerCase()])
-                ];
-                await this.manager.saveChannels();
-            } catch (rotateError) {
-                Logger.warn('Epoch rotation after gate ban FAILED — banned member can still read new messages until the next rotation:', rotateError.message);
-            }
+            await this.manager.rotationRetry.rotateFor(messageStreamId, [address]);
         }
         if (client) await this.manager.banMember(messageStreamId, address);
         return true;
+    }
+
+    /**
+     * Answer the key requests storage holds for the channel now. The SDK keeps
+     * refusing a just-readmitted member's live requests for up to ten minutes;
+     * the stored copies are read raw, past that check.
+     */
+    _answerWaitingRequests(channel) {
+        epochKeyManager.ensureChannelKeys(channel).catch((e) =>
+            Logger.warn('Answering the stored key requests failed:', e?.message));
     }
 
     /**
@@ -207,6 +205,7 @@ export class Membership {
                 } catch (error) {
                     throw new Error(parseChainError(error).message);
                 }
+                this._answerWaitingRequests(channel);
             }
         }
         // Ban entries are { address, sinceEpoch }; older snapshots may still

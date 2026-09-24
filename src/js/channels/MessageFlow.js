@@ -653,6 +653,7 @@ export class MessageFlow {
         delete message.undelivered;
         let published;
         try {
+            await this.manager.rotationRetry?.settle(messageStreamId);
             published = await this.manager.publishWithRetry(messageStreamId, message, channel.password);
         } catch (error) {
             message.pending = false;
