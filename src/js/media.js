@@ -691,6 +691,7 @@ class MediaController {
      * @returns {Promise<Object>} - Image message info
      */
     async sendImage(messageStreamId, file, password = null) {
+        await channelManager.rotationRetry?.settle(messageStreamId);
         if (CONFIG.LEGACY_INLINE_IMAGE_WRITE_ENABLED) {
             return this.sendLegacyInlineImage(messageStreamId, file, password);
         }

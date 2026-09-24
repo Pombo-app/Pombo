@@ -203,7 +203,7 @@ class UIController {
             streamrController,
             authManager,
             subscriptionManager,
-            showNotification: (msg, type) => this.showNotification(msg, type),
+            showNotification: (msg, type, duration) => this.showNotification(msg, type, duration),
             showLoading: (msg) => this.showLoading(msg),
             hideLoading: () => this.hideLoading(),
             getChannelTypeLabel: (type, readOnly, showLabel) => headerUI.getChannelTypeLabel(type, readOnly, showLabel),
@@ -295,7 +295,7 @@ class UIController {
             modalManager,
             notificationUI,
             Logger,
-            showNotification: (msg, type) => this.showNotification(msg, type),
+            showNotification: (msg, type, duration) => this.showNotification(msg, type, duration),
             renderChannelList: () => this.renderChannelList(),
             selectChannel: (streamId) => this.selectChannel(streamId)
         });

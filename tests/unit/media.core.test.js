@@ -2258,6 +2258,22 @@ describe('media.js core', () => {
 
     // ==================== sendImage (full flow) ====================
     describe('sendImage full flow', () => {
+        it('holds the image back while the channel owes a key rotation', async () => {
+            channelManager.rotationRetry = {
+                settle: vi.fn().mockRejectedValue(new Error('Waiting to rotate the channel key.'))
+            };
+            channelManager.getChannel.mockReturnValue({ type: 'gated', messages: [], password: null });
+            const published = streamrController.publishMessage.mock.calls.length;
+            try {
+                const file = new File(['img'], 'photo.jpg', { type: 'image/jpeg' });
+                await expect(mediaController.sendImage('stream-1', file)).rejects.toThrow('Waiting to rotate');
+                expect(channelManager.rotationRetry.settle).toHaveBeenCalledWith('stream-1');
+                expect(streamrController.publishMessage.mock.calls.length).toBe(published);
+            } finally {
+                delete channelManager.rotationRetry;
+            }
+        });
+
         it('throws for invalid image type', async () => {
             const file = new File(['test'], 'test.txt', { type: 'text/plain' });
             await expect(mediaController.sendImage('stream-1', file)).rejects.toThrow('Invalid image type');

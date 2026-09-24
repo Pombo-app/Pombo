@@ -130,11 +130,7 @@ export class Membership {
             const memberIndex = channel.members.findIndex(m => m.toLowerCase() === normalizedAddress);
             if (memberIndex !== -1) channel.members.splice(memberIndex, 1);
             await this.manager.saveChannels();
-            try {
-                await epochKeyManager.rotateEpoch(channel);
-            } catch (rotateError) {
-                Logger.warn('Epoch rotation after removal FAILED — the removed member can still read new messages until the next rotation:', rotateError.message);
-            }
+            await this.manager.rotationRetry.rotateFor(messageStreamId, [address]);
             Logger.info('Member removed from the gate allowlist:', address);
             return true;
         } catch (error) {
@@ -172,17 +168,7 @@ export class Membership {
                 ...new Set([...(channel.knownBanned || []), address.toLowerCase()])
             ];
             await this.manager.saveChannels();
-            try {
-                await epochKeyManager.rotateEpoch(channel);
-                // Covered: the deferred pass must not rotate again for this one.
-                channel.rotatedForNoAccess = [
-                    ...new Set([...(channel.rotatedForNoAccess || channel.rotatedForBanned || []),
-                        address.toLowerCase()])
-                ];
-                await this.manager.saveChannels();
-            } catch (rotateError) {
-                Logger.warn('Epoch rotation after gate ban FAILED — banned member can still read new messages until the next rotation:', rotateError.message);
-            }
+            await this.manager.rotationRetry.rotateFor(messageStreamId, [address]);
         }
         if (client) await this.manager.banMember(messageStreamId, address);
         return true;
