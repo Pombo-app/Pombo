@@ -23,7 +23,7 @@ import { dmCrypto } from './dmCrypto.js';
 import { channelManager } from './channels.js';
 import { dmManager } from './dm.js';
 import { identityManager } from './identity.js';
-import { mergePayloadSeries as mergeSyncPayloadSeries, mergeSentMessages as mergeSyncSentMessages, mergeSentReactions as mergeSyncSentReactions, mergeState as mergeSyncState, mergeChannels as mergeSyncChannels, mergeEpochKeys as mergeSyncEpochKeys } from './syncMerge.js';
+import { mergePayloadSeries as mergeSyncPayloadSeries, mergeSentMessages as mergeSyncSentMessages, mergeSentReactions as mergeSyncSentReactions, mergeState as mergeSyncState, mergeChannels as mergeSyncChannels, mergeEpochKeys as mergeSyncEpochKeys, mergeSentDeletedAt as mergeSyncSentDeletedAt, withoutDeleted as withoutDeletedSent } from './syncMerge.js';
 import { syncWorkerClient } from './workers/syncWorkerClient.js';
 import { cryptoManager } from './crypto.js';
 import { splitSyncPayload, reassembleSyncPayloads } from './syncChunks.js';
@@ -829,6 +829,9 @@ class SyncManager {
             // would be dropped by the slice replace, and for a paid gate the
             // network never re-serves it.
             merged.epochKeys = mergeSyncEpochKeys(liveState.epochKeys, merged.epochKeys);
+            // And a sent DM deleted while the merge ran would come back.
+            merged.sentDeletedAt = mergeSyncSentDeletedAt(liveState.sentDeletedAt, merged.sentDeletedAt);
+            merged.sentMessages = withoutDeletedSent(merged.sentMessages, merged.sentDeletedAt);
 
             // Apply final merged state
             const importStartedAt = getNow();
