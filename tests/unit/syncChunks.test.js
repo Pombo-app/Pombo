@@ -7,7 +7,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { ethers } from 'ethers';
 import { splitSyncPayload, reassembleSyncPayloads, SYNC_CHUNK_CHARS } from '../../src/js/syncChunks.js';
+import { dmCrypto } from '../../src/js/dmCrypto.js';
+import { CONFIG } from '../../src/js/config.js';
+
+globalThis.ethers = ethers;
+
+const bytes = (s) => new TextEncoder().encode(s).length;
 
 const snapshot = (fill, ts = 1700000000000) => ({
     type: 'sync', v: 1, ts,
@@ -48,11 +55,20 @@ describe('splitting', () => {
         expect(reassembleSyncPayloads(out)[0]).toEqual(payload);
     });
 
-    it('never puts more than the budget in one message', () => {
-        const out = splitSyncPayload(snapshot('z'.repeat(5000)), 'run1', 300);
-        for (const chunk of out.filter(m => m.type === 'sync_chunk')) {
-            expect(chunk.data.length).toBeLessThanOrEqual(300);
+    it('never puts more than the budget in one message, counted as JSON writes it', () => {
+        for (const fill of ['z'.repeat(5000), '"\\'.repeat(2000), 'ação coração '.repeat(400), '🐦'.repeat(2000), '\u0001\n'.repeat(1500)]) {
+            const payload = snapshot(fill);
+            const out = splitSyncPayload(payload, 'run1', 300);
+            for (const chunk of out.filter(m => m.type === 'sync_chunk')) {
+                expect(bytes(JSON.stringify(chunk.data))).toBeLessThanOrEqual(300);
+            }
+            expect(reassembleSyncPayloads(out)[0]).toEqual(payload);
         }
+    });
+
+    it('cuts accented text into more, shorter chunks than the same length of ASCII', () => {
+        const count = (fill) => splitSyncPayload(snapshot(fill), 'run1', 300).length;
+        expect(count('ç'.repeat(3000))).toBeGreaterThan(count('c'.repeat(3000)));
     });
 });
 
@@ -124,5 +140,23 @@ describe('reassembling', () => {
 describe('the budget', () => {
     it('is the measured one — a 150 KB slice reaches the wire near 227 KB', () => {
         expect(SYNC_CHUNK_CHARS).toBe(150 * 1024);
+    });
+
+    it('keeps every sealed chunk under the wire budget, whatever the text is made of', async () => {
+        const me = new ethers.Wallet('0x' + '11'.repeat(32));
+        const seal = (message) => dmCrypto.seal(message, {
+            senderPrivateKey: me.privateKey,
+            recipientAddress: me.address,
+            recipientPublicKey: new ethers.SigningKey(me.privateKey).compressedPublicKey
+        });
+        const wireBudget = CONFIG.media.imagePayloadMaxBytes - CONFIG.media.imagePayloadSafetyMarginBytes;
+        for (const fill of ['🐦'.repeat(90000), '"'.repeat(200000), 'ç'.repeat(160000), '\u0001'.repeat(60000)]) {
+            const chunks = splitSyncPayload(snapshot(fill), 'run1').filter(m => m.type === 'sync_chunk');
+            expect(chunks.length).toBeGreaterThan(1);
+            for (const chunk of chunks) {
+                const { envelope } = await seal(chunk);
+                expect(bytes(JSON.stringify(envelope))).toBeLessThanOrEqual(wireBudget);
+            }
+        }
     });
 });
