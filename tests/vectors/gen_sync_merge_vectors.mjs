@@ -7,8 +7,8 @@
 // every device.
 //
 // The vectors fix the slice outcome of one merge step (base = this device,
-// incoming = a remote snapshot) and the stamping of unstamped values before a
-// state leaves the device.
+// incoming = a remote snapshot), the stamping of unstamped values before a
+// state leaves the device, and how sent DMs carry deletions and edits.
 import { mergeState, stampedSliceTs } from '../../src/js/syncMerge.js';
 
 const SLICES = ['blockedPeers', 'dmLeftAt', 'trustedContacts', 'username', 'graphApiKey'];
@@ -37,6 +37,16 @@ const merge = (what, base, incoming) => ({
     expected: slicesOf(mergeState(base, incoming))
 });
 
+const DM = '0x00000000000000000000000000000000000000a1/Pombo-DM-1';
+const text = (id, timestamp, extra = {}) => ({ id, type: 'text', text: `text of ${id}`, timestamp, ...extra });
+
+// Sent DMs: a deletion on any device removes the message on every device,
+// and the latest edit wins.
+const sent = (what, base, incoming) => {
+    const merged = mergeState(base, incoming);
+    return { what, base, incoming, expected: { sentMessages: merged.sentMessages, sentDeletedAt: merged.sentDeletedAt } };
+};
+
 console.log(JSON.stringify({
     merge: [
         merge('an unstamped empty snapshot never erases unstamped values', RESTORED, EMPTY),
@@ -64,5 +74,37 @@ console.log(JSON.stringify({
             state: EMPTY,
             sliceTs: stampedSliceTs(EMPTY)
         }
+    ],
+    sent: [
+        sent('a message deleted here stays deleted against a copy that still has it',
+            { sentMessages: { [DM]: [text('m1', 1000)] }, sentDeletedAt: { [DM]: { m2: 5000 } } },
+            { sentMessages: { [DM]: [text('m1', 1000), text('m2', 2000)] } }),
+        sent('a deletion made on another device removes the copy held here',
+            { sentMessages: { [DM]: [text('m1', 1000), text('m2', 2000)] } },
+            { sentMessages: { [DM]: [text('m1', 1000)] }, sentDeletedAt: { [DM]: { m2: 5000 } } }),
+        sent('deletions from both sides are joined, the latest time per message',
+            { sentMessages: {}, sentDeletedAt: { [DM]: { m2: 5000, m3: 100 } } },
+            { sentMessages: {}, sentDeletedAt: { [DM]: { m2: 6000, m4: 200 } } }),
+        sent('a snapshot from a client that knows no deletions keeps the ones held here',
+            { sentMessages: { [DM]: [text('m1', 1000)] }, sentDeletedAt: { [DM]: { m2: 5000 } } },
+            { sentMessages: { [DM]: [text('m1', 1000), text('m2', 2000)] }, sentDeletedAt: undefined }),
+        sent('the deletion of a message does not touch one sent later under a new id',
+            { sentMessages: { [DM]: [text('m3', 7000)] }, sentDeletedAt: { [DM]: { m2: 5000 } } },
+            { sentMessages: { [DM]: [text('m2', 2000), text('m3', 7000)] } }),
+        sent('the later edit wins, whichever side holds it',
+            { sentMessages: { [DM]: [text('m1', 1000, { text: 'first', _edited: true, _editedAt: 3000 })] } },
+            { sentMessages: { [DM]: [text('m1', 1000, { text: 'second', _edited: true, _editedAt: 4000 })] } }),
+        sent('an older edit arriving does not undo a newer one here',
+            { sentMessages: { [DM]: [text('m1', 1000, { text: 'second', _edited: true, _editedAt: 4000 })] } },
+            { sentMessages: { [DM]: [text('m1', 1000, { text: 'first', _edited: true, _editedAt: 3000 })] } }),
+        sent('an edit replaces the copy that was never edited',
+            { sentMessages: { [DM]: [text('m1', 1000)] } },
+            { sentMessages: { [DM]: [text('m1', 1000, { text: 'fixed', _edited: true, _editedAt: 3000 })] } }),
+        sent('a deletion wins over a later edit made on another device',
+            { sentMessages: { [DM]: [] }, sentDeletedAt: { [DM]: { m1: 5000 } } },
+            { sentMessages: { [DM]: [text('m1', 1000, { text: 'later', _edited: true, _editedAt: 9000 })] } }),
+        sent('a deletion from another device wins over a later edit held here',
+            { sentMessages: { [DM]: [text('m1', 1000, { text: 'later', _edited: true, _editedAt: 9000 })] } },
+            { sentMessages: { [DM]: [] }, sentDeletedAt: { [DM]: { m1: 5000 } } })
     ]
 }, null, 2));

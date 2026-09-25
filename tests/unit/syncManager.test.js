@@ -635,6 +635,45 @@ describe('syncManager', () => {
             expect(ids).toContain('ch-imported');
             expect(ids).toContain('ch-remote');
         });
+
+        it('should keep a sent DM deleted while the merge ran deleted', async () => {
+            authManager.wallet = { privateKey: '0x1234' };
+            authManager.getAddress.mockReturnValue('0xabc123');
+
+            const dm = '0xpeer/Pombo-DM-1';
+            const message = { id: 'm1', type: 'text', text: 'hi', timestamp: 100 };
+            const state = {
+                sentMessages: { [dm]: [message] },
+                sentReactions: {},
+                channels: [],
+                channelsLeftAt: {},
+                blockedPeers: [],
+                dmLeftAt: {},
+                trustedContacts: {},
+                ensCache: {},
+                username: null,
+                graphApiKey: null
+            };
+            secureStorage.exportForBackup
+                .mockReturnValueOnce(state)
+                .mockReturnValueOnce({ ...state, sentMessages: { [dm]: [] }, sentDeletedAt: { [dm]: { m1: 500 } } });
+
+            dmCrypto.decrypt.mockResolvedValue({
+                type: 'sync',
+                v: 1,
+                ts: 1000,
+                data: { sentMessages: { [dm]: [message] } }
+            });
+            streamrController.fetchPartitionHistory.mockResolvedValue([
+                { content: { ct: 'enc' }, publisherId: '0xABC123', timestamp: 1000 }
+            ]);
+
+            await syncManager.pullSync();
+
+            const imported = secureStorage.importFromSync.mock.calls[0][0];
+            expect(imported.sentMessages[dm]).toEqual([]);
+            expect(imported.sentDeletedAt).toEqual({ [dm]: { m1: 500 } });
+        });
     });
 
     describe('mergeState', () => {

@@ -163,6 +163,7 @@ class SecureStorage {
             blockedPeers: [],
             dmLeftAt: {},
             channelsLeftAt: {},
+            sentDeletedAt: {},
             pendingInvites: [],
             sliceTs: {},
             version: 2
@@ -1031,20 +1032,21 @@ class SecureStorage {
     }
 
     /**
-     * Remove a sent message from local storage (for deletes)
+     * Delete a sent message: drop it here and record the deletion, which the
+     * sync carries to the account's other devices.
      * @param {string} streamId - Stream ID
      * @param {string} messageId - Message ID to remove
      */
     async removeSentMessage(streamId, messageId) {
         if (!this.isUnlocked) return;
+        if (!this.cache.sentDeletedAt) this.cache.sentDeletedAt = {};
+        if (!this.cache.sentDeletedAt[streamId]) this.cache.sentDeletedAt[streamId] = {};
+        this.cache.sentDeletedAt[streamId][messageId] = Date.now();
         const messages = this.cache.sentMessages?.[streamId];
-        if (!messages) return;
-        const idx = messages.findIndex(m => m.id === messageId);
-        if (idx >= 0) {
-            messages.splice(idx, 1);
-            await this.saveToStorage();
-            this.onSentDataChanged?.({ type: 'sentMessage', streamId });
-        }
+        const idx = messages ? messages.findIndex(m => m.id === messageId) : -1;
+        if (idx >= 0) messages.splice(idx, 1);
+        await this.saveToStorage();
+        this.onSentDataChanged?.({ type: 'sentMessage', streamId });
     }
 
     /**
@@ -1691,6 +1693,7 @@ class SecureStorage {
 
         return {
             sentMessages,
+            sentDeletedAt: this.cache.sentDeletedAt || {},
             sentReactions: this.cache.sentReactions || {},
             channels: this.cache.channels || [],
             channelsLeftAt: this.cache.channelsLeftAt || {},
@@ -1734,6 +1737,10 @@ class SecureStorage {
         if (data.sentMessages !== undefined && !isEqual(this.cache.sentMessages, data.sentMessages)) {
             this.cache.sentMessages = data.sentMessages;
             changes.sentMessagesUpdated = true;
+            changes.hasChanges = true;
+        }
+        if (data.sentDeletedAt !== undefined && !isEqual(this.cache.sentDeletedAt, data.sentDeletedAt)) {
+            this.cache.sentDeletedAt = data.sentDeletedAt;
             changes.hasChanges = true;
         }
         if (data.sentReactions !== undefined && !isEqual(this.cache.sentReactions, data.sentReactions)) {
@@ -2036,6 +2043,7 @@ class SecureStorage {
 
         return {
             sentMessages: this.cache.sentMessages || {},
+            sentDeletedAt: this.cache.sentDeletedAt || {},
             sentReactions: this.cache.sentReactions || {},
             channels: this.cache.channels || [],
             channelsLeftAt: this.cache.channelsLeftAt || {},

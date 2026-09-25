@@ -1,6 +1,19 @@
 import { CONFIG } from './config.js';
 
-export function mergeSentMessages(local, remote, maxSentMessages = CONFIG.dm.maxSentMessages) {
+const editedAt = (message) => (typeof message?._editedAt === 'number' ? message._editedAt : 0);
+
+/**
+ * Union of sent messages by id. A copy edited later than the other replaces
+ * it, and any message the deletion map names is left out, whichever side
+ * still holds it.
+ *
+ * @param {Object} local - { streamId: [...messages] }
+ * @param {Object} remote - Same shape
+ * @param {number} [maxSentMessages] - Kept per conversation, newest last
+ * @param {Object} [deleted] - { streamId: { messageId: deletedAt } }
+ * @returns {Object}
+ */
+export function mergeSentMessages(local, remote, maxSentMessages = CONFIG.dm.maxSentMessages, deleted = {}) {
     const result = {};
 
     for (const [streamId, messages] of Object.entries(local || {})) {
@@ -18,6 +31,10 @@ export function mergeSentMessages(local, remote, maxSentMessages = CONFIG.dm.max
             const existing = localById.get(message.id);
             if (!existing) {
                 result[streamId].push({ ...message });
+            } else if (editedAt(message) > editedAt(existing)) {
+                const { imageData } = existing;
+                Object.assign(existing, message);
+                if (imageData && !message.imageData) existing.imageData = imageData;
             } else if (message.type === 'image' && message.imageData && !existing.imageData) {
                 existing.imageData = message.imageData;
             }
@@ -29,7 +46,37 @@ export function mergeSentMessages(local, remote, maxSentMessages = CONFIG.dm.max
         }
     }
 
+    return withoutDeleted(result, deleted);
+}
+
+/**
+ * Union of two sent-message deletion maps ({ streamId: { messageId:
+ * deletedAt } }), the latest time per message. A message id is never reused,
+ * so an entry is never retracted and never pruned.
+ */
+export function mergeSentDeletedAt(base, incoming) {
+    const result = {};
+    for (const source of [base || {}, incoming || {}]) {
+        for (const [streamId, ids] of Object.entries(source)) {
+            if (!ids || typeof ids !== 'object') continue;
+            const out = result[streamId] || (result[streamId] = {});
+            for (const [messageId, ts] of Object.entries(ids)) {
+                if (typeof ts !== 'number') continue;
+                if (!(messageId in out) || ts > out[messageId]) out[messageId] = ts;
+            }
+        }
+    }
     return result;
+}
+
+/** The sent messages without every one the deletion map names. */
+export function withoutDeleted(sentMessages, deleted) {
+    const out = {};
+    for (const [streamId, messages] of Object.entries(sentMessages || {})) {
+        const gone = deleted?.[streamId];
+        out[streamId] = gone ? messages.filter(message => !Object.hasOwn(gone, message.id)) : messages;
+    }
+    return out;
 }
 
 export function mergeSentReactions(local, remote) {
@@ -277,12 +324,16 @@ export function mergeState(base, incoming, maxSentMessages = CONFIG.dm.maxSentMe
         graphApiKey = pickSlice('graphApiKey') || null;
     }
 
+    const sentDeletedAt = mergeSentDeletedAt(base?.sentDeletedAt, incoming?.sentDeletedAt);
+
     return {
         sentMessages: mergeSentMessages(
             base?.sentMessages || {},
             incoming?.sentMessages || {},
-            maxSentMessages
+            maxSentMessages,
+            sentDeletedAt
         ),
+        sentDeletedAt,
         sentReactions: mergeSentReactions(
             base?.sentReactions || {},
             incoming?.sentReactions || {}

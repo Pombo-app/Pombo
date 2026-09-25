@@ -26,4 +26,12 @@ describe('sync merge parity vectors', () => {
             expect(stampedSliceTs(v.state)).toEqual(v.sliceTs);
         });
     }
+
+    for (const v of vectors.sent) {
+        it(v.what, () => {
+            const merged = mergeState(v.base, v.incoming);
+            expect(merged.sentMessages).toEqual(v.expected.sentMessages);
+            expect(merged.sentDeletedAt).toEqual(v.expected.sentDeletedAt);
+        });
+    }
 });

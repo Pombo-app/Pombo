@@ -372,5 +372,468 @@
       },
       "sliceTs": {}
     }
+  ],
+  "sent": [
+    {
+      "what": "a message deleted here stays deleted against a copy that still has it",
+      "base": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "text of m1",
+              "timestamp": 1000
+            }
+          ]
+        },
+        "sentDeletedAt": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+            "m2": 5000
+          }
+        }
+      },
+      "incoming": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "text of m1",
+              "timestamp": 1000
+            },
+            {
+              "id": "m2",
+              "type": "text",
+              "text": "text of m2",
+              "timestamp": 2000
+            }
+          ]
+        }
+      },
+      "expected": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "text of m1",
+              "timestamp": 1000
+            }
+          ]
+        },
+        "sentDeletedAt": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+            "m2": 5000
+          }
+        }
+      }
+    },
+    {
+      "what": "a deletion made on another device removes the copy held here",
+      "base": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "text of m1",
+              "timestamp": 1000
+            },
+            {
+              "id": "m2",
+              "type": "text",
+              "text": "text of m2",
+              "timestamp": 2000
+            }
+          ]
+        }
+      },
+      "incoming": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "text of m1",
+              "timestamp": 1000
+            }
+          ]
+        },
+        "sentDeletedAt": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+            "m2": 5000
+          }
+        }
+      },
+      "expected": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "text of m1",
+              "timestamp": 1000
+            }
+          ]
+        },
+        "sentDeletedAt": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+            "m2": 5000
+          }
+        }
+      }
+    },
+    {
+      "what": "deletions from both sides are joined, the latest time per message",
+      "base": {
+        "sentMessages": {},
+        "sentDeletedAt": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+            "m2": 5000,
+            "m3": 100
+          }
+        }
+      },
+      "incoming": {
+        "sentMessages": {},
+        "sentDeletedAt": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+            "m2": 6000,
+            "m4": 200
+          }
+        }
+      },
+      "expected": {
+        "sentMessages": {},
+        "sentDeletedAt": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+            "m2": 6000,
+            "m3": 100,
+            "m4": 200
+          }
+        }
+      }
+    },
+    {
+      "what": "a snapshot from a client that knows no deletions keeps the ones held here",
+      "base": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "text of m1",
+              "timestamp": 1000
+            }
+          ]
+        },
+        "sentDeletedAt": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+            "m2": 5000
+          }
+        }
+      },
+      "incoming": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "text of m1",
+              "timestamp": 1000
+            },
+            {
+              "id": "m2",
+              "type": "text",
+              "text": "text of m2",
+              "timestamp": 2000
+            }
+          ]
+        }
+      },
+      "expected": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "text of m1",
+              "timestamp": 1000
+            }
+          ]
+        },
+        "sentDeletedAt": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+            "m2": 5000
+          }
+        }
+      }
+    },
+    {
+      "what": "the deletion of a message does not touch one sent later under a new id",
+      "base": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m3",
+              "type": "text",
+              "text": "text of m3",
+              "timestamp": 7000
+            }
+          ]
+        },
+        "sentDeletedAt": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+            "m2": 5000
+          }
+        }
+      },
+      "incoming": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m2",
+              "type": "text",
+              "text": "text of m2",
+              "timestamp": 2000
+            },
+            {
+              "id": "m3",
+              "type": "text",
+              "text": "text of m3",
+              "timestamp": 7000
+            }
+          ]
+        }
+      },
+      "expected": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m3",
+              "type": "text",
+              "text": "text of m3",
+              "timestamp": 7000
+            }
+          ]
+        },
+        "sentDeletedAt": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+            "m2": 5000
+          }
+        }
+      }
+    },
+    {
+      "what": "the later edit wins, whichever side holds it",
+      "base": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "first",
+              "timestamp": 1000,
+              "_edited": true,
+              "_editedAt": 3000
+            }
+          ]
+        }
+      },
+      "incoming": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "second",
+              "timestamp": 1000,
+              "_edited": true,
+              "_editedAt": 4000
+            }
+          ]
+        }
+      },
+      "expected": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "second",
+              "timestamp": 1000,
+              "_edited": true,
+              "_editedAt": 4000
+            }
+          ]
+        },
+        "sentDeletedAt": {}
+      }
+    },
+    {
+      "what": "an older edit arriving does not undo a newer one here",
+      "base": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "second",
+              "timestamp": 1000,
+              "_edited": true,
+              "_editedAt": 4000
+            }
+          ]
+        }
+      },
+      "incoming": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "first",
+              "timestamp": 1000,
+              "_edited": true,
+              "_editedAt": 3000
+            }
+          ]
+        }
+      },
+      "expected": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "second",
+              "timestamp": 1000,
+              "_edited": true,
+              "_editedAt": 4000
+            }
+          ]
+        },
+        "sentDeletedAt": {}
+      }
+    },
+    {
+      "what": "an edit replaces the copy that was never edited",
+      "base": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "text of m1",
+              "timestamp": 1000
+            }
+          ]
+        }
+      },
+      "incoming": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "fixed",
+              "timestamp": 1000,
+              "_edited": true,
+              "_editedAt": 3000
+            }
+          ]
+        }
+      },
+      "expected": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "fixed",
+              "timestamp": 1000,
+              "_edited": true,
+              "_editedAt": 3000
+            }
+          ]
+        },
+        "sentDeletedAt": {}
+      }
+    },
+    {
+      "what": "a deletion wins over a later edit made on another device",
+      "base": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": []
+        },
+        "sentDeletedAt": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+            "m1": 5000
+          }
+        }
+      },
+      "incoming": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "later",
+              "timestamp": 1000,
+              "_edited": true,
+              "_editedAt": 9000
+            }
+          ]
+        }
+      },
+      "expected": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": []
+        },
+        "sentDeletedAt": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+            "m1": 5000
+          }
+        }
+      }
+    },
+    {
+      "what": "a deletion from another device wins over a later edit held here",
+      "base": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+            {
+              "id": "m1",
+              "type": "text",
+              "text": "later",
+              "timestamp": 1000,
+              "_edited": true,
+              "_editedAt": 9000
+            }
+          ]
+        }
+      },
+      "incoming": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": []
+        },
+        "sentDeletedAt": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+            "m1": 5000
+          }
+        }
+      },
+      "expected": {
+        "sentMessages": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": []
+        },
+        "sentDeletedAt": {
+          "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+            "m1": 5000
+          }
+        }
+      }
+    }
   ]
 }

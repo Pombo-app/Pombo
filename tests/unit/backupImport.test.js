@@ -165,6 +165,21 @@ describe('importBackupData', () => {
         expect(summary.dmHistories).toBe(2);
     });
 
+    it('does not restore a sent DM deleted here or in the backup, and keeps both deletion records', async () => {
+        const { secureStorage, channelManager, cache } = makeDeps({
+            sentDeletedAt: { s2: { gone: 500 } }
+        });
+        const data = {
+            sentMessages: { s2: [{ id: 'gone' }, { id: 'kept' }, { id: 'also-gone' }] },
+            sentDeletedAt: { s2: { 'also-gone': 600 } }
+        };
+
+        await importBackupData(data, { secureStorage, channelManager });
+
+        expect(cache.sentMessages.s2.map(m => m.id)).toEqual(['kept']);
+        expect(cache.sentDeletedAt).toEqual({ s2: { gone: 500, 'also-gone': 600 } });
+    });
+
     it('reloads the identity manager for the slices it caches in memory', async () => {
         const { secureStorage, channelManager, identityManager } = makeDeps();
         const data = {

@@ -17,7 +17,7 @@
  */
 
 import { Logger } from './logger.js';
-import { mergeChannels } from './syncMerge.js';
+import { mergeChannels, mergeSentDeletedAt, withoutDeleted } from './syncMerge.js';
 
 /**
  * Apply backup state to the unlocked secure storage and the live managers.
@@ -96,9 +96,13 @@ export async function importBackupData(data, { secureStorage, channelManager, id
     }
 
     // ---- Sent DM messages (per stream, only when absent) ----
+    if (data.sentDeletedAt) {
+        cache.sentDeletedAt = mergeSentDeletedAt(cache.sentDeletedAt, data.sentDeletedAt);
+    }
     if (data.sentMessages) {
         if (!cache.sentMessages) cache.sentMessages = {};
-        for (const [streamId, msgs] of Object.entries(data.sentMessages)) {
+        const restored = withoutDeleted(data.sentMessages, cache.sentDeletedAt);
+        for (const [streamId, msgs] of Object.entries(restored)) {
             if (!cache.sentMessages[streamId]) {
                 cache.sentMessages[streamId] = msgs;
                 summary.dmHistories++;
