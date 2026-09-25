@@ -281,6 +281,17 @@ export class AdminState {
         if (!adminStreamId) return false;
 
         try {
+            // The newest row alone answers most polls: the owner's snapshot or
+            // manifest at a rev already held means nothing changed. Anything
+            // else reads the window as before.
+            const owner = (channel.createdBy || messageStreamId.split('/')[0] || '').toLowerCase();
+            const newest = await streamrController.probeAdminState(adminStreamId, {
+                password: channel.password || null
+            });
+            if (newest && owner && String(newest.publisherId).toLowerCase() === owner
+                && newest.rev <= (channel.adminRev || 0)) {
+                return false;
+            }
             const latest = await streamrController.resendAdminState(adminStreamId, {
                 // Smaller window for cheap polling — only the most recent
                 // snapshot wins regardless of how many entries we fetch.

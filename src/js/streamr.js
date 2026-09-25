@@ -3561,16 +3561,39 @@ class StreamrController {
     }
 
     /**
+     * The newest -3/P0 row alone, through the same opening and authority
+     * checks as the window: `{ type, rev, ts, publisherId }` when it is a
+     * whole snapshot or a run's manifest, null for anything else and on any
+     * error.
+     * @param {string} adminStreamId - Admin stream ID (ends with -3)
+     * @param {Object} [options]
+     * @param {string|null} [options.password=null] Channel password (encrypted channels)
+     * @returns {Promise<Object|null>}
+     */
+    async probeAdminState(adminStreamId, { password = null } = {}) {
+        if (!this.client) return null;
+        try {
+            const { newest } = await this._readAdminWindow(adminStreamId, 1, password);
+            return newest && (newest.type === 'ADMIN_STATE' || newest.type === ADMIN_FRAME.manifest)
+                ? newest : null;
+        } catch (error) {
+            Logger.debug('probeAdminState error (window read follows):', error.message);
+            return null;
+        }
+    }
+
+    /**
      * One resend of the -3/P0 window: the newest snapshot among whole
      * ADMIN_STATE rows and complete runs, plus the manifest of a newer run
-     * the window cut short, if any. Rows only join a run of their own
-     * publisher, and each row passes the same authority check a whole
-     * snapshot does.
+     * the window cut short, if any, and the newest row that passed. Rows
+     * only join a run of their own publisher, and each row passes the same
+     * authority check a whole snapshot does.
      * @private
      */
     async _readAdminWindow(adminStreamId, last, password) {
         const partition = STREAM_CONFIG.ADMIN_STREAM.MODERATION;
         let latest = null;
+        let newest = null;
         const framed = new Map();   // publisherId -> opened chunk/manifest rows
         const num = (v) => (typeof v === 'number' ? v : 0);
         const newer = (a, b) => !b
@@ -3638,6 +3661,7 @@ class StreamrController {
                 const publisherId = await this.resolveAuthor(
                     adminStreamId, message, transportPublisher);
                 if (!publisherId) continue;
+                newest = { type: content.type || 'ADMIN_STATE', rev: num(content.rev), ts: num(content.ts), publisherId };
 
                 if (isFramed) {
                     if (!framed.has(publisherId)) framed.set(publisherId, []);
@@ -3672,7 +3696,7 @@ class StreamrController {
         if (cutRun && (!newer(cutRun, latest)
             || cutRun.chunkCount + 1 <= last
             || cutRun.chunkCount > CONFIG.subscriptions.adminReadMaxChunks)) cutRun = null;
-        return { latest, cutRun };
+        return { latest, cutRun, newest };
     }
 
     /**

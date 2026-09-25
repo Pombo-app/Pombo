@@ -139,6 +139,44 @@ describe('resendAdminState with split snapshots', () => {
         expect(latest.rev).toBe(4);
     });
 
+    describe('probeAdminState', () => {
+        it('names the newest row when it is a whole snapshot', async () => {
+            windows = storage([row(snapshot(4, 400)), row(snapshot(5, 500))]);
+
+            expect(await streamrController.probeAdminState(ADMIN))
+                .toEqual({ type: 'ADMIN_STATE', rev: 5, ts: 500, publisherId: OWNER });
+            expect(streamrController.client.resend.mock.calls[0][1]).toEqual({ last: 1, raw: true });
+        });
+
+        it("names the newest row when it is a run's manifest", async () => {
+            windows = storage(run(snapshot(5, 500, 'x'.repeat(900)), 3).map(r => row(r)));
+
+            expect(await streamrController.probeAdminState(ADMIN))
+                .toEqual({ type: 'admin_manifest', rev: 5, ts: 500, publisherId: OWNER });
+        });
+
+        it('has nothing to say about a chunk', async () => {
+            const rows = run(snapshot(5, 500, 'x'.repeat(900)), 3);
+            windows = storage(rows.slice(0, -1).map(r => row(r)));
+
+            expect(await streamrController.probeAdminState(ADMIN)).toBeNull();
+        });
+
+        it('has nothing to say about a row the author check drops', async () => {
+            // An old gated -3 where the clone still publishes: the signer is not the admin.
+            streamrController.resolveAuthor.mockResolvedValue(null);
+            windows = storage([row(snapshot(5, 500), '0xclone')]);
+
+            expect(await streamrController.probeAdminState(ADMIN)).toBeNull();
+        });
+
+        it('has nothing to say when the read fails', async () => {
+            streamrController.client.resend = vi.fn(async () => { throw new Error('network'); });
+
+            expect(await streamrController.probeAdminState(ADMIN)).toBeNull();
+        });
+    });
+
     it('reads the moderation partition', async () => {
         windows = storage([]);
         await streamrController.resendAdminState(ADMIN, { historyCount: 5 });
