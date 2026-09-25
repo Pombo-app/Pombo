@@ -15,12 +15,21 @@
 export const SYNC_CHUNK_CHARS = 150 * 1024;
 
 /**
+ * UTF-8 bytes a sync chunk's `data` may take once JSON-escaped, quotes
+ * included. The wire grows with bytes, not characters: sealing adds base64's
+ * third and a few hundred bytes on top, and a test holds the sealed size
+ * under the budget.
+ */
+export const SYNC_CHUNK_BYTES = 150 * 1024;
+
+/**
  * The row types and fields of one framed protocol. `carry` names the payload
  * fields every row repeats; `keepPairs` never cuts between the two halves of
- * a surrogate pair, which a UTF-8 encoder downstream would turn into '?'.
+ * a surrogate pair, which a UTF-8 encoder downstream would turn into '?';
+ * `bytes` measures the limit in escaped UTF-8 bytes instead of characters.
  */
 const SYNC_FRAME = Object.freeze({
-    chunk: 'sync_chunk', manifest: 'sync_manifest', id: 'syncId', carry: ['ts'], keepPairs: false
+    chunk: 'sync_chunk', manifest: 'sync_manifest', id: 'syncId', carry: ['ts'], keepPairs: true, bytes: true
 });
 
 /**
@@ -29,7 +38,7 @@ const SYNC_FRAME = Object.freeze({
  * every row so a run can be ranked before it is assembled.
  */
 export const ADMIN_FRAME = Object.freeze({
-    chunk: 'admin_chunk', manifest: 'admin_manifest', id: 'runId', carry: ['rev', 'ts'], keepPairs: true
+    chunk: 'admin_chunk', manifest: 'admin_manifest', id: 'runId', carry: ['rev', 'ts'], keepPairs: true, bytes: false
 });
 
 /**
@@ -38,23 +47,18 @@ export const ADMIN_FRAME = Object.freeze({
  * @param {Object} payload - The whole snapshot
  * @param {string} runId - Ties the chunks to their manifest
  * @param {Object} frame - Row types and fields (SYNC_FRAME, ADMIN_FRAME)
- * @param {number} limit - Characters per chunk
+ * @param {number} limit - Per chunk: characters, or escaped UTF-8 bytes of
+ *   its `data` when the frame counts bytes
  * @returns {Object[]} - The payload itself when it fits, else chunks + manifest
  */
 export function splitFramed(payload, runId, frame, limit) {
     const serialised = JSON.stringify(payload);
-    if (serialised.length <= limit) return [payload];
+    const size = frame.bytes ? new TextEncoder().encode(serialised).length : serialised.length;
+    if (size <= limit) return [payload];
 
-    const slices = [];
-    for (let start = 0; start < serialised.length;) {
-        let end = Math.min(start + limit, serialised.length);
-        if (frame.keepPairs && end < serialised.length && end - 1 > start
-                && isHighSurrogate(serialised.charCodeAt(end - 1))) {
-            end -= 1;
-        }
-        slices.push(serialised.slice(start, end));
-        start = end;
-    }
+    const slices = frame.bytes
+        ? sliceByBytes(serialised, limit)
+        : sliceByChars(serialised, limit, frame.keepPairs);
 
     const header = {};
     for (const field of frame.carry) header[field] = payload[field];
@@ -117,8 +121,56 @@ export function joinFramed(messages, frame, onDropped) {
     return out;
 }
 
+function sliceByChars(s, limit, keepPairs) {
+    const slices = [];
+    for (let start = 0; start < s.length;) {
+        let end = Math.min(start + limit, s.length);
+        if (keepPairs && end < s.length && end - 1 > start && isHighSurrogate(s.charCodeAt(end - 1))) {
+            end -= 1;
+        }
+        slices.push(s.slice(start, end));
+        start = end;
+    }
+    return slices;
+}
+
+/** Slices whose JSON.stringify takes at most `limit` UTF-8 bytes; a pair is one unit. */
+function sliceByBytes(s, limit) {
+    const slices = [];
+    for (let start = 0; start < s.length;) {
+        let end = start;
+        let bytes = 2;
+        while (end < s.length) {
+            const pair = isHighSurrogate(s.charCodeAt(end)) && end + 1 < s.length
+                && isLowSurrogate(s.charCodeAt(end + 1));
+            const cost = pair ? 4 : escapedBytes(s.charCodeAt(end));
+            if (bytes + cost > limit) break;
+            bytes += cost;
+            end += pair ? 2 : 1;
+        }
+        if (end === start) throw new Error(`chunk budget of ${limit} B holds no character`);
+        slices.push(s.slice(start, end));
+        start = end;
+    }
+    return slices;
+}
+
+/** UTF-8 bytes JSON.stringify writes for one UTF-16 unit that is not half of a pair. */
+function escapedBytes(code) {
+    if (code === 0x22 || code === 0x5C) return 2;
+    if (code < 0x20) return [0x08, 0x09, 0x0A, 0x0C, 0x0D].includes(code) ? 2 : 6;
+    if (code < 0x80) return 1;
+    if (code < 0x800) return 2;
+    if (code >= 0xD800 && code <= 0xDFFF) return 6;
+    return 3;
+}
+
 function isHighSurrogate(code) {
     return code >= 0xD800 && code <= 0xDBFF;
+}
+
+function isLowSurrogate(code) {
+    return code >= 0xDC00 && code <= 0xDFFF;
 }
 
 /**
@@ -126,10 +178,10 @@ function isHighSurrogate(code) {
  *
  * @param {Object} payload - The whole `{ type:'sync', v, ts, data }` snapshot
  * @param {string} syncId - Run id, tying the chunks to their manifest
- * @param {number} [limit] - Characters per chunk
+ * @param {number} [limit] - Escaped UTF-8 bytes of each chunk's data
  * @returns {Object[]} - The payload itself when it fits, else chunks + manifest
  */
-export function splitSyncPayload(payload, syncId, limit = SYNC_CHUNK_CHARS) {
+export function splitSyncPayload(payload, syncId, limit = SYNC_CHUNK_BYTES) {
     return splitFramed(payload, syncId, SYNC_FRAME, limit);
 }
 

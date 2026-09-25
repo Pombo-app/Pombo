@@ -8,7 +8,8 @@
 // JSON into the account's state.
 //
 // The vectors fix the split (how a payload becomes messages, at a small
-// budget so the fixtures stay readable) and the reassembly rules (order does
+// budget in escaped UTF-8 bytes so the fixtures stay readable, and never
+// between the halves of a surrogate pair) and the reassembly rules (order does
 // not matter, runs are kept apart, an incomplete or unparseable run is
 // dropped whole).
 import { splitSyncPayload, reassembleSyncPayloads } from '../../src/js/syncChunks.js';
@@ -23,6 +24,9 @@ const snapshot = (fill, ts) => ({
 const big = snapshot('x'.repeat(700), 1789000000000);
 const other = snapshot('y'.repeat(700), 1789000009000);
 const small = snapshot('fits', 1789000005000);
+
+// Text made only of emoji: every cut lands next to a surrogate pair.
+const straddling = snapshot('\u{1F426}'.repeat(150), 1789000029000);
 
 const bigRun = splitSyncPayload(big, 'runA', LIMIT);
 const otherRun = splitSyncPayload(other, 'runB', LIMIT);
@@ -39,6 +43,11 @@ console.log(JSON.stringify({
             what: 'a big snapshot becomes chunks numbered from zero, then its manifest',
             payload: big,
             messages: bigRun
+        },
+        {
+            what: 'a cut never falls between the two halves of a surrogate pair',
+            payload: straddling,
+            messages: splitSyncPayload(straddling, 'runA', LIMIT)
         }
     ],
     reassemble: [
