@@ -293,6 +293,15 @@ export const CONFIG = {
         // times before the owner is told.
         adminConfirmDelaysMs: [5000, 10000, 20000, 40000],
         adminConfirmRepublishLimit: 3,
+        // An ADMIN_STATE too big for one message goes out as a run of this
+        // many chunks at most; readers reassemble runs up to the second
+        // bound. The first must stay below the smallest read window (5).
+        adminStateMaxChunks: 4,
+        adminReadMaxChunks: 64,
+        // A snapshot-less admin_invalidate is followed by a -3 read after the
+        // first wait, and by one more after the second while the announced
+        // rev has still not landed.
+        adminSignalReadDelaysMs: [5000, 10000],
         // A provider just added is asked for the copy at these delays; the copy
         // is published again this many times while still missing there.
         storageCopyDelaysMs: [5000, 10000, 20000, 40000],

@@ -106,6 +106,17 @@ describe('AdminStateConfirm', () => {
         expect(resendAdminState).toHaveBeenCalledTimes((limit + 1) * CONFIG.subscriptions.adminConfirmDelaysMs.length);
     });
 
+    it('says the snapshot is too large rather than promising a retry that cannot land', async () => {
+        resendAdminState.mockResolvedValue(null);
+        manager.publishAdminState.mockRejectedValue(
+            Object.assign(new Error('too large'), { code: 'ADMIN_STATE_TOO_LARGE' }));
+        confirm.track(STREAM, { rev: 1, ts: 100 });
+        await settle();
+        expect(confirm.pending(STREAM)).toBeNull();
+        expect(manager.notifyHandlers).toHaveBeenCalledWith('admin_state_too_large', { streamId: STREAM, rev: 1 });
+        expect(manager.notifyHandlers).not.toHaveBeenCalledWith('admin_state_unconfirmed', expect.anything());
+    });
+
     it('adopts a newer snapshot published from another device instead of republishing over it', async () => {
         const theirs = onStorage(5, 999);
         resendAdminState.mockResolvedValue(theirs);

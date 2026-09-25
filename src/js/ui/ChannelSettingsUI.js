@@ -693,6 +693,8 @@ class ChannelSettingsUI {
             const { showNotification } = this.deps;
             if (event === 'admin_state_unconfirmed') {
                 showNotification?.('Moderation change not yet confirmed on storage. It will be retried when you open the channel again.', 'warning');
+            } else if (event === 'admin_state_too_large') {
+                showNotification?.("This channel's moderation state is too large to publish. Unpin some messages and try again.", 'warning');
             } else if (event === 'admin_state_superseded') {
                 showNotification?.('Moderation was changed from another device; the last change made here was replaced.', 'warning');
             } else if (event === 'storage_copy_confirmed') {

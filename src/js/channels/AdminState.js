@@ -6,9 +6,12 @@
  */
 
 import { Logger } from '../logger.js';
+import { CONFIG } from '../config.js';
+import { cryptoManager } from '../crypto.js';
 import { streamrController, STREAM_CONFIG, deriveEphemeralId, deriveAdminId } from '../streamr.js';
 import { authManager } from '../auth.js';
 import { adminStatePoller } from '../adminStatePoller.js';
+import { splitFramed, ADMIN_FRAME, SYNC_CHUNK_CHARS } from '../syncChunks.js';
 
 export class AdminState {
     /**
@@ -24,6 +27,7 @@ export class AdminState {
         // adminRev and publish colliding revs — latest-wins would then
         // silently drop one of the operations.
         this._adminPublishChain = new Map(); // messageStreamId -> Promise
+        this._signalReads = new Map();       // messageStreamId -> pending -3 read
     }
 
     /**
@@ -277,6 +281,17 @@ export class AdminState {
         if (!adminStreamId) return false;
 
         try {
+            // The newest row alone answers most polls: the owner's snapshot or
+            // manifest at a rev already held means nothing changed. Anything
+            // else reads the window as before.
+            const owner = (channel.createdBy || messageStreamId.split('/')[0] || '').toLowerCase();
+            const newest = await streamrController.probeAdminState(adminStreamId, {
+                password: channel.password || null
+            });
+            if (newest && owner && String(newest.publisherId).toLowerCase() === owner
+                && newest.rev <= (channel.adminRev || 0)) {
+                return false;
+            }
             const latest = await streamrController.resendAdminState(adminStreamId, {
                 // Smaller window for cheap polling — only the most recent
                 // snapshot wins regardless of how many entries we fetch.
@@ -382,7 +397,16 @@ export class AdminState {
             state: next
         };
 
-        const published = await streamrController.publishAdminState(adminStreamId, adminMsg, channel.password || null);
+        const password = channel.password || null;
+        const rows = await this._frameForWire(adminStreamId, adminMsg, password);
+        const messages = [];
+        for (const row of rows) {
+            messages.push(await streamrController.publishAdminState(adminStreamId, row, password));
+        }
+        const published = messages.at(-1);
+        if (rows.length > 1) {
+            Logger.info(`ADMIN_STATE rev ${newRev} split in ${rows.length - 1} chunks`);
+        }
 
         // Optimistically apply locally so UI reflects the change immediately.
         this.manager.applyAdminState(channel, adminMsg);
@@ -409,32 +433,89 @@ export class AdminState {
         // Fire-and-forget invalidation signal on the ephemeral -2/P0 control
         // partition so other clients with the channel active update immediately
         // (instead of waiting for the next 30s poller tick). The signal embeds
-        // the full ADMIN_STATE snapshot so receivers can apply it inline
-        // without a -3/P0 resend round-trip. The canonical resend path on
-        // -3/P0 (bootstrap-on-open + periodic poll + on-demand fallback)
-        // remains as a convergence safety net for clients that miss the
-        // ephemeral signal. Best-effort: failure here is non-fatal.
-        try {
-            const ephemeralStreamId = channel.ephemeralStreamId || deriveEphemeralId(messageStreamId);
-            if (ephemeralStreamId) {
-                const signal = {
-                    type: 'admin_invalidate',
-                    rev: newRev,
-                    ts: adminMsg.ts,
-                    snapshot: adminMsg
-                };
-                streamrController.publishControl(
-                    ephemeralStreamId,
-                    signal,
-                    channel.password || null
-                ).catch(e => Logger.debug('admin_invalidate publish failed (non-fatal):', e.message));
-            }
-        } catch (e) {
-            Logger.debug('admin_invalidate prepare failed (non-fatal):', e.message);
+        // the full ADMIN_STATE snapshot when it fits one message, so receivers
+        // apply it inline; otherwise it carries only the rev and receivers
+        // read the -3. The canonical resend path on -3/P0 (bootstrap-on-open
+        // + periodic poll + on-demand fallback) remains as a convergence
+        // safety net for clients that miss the ephemeral signal. Best-effort:
+        // failure here is non-fatal.
+        const ephemeralStreamId = channel.ephemeralStreamId || deriveEphemeralId(messageStreamId);
+        if (ephemeralStreamId) {
+            this._signal(ephemeralStreamId, adminMsg, rows.length === 1, password)
+                .catch(e => Logger.debug('admin_invalidate publish failed (non-fatal):', e.message));
         }
 
         Logger.info('Published ADMIN_STATE rev', newRev, 'for', messageStreamId.slice(-20));
-        return { rev: newRev, state: next, published };
+        return { rev: newRev, state: next, published, messages };
+    }
+
+    /**
+     * The rows this snapshot goes out as: itself when it fits the wire once
+     * encrypted, as it always did, else a run of chunks closed by a manifest,
+     * each cut to fit. Past `adminStateMaxChunks` nothing goes out, and the
+     * owner is told instead of the network dropping it unseen.
+     * @private
+     */
+    async _frameForWire(adminStreamId, adminMsg, password) {
+        const budget = CONFIG.media.imagePayloadMaxBytes - CONFIG.media.imagePayloadSafetyMarginBytes;
+        const measure = (row) => streamrController.adminWireBytes(adminStreamId, row, password);
+        if (await measure(adminMsg) <= budget) return [adminMsg];
+
+        const runId = cryptoManager.generateRandomHex(8);
+        for (let limit = SYNC_CHUNK_CHARS; limit >= 1024; limit = Math.floor(limit * 0.85)) {
+            const run = splitFramed(adminMsg, runId, ADMIN_FRAME, limit);
+            if (run.length - 1 > CONFIG.subscriptions.adminStateMaxChunks) break;
+            let fits = true;
+            for (const row of run) {
+                if (await measure(row) > budget) { fits = false; break; }
+            }
+            if (fits) return run;
+        }
+        const error = new Error("This channel's moderation state is too large to publish. Unpin some messages and try again.");
+        error.code = 'ADMIN_STATE_TOO_LARGE';
+        throw error;
+    }
+
+    /** @private */
+    async _signal(ephemeralStreamId, adminMsg, whole, password) {
+        const signal = { type: 'admin_invalidate', rev: adminMsg.rev, ts: adminMsg.ts };
+        if (whole) {
+            const full = { ...signal, snapshot: adminMsg };
+            const budget = CONFIG.media.imagePayloadMaxBytes - CONFIG.media.imagePayloadSafetyMarginBytes;
+            const bytes = await streamrController.channelWireBytes(ephemeralStreamId, full, password)
+                .catch(() => Infinity);
+            if (bytes <= budget) return streamrController.publishControl(ephemeralStreamId, full, password);
+        }
+        return streamrController.publishControl(ephemeralStreamId, signal, password);
+    }
+
+    /**
+     * An admin_invalidate announced a snapshot too big to ride along: poll
+     * the -3 once storage has had time to hold it, and once more later while
+     * the announced rev has still not landed. Signals arriving while reads
+     * are pending share them.
+     * @param {string} messageStreamId - Channel key (-1)
+     * @param {number} rev - The rev the signal announced
+     */
+    readAfterSignal(messageStreamId, rev) {
+        if (this._signalReads.has(messageStreamId)) return;
+        const landed = () => {
+            const channel = this.manager.channels.get(messageStreamId)
+                || (this.manager.previewChannel?.messageStreamId === messageStreamId
+                    ? this.manager.previewChannel : null);
+            return (channel?.adminRev || 0) >= rev;
+        };
+        const [first, ...later] = CONFIG.subscriptions.adminSignalReadDelaysMs;
+        const read = (wait, rest) => this._signalReads.set(messageStreamId, setTimeout(() => {
+            if (landed() || adminStatePoller.getStreamId() !== messageStreamId) {
+                this._signalReads.delete(messageStreamId);
+                return;
+            }
+            adminStatePoller.pollNow();
+            if (rest.length) read(rest[0], rest.slice(1));
+            else this._signalReads.delete(messageStreamId);
+        }, wait));
+        read(first, later);
     }
 
     // High-level convenience helpers built on top of publishAdminState ----------

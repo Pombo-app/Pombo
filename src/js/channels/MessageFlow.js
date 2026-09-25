@@ -82,6 +82,10 @@ export class MessageFlow {
             }
             const incomingRev = typeof data.rev === 'number' ? data.rev : 0;
             if (incomingRev <= (channel.adminRev || 0)) return;
+            if (data.snapshot === undefined) {
+                this.manager.adminState?.readAfterSignal(streamId, incomingRev);
+                return;
+            }
             if (!this.manager._isValidAdminState(data.snapshot)) return;
 
             // Sender authenticity is already validated above (account ===

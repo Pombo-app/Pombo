@@ -66,6 +66,9 @@ let copy;
 let clock;
 let held;   // rows the new provider holds: `${streamId}|${partition}|${ts}`
 
+/** What publishAdminState returns for a snapshot that went out whole. */
+const published = (message) => ({ published: message, messages: [message] });
+
 beforeEach(() => {
     localStorage.clear();
     [resendChannelImage, publishPasswordChallenge, probeStream, storedOn, republishAnchors].forEach((f) => f.mockReset());
@@ -87,7 +90,7 @@ beforeEach(() => {
         isChannelOwner: vi.fn(() => true),
         notifyHandlers: vi.fn(),
         bootstrapAdminState: vi.fn(async () => {}),
-        publishAdminState: vi.fn(async () => ({ published: { timestamp: ++clock, sequenceNumber: 0 } })),
+        publishAdminState: vi.fn(async () => published({ timestamp: ++clock, sequenceNumber: 0 })),
         ttlRepublish: { republishImage: vi.fn(async () => ({ timestamp: ++clock, sequenceNumber: 0 })) }
     };
     republishAnchors.mockImplementation(async () => [
@@ -112,7 +115,7 @@ function providerStoresEverything() {
     manager.publishAdminState.mockImplementation(async () => {
         const ts = ++clock;
         held.add(`${ADMIN}|0|${ts}`);
-        return { published: { timestamp: ts, sequenceNumber: 0 } };
+        return published({ timestamp: ts, sequenceNumber: 0 });
     });
     manager.ttlRepublish.republishImage.mockImplementation(async () => {
         const ts = ++clock;
@@ -171,7 +174,7 @@ describe('StorageCopy.copyTo()', () => {
             const ts = ++clock;
             if (!adminLost) held.add(`${ADMIN}|0|${ts}`);
             adminLost = false;
-            return { published: { timestamp: ts, sequenceNumber: 0 } };
+            return published({ timestamp: ts, sequenceNumber: 0 });
         });
 
         const outcome = await copy.copyTo(STREAM, NEW_NODE, null);
@@ -179,6 +182,23 @@ describe('StorageCopy.copyTo()', () => {
         expect(outcome).toBe('present');
         expect(manager.publishAdminState).toHaveBeenCalledTimes(2);
         expect(republishAnchors).toHaveBeenCalledTimes(1);
+    });
+
+    it('confirms every row of a snapshot that went out split', async () => {
+        providerStoresEverything();
+        let firstRun = true;
+        manager.publishAdminState.mockImplementation(async () => {
+            const rows = [0, 1, 2].map(() => ({ timestamp: ++clock, sequenceNumber: 0 }));
+            // The first run loses its middle chunk; only the manifest landing is not enough.
+            rows.forEach((r, i) => { if (!firstRun || i !== 1) held.add(`${ADMIN}|0|${r.timestamp}`); });
+            firstRun = false;
+            return { published: rows.at(-1), messages: rows };
+        });
+
+        const outcome = await copy.copyTo(STREAM, NEW_NODE, null);
+
+        expect(outcome).toBe('present');
+        expect(manager.publishAdminState).toHaveBeenCalledTimes(2);
     });
 
     it('keeps the copy pending, and says so, when the provider never holds it', async () => {

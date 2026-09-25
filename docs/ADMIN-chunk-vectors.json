@@ -1,0 +1,807 @@
+{
+  "limit": 200,
+  "split": [
+    {
+      "what": "a snapshot that fits travels as itself, with no framing",
+      "payload": {
+        "type": "ADMIN_STATE",
+        "v": 1,
+        "rev": 4,
+        "ts": 1789000005000,
+        "state": {
+          "bannedMembers": [],
+          "hiddenMessageIds": [
+            "m-1"
+          ],
+          "pins": [],
+          "absorbedThrough": 0
+        }
+      },
+      "messages": [
+        {
+          "type": "ADMIN_STATE",
+          "v": 1,
+          "rev": 4,
+          "ts": 1789000005000,
+          "state": {
+            "bannedMembers": [],
+            "hiddenMessageIds": [
+              "m-1"
+            ],
+            "pins": [],
+            "absorbedThrough": 0
+          }
+        }
+      ]
+    },
+    {
+      "what": "a big snapshot becomes chunks numbered from zero, then its manifest, rev and ts on every row",
+      "payload": {
+        "type": "ADMIN_STATE",
+        "v": 1,
+        "rev": 5,
+        "ts": 1789000009000,
+        "createdBy": "0x1111111111111111111111111111111111111111",
+        "state": {
+          "bannedMembers": [
+            {
+              "address": "0x2222222222222222222222222222222222222222",
+              "sinceEpoch": 3
+            }
+          ],
+          "hiddenMessageIds": [
+            "m-1",
+            "m-2"
+          ],
+          "pins": [
+            {
+              "targetId": "m-9",
+              "pinnedAt": 1789000000000,
+              "snapshot": {
+                "sender": "0x3333333333333333333333333333333333333333",
+                "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              }
+            }
+          ],
+          "absorbedThrough": 0
+        }
+      },
+      "messages": [
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 0,
+          "chunkCount": 6,
+          "data": "{\"type\":\"ADMIN_STATE\",\"v\":1,\"rev\":5,\"ts\":1789000009000,\"createdBy\":\"0x1111111111111111111111111111111111111111\",\"state\":{\"bannedMembers\":[{\"address\":\"0x2222222222222222222222222222222222222222\",\"since"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 1,
+          "chunkCount": 6,
+          "data": "Epoch\":3}],\"hiddenMessageIds\":[\"m-1\",\"m-2\"],\"pins\":[{\"targetId\":\"m-9\",\"pinnedAt\":1789000000000,\"snapshot\":{\"sender\":\"0x3333333333333333333333333333333333333333\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 2,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 3,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 4,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 5,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}],\"absorbedThrough\":0}}"
+        },
+        {
+          "type": "admin_manifest",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkCount": 6
+        }
+      ]
+    },
+    {
+      "what": "a cut never falls between the two halves of a surrogate pair",
+      "payload": {
+        "type": "ADMIN_STATE",
+        "v": 1,
+        "rev": 7,
+        "ts": 1789000029000,
+        "createdBy": "0x1111111111111111111111111111111111111111",
+        "state": {
+          "bannedMembers": [
+            {
+              "address": "0x2222222222222222222222222222222222222222",
+              "sinceEpoch": 3
+            }
+          ],
+          "hiddenMessageIds": [
+            "m-1",
+            "m-2"
+          ],
+          "pins": [
+            {
+              "targetId": "m-9",
+              "pinnedAt": 1789000000000,
+              "snapshot": {
+                "sender": "0x3333333333333333333333333333333333333333",
+                "text": "pppppppppppppppppppppppppppppp🐦qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"
+              }
+            }
+          ],
+          "absorbedThrough": 0
+        }
+      },
+      "messages": [
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 7,
+          "ts": 1789000029000,
+          "runId": "runA",
+          "chunkIndex": 0,
+          "chunkCount": 4,
+          "data": "{\"type\":\"ADMIN_STATE\",\"v\":1,\"rev\":7,\"ts\":1789000029000,\"createdBy\":\"0x1111111111111111111111111111111111111111\",\"state\":{\"bannedMembers\":[{\"address\":\"0x2222222222222222222222222222222222222222\",\"since"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 7,
+          "ts": 1789000029000,
+          "runId": "runA",
+          "chunkIndex": 1,
+          "chunkCount": 4,
+          "data": "Epoch\":3}],\"hiddenMessageIds\":[\"m-1\",\"m-2\"],\"pins\":[{\"targetId\":\"m-9\",\"pinnedAt\":1789000000000,\"snapshot\":{\"sender\":\"0x3333333333333333333333333333333333333333\",\"text\":\"pppppppppppppppppppppppppppppp"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 7,
+          "ts": 1789000029000,
+          "runId": "runA",
+          "chunkIndex": 2,
+          "chunkCount": 4,
+          "data": "🐦qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 7,
+          "ts": 1789000029000,
+          "runId": "runA",
+          "chunkIndex": 3,
+          "chunkCount": 4,
+          "data": "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq\"}}],\"absorbedThrough\":0}}"
+        },
+        {
+          "type": "admin_manifest",
+          "v": 1,
+          "rev": 7,
+          "ts": 1789000029000,
+          "runId": "runA",
+          "chunkCount": 4
+        }
+      ]
+    }
+  ],
+  "reassemble": [
+    {
+      "what": "a complete run rebuilds the snapshot byte for byte",
+      "messages": [
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 0,
+          "chunkCount": 6,
+          "data": "{\"type\":\"ADMIN_STATE\",\"v\":1,\"rev\":5,\"ts\":1789000009000,\"createdBy\":\"0x1111111111111111111111111111111111111111\",\"state\":{\"bannedMembers\":[{\"address\":\"0x2222222222222222222222222222222222222222\",\"since"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 1,
+          "chunkCount": 6,
+          "data": "Epoch\":3}],\"hiddenMessageIds\":[\"m-1\",\"m-2\"],\"pins\":[{\"targetId\":\"m-9\",\"pinnedAt\":1789000000000,\"snapshot\":{\"sender\":\"0x3333333333333333333333333333333333333333\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 2,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 3,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 4,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 5,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}],\"absorbedThrough\":0}}"
+        },
+        {
+          "type": "admin_manifest",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkCount": 6
+        }
+      ],
+      "payloads": [
+        {
+          "type": "ADMIN_STATE",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "createdBy": "0x1111111111111111111111111111111111111111",
+          "state": {
+            "bannedMembers": [
+              {
+                "address": "0x2222222222222222222222222222222222222222",
+                "sinceEpoch": 3
+              }
+            ],
+            "hiddenMessageIds": [
+              "m-1",
+              "m-2"
+            ],
+            "pins": [
+              {
+                "targetId": "m-9",
+                "pinnedAt": 1789000000000,
+                "snapshot": {
+                  "sender": "0x3333333333333333333333333333333333333333",
+                  "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                }
+              }
+            ],
+            "absorbedThrough": 0
+          }
+        }
+      ]
+    },
+    {
+      "what": "arrival order does not matter",
+      "messages": [
+        {
+          "type": "admin_manifest",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkCount": 6
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 5,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}],\"absorbedThrough\":0}}"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 4,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 3,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 2,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 1,
+          "chunkCount": 6,
+          "data": "Epoch\":3}],\"hiddenMessageIds\":[\"m-1\",\"m-2\"],\"pins\":[{\"targetId\":\"m-9\",\"pinnedAt\":1789000000000,\"snapshot\":{\"sender\":\"0x3333333333333333333333333333333333333333\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 0,
+          "chunkCount": 6,
+          "data": "{\"type\":\"ADMIN_STATE\",\"v\":1,\"rev\":5,\"ts\":1789000009000,\"createdBy\":\"0x1111111111111111111111111111111111111111\",\"state\":{\"bannedMembers\":[{\"address\":\"0x2222222222222222222222222222222222222222\",\"since"
+        }
+      ],
+      "payloads": [
+        {
+          "type": "ADMIN_STATE",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "createdBy": "0x1111111111111111111111111111111111111111",
+          "state": {
+            "bannedMembers": [
+              {
+                "address": "0x2222222222222222222222222222222222222222",
+                "sinceEpoch": 3
+              }
+            ],
+            "hiddenMessageIds": [
+              "m-1",
+              "m-2"
+            ],
+            "pins": [
+              {
+                "targetId": "m-9",
+                "pinnedAt": 1789000000000,
+                "snapshot": {
+                  "sender": "0x3333333333333333333333333333333333333333",
+                  "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                }
+              }
+            ],
+            "absorbedThrough": 0
+          }
+        }
+      ]
+    },
+    {
+      "what": "two runs in one window stay apart, a whole snapshot among them is not a run",
+      "messages": [
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 0,
+          "chunkCount": 6,
+          "data": "{\"type\":\"ADMIN_STATE\",\"v\":1,\"rev\":5,\"ts\":1789000009000,\"createdBy\":\"0x1111111111111111111111111111111111111111\",\"state\":{\"bannedMembers\":[{\"address\":\"0x2222222222222222222222222222222222222222\",\"since"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 1,
+          "chunkCount": 6,
+          "data": "Epoch\":3}],\"hiddenMessageIds\":[\"m-1\",\"m-2\"],\"pins\":[{\"targetId\":\"m-9\",\"pinnedAt\":1789000000000,\"snapshot\":{\"sender\":\"0x3333333333333333333333333333333333333333\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 2,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 3,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 4,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 5,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}],\"absorbedThrough\":0}}"
+        },
+        {
+          "type": "admin_manifest",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkCount": 6
+        },
+        {
+          "type": "ADMIN_STATE",
+          "v": 1,
+          "rev": 4,
+          "ts": 1789000005000,
+          "state": {
+            "bannedMembers": [],
+            "hiddenMessageIds": [
+              "m-1"
+            ],
+            "pins": [],
+            "absorbedThrough": 0
+          }
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 6,
+          "ts": 1789000019000,
+          "runId": "runB",
+          "chunkIndex": 0,
+          "chunkCount": 6,
+          "data": "{\"type\":\"ADMIN_STATE\",\"v\":1,\"rev\":6,\"ts\":1789000019000,\"createdBy\":\"0x1111111111111111111111111111111111111111\",\"state\":{\"bannedMembers\":[{\"address\":\"0x2222222222222222222222222222222222222222\",\"since"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 6,
+          "ts": 1789000019000,
+          "runId": "runB",
+          "chunkIndex": 1,
+          "chunkCount": 6,
+          "data": "Epoch\":3}],\"hiddenMessageIds\":[\"m-1\",\"m-2\"],\"pins\":[{\"targetId\":\"m-9\",\"pinnedAt\":1789000000000,\"snapshot\":{\"sender\":\"0x3333333333333333333333333333333333333333\",\"text\":\"yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 6,
+          "ts": 1789000019000,
+          "runId": "runB",
+          "chunkIndex": 2,
+          "chunkCount": 6,
+          "data": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 6,
+          "ts": 1789000019000,
+          "runId": "runB",
+          "chunkIndex": 3,
+          "chunkCount": 6,
+          "data": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 6,
+          "ts": 1789000019000,
+          "runId": "runB",
+          "chunkIndex": 4,
+          "chunkCount": 6,
+          "data": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 6,
+          "ts": 1789000019000,
+          "runId": "runB",
+          "chunkIndex": 5,
+          "chunkCount": 6,
+          "data": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\"}}],\"absorbedThrough\":0}}"
+        },
+        {
+          "type": "admin_manifest",
+          "v": 1,
+          "rev": 6,
+          "ts": 1789000019000,
+          "runId": "runB",
+          "chunkCount": 6
+        }
+      ],
+      "payloads": [
+        {
+          "type": "ADMIN_STATE",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "createdBy": "0x1111111111111111111111111111111111111111",
+          "state": {
+            "bannedMembers": [
+              {
+                "address": "0x2222222222222222222222222222222222222222",
+                "sinceEpoch": 3
+              }
+            ],
+            "hiddenMessageIds": [
+              "m-1",
+              "m-2"
+            ],
+            "pins": [
+              {
+                "targetId": "m-9",
+                "pinnedAt": 1789000000000,
+                "snapshot": {
+                  "sender": "0x3333333333333333333333333333333333333333",
+                  "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                }
+              }
+            ],
+            "absorbedThrough": 0
+          }
+        },
+        {
+          "type": "ADMIN_STATE",
+          "v": 1,
+          "rev": 6,
+          "ts": 1789000019000,
+          "createdBy": "0x1111111111111111111111111111111111111111",
+          "state": {
+            "bannedMembers": [
+              {
+                "address": "0x2222222222222222222222222222222222222222",
+                "sinceEpoch": 3
+              }
+            ],
+            "hiddenMessageIds": [
+              "m-1",
+              "m-2"
+            ],
+            "pins": [
+              {
+                "targetId": "m-9",
+                "pinnedAt": 1789000000000,
+                "snapshot": {
+                  "sender": "0x3333333333333333333333333333333333333333",
+                  "text": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+                }
+              }
+            ],
+            "absorbedThrough": 0
+          }
+        }
+      ]
+    },
+    {
+      "what": "a run whose head fell out of the window is dropped whole",
+      "messages": [
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 1,
+          "chunkCount": 6,
+          "data": "Epoch\":3}],\"hiddenMessageIds\":[\"m-1\",\"m-2\"],\"pins\":[{\"targetId\":\"m-9\",\"pinnedAt\":1789000000000,\"snapshot\":{\"sender\":\"0x3333333333333333333333333333333333333333\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 2,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 3,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 4,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 5,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}],\"absorbedThrough\":0}}"
+        },
+        {
+          "type": "admin_manifest",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkCount": 6
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "what": "a run with no manifest is not assumed complete",
+      "messages": [
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 0,
+          "chunkCount": 6,
+          "data": "{\"type\":\"ADMIN_STATE\",\"v\":1,\"rev\":5,\"ts\":1789000009000,\"createdBy\":\"0x1111111111111111111111111111111111111111\",\"state\":{\"bannedMembers\":[{\"address\":\"0x2222222222222222222222222222222222222222\",\"since"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 1,
+          "chunkCount": 6,
+          "data": "Epoch\":3}],\"hiddenMessageIds\":[\"m-1\",\"m-2\"],\"pins\":[{\"targetId\":\"m-9\",\"pinnedAt\":1789000000000,\"snapshot\":{\"sender\":\"0x3333333333333333333333333333333333333333\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 2,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 3,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 4,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 5,
+          "ts": 1789000009000,
+          "runId": "runA",
+          "chunkIndex": 5,
+          "chunkCount": 6,
+          "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}],\"absorbedThrough\":0}}"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "what": "a run whose chunks do not form JSON is dropped",
+      "messages": [
+        {
+          "type": "admin_chunk",
+          "v": 1,
+          "rev": 1,
+          "ts": 1,
+          "runId": "bad",
+          "chunkIndex": 0,
+          "chunkCount": 1,
+          "data": "{oops"
+        },
+        {
+          "type": "admin_manifest",
+          "v": 1,
+          "rev": 1,
+          "ts": 1,
+          "runId": "bad",
+          "chunkCount": 1
+        }
+      ],
+      "payloads": []
+    }
+  ]
+}

@@ -284,10 +284,10 @@ export class StorageCopy {
         }
         if (items.has('admin') && (channel.adminRev || 0) > 0) {
             await attempt('admin', async () => {
-                const { published } = await this.manager.publishAdminState(channel.messageStreamId, {
+                const { messages } = await this.manager.publishAdminState(channel.messageStreamId, {
                     state: channel.adminSnapshot || channel.adminState
                 });
-                return [row('admin', adminStreamId, ADMIN.MODERATION, published)];
+                return messages.map((m) => row('admin', adminStreamId, ADMIN.MODERATION, m));
             });
         }
         if (items.has('image') && snapshot?.image && !(snapshot.image.encrypted && !password)) {
