@@ -136,36 +136,72 @@ describe('ADMIN_STATE publish on the wire', () => {
 });
 
 describe('reading the -3 after a snapshot-less signal', () => {
+    const pollInterval = CONFIG.subscriptions.adminPollIntervalMs;
+
+    // The regular poll is not what is under test: keep its ticks out of the count.
+    beforeEach(() => { CONFIG.subscriptions.adminPollIntervalMs = 24 * 3600 * 1000; });
+
     afterEach(() => {
         vi.useRealTimers();
         adminStatePoller.stop();
+        CONFIG.subscriptions.adminPollIntervalMs = pollInterval;
     });
 
-    it('polls once, after storage has had time, however many signals arrive', async () => {
-        vi.useFakeTimers();
-        const admin = new AdminState({ channels: new Map() });
-        const refresh = vi.fn(async () => {});
-        adminStatePoller.start(STREAM, refresh);
-        refresh.mockClear();
+    const [FIRST, SECOND] = CONFIG.subscriptions.adminSignalReadDelaysMs;
 
-        admin.readAfterSignal(STREAM);
-        admin.readAfterSignal(STREAM);
-        await vi.advanceTimersByTimeAsync(CONFIG.subscriptions.adminSignalReadDelayMs - 1);
+    /** An AdminState over one channel at rev 7, polled with `refresh`. */
+    const polled = (streamId = STREAM) => {
+        const channel = { messageStreamId: STREAM, adminRev: 7 };
+        const admin = new AdminState({ channels: new Map([[STREAM, channel]]) });
+        const refresh = vi.fn(async () => {});
+        adminStatePoller.start(streamId, refresh);
+        refresh.mockClear();
+        return { admin, channel, refresh };
+    };
+
+    it('polls after storage has had time, however many signals arrive', async () => {
+        vi.useFakeTimers();
+        const { admin, refresh } = polled();
+
+        admin.readAfterSignal(STREAM, 8);
+        admin.readAfterSignal(STREAM, 8);
+        await vi.advanceTimersByTimeAsync(FIRST - 1);
         expect(refresh).not.toHaveBeenCalled();
         await vi.advanceTimersByTimeAsync(100);
 
         expect(refresh).toHaveBeenCalledTimes(1);
     });
 
+    it('reads once more while the announced rev has not landed, and never again', async () => {
+        vi.useFakeTimers();
+        const { admin, refresh } = polled();
+
+        admin.readAfterSignal(STREAM, 8);
+        await vi.advanceTimersByTimeAsync(FIRST + SECOND + 100);
+        expect(refresh).toHaveBeenCalledTimes(2);
+        await vi.advanceTimersByTimeAsync(10 * (FIRST + SECOND));
+
+        expect(refresh).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not read again once the announced rev has landed', async () => {
+        vi.useFakeTimers();
+        const { admin, channel, refresh } = polled();
+
+        admin.readAfterSignal(STREAM, 8);
+        await vi.advanceTimersByTimeAsync(FIRST + 100);
+        channel.adminRev = 8;
+        await vi.advanceTimersByTimeAsync(SECOND + 100);
+
+        expect(refresh).toHaveBeenCalledTimes(1);
+    });
+
     it('leaves a channel that is no longer being polled alone', async () => {
         vi.useFakeTimers();
-        const admin = new AdminState({ channels: new Map() });
-        const refresh = vi.fn(async () => {});
-        adminStatePoller.start(`${OWNER}/other-1`, refresh);
-        refresh.mockClear();
+        const { admin, refresh } = polled(`${OWNER}/other-1`);
 
-        admin.readAfterSignal(STREAM);
-        await vi.advanceTimersByTimeAsync(CONFIG.subscriptions.adminSignalReadDelayMs + 100);
+        admin.readAfterSignal(STREAM, 8);
+        await vi.advanceTimersByTimeAsync(FIRST + SECOND + 100);
 
         expect(refresh).not.toHaveBeenCalled();
     });

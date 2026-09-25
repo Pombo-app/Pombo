@@ -44,7 +44,7 @@ describe('admin_invalidate', () => {
 
     it('reads the -3 for a newer snapshot that did not ride along', async () => {
         await flow.handleControlMessage(STREAM, { type: 'admin_invalidate', rev: 8, ts: 800, account: OWNER });
-        expect(manager.adminState.readAfterSignal).toHaveBeenCalledWith(STREAM);
+        expect(manager.adminState.readAfterSignal).toHaveBeenCalledWith(STREAM, 8);
         expect(manager.handleAdminMessage).not.toHaveBeenCalled();
     });
 

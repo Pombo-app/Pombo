@@ -480,15 +480,31 @@ export class AdminState {
 
     /**
      * An admin_invalidate announced a snapshot too big to ride along: poll
-     * the -3 once storage has had time to hold it. Signals arriving while a
-     * read is pending share it.
+     * the -3 once storage has had time to hold it, and once more later while
+     * the announced rev has still not landed. Signals arriving while reads
+     * are pending share them.
+     * @param {string} messageStreamId - Channel key (-1)
+     * @param {number} rev - The rev the signal announced
      */
-    readAfterSignal(messageStreamId) {
+    readAfterSignal(messageStreamId, rev) {
         if (this._signalReads.has(messageStreamId)) return;
-        this._signalReads.set(messageStreamId, setTimeout(() => {
-            this._signalReads.delete(messageStreamId);
-            if (adminStatePoller.getStreamId() === messageStreamId) adminStatePoller.pollNow();
-        }, CONFIG.subscriptions.adminSignalReadDelayMs));
+        const landed = () => {
+            const channel = this.manager.channels.get(messageStreamId)
+                || (this.manager.previewChannel?.messageStreamId === messageStreamId
+                    ? this.manager.previewChannel : null);
+            return (channel?.adminRev || 0) >= rev;
+        };
+        const [first, ...later] = CONFIG.subscriptions.adminSignalReadDelaysMs;
+        const read = (wait, rest) => this._signalReads.set(messageStreamId, setTimeout(() => {
+            if (landed() || adminStatePoller.getStreamId() !== messageStreamId) {
+                this._signalReads.delete(messageStreamId);
+                return;
+            }
+            adminStatePoller.pollNow();
+            if (rest.length) read(rest[0], rest.slice(1));
+            else this._signalReads.delete(messageStreamId);
+        }, wait));
+        read(first, later);
     }
 
     // High-level convenience helpers built on top of publishAdminState ----------

@@ -587,7 +587,7 @@ class SubscriptionManager {
             // published by the same admin. We additionally inject createdBy
             // from the account so applyAdminState's owner check passes.
             if (msg.snapshot === undefined) {
-                channelManager.adminState?.readAfterSignal(streamId);
+                channelManager.adminState?.readAfterSignal(streamId, typeof msg.rev === 'number' ? msg.rev : 0);
                 return;
             }
             if (!msg.snapshot || typeof msg.snapshot !== 'object') return;
