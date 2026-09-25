@@ -34,7 +34,8 @@ const GENERATORS = {
     'gen_storage_read_vectors.mjs': 'STORAGE-signed-read-vectors.json',
     'gen_storage_purge_vectors.mjs': 'STORAGE-purge-vectors.json',
     'gen_storage_stored_vectors.mjs': 'STORAGE-stored-vectors.json',
-    'gen_sync_merge_vectors.mjs': 'SYNC-merge-vectors.json'
+    'gen_sync_merge_vectors.mjs': 'SYNC-merge-vectors.json',
+    'gen_admin_chunk_vectors.mjs': 'ADMIN-chunk-vectors.json'
 };
 
 const androidDocs = (() => {
