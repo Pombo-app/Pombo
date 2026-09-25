@@ -61,6 +61,7 @@ import { STREAM_CONFIG } from './streamConfig.js';
 import { History } from './streamr/History.js';
 import { MessagePipeline } from './streamr/MessagePipeline.js';
 import { storageFetch } from './storageFetch.js';
+import { ADMIN_FRAME, joinFramed } from './syncChunks.js';
 
 // === ID DERIVATION FUNCTIONS ===
 // Re-exported from streamConstants.js; kept as local names for readability
@@ -2744,6 +2745,59 @@ class StreamrController {
     }
 
     /**
+     * Bytes [publishAdminState] would hand the transport for this snapshot,
+     * branch for branch, including the publish's one attempt to recover a
+     * missing epoch key. A test holds the two together.
+     */
+    async adminWireBytes(adminStreamId, state, password = null) {
+        try {
+            const { channelManager } = await import('./channels.js');
+            const base = String(adminStreamId).replace(/-[12345]$/, '');
+            const channel = channelManager.channels?.get(base + '-1');
+            if (channel?.type === 'gated' || channel?.gate?.address) {
+                const { epochKeyManager } = await import('./epochKeyManager.js');
+                if (!await epochKeyManager.getCurrentKey(channel.messageStreamId)) {
+                    await epochKeyManager.ensureChannelKeys(channel);
+                }
+                return await this.epochWireBytes(channel, adminStreamId, state);
+            }
+        } catch (e) {
+            if (String(e?.message || '').includes('No epoch key')) throw e;
+            /* registry unavailable → legacy path */
+        }
+        return this._plainWireBytes(state, password);
+    }
+
+    /**
+     * Bytes [publishAsChannel] would hand the transport for this payload,
+     * branch for branch. A test holds the two together.
+     */
+    async channelWireBytes(streamId, data, password = null) {
+        let channelManager = null;
+        try {
+            ({ channelManager } = await import('./channels.js'));
+        } catch { /* registry unavailable → ephemeral (public/password) */ }
+        const base = String(streamId).replace(/-[12345]$/, '');
+        const record = channelManager?.channels?.get(base + '-1')
+            ?? (channelManager?.previewChannel?.messageStreamId === base + '-1'
+                ? channelManager.previewChannel : null);
+        if (record?.type === 'gated' || record?.gate?.address) {
+            return this.epochWireBytes(record, streamId, data);
+        }
+        if (channelManager?.usesAccountPublish?.(streamId)) {
+            return this._plainWireBytes(stripLocalFields(data), password);
+        }
+        const { proof } = getChannelIdentity(streamId);
+        return this._plainWireBytes({ ...stripLocalFields(data), proof }, password);
+    }
+
+    /** JSON as the SDK serialises it; with a password, the ciphertext string that replaces it. */
+    _plainWireBytes(payload, password) {
+        const bytes = new TextEncoder().encode(JSON.stringify(payload)).length;
+        return password ? cryptoManager.encryptedLength(bytes) + 2 : bytes;
+    }
+
+    /**
      * Re-key a Sealed channel's shared publish grants: the new key's
      * address gains publish+subscribe on -1/-2 and the old one loses
      * everything — one setPermissions tx per stream (an assignment with an
@@ -3483,86 +3537,15 @@ class StreamrController {
         }
 
         const last = historyCount ?? STREAM_CONFIG.ADMIN_HISTORY_COUNT;
-        const partition = STREAM_CONFIG.ADMIN_STREAM.MODERATION;
 
-        let latest = null;
-
+        let read;
         try {
-            // Gated: raw resend — the SDK validator re-checks stored envelopes
-            // against the present gate state; authorship is established
-            // client-side by resolveAuthor (admin-only on -3) instead.
-            const gatedChannel = await this._gatedChannelFor(adminStreamId);
-            const resend = await this.client.resend(
-                { streamId: adminStreamId, partition },
-                { last, raw: true }
-            );
-
-            const iterator = resend[Symbol.asyncIterator]();
-            let iteratorDone = false;
-
-            while (!iteratorDone) {
-                let message;
-                try {
-                    const result = await iterator.next();
-                    iteratorDone = result.done;
-                    if (iteratorDone) break;
-                    message = result.value;
-                } catch (iterError) {
-                    if (iterError.code === 'DECRYPT_ERROR' || iterError.message?.includes('encryption key')) {
-                        continue;
-                    }
-                    Logger.warn('resendAdminState iteration error:', iterError.message);
-                    continue;
-                }
-
-                try {
-                    if (!gatedChannel && (!verifyEnvelopeAuthenticity(message)
-                        || !await this.publisherMayWrite(adminStreamId, message))) continue;
-                    let content = message.content || message;
-                    if (password && typeof content === 'string') {
-                        try {
-                            content = await cryptoManager.decryptJSON(content, password);
-                        } catch (decryptError) {
-                            continue;
-                        }
-                    }
-                    // Gated: ADMIN_STATE arrives as an epoch envelope. History
-                    // context so entries sealed under an older epoch open in
-                    // that epoch's validity window instead of being dropped.
-                    if (this.isEpochEnvelope(content)) {
-                        const judged = storageFetch.judgeMessage(adminStreamId, partition, message);
-                        if (judged.forwardDated) continue;
-                        const opened = await this.openEpochEnvelope(adminStreamId, content,
-                            { live: false, timestamp: judged.judgeTime });
-                        if (opened === null) continue;
-                        content = opened;
-                    }
-                    if (!content || typeof content !== 'object') continue;
-                    if (content.type && content.type !== 'ADMIN_STATE') continue;
-
-                    // Inject publisher info so caller can validate sender == createdBy.
-                    // Gated: the clone publishes for everyone — resolveAuthor swaps in
-                    // the envelope signer and DROPS non-admin writes on -3 (D10c).
-                    {
-                        const transportPublisher = typeof message.getPublisherId === 'function'
-                            ? message.getPublisherId() : message.publisherId;
-                        const publisherId = await this.resolveAuthor(
-                            adminStreamId, message, transportPublisher);
-                        if (!publisherId) continue;
-                        if (!content.createdBy) content.createdBy = publisherId;
-                    }
-
-                    const incomingRev = typeof content.rev === 'number' ? content.rev : 0;
-                    const incomingTs = typeof content.ts === 'number' ? content.ts : 0;
-                    const latestRev = latest ? (latest.rev || 0) : -1;
-                    const latestTs = latest ? (latest.ts || 0) : 0;
-                    if (incomingRev > latestRev || (incomingRev === latestRev && incomingTs > latestTs)) {
-                        latest = content;
-                    }
-                } catch (e) {
-                    Logger.debug('resendAdminState entry processing error:', e.message);
-                    continue;
-                }
+            read = await this._readAdminWindow(adminStreamId, last, password);
+            // The newest snapshot went out split and its run reaches further
+            // back than this window: read once more, wide enough to hold it.
+            if (read.cutRun) {
+                read = await this._readAdminWindow(
+                    adminStreamId, last + read.cutRun.chunkCount + 1, password);
             }
         } catch (error) {
             Logger.warn('resendAdminState error:', error.message);
@@ -3571,10 +3554,125 @@ class StreamrController {
 
         Logger.debug('resendAdminState result:', {
             adminStreamId: adminStreamId.slice(-30),
-            found: !!latest,
-            rev: latest?.rev
+            found: !!read.latest,
+            rev: read.latest?.rev
         });
-        return latest;
+        return read.latest;
+    }
+
+    /**
+     * One resend of the -3/P0 window: the newest snapshot among whole
+     * ADMIN_STATE rows and complete runs, plus the manifest of a newer run
+     * the window cut short, if any. Rows only join a run of their own
+     * publisher, and each row passes the same authority check a whole
+     * snapshot does.
+     * @private
+     */
+    async _readAdminWindow(adminStreamId, last, password) {
+        const partition = STREAM_CONFIG.ADMIN_STREAM.MODERATION;
+        let latest = null;
+        const framed = new Map();   // publisherId -> opened chunk/manifest rows
+        const num = (v) => (typeof v === 'number' ? v : 0);
+        const newer = (a, b) => !b
+            || num(a.rev) > num(b.rev)
+            || (num(a.rev) === num(b.rev) && num(a.ts) > num(b.ts));
+
+        // Gated: raw resend — the SDK validator re-checks stored envelopes
+        // against the present gate state; authorship is established
+        // client-side by resolveAuthor (admin-only on -3) instead.
+        const gatedChannel = await this._gatedChannelFor(adminStreamId);
+        const resend = await this.client.resend(
+            { streamId: adminStreamId, partition },
+            { last, raw: true }
+        );
+
+        const iterator = resend[Symbol.asyncIterator]();
+        let iteratorDone = false;
+
+        while (!iteratorDone) {
+            let message;
+            try {
+                const result = await iterator.next();
+                iteratorDone = result.done;
+                if (iteratorDone) break;
+                message = result.value;
+            } catch (iterError) {
+                if (iterError.code === 'DECRYPT_ERROR' || iterError.message?.includes('encryption key')) {
+                    continue;
+                }
+                Logger.warn('resendAdminState iteration error:', iterError.message);
+                continue;
+            }
+
+            try {
+                if (!gatedChannel && (!verifyEnvelopeAuthenticity(message)
+                    || !await this.publisherMayWrite(adminStreamId, message))) continue;
+                let content = message.content || message;
+                if (password && typeof content === 'string') {
+                    try {
+                        content = await cryptoManager.decryptJSON(content, password);
+                    } catch (decryptError) {
+                        continue;
+                    }
+                }
+                // Gated: ADMIN_STATE arrives as an epoch envelope. History
+                // context so entries sealed under an older epoch open in
+                // that epoch's validity window instead of being dropped.
+                if (this.isEpochEnvelope(content)) {
+                    const judged = storageFetch.judgeMessage(adminStreamId, partition, message);
+                    if (judged.forwardDated) continue;
+                    const opened = await this.openEpochEnvelope(adminStreamId, content,
+                        { live: false, timestamp: judged.judgeTime });
+                    if (opened === null) continue;
+                    content = opened;
+                }
+                if (!content || typeof content !== 'object') continue;
+                const isFramed = content.type === ADMIN_FRAME.chunk || content.type === ADMIN_FRAME.manifest;
+                if (content.type && content.type !== 'ADMIN_STATE' && !isFramed) continue;
+
+                // Inject publisher info so caller can validate sender == createdBy.
+                // Gated: the clone publishes for everyone — resolveAuthor swaps in
+                // the envelope signer and DROPS non-admin writes on -3 (D10c).
+                const transportPublisher = typeof message.getPublisherId === 'function'
+                    ? message.getPublisherId() : message.publisherId;
+                const publisherId = await this.resolveAuthor(
+                    adminStreamId, message, transportPublisher);
+                if (!publisherId) continue;
+
+                if (isFramed) {
+                    if (!framed.has(publisherId)) framed.set(publisherId, []);
+                    framed.get(publisherId).push(content);
+                    continue;
+                }
+                if (!content.createdBy) content.createdBy = publisherId;
+                if (newer(content, latest)) latest = content;
+            } catch (e) {
+                Logger.debug('resendAdminState entry processing error:', e.message);
+                continue;
+            }
+        }
+
+        let cutRun = null;
+        for (const [publisherId, rows] of framed) {
+            const dropped = [];
+            for (const { manifest, payload } of joinFramed(rows, ADMIN_FRAME, (d) => dropped.push(d))) {
+                if (payload?.type !== 'ADMIN_STATE'
+                    || payload.rev !== manifest.rev || payload.ts !== manifest.ts) continue;
+                if (!payload.createdBy) payload.createdBy = publisherId;
+                if (newer(payload, latest)) latest = payload;
+            }
+            for (const d of dropped) {
+                if (d.reason !== 'incomplete') continue;
+                const manifest = rows.find(r => r.type === ADMIN_FRAME.manifest && r.runId === d.runId);
+                if (manifest && Number.isInteger(manifest.chunkCount) && newer(manifest, cutRun)) {
+                    cutRun = manifest;
+                }
+            }
+        }
+        if (cutRun && (!newer(cutRun, latest)
+            || cutRun.chunkCount + 1 <= last
+            || cutRun.chunkCount > CONFIG.subscriptions.adminReadMaxChunks)) cutRun = null;
+        return { latest, cutRun };
     }
 
     /**

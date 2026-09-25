@@ -203,6 +203,17 @@ class CryptoManager {
     }
 
     /**
+     * Length of what encrypt() returns for a plaintext of this many UTF-8
+     * bytes: base64 over salt, iv, ciphertext and GCM tag. Deterministic, so
+     * sizing a payload does not pay a key derivation.
+     * @param {number} plaintextBytes
+     * @returns {number}
+     */
+    encryptedLength(plaintextBytes) {
+        return 4 * Math.ceil((16 + 12 + plaintextBytes + 16) / 3);
+    }
+
+    /**
      * Encrypt JSON object
      * @param {Object} obj - Object to encrypt
      * @param {string} password - Password for encryption

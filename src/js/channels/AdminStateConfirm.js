@@ -133,6 +133,12 @@ export class AdminStateConfirm {
                     state: channel.adminSnapshot || channel.adminState || {}
                 });
             } catch (e) {
+                if (e?.code === 'ADMIN_STATE_TOO_LARGE') {
+                    this._setPending(messageStreamId, null);
+                    Logger.warn(`${label} cannot be republished: ${e.message}`);
+                    this.manager.notifyHandlers('admin_state_too_large', { streamId: messageStreamId, rev: pending.rev });
+                    return;
+                }
                 Logger.warn(`${label} republish failed, kept pending:`, e?.message);
                 return;
             }

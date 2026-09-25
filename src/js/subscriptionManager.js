@@ -586,6 +586,10 @@ class SubscriptionManager {
             // can publish moderation), and the matching -2/P0 signal is
             // published by the same admin. We additionally inject createdBy
             // from the account so applyAdminState's owner check passes.
+            if (msg.snapshot === undefined) {
+                channelManager.adminState?.readAfterSignal(streamId);
+                return;
+            }
             if (!msg.snapshot || typeof msg.snapshot !== 'object') return;
             const sender = (msg.account || msg.user || '').toLowerCase();
             if (!msg.snapshot.createdBy && sender) {
