@@ -24,6 +24,12 @@ const big = snapshot('x'.repeat(700), 1789000000000);
 const other = snapshot('y'.repeat(700), 1789000009000);
 const small = snapshot('fits', 1789000005000);
 
+// An emoji placed so a cut at a multiple of the budget would fall between its
+// two halves.
+const prefix = JSON.stringify(snapshot('', 1789000029000)).indexOf('"name":""') + '"name":"'.length;
+const cut = Math.ceil((prefix + 1) / LIMIT) * LIMIT;
+const straddling = snapshot('p'.repeat(cut - 1 - prefix) + '\u{1F426}' + 'q'.repeat(300), 1789000029000);
+
 const bigRun = splitSyncPayload(big, 'runA', LIMIT);
 const otherRun = splitSyncPayload(other, 'runB', LIMIT);
 
@@ -39,6 +45,11 @@ console.log(JSON.stringify({
             what: 'a big snapshot becomes chunks numbered from zero, then its manifest',
             payload: big,
             messages: bigRun
+        },
+        {
+            what: 'a cut never falls between the two halves of a surrogate pair',
+            payload: straddling,
+            messages: splitSyncPayload(straddling, 'runA', LIMIT)
         }
     ],
     reassemble: [

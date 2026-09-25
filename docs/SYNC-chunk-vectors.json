@@ -101,6 +101,58 @@
           "chunkCount": 5
         }
       ]
+    },
+    {
+      "what": "a cut never falls between the two halves of a surrogate pair",
+      "payload": {
+        "type": "sync",
+        "v": 1,
+        "ts": 1789000029000,
+        "data": {
+          "channels": [
+            {
+              "messageStreamId": "0xowner/chan-1",
+              "name": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp🐦qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"
+            }
+          ]
+        }
+      },
+      "messages": [
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000029000,
+          "syncId": "runA",
+          "chunkIndex": 0,
+          "chunkCount": 3,
+          "data": "{\"type\":\"sync\",\"v\":1,\"ts\":1789000029000,\"data\":{\"channels\":[{\"messageStreamId\":\"0xowner/chan-1\",\"name\":\"ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000029000,
+          "syncId": "runA",
+          "chunkIndex": 1,
+          "chunkCount": 3,
+          "data": "🐦qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"
+        },
+        {
+          "type": "sync_chunk",
+          "v": 1,
+          "ts": 1789000029000,
+          "syncId": "runA",
+          "chunkIndex": 2,
+          "chunkCount": 3,
+          "data": "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq\"}]}}"
+        },
+        {
+          "type": "sync_manifest",
+          "v": 1,
+          "ts": 1789000029000,
+          "syncId": "runA",
+          "chunkCount": 3
+        }
+      ]
     }
   ],
   "reassemble": [

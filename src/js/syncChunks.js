@@ -20,7 +20,7 @@ export const SYNC_CHUNK_CHARS = 150 * 1024;
  * a surrogate pair, which a UTF-8 encoder downstream would turn into '?'.
  */
 const SYNC_FRAME = Object.freeze({
-    chunk: 'sync_chunk', manifest: 'sync_manifest', id: 'syncId', carry: ['ts'], keepPairs: false
+    chunk: 'sync_chunk', manifest: 'sync_manifest', id: 'syncId', carry: ['ts'], keepPairs: true
 });
 
 /**

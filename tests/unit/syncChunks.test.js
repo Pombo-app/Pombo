@@ -39,6 +39,15 @@ describe('splitting', () => {
         expect(out.every(m => m.ts === 42)).toBe(true);
     });
 
+    it('never cuts an emoji in half, which a UTF-8 encoder would turn into ?', () => {
+        const payload = snapshot('🐦'.repeat(3000));
+        const out = splitSyncPayload(payload, 'run1', 301);
+        for (const chunk of out.filter(m => m.type === 'sync_chunk')) {
+            expect(chunk.data).toBe(chunk.data.toWellFormed());
+        }
+        expect(reassembleSyncPayloads(out)[0]).toEqual(payload);
+    });
+
     it('never puts more than the budget in one message', () => {
         const out = splitSyncPayload(snapshot('z'.repeat(5000)), 'run1', 300);
         for (const chunk of out.filter(m => m.type === 'sync_chunk')) {
