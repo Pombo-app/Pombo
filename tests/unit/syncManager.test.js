@@ -149,6 +149,7 @@ describe('syncManager', () => {
         syncManager.handlers = [];
         syncManager.pushQueued = false;
         syncManager.autoPushRetryCount = 0;
+        syncManager.cancelPushConfirmation();
         // Reset authManager state
         authManager.wallet = { privateKey: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef' };
         authManager.isGuestMode.mockReturnValue(false);

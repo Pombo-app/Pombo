@@ -96,6 +96,10 @@ class SyncManager {
         this._ownRowKeys = new Set();
         this._publishing = false;
         this._confirmRun = 0;
+        // A pushed state counts as sent while its read-back runs. Only a
+        // confirmed one is remembered across restarts: a push storage never
+        // kept has to go out again.
+        this._pendingHash = null;
         this._confirmTimer = null;
         this._blobLeaveTimer = null;
         this._snapshotWatch = null;
@@ -450,8 +454,8 @@ class SyncManager {
             // Gather state from secureStorage
             const state = secureStorage.exportForSync();
             const hash = await this._stateHash(state);
-            if (this._isConfirmedState(hash)) {
-                Logger.info('Sync: State unchanged since the last confirmed push, not publishing');
+            if (this._isConfirmedState(hash) || hash === this._pendingHash) {
+                Logger.info('Sync: State unchanged since the last push, not publishing');
                 if (!this.autoPushTimeout && !this.pushQueued) {
                     this.clearDirty();
                 }
@@ -523,6 +527,7 @@ class SyncManager {
      */
     _confirmPush(inboxStreamId, hash, rows) {
         const run = ++this._confirmRun;
+        this._pendingHash = hash;
         clearTimeout(this._confirmTimer);
         const wanted = new Set(rows.map(rowKey));
         const startedAt = Date.now();
@@ -541,6 +546,7 @@ class SyncManager {
                     Math.max(0, startedAt + SYNC_CONFIRM_AT_MS[index + 1] - Date.now()));
                 return;
             }
+            this._pendingHash = null;
             if (confirmed) {
                 this._writeConfirmedState(hash);
                 Logger.info('Sync: Push confirmed by storage');
@@ -609,6 +615,7 @@ class SyncManager {
     /** On disconnect: a confirmation still running would act on the next account. */
     cancelPushConfirmation() {
         this._confirmRun++;
+        this._pendingHash = null;
         clearTimeout(this._confirmTimer);
         clearTimeout(this._blobLeaveTimer);
         this._pulledRowTs = 0;
