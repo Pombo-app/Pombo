@@ -2421,18 +2421,20 @@ describe('ChannelManager', () => {
 
     // ==================== member_update via handleControlMessage ====================
     describe('handleControlMessage() - member_update', () => {
-        it('should update channel members on member_update', async () => {
+        // No client publishes it and nothing checks who sent it: a list taken
+        // from the wire would be saved, stamped and synced to every device.
+        it('leaves the members as they are and saves nothing', async () => {
             const channel = { members: ['0x1'], reactions: {} };
             channelManager.channels.set('stream1', channel);
             secureStorage.isStorageUnlocked.mockReturnValue(true);
-            secureStorage.setChannels.mockResolvedValue(undefined);
 
             await channelManager.handleControlMessage('stream1', {
                 type: 'member_update',
                 members: ['0x1', '0x2', '0x3']
             });
 
-            expect(channel.members).toEqual(['0x1', '0x2', '0x3']);
+            expect(channel.members).toEqual(['0x1']);
+            expect(secureStorage.setChannels).not.toHaveBeenCalled();
         });
     });
 
