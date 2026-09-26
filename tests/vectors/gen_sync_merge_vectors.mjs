@@ -8,7 +8,8 @@
 //
 // The vectors fix the slice outcome of one merge step (base = this device,
 // incoming = a remote snapshot), the stamping of unstamped values before a
-// state leaves the device, and how sent DMs carry deletions and edits.
+// state leaves the device, how sent DMs carry deletions and edits, and how two
+// copies of a channel record merge.
 import { mergeState, stampedSliceTs } from '../../src/js/syncMerge.js';
 
 const SLICES = ['blockedPeers', 'dmLeftAt', 'trustedContacts', 'username', 'graphApiKey'];
@@ -39,6 +40,20 @@ const merge = (what, base, incoming) => ({
 
 const DM = '0x00000000000000000000000000000000000000a1/Pombo-DM-1';
 const text = (id, timestamp, extra = {}) => ({ id, type: 'text', text: `text of ${id}`, timestamp, ...extra });
+
+const CH = '0x00000000000000000000000000000000000000a1/c0ffee-1';
+const record = (extra = {}) => ({
+    messageStreamId: CH, name: 'Channel', type: 'public', createdAt: 1000, joinedAt: 1000,
+    storageDays: 30, accessSnapshot: [], ...extra
+});
+
+// Channel records: each field comes from the copy that stamped it later; the
+// join-time rule only decides what no stamp does, and whether the channel is
+// joined at all.
+const channel = (what, base, incoming) => {
+    const merged = mergeState(base, incoming);
+    return { what, base, incoming, expected: { channels: merged.channels, channelsLeftAt: merged.channelsLeftAt } };
+};
 
 // Sent DMs: a deletion on any device removes the message on every device,
 // and the latest edit wins.
@@ -106,5 +121,37 @@ console.log(JSON.stringify({
         sent('a deletion from another device wins over a later edit held here',
             { sentMessages: { [DM]: [text('m1', 1000, { text: 'later', _edited: true, _editedAt: 9000 })] } },
             { sentMessages: { [DM]: [] }, sentDeletedAt: { [DM]: { m1: 5000 } } })
+    ],
+    channels: [
+        channel('a stamped field held here beats an old unstamped copy arriving',
+            { channels: [record({ name: 'Renamed', fieldTs: { name: 5000 } })] },
+            { channels: [record()] }),
+        channel('a stamped field arriving beats the old unstamped copy held here',
+            { channels: [record()] },
+            { channels: [record({ name: 'Renamed', fieldTs: { name: 5000 } })] }),
+        channel('two devices changing different fields keep both changes',
+            { channels: [record({ name: 'Renamed', fieldTs: { name: 5000 } })] },
+            { channels: [record({ accessSnapshot: ['0x00000000000000000000000000000000000000b1'], fieldTs: { accessSnapshot: 6000 } })] }),
+        channel('the same two changes merged in the other order give the same record',
+            { channels: [record({ accessSnapshot: ['0x00000000000000000000000000000000000000b1'], fieldTs: { accessSnapshot: 6000 } })] },
+            { channels: [record({ name: 'Renamed', fieldTs: { name: 5000 } })] }),
+        channel('a client that drops the stamps neither reverts a stamped field nor erases the stamps',
+            { channels: [record({ storageDays: 90, fieldTs: { storageDays: 5000 } })] },
+            { channels: [record({ storageDays: 30 })] }),
+        channel('an older stamp arriving does not undo a newer one held here',
+            { channels: [record({ name: 'Newer', fieldTs: { name: 6000 } })] },
+            { channels: [record({ name: 'Older', fieldTs: { name: 5000 } })] }),
+        channel('equal stamps fall back to the join-time rule, which gives the tie to the incoming copy',
+            { channels: [record({ name: 'Here', fieldTs: { name: 5000 } })] },
+            { channels: [record({ name: 'Arriving', fieldTs: { name: 5000 } })] }),
+        channel('a field only one copy carries is kept, whichever copy wins the others',
+            { channels: [record({ keysStreamId: `${CH.slice(0, -2)}-4`, storageProvider: 'streamr' })] },
+            { channels: [record({ inboxStreamId: null, name: 'Renamed', fieldTs: { name: 5000 } })] }),
+        channel('a leave newer than the join removes the channel whatever its stamps say',
+            { channels: [record({ name: 'Renamed', fieldTs: { name: 9000 } })] },
+            { channels: [], channelsLeftAt: { [CH]: 5000 } }),
+        channel('a join newer than the leave keeps the channel and retires the leave',
+            { channels: [record({ joinedAt: 7000 })] },
+            { channels: [], channelsLeftAt: { [CH]: 5000 } })
     ]
 }, null, 2));

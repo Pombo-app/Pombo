@@ -125,16 +125,6 @@ export class MessageFlow {
                 // it via the cache stale-guard.
                 timestamp: data.timestamp || null
             });
-        } else if (data.type === 'member_update') {
-            const channel = this.manager.channels.get(streamId);
-            if (channel) {
-                channel.members = data.members;
-                try {
-                    await this.manager.saveChannels();
-                } catch (e) {
-                    Logger.error('Failed to persist member update:', e);
-                }
-            }
         }
     }
 

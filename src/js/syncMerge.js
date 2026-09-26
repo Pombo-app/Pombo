@@ -108,6 +108,65 @@ export function mergeSentReactions(local, remote) {
     return result;
 }
 
+const fieldStamp = (record, key) => {
+    const ts = record?.fieldTs?.[key];
+    return typeof ts === 'number' ? ts : 0;
+};
+
+/**
+ * A channel record's field stamps after a local save: each field that differs
+ * from the copy last persisted or imported is stamped `now`. A record with no
+ * such copy (created here) keeps the stamps it has.
+ *
+ * @param {Object|undefined} previous - The copy last persisted or imported
+ * @param {Object} record - The record about to be persisted
+ * @param {number} now
+ * @returns {Object|undefined} `record.fieldTs` itself when nothing changed
+ */
+export function stampChangedFields(previous, record, now) {
+    if (!previous) return record.fieldTs;
+    let stamps = record.fieldTs;
+    for (const key of new Set([...Object.keys(record), ...Object.keys(previous)])) {
+        if (key === 'fieldTs' || JSON.stringify(record[key]) === JSON.stringify(previous[key])) continue;
+        if (stamps === record.fieldTs) stamps = { ...(record.fieldTs || {}) };
+        stamps[key] = now;
+    }
+    return stamps;
+}
+
+/**
+ * One channel record from two copies of it. Each field comes from the copy
+ * whose `fieldTs` stamped it later; a field neither copy stamped, or both
+ * stamped at the same time, comes from `preferred`, and a field only one copy
+ * carries is kept. The stamps join, the latest per field, so a client that
+ * drops them cannot take them from the others.
+ *
+ * @param {Object} preferred - The copy the join-time rule picks
+ * @param {Object} other - The other copy
+ * @returns {Object} `preferred` itself when nothing comes from `other`
+ */
+export function mergeChannelRecord(preferred, other) {
+    const merged = {};
+    let tookOther = false;
+    for (const key of new Set([...Object.keys(preferred), ...Object.keys(other)])) {
+        if (key === 'fieldTs') continue;
+        const fromOther = key in other
+            && (!(key in preferred) || fieldStamp(other, key) > fieldStamp(preferred, key));
+        merged[key] = fromOther ? other[key] : preferred[key];
+        if (fromOther) tookOther = true;
+    }
+    if (!tookOther) return preferred;
+    if (preferred.fieldTs || other.fieldTs) {
+        merged.fieldTs = {};
+        for (const source of [preferred.fieldTs || {}, other.fieldTs || {}]) {
+            for (const [key, ts] of Object.entries(source)) {
+                if (typeof ts === 'number' && ts > (merged.fieldTs[key] || 0)) merged.fieldTs[key] = ts;
+            }
+        }
+    }
+    return merged;
+}
+
 /**
  * Merge channel lists as an LWW-element-set (per-channel latest-wins).
  *
@@ -116,6 +175,7 @@ export function mergeSentReactions(local, remote) {
  * `channelsLeftAt`. The most recent action wins; on a tie, Join wins.
  * This replaces whole-array snapshot replacement, which could delete a
  * fresh local Join when an older remote snapshot arrived (or vice versa).
+ * Two copies of the same channel merge field by field (mergeChannelRecord).
  *
  * @param {Array} baseChannels - Base channel entries
  * @param {Array} incomingChannels - Incoming channel entries
@@ -137,8 +197,8 @@ export function mergeChannels(baseChannels, incomingChannels, baseLeftAt, incomi
         }
     }
 
-    // Union channel entries: entry with the newest join timestamp wins;
-    // incoming wins ties (newer snapshot has fresher metadata). An entry with
+    // Union channel entries: for the fields no stamp decides, the entry with
+    // the newest join timestamp wins and incoming wins ties. An entry with
     // no joinedAt of its own is never a newer join than one that has it, but
     // its time still counts as a join against a leave tombstone.
     const replaces = (incoming, existing) => {
@@ -158,8 +218,12 @@ export function mergeChannels(baseChannels, incomingChannels, baseLeftAt, incomi
         if (!channel?.messageStreamId) continue;
         noteJoin(channel);
         const existing = byId.get(channel.messageStreamId);
-        if (!existing || replaces(channel, existing)) {
+        if (!existing) {
             byId.set(channel.messageStreamId, channel);
+        } else {
+            byId.set(channel.messageStreamId, replaces(channel, existing)
+                ? mergeChannelRecord(channel, existing)
+                : mergeChannelRecord(existing, channel));
         }
     }
 

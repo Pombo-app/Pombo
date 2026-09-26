@@ -1198,6 +1198,74 @@ describe('ChannelManager', () => {
         });
     });
 
+    // The sync merges a channel record field by field on these stamps, so a
+    // stamp on a field nobody changed here would let this device's stale
+    // value win it on every other device.
+    describe('saveChannels() field stamps', () => {
+        const stored = (extra = {}) => ({
+            messageStreamId: 'stream1', ephemeralStreamId: 'stream1-eph', adminStreamId: 'stream1-3',
+            name: 'Channel', type: 'public', createdAt: 1000, joinedAt: 1000,
+            members: ['0x1'], storageDays: 30, ...extra
+        });
+        const saved = () => secureStorage.setChannels.mock.calls.at(-1)[0][0];
+
+        beforeEach(() => {
+            secureStorage.isStorageUnlocked.mockReturnValue(true);
+        });
+
+        it('stamps only the fields the save changes', async () => {
+            secureStorage.getChannels.mockReturnValue([stored()]);
+            channelManager.loadChannels();
+            channelManager.channels.get('stream1').name = 'Renamed';
+
+            await channelManager.saveChannels();
+
+            expect(Object.keys(saved().fieldTs)).toEqual(['name']);
+            expect(channelManager.channels.get('stream1').fieldTs).toEqual(saved().fieldTs);
+        });
+
+        it('stamps a list changed in place', async () => {
+            secureStorage.getChannels.mockReturnValue([stored()]);
+            channelManager.loadChannels();
+            channelManager.channels.get('stream1').members.push('0x2');
+
+            await channelManager.saveChannels();
+
+            expect(Object.keys(saved().fieldTs)).toEqual(['members']);
+        });
+
+        it('stamps nothing when a save changes nothing, and keeps the stamps it had', async () => {
+            secureStorage.getChannels.mockReturnValue([stored({ fieldTs: { name: 5000 } })]);
+            channelManager.loadChannels();
+
+            await channelManager.saveChannels();
+
+            expect(saved().fieldTs).toEqual({ name: 5000 });
+        });
+
+        it('does not stamp what a sync pull brought in', async () => {
+            secureStorage.getChannels.mockReturnValue([stored()]);
+            channelManager.loadChannels();
+            secureStorage.getChannels.mockReturnValue([stored({ name: 'From another device', fieldTs: { name: 5000 } })]);
+            channelManager.reloadChannelsFromSync();
+
+            await channelManager.saveChannels();
+
+            expect(saved().name).toBe('From another device');
+            expect(saved().fieldTs).toEqual({ name: 5000 });
+        });
+
+        it('does not stamp a record created here', async () => {
+            secureStorage.getChannels.mockReturnValue([]);
+            channelManager.loadChannels();
+            channelManager.channels.set('stream1', stored());
+
+            await channelManager.saveChannels();
+
+            expect(saved().fieldTs).toBeUndefined();
+        });
+    });
+
     describe('getCachedDeletePermission()', () => {
         beforeEach(() => {
             authManager.getAddress.mockReturnValue('0xmyaddress');
@@ -2353,18 +2421,20 @@ describe('ChannelManager', () => {
 
     // ==================== member_update via handleControlMessage ====================
     describe('handleControlMessage() - member_update', () => {
-        it('should update channel members on member_update', async () => {
+        // No client publishes it and nothing checks who sent it: a list taken
+        // from the wire would be saved, stamped and synced to every device.
+        it('leaves the members as they are and saves nothing', async () => {
             const channel = { members: ['0x1'], reactions: {} };
             channelManager.channels.set('stream1', channel);
             secureStorage.isStorageUnlocked.mockReturnValue(true);
-            secureStorage.setChannels.mockResolvedValue(undefined);
 
             await channelManager.handleControlMessage('stream1', {
                 type: 'member_update',
                 members: ['0x1', '0x2', '0x3']
             });
 
-            expect(channel.members).toEqual(['0x1', '0x2', '0x3']);
+            expect(channel.members).toEqual(['0x1']);
+            expect(secureStorage.setChannels).not.toHaveBeenCalled();
         });
     });
 
