@@ -1324,5 +1324,1343 @@
         "channelsLeftAt": {}
       }
     }
-  ]
+  ],
+  "publish": {
+    "base": {
+      "sentMessages": {
+        "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+          {
+            "id": "m1",
+            "type": "text",
+            "text": "text of m1",
+            "timestamp": 1000
+          }
+        ]
+      },
+      "sentDeletedAt": {
+        "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+          "m0": 900
+        }
+      },
+      "sentReactions": {
+        "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+          "m1": {
+            "👍": [
+              "0x0000000000000000000000000000000000000001"
+            ]
+          }
+        }
+      },
+      "channels": [
+        {
+          "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+          "name": "Channel",
+          "type": "gated",
+          "createdAt": 1000,
+          "joinedAt": 1000,
+          "storageDays": 30,
+          "accessSnapshot": [
+            "0x0000000000000000000000000000000000000001"
+          ],
+          "ephemeralStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-2",
+          "adminStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-3",
+          "keysStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-4",
+          "interactionsStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-5",
+          "inboxStreamId": "0x0000000000000000000000000000000000000009/Pombo-DM-1",
+          "storageProvider": "streamr",
+          "gate": {
+            "address": "0x0000000000000000000000000000000000000007"
+          },
+          "wireIdentity": "sealed",
+          "createdBy": "0x0000000000000000000000000000000000000008",
+          "password": "secret",
+          "members": [
+            "0x0000000000000000000000000000000000000001"
+          ],
+          "rotatedForNoAccess": [
+            "0x0000000000000000000000000000000000000002"
+          ],
+          "knownBanned": [
+            "0x0000000000000000000000000000000000000003"
+          ],
+          "storageEnabled": true,
+          "adminStorageDays": 30,
+          "keysStorageDays": 30,
+          "interactionsStorageDays": 30,
+          "exposure": "hidden",
+          "description": "about",
+          "language": "en",
+          "category": "news",
+          "metaUpdatedAt": 2000,
+          "readOnly": true,
+          "writeOnly": true,
+          "classification": "club",
+          "peerAddress": "0x0000000000000000000000000000000000000004",
+          "fieldTs": {
+            "name": 3000
+          }
+        }
+      ],
+      "channelsLeftAt": {
+        "0x0000000000000000000000000000000000000005/gone-1": 500
+      },
+      "epochKeys": {
+        "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+          "epochs": {
+            "k1": {
+              "keyHex": "0xaa",
+              "keyHash": "0xa1",
+              "epoch": 1
+            }
+          },
+          "announces": {
+            "1": {
+              "keyId": "k1",
+              "keyHash": "0xa1",
+              "timestamp": 100,
+              "validFrom": 100
+            }
+          },
+          "currentEpoch": 1,
+          "pendingRequests": {
+            "r1": {
+              "fromEpoch": 1,
+              "sentAt": 100
+            }
+          },
+          "helloEpochs": [
+            1
+          ],
+          "helloName": "Bob",
+          "helloTs": 100,
+          "seenRequesters": [
+            "0x0000000000000000000000000000000000000001"
+          ],
+          "pubKey": {
+            "keyId": "p1",
+            "keyHex": "0xbb",
+            "rev": 1
+          },
+          "pubAnnounce": {
+            "keyId": "p1",
+            "rev": 1,
+            "timestamp": 100
+          },
+          "intKey": {
+            "keyId": "i1",
+            "keyHex": "0xcc",
+            "rev": 1
+          },
+          "intAnnounce": {
+            "keyId": "i1",
+            "rev": 1,
+            "timestamp": 100
+          }
+        }
+      },
+      "blockedPeers": [
+        "0x0000000000000000000000000000000000000006"
+      ],
+      "dmLeftAt": {
+        "0x0000000000000000000000000000000000000010": 700
+      },
+      "trustedContacts": {
+        "0x0000000000000000000000000000000000000011": {
+          "nickname": "Carol",
+          "addedAt": 800
+        }
+      },
+      "ensCache": {
+        "0x0000000000000000000000000000000000000011": {
+          "name": "carol.eth",
+          "timestamp": 100
+        }
+      },
+      "username": "Bob",
+      "graphApiKey": "key",
+      "sliceTs": {
+        "username": 100
+      }
+    },
+    "cases": [
+      {
+        "what": "a change in sentMessages is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "sentMessages"
+              ],
+              {
+                "0x00000000000000000000000000000000000000a1/Pombo-DM-1": [
+                  {
+                    "id": "m1",
+                    "type": "text",
+                    "text": "text of m1",
+                    "timestamp": 1000
+                  }
+                ],
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in sentDeletedAt is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "sentDeletedAt"
+              ],
+              {
+                "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+                  "m0": 900
+                },
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in sentReactions is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "sentReactions"
+              ],
+              {
+                "0x00000000000000000000000000000000000000a1/Pombo-DM-1": {
+                  "m1": {
+                    "👍": [
+                      "0x0000000000000000000000000000000000000001"
+                    ]
+                  }
+                },
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in channelsLeftAt is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channelsLeftAt"
+              ],
+              {
+                "0x0000000000000000000000000000000000000005/gone-1": 500,
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in blockedPeers is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "blockedPeers"
+              ],
+              [
+                "0x0000000000000000000000000000000000000006",
+                "x"
+              ]
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in dmLeftAt is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "dmLeftAt"
+              ],
+              {
+                "0x0000000000000000000000000000000000000010": 700,
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in trustedContacts is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "trustedContacts"
+              ],
+              {
+                "0x0000000000000000000000000000000000000011": {
+                  "nickname": "Carol",
+                  "addedAt": 800
+                },
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in username is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "username"
+              ],
+              "Bobx"
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in graphApiKey is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "graphApiKey"
+              ],
+              "keyx"
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in ensCache is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "ensCache"
+              ],
+              {
+                "0x0000000000000000000000000000000000000011": {
+                  "name": "carol.eth",
+                  "timestamp": 100
+                },
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a change in sliceTs is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "sliceTs"
+              ],
+              {
+                "username": 100,
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a change in a channel's name is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "name"
+              ],
+              "Channelx"
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's type is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "type"
+              ],
+              "gatedx"
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's createdAt is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "createdAt"
+              ],
+              1001
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's joinedAt is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "joinedAt"
+              ],
+              1001
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's storageDays is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "storageDays"
+              ],
+              31
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's accessSnapshot is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "accessSnapshot"
+              ],
+              [
+                "0x0000000000000000000000000000000000000001",
+                "x"
+              ]
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's gate is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "gate"
+              ],
+              {
+                "address": "0x0000000000000000000000000000000000000007",
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's wireIdentity is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "wireIdentity"
+              ],
+              "sealedx"
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's createdBy is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "createdBy"
+              ],
+              "0x0000000000000000000000000000000000000008x"
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's password is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "password"
+              ],
+              "secretx"
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's members is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "members"
+              ],
+              [
+                "0x0000000000000000000000000000000000000001",
+                "x"
+              ]
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's rotatedForNoAccess is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "rotatedForNoAccess"
+              ],
+              [
+                "0x0000000000000000000000000000000000000002",
+                "x"
+              ]
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's knownBanned is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "knownBanned"
+              ],
+              [
+                "0x0000000000000000000000000000000000000003",
+                "x"
+              ]
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's storageEnabled is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "storageEnabled"
+              ],
+              false
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's adminStorageDays is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "adminStorageDays"
+              ],
+              31
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's keysStorageDays is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "keysStorageDays"
+              ],
+              31
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's interactionsStorageDays is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "interactionsStorageDays"
+              ],
+              31
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's exposure is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "exposure"
+              ],
+              "hiddenx"
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's description is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "description"
+              ],
+              "aboutx"
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's language is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "language"
+              ],
+              "enx"
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's category is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "category"
+              ],
+              "newsx"
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's metaUpdatedAt is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "metaUpdatedAt"
+              ],
+              2001
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's readOnly is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "readOnly"
+              ],
+              false
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's writeOnly is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "writeOnly"
+              ],
+              false
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's classification is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "classification"
+              ],
+              "clubx"
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's peerAddress is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "peerAddress"
+              ],
+              "0x0000000000000000000000000000000000000004x"
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's fieldTs is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "fieldTs"
+              ],
+              {
+                "name": 3000,
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's ephemeralStreamId is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "ephemeralStreamId"
+              ],
+              "0x00000000000000000000000000000000000000a1/c0ffee-2x"
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a change in a channel's adminStreamId is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "adminStreamId"
+              ],
+              "0x00000000000000000000000000000000000000a1/c0ffee-3x"
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a change in a channel's keysStreamId is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "keysStreamId"
+              ],
+              "0x00000000000000000000000000000000000000a1/c0ffee-4x"
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a change in a channel's interactionsStreamId is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "interactionsStreamId"
+              ],
+              "0x00000000000000000000000000000000000000a1/c0ffee-5x"
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a change in a channel's inboxStreamId is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "inboxStreamId"
+              ],
+              "0x0000000000000000000000000000000000000009/Pombo-DM-1x"
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a change in a channel's storageProvider is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "storageProvider"
+              ],
+              "streamrx"
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a change in a channel's epoch keys epochs is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "epochKeys",
+                "0x00000000000000000000000000000000000000a1/c0ffee-1",
+                "epochs"
+              ],
+              {
+                "k1": {
+                  "keyHex": "0xaa",
+                  "keyHash": "0xa1",
+                  "epoch": 1
+                },
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's epoch keys currentEpoch is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "epochKeys",
+                "0x00000000000000000000000000000000000000a1/c0ffee-1",
+                "currentEpoch"
+              ],
+              2
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's epoch keys pubKey is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "epochKeys",
+                "0x00000000000000000000000000000000000000a1/c0ffee-1",
+                "pubKey"
+              ],
+              {
+                "keyId": "p1",
+                "keyHex": "0xbb",
+                "rev": 1,
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's epoch keys intKey is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "epochKeys",
+                "0x00000000000000000000000000000000000000a1/c0ffee-1",
+                "intKey"
+              ],
+              {
+                "keyId": "i1",
+                "keyHex": "0xcc",
+                "rev": 1,
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's epoch keys announces is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "epochKeys",
+                "0x00000000000000000000000000000000000000a1/c0ffee-1",
+                "announces"
+              ],
+              {
+                "1": {
+                  "keyId": "k1",
+                  "keyHash": "0xa1",
+                  "timestamp": 100,
+                  "validFrom": 100
+                },
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a change in a channel's epoch keys pendingRequests is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "epochKeys",
+                "0x00000000000000000000000000000000000000a1/c0ffee-1",
+                "pendingRequests"
+              ],
+              {
+                "r1": {
+                  "fromEpoch": 1,
+                  "sentAt": 100
+                },
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a change in a channel's epoch keys helloEpochs is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "epochKeys",
+                "0x00000000000000000000000000000000000000a1/c0ffee-1",
+                "helloEpochs"
+              ],
+              [
+                1,
+                "x"
+              ]
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a change in a channel's epoch keys helloName is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "epochKeys",
+                "0x00000000000000000000000000000000000000a1/c0ffee-1",
+                "helloName"
+              ],
+              "Bobx"
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a change in a channel's epoch keys helloTs is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "epochKeys",
+                "0x00000000000000000000000000000000000000a1/c0ffee-1",
+                "helloTs"
+              ],
+              101
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a change in a channel's epoch keys seenRequesters is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "epochKeys",
+                "0x00000000000000000000000000000000000000a1/c0ffee-1",
+                "seenRequesters"
+              ],
+              [
+                "0x0000000000000000000000000000000000000001",
+                "x"
+              ]
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a change in a channel's epoch keys pubAnnounce is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "epochKeys",
+                "0x00000000000000000000000000000000000000a1/c0ffee-1",
+                "pubAnnounce"
+              ],
+              {
+                "keyId": "p1",
+                "rev": 1,
+                "timestamp": 100,
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a change in a channel's epoch keys intAnnounce is not news",
+        "patch": {
+          "set": [
+            [
+              [
+                "epochKeys",
+                "0x00000000000000000000000000000000000000a1/c0ffee-1",
+                "intAnnounce"
+              ],
+              {
+                "keyId": "i1",
+                "rev": 1,
+                "timestamp": 100,
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a channel joined is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                1
+              ],
+              {
+                "messageStreamId": "0x0000000000000000000000000000000000000012/new-1",
+                "name": "Channel",
+                "type": "public",
+                "createdAt": 1000,
+                "joinedAt": 1000,
+                "storageDays": 30,
+                "accessSnapshot": []
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a channel left is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels"
+              ],
+              []
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a new channel in the epoch keys is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "epochKeys",
+                "0x0000000000000000000000000000000000000012/new-1"
+              ],
+              {
+                "currentEpoch": 1
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a slice this client does not know is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "somethingNew"
+              ],
+              {
+                "a": 1
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "the order of the keys is not news",
+        "patch": {
+          "reverseKeys": [
+            [
+              "channels",
+              0
+            ],
+            [
+              "epochKeys",
+              "0x00000000000000000000000000000000000000a1/c0ffee-1"
+            ],
+            []
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "the order of the channel list is not news",
+        "basePatch": {
+          "set": [
+            [
+              [
+                "channels",
+                1
+              ],
+              {
+                "messageStreamId": "0x0000000000000000000000000000000000000012/aaa-1",
+                "name": "Channel",
+                "type": "public",
+                "createdAt": 1000,
+                "joinedAt": 1000,
+                "storageDays": 30,
+                "accessSnapshot": []
+              }
+            ]
+          ]
+        },
+        "patch": {
+          "reverse": [
+            [
+              "channels"
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "an empty field and a missing one are the same state",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "inviteCode"
+              ],
+              null
+            ],
+            [
+              [
+                "channels",
+                0,
+                "note"
+              ],
+              ""
+            ],
+            [
+              [
+                "channels",
+                0,
+                "pinned"
+              ],
+              false
+            ],
+            [
+              [
+                "channels",
+                0,
+                "tags"
+              ],
+              []
+            ],
+            [
+              [
+                "channels",
+                0,
+                "extra"
+              ],
+              {}
+            ],
+            [
+              [
+                "sentReactions",
+                "0x00000000000000000000000000000000000000a1/Pombo-DM-1",
+                "m9"
+              ],
+              {
+                "👍": []
+              }
+            ]
+          ]
+        },
+        "same": true
+      },
+      {
+        "what": "a field emptied is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "channels",
+                0,
+                "password"
+              ],
+              null
+            ]
+          ]
+        },
+        "same": false
+      }
+    ]
+  }
 }

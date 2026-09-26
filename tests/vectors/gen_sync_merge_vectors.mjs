@@ -8,9 +8,11 @@
 //
 // The vectors fix the slice outcome of one merge step (base = this device,
 // incoming = a remote snapshot), the stamping of unstamped values before a
-// state leaves the device, how sent DMs carry deletions and edits, and how two
-// copies of a channel record merge.
+// state leaves the device, how sent DMs carry deletions and edits, how two
+// copies of a channel record merge, and which changes to a state are news
+// worth a push.
 import { mergeState, stampedSliceTs } from '../../src/js/syncMerge.js';
+import { syncStateKey } from '../../src/js/syncStateKey.js';
 
 const SLICES = ['blockedPeers', 'dmLeftAt', 'trustedContacts', 'username', 'graphApiKey'];
 
@@ -54,6 +56,121 @@ const channel = (what, base, incoming) => {
     const merged = mergeState(base, incoming);
     return { what, base, incoming, expected: { channels: merged.channels, channelsLeftAt: merged.channelsLeftAt } };
 };
+
+// Publishing: a push goes out only when a state differs in its news. The
+// expectations are written here by hand, field by field, so the vectors are the
+// spec rather than a copy of the implementation's lists.
+const A = (n) => `0x${String(n).padStart(40, '0')}`;
+const PUBLISH_BASE = {
+    sentMessages: { [DM]: [text('m1', 1000)] },
+    sentDeletedAt: { [DM]: { m0: 900 } },
+    sentReactions: { [DM]: { m1: { '👍': [A(1)] } } },
+    channels: [record({
+        type: 'gated', ephemeralStreamId: `${CH.slice(0, -2)}-2`, adminStreamId: `${CH.slice(0, -2)}-3`,
+        keysStreamId: `${CH.slice(0, -2)}-4`, interactionsStreamId: `${CH.slice(0, -2)}-5`, inboxStreamId: `${A(9)}/Pombo-DM-1`,
+        storageProvider: 'streamr', gate: { address: A(7) }, wireIdentity: 'sealed', createdBy: A(8), password: 'secret',
+        members: [A(1)], rotatedForNoAccess: [A(2)], accessSnapshot: [A(1)], knownBanned: [A(3)], storageEnabled: true,
+        adminStorageDays: 30, keysStorageDays: 30, interactionsStorageDays: 30, exposure: 'hidden', description: 'about',
+        language: 'en', category: 'news', metaUpdatedAt: 2000, readOnly: true, writeOnly: true, classification: 'club',
+        peerAddress: A(4), fieldTs: { name: 3000 }
+    })],
+    channelsLeftAt: { [`${A(5)}/gone-1`]: 500 },
+    epochKeys: {
+        [CH]: {
+            epochs: { k1: { keyHex: '0xaa', keyHash: '0xa1', epoch: 1 } },
+            announces: { 1: { keyId: 'k1', keyHash: '0xa1', timestamp: 100, validFrom: 100 } },
+            currentEpoch: 1,
+            pendingRequests: { r1: { fromEpoch: 1, sentAt: 100 } },
+            helloEpochs: [1], helloName: 'Bob', helloTs: 100, seenRequesters: [A(1)],
+            pubKey: { keyId: 'p1', keyHex: '0xbb', rev: 1 }, pubAnnounce: { keyId: 'p1', rev: 1, timestamp: 100 },
+            intKey: { keyId: 'i1', keyHex: '0xcc', rev: 1 }, intAnnounce: { keyId: 'i1', rev: 1, timestamp: 100 }
+        }
+    },
+    blockedPeers: [A(6)],
+    dmLeftAt: { [A(10)]: 700 },
+    trustedContacts: { [A(11)]: { nickname: 'Carol', addedAt: 800 } },
+    ensCache: { [A(11)]: { name: 'carol.eth', timestamp: 100 } },
+    username: 'Bob',
+    graphApiKey: 'key',
+    sliceTs: { username: 100 }
+};
+const NOT_NEWS = {
+    slices: ['ensCache', 'sliceTs'],
+    channel: ['ephemeralStreamId', 'adminStreamId', 'keysStreamId', 'interactionsStreamId', 'inboxStreamId', 'storageProvider'],
+    epochKeys: ['announces', 'pendingRequests', 'helloEpochs', 'helloName', 'helloTs', 'seenRequesters', 'pubAnnounce', 'intAnnounce']
+};
+const NEWS = {
+    slices: ['sentMessages', 'sentDeletedAt', 'sentReactions', 'channelsLeftAt', 'blockedPeers', 'dmLeftAt', 'trustedContacts', 'username', 'graphApiKey'],
+    channel: ['name', 'type', 'createdAt', 'joinedAt', 'storageDays', 'accessSnapshot', 'gate', 'wireIdentity', 'createdBy', 'password',
+        'members', 'rotatedForNoAccess', 'knownBanned', 'storageEnabled', 'adminStorageDays', 'keysStorageDays', 'interactionsStorageDays',
+        'exposure', 'description', 'language', 'category', 'metaUpdatedAt', 'readOnly', 'writeOnly', 'classification', 'peerAddress', 'fieldTs'],
+    epochKeys: ['epochs', 'currentEpoch', 'pubKey', 'intKey']
+};
+const mutate = (value) => {
+    if (typeof value === 'string') return `${value}x`;
+    if (typeof value === 'number') return value + 1;
+    if (typeof value === 'boolean') return !value;
+    if (Array.isArray(value)) return [...value, 'x'];
+    return { ...value, x: 1 };
+};
+const classified = (level, keys) => {
+    for (const key of keys) {
+        if (NEWS[level].includes(key) === NOT_NEWS[level].includes(key)) throw new Error(`publish: ${level} field ${key} must be news or not, once`);
+    }
+};
+classified('slices', Object.keys(PUBLISH_BASE).filter((k) => k !== 'channels' && k !== 'epochKeys'));
+classified('channel', Object.keys(PUBLISH_BASE.channels[0]).filter((k) => k !== 'messageStreamId'));
+classified('epochKeys', Object.keys(PUBLISH_BASE.epochKeys[CH]));
+
+// A case is a small patch on the shared base, so the file stays readable:
+// `set` puts values at paths, `reverseKeys` reverses the key order of the
+// objects at paths, `reverse` reverses the arrays at paths. `basePatch`, when
+// present, is applied to the base first and the case compares against that.
+const at = (root, path) => path.reduce((node, key) => node[key], root);
+const applyPatch = (state, patch = {}) => {
+    const out = structuredClone(state);
+    for (const [path, value] of patch.set || []) at(out, path.slice(0, -1))[path.at(-1)] = structuredClone(value);
+    for (const path of patch.reverse || []) at(out, path).reverse();
+    for (const path of patch.reverseKeys || []) {
+        const reversed = Object.fromEntries(Object.entries(at(out, path)).reverse());
+        if (!path.length) return reversed;
+        at(out, path.slice(0, -1))[path.at(-1)] = reversed;
+    }
+    return out;
+};
+const publish = (what, patch, same, basePatch = null) => {
+    const from = applyPatch(PUBLISH_BASE, basePatch || {});
+    if ((syncStateKey(from) === syncStateKey(applyPatch(from, patch))) !== same) {
+        throw new Error(`publish vector "${what}": expected ${same ? 'no push' : 'a push'}`);
+    }
+    return basePatch ? { what, basePatch, patch, same } : { what, patch, same };
+};
+const field = (path) => ({ set: [[path, mutate(at(PUBLISH_BASE, path))]] });
+const publishCases = [
+    ...[...NEWS.slices, ...NOT_NEWS.slices].map((slice) => publish(
+        `a change in ${slice} ${NEWS.slices.includes(slice) ? 'is' : 'is not'} news`,
+        field([slice]), NOT_NEWS.slices.includes(slice))),
+    ...[...NEWS.channel, ...NOT_NEWS.channel].map((name) => publish(
+        `a change in a channel's ${name} ${NEWS.channel.includes(name) ? 'is' : 'is not'} news`,
+        field(['channels', 0, name]), NOT_NEWS.channel.includes(name))),
+    ...[...NEWS.epochKeys, ...NOT_NEWS.epochKeys].map((name) => publish(
+        `a change in a channel's epoch keys ${name} ${NEWS.epochKeys.includes(name) ? 'is' : 'is not'} news`,
+        field(['epochKeys', CH, name]), NOT_NEWS.epochKeys.includes(name))),
+    publish('a channel joined is news', { set: [[['channels', 1], record({ messageStreamId: `${A(12)}/new-1` })]] }, false),
+    publish('a channel left is news', { set: [[['channels'], []]] }, false),
+    publish('a new channel in the epoch keys is news', { set: [[['epochKeys', `${A(12)}/new-1`], { currentEpoch: 1 }]] }, false),
+    publish('a slice this client does not know is news', { set: [[['somethingNew'], { a: 1 }]] }, false),
+    publish('the order of the keys is not news', { reverseKeys: [['channels', 0], ['epochKeys', CH], []] }, true),
+    publish('the order of the channel list is not news', { reverse: [['channels']] }, true,
+        { set: [[['channels', 1], record({ messageStreamId: `${A(12)}/aaa-1` })]] }),
+    publish('an empty field and a missing one are the same state', {
+        set: [
+            [['channels', 0, 'inviteCode'], null], [['channels', 0, 'note'], ''], [['channels', 0, 'pinned'], false],
+            [['channels', 0, 'tags'], []], [['channels', 0, 'extra'], {}], [['sentReactions', DM, 'm9'], { '👍': [] }]
+        ]
+    }, true),
+    publish('a field emptied is news', { set: [[['channels', 0, 'password'], null]] }, false)
+];
 
 // Sent DMs: a deletion on any device removes the message on every device,
 // and the latest edit wins.
@@ -153,5 +270,6 @@ console.log(JSON.stringify({
         channel('a join newer than the leave keeps the channel and retires the leave',
             { channels: [record({ joinedAt: 7000 })] },
             { channels: [], channelsLeftAt: { [CH]: 5000 } })
-    ]
+    ],
+    publish: { base: PUBLISH_BASE, cases: publishCases }
 }, null, 2));

@@ -115,6 +115,7 @@ describe('syncManager extended', () => {
         syncManager.autoPushTimeout = null;
         syncManager.pushQueued = false;
         syncManager.autoPushRetryCount = 0;
+        syncManager.cancelPushConfirmation();
         localStorage.clear();
         authManager.wallet = { privateKey: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef' };
         authManager.isGuestMode.mockReturnValue(false);
@@ -747,6 +748,15 @@ describe('syncManager extended', () => {
             expect(streamrController.leaveStreamPart).toHaveBeenCalledWith('0xabc/Pombo-DM-1', 1);
             dmManager.sealAndPublish.mockClear();
             await syncManager.pushSync();
+            expect(dmManager.sealAndPublish).not.toHaveBeenCalled();
+        });
+
+        it('does not publish the same state again while its read-back runs', async () => {
+            await syncManager.pushSync();
+            dmManager.sealAndPublish.mockClear();
+
+            await syncManager.pushSync();
+
             expect(dmManager.sealAndPublish).not.toHaveBeenCalled();
         });
 
