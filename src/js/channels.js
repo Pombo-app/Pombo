@@ -40,12 +40,17 @@ import { DeliveryConfirm } from './channels/DeliveryConfirm.js';
 import { Membership } from './channels/Membership.js';
 import { RotationRetry } from './channels/RotationRetry.js';
 import { ModDeltas, MOD_ACTION_TYPE } from './channels/ModDeltas.js';
+import { stampChangedFields } from './syncMerge.js';
 
 const GATE_REPAIR_WAIT_MS = 10_000;
 
 class ChannelManager {
     constructor() {
         this.channels = new Map(); // streamId -> channel object
+        // Each record as last persisted or imported, serialized: what a save
+        // compares against to stamp the fields that changed here. A copy, as
+        // the live records share their arrays with the storage cache.
+        this._persisted = new Map();
         this.currentChannel = null;
         // Gated PREVIEW shadow (N-D): a token/NFT holder browsing from
         // Explore. The preview lives outside `channels` on purpose (it must
@@ -282,6 +287,7 @@ class ChannelManager {
         } else {
             Logger.debug('No saved channels found');
         }
+        this._rememberPersisted();
     }
 
     /**
@@ -412,6 +418,7 @@ class ChannelManager {
         }
 
         this.channels = nextChannels;
+        this._rememberPersisted();
 
         Logger.debug(`Reloaded ${channelsData.length} channels from sync snapshot (authoritative)`);
 
@@ -419,6 +426,77 @@ class ChannelManager {
             currentChannelRemoved,
             totalChannels: nextChannels.size
         };
+    }
+
+    /**
+     * A channel as persisted: metadata only. Messages and reactions are
+     * loaded from storage on demand; adminState is rebuilt from -3/P0 on
+     * subscribe.
+     */
+    _storedRecord(ch) {
+        return {
+            messageStreamId: ch.messageStreamId,
+            ephemeralStreamId: ch.ephemeralStreamId,
+            adminStreamId: ch.adminStreamId,
+            name: ch.name,
+            type: ch.type,
+            // Gated (N-C): without the gate address every gated code path
+            // silently degrades after a reload — the publish falls back to
+            // an ephemeral key the network rejects (MISSING_PERMISSION).
+            gate: ch.gate || null,
+            // Author visibility — losing it would flip a Sealed
+            // channel back to clone publishes (account on the wire).
+            wireIdentity: ch.wireIdentity || null,
+            createdAt: ch.createdAt,
+            createdBy: ch.createdBy,
+            // Local membership timestamp — drives per-channel latest-wins
+            // in cross-device sync (join vs leave tombstone comparison)
+            joinedAt: ch.joinedAt || ch.createdAt || null,
+            password: ch.password,
+            members: ch.members || [],
+            // Access losses this device has already rotated the epoch for;
+            // without it every admin open would rotate again for the same
+            // cut. (rotatedForBanned is the older, narrower name of the same set.)
+            rotatedForNoAccess: ch.rotatedForNoAccess || ch.rotatedForBanned || [],
+            // Who had gate access at the last sweep — losing it is what
+            // triggers the deferred rotation.
+            accessSnapshot: ch.accessSnapshot || [],
+            // Addresses banned from here, kept as gate-read candidates so
+            // Moderation can still list them after a reload.
+            knownBanned: ch.knownBanned || [],
+            storageEnabled: ch.storageEnabled,
+            // Retention per stored stream, last read off-chain. Fallbacks
+            // for when the Graph is unreachable on a later open, and the
+            // only value the headless epoch-key sweep can consult: unsaved,
+            // every reload reverts them to the 180-day default and disarms
+            // both the TTL republish and the key re-announce.
+            storageDays: ch.storageDays ?? null,
+            adminStorageDays: ch.adminStorageDays ?? null,
+            keysStorageDays: ch.keysStorageDays ?? null,
+            interactionsStorageDays: ch.interactionsStorageDays ?? null,
+            // Exposure and metadata
+            exposure: ch.exposure || 'hidden',
+            description: ch.description || '',
+            language: ch.language || '',
+            category: ch.category || '',
+            // Timestamp of the last local on-chain metadata edit (name/description)
+            // — prevents Graph indexing lag from reverting local admin edits
+            metaUpdatedAt: ch.metaUpdatedAt || null,
+            // Channel options
+            readOnly: ch.readOnly || false,
+            writeOnly: ch.writeOnly || false,
+            classification: ch.classification || null,
+            // DM-specific
+            peerAddress: ch.peerAddress || null,
+            inboxStreamId: ch.inboxStreamId || null,
+            // When each field last changed on some device; the sync merges
+            // the record field by field on it.
+            ...(ch.fieldTs ? { fieldTs: ch.fieldTs } : {})
+        };
+    }
+
+    _rememberPersisted(records = Array.from(this.channels.values()).map(ch => this._storedRecord(ch))) {
+        this._persisted = new Map(records.map(r => [r.messageStreamId, JSON.parse(JSON.stringify(r))]));
     }
 
     /**
@@ -431,68 +509,16 @@ class ChannelManager {
                 Logger.warn('Secure storage not unlocked - cannot save channels');
                 return;
             }
-            
-            // Strip messages and reactions from persistence - only save metadata
-            // Messages are loaded from storage on demand (lazy loading)
-            const channelsData = Array.from(this.channels.values()).map(ch => ({
-                messageStreamId: ch.messageStreamId,
-                ephemeralStreamId: ch.ephemeralStreamId,
-                adminStreamId: ch.adminStreamId,
-                name: ch.name,
-                type: ch.type,
-                // Gated (N-C): without the gate address every gated code path
-                // silently degrades after a reload — the publish falls back to
-                // an ephemeral key the network rejects (MISSING_PERMISSION).
-                gate: ch.gate || null,
-                // Author visibility — losing it would flip a Sealed
-                // channel back to clone publishes (account on the wire).
-                wireIdentity: ch.wireIdentity || null,
-                createdAt: ch.createdAt,
-                createdBy: ch.createdBy,
-                // Local membership timestamp — drives per-channel latest-wins
-                // in cross-device sync (join vs leave tombstone comparison)
-                joinedAt: ch.joinedAt || ch.createdAt || null,
-                password: ch.password,
-                members: ch.members || [],
-                // Access losses this device has already rotated the epoch for;
-                // without it every admin open would rotate again for the same
-                // cut. (rotatedForBanned is the older, narrower name of the same set.)
-                rotatedForNoAccess: ch.rotatedForNoAccess || ch.rotatedForBanned || [],
-                // Who had gate access at the last sweep — losing it is what
-                // triggers the deferred rotation.
-                accessSnapshot: ch.accessSnapshot || [],
-                // Addresses banned from here, kept as gate-read candidates so
-                // Moderation can still list them after a reload.
-                knownBanned: ch.knownBanned || [],
-                storageEnabled: ch.storageEnabled,
-                // Retention per stored stream, last read off-chain. Fallbacks
-                // for when the Graph is unreachable on a later open, and the
-                // only value the headless epoch-key sweep can consult: unsaved,
-                // every reload reverts them to the 180-day default and disarms
-                // both the TTL republish and the key re-announce.
-                storageDays: ch.storageDays ?? null,
-                adminStorageDays: ch.adminStorageDays ?? null,
-                keysStorageDays: ch.keysStorageDays ?? null,
-                interactionsStorageDays: ch.interactionsStorageDays ?? null,
-                // Exposure and metadata
-                exposure: ch.exposure || 'hidden',
-                description: ch.description || '',
-                language: ch.language || '',
-                category: ch.category || '',
-                // Timestamp of the last local on-chain metadata edit (name/description)
-                // — prevents Graph indexing lag from reverting local admin edits
-                metaUpdatedAt: ch.metaUpdatedAt || null,
-                // Channel options
-                readOnly: ch.readOnly || false,
-                writeOnly: ch.writeOnly || false,
-                classification: ch.classification || null,
-                // DM-specific
-                peerAddress: ch.peerAddress || null,
-                inboxStreamId: ch.inboxStreamId || null
-                // messages: excluded - loaded from storage
-                // reactions: excluded - loaded from storage
-                // adminState: excluded - rebuilt from -3/P0 on subscribe
-            }));
+
+            const channelsData = Array.from(this.channels.values()).map(ch => this._storedRecord(ch));
+            const now = Date.now();
+            for (const record of channelsData) {
+                const stamps = stampChangedFields(this._persisted.get(record.messageStreamId), record, now);
+                if (stamps === record.fieldTs) continue;
+                record.fieldTs = stamps;
+                this.channels.get(record.messageStreamId).fieldTs = stamps;
+            }
+            this._rememberPersisted(channelsData);
             Logger.debug('Saving channels to secure storage:', channelsData.length);
 
             await secureStorage.setChannels(channelsData);
@@ -515,6 +541,7 @@ class ChannelManager {
      */
     clearChannels() {
         this.channels.clear();
+        this._persisted = new Map();
         this.setCurrentChannel(null);
         this.onlineUsers.clear();
         this.processingMessages.clear();

@@ -835,5 +835,494 @@
         }
       }
     }
+  ],
+  "channels": [
+    {
+      "what": "a stamped field held here beats an old unstamped copy arriving",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Renamed",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "fieldTs": {
+              "name": 5000
+            }
+          }
+        ]
+      },
+      "incoming": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ]
+      },
+      "expected": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Renamed",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "fieldTs": {
+              "name": 5000
+            }
+          }
+        ],
+        "channelsLeftAt": {}
+      }
+    },
+    {
+      "what": "a stamped field arriving beats the old unstamped copy held here",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ]
+      },
+      "incoming": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Renamed",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "fieldTs": {
+              "name": 5000
+            }
+          }
+        ]
+      },
+      "expected": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Renamed",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "fieldTs": {
+              "name": 5000
+            }
+          }
+        ],
+        "channelsLeftAt": {}
+      }
+    },
+    {
+      "what": "two devices changing different fields keep both changes",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Renamed",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "fieldTs": {
+              "name": 5000
+            }
+          }
+        ]
+      },
+      "incoming": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [
+              "0x00000000000000000000000000000000000000b1"
+            ],
+            "fieldTs": {
+              "accessSnapshot": 6000
+            }
+          }
+        ]
+      },
+      "expected": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Renamed",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [
+              "0x00000000000000000000000000000000000000b1"
+            ],
+            "fieldTs": {
+              "accessSnapshot": 6000,
+              "name": 5000
+            }
+          }
+        ],
+        "channelsLeftAt": {}
+      }
+    },
+    {
+      "what": "the same two changes merged in the other order give the same record",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [
+              "0x00000000000000000000000000000000000000b1"
+            ],
+            "fieldTs": {
+              "accessSnapshot": 6000
+            }
+          }
+        ]
+      },
+      "incoming": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Renamed",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "fieldTs": {
+              "name": 5000
+            }
+          }
+        ]
+      },
+      "expected": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Renamed",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [
+              "0x00000000000000000000000000000000000000b1"
+            ],
+            "fieldTs": {
+              "name": 5000,
+              "accessSnapshot": 6000
+            }
+          }
+        ],
+        "channelsLeftAt": {}
+      }
+    },
+    {
+      "what": "a client that drops the stamps neither reverts a stamped field nor erases the stamps",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 90,
+            "accessSnapshot": [],
+            "fieldTs": {
+              "storageDays": 5000
+            }
+          }
+        ]
+      },
+      "incoming": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ]
+      },
+      "expected": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 90,
+            "accessSnapshot": [],
+            "fieldTs": {
+              "storageDays": 5000
+            }
+          }
+        ],
+        "channelsLeftAt": {}
+      }
+    },
+    {
+      "what": "an older stamp arriving does not undo a newer one held here",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Newer",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "fieldTs": {
+              "name": 6000
+            }
+          }
+        ]
+      },
+      "incoming": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Older",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "fieldTs": {
+              "name": 5000
+            }
+          }
+        ]
+      },
+      "expected": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Newer",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "fieldTs": {
+              "name": 6000
+            }
+          }
+        ],
+        "channelsLeftAt": {}
+      }
+    },
+    {
+      "what": "equal stamps fall back to the join-time rule, which gives the tie to the incoming copy",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Here",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "fieldTs": {
+              "name": 5000
+            }
+          }
+        ]
+      },
+      "incoming": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Arriving",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "fieldTs": {
+              "name": 5000
+            }
+          }
+        ]
+      },
+      "expected": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Arriving",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "fieldTs": {
+              "name": 5000
+            }
+          }
+        ],
+        "channelsLeftAt": {}
+      }
+    },
+    {
+      "what": "a field only one copy carries is kept, whichever copy wins the others",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "keysStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-4",
+            "storageProvider": "streamr"
+          }
+        ]
+      },
+      "incoming": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Renamed",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "inboxStreamId": null,
+            "fieldTs": {
+              "name": 5000
+            }
+          }
+        ]
+      },
+      "expected": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Renamed",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "inboxStreamId": null,
+            "keysStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-4",
+            "storageProvider": "streamr",
+            "fieldTs": {
+              "name": 5000
+            }
+          }
+        ],
+        "channelsLeftAt": {}
+      }
+    },
+    {
+      "what": "a leave newer than the join removes the channel whatever its stamps say",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Renamed",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": [],
+            "fieldTs": {
+              "name": 9000
+            }
+          }
+        ]
+      },
+      "incoming": {
+        "channels": [],
+        "channelsLeftAt": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": 5000
+        }
+      },
+      "expected": {
+        "channels": [],
+        "channelsLeftAt": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": 5000
+        }
+      }
+    },
+    {
+      "what": "a join newer than the leave keeps the channel and retires the leave",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 7000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ]
+      },
+      "incoming": {
+        "channels": [],
+        "channelsLeftAt": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": 5000
+        }
+      },
+      "expected": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 7000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ],
+        "channelsLeftAt": {}
+      }
+    }
   ]
 }

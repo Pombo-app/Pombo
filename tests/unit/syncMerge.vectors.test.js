@@ -27,6 +27,14 @@ describe('sync merge parity vectors', () => {
         });
     }
 
+    for (const v of vectors.channels) {
+        it(v.what, () => {
+            const merged = mergeState(v.base, v.incoming);
+            expect(merged.channels).toEqual(v.expected.channels);
+            expect(merged.channelsLeftAt).toEqual(v.expected.channelsLeftAt);
+        });
+    }
+
     for (const v of vectors.sent) {
         it(v.what, () => {
             const merged = mergeState(v.base, v.incoming);
