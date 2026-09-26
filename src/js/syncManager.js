@@ -27,6 +27,7 @@ import { mergePayloadSeries as mergeSyncPayloadSeries, mergeSentMessages as merg
 import { syncWorkerClient } from './workers/syncWorkerClient.js';
 import { cryptoManager } from './crypto.js';
 import { splitSyncPayload, reassembleSyncPayloads } from './syncChunks.js';
+import { syncStateKey } from './syncStateKey.js';
 
 /** A snapshot is a RUN of messages, so the window must hold several of them. */
 const SYNC_FETCH_COUNT = 60;
@@ -240,7 +241,7 @@ class SyncManager {
     }
 
     async _stateHash(state) {
-        const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(state)));
+        const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(syncStateKey(state)));
         return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
     }
 
