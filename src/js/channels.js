@@ -518,6 +518,8 @@ class ChannelManager {
                 record.fieldTs = stamps;
                 this.channels.get(record.messageStreamId).fieldTs = stamps;
             }
+            const changed = channelsData.length !== this._persisted.size || channelsData.some(record =>
+                JSON.stringify(record) !== JSON.stringify(this._persisted.get(record.messageStreamId)));
             this._rememberPersisted(channelsData);
             Logger.debug('Saving channels to secure storage:', channelsData.length);
 
@@ -525,7 +527,7 @@ class ChannelManager {
             Logger.debug('Channels saved to secure storage (metadata only)');
 
             // Schedule auto-push to sync (debounced 30s)
-            this.onChannelsSaved?.();
+            if (changed) this.onChannelsSaved?.();
         } catch (error) {
             Logger.error('Failed to save channels:', error);
             throw new StorageError(

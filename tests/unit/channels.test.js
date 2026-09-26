@@ -1255,6 +1255,25 @@ describe('ChannelManager', () => {
             expect(saved().fieldTs).toEqual({ name: 5000 });
         });
 
+        it('asks the sync for a push only when a save changed a record', async () => {
+            channelManager.onChannelsSaved = vi.fn();
+            secureStorage.getChannels.mockReturnValue([stored()]);
+            channelManager.loadChannels();
+
+            await channelManager.saveChannels();
+            expect(channelManager.onChannelsSaved).not.toHaveBeenCalled();
+
+            channelManager.channels.get('stream1').name = 'Renamed';
+            await channelManager.saveChannels();
+            expect(channelManager.onChannelsSaved).toHaveBeenCalledTimes(1);
+
+            channelManager.channels.set('stream2', stored({ messageStreamId: 'stream2' }));
+            await channelManager.saveChannels();
+            channelManager.channels.delete('stream2');
+            await channelManager.saveChannels();
+            expect(channelManager.onChannelsSaved).toHaveBeenCalledTimes(3);
+        });
+
         it('does not stamp a record created here', async () => {
             secureStorage.getChannels.mockReturnValue([]);
             channelManager.loadChannels();

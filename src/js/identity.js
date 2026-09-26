@@ -1053,7 +1053,7 @@ class IdentityManager {
      */
     async removeTrustedContact(address) {
         const normalizedAddress = address.toLowerCase();
-        this.trustedContacts.delete(normalizedAddress);
+        if (!this.trustedContacts.delete(normalizedAddress)) return;
         await this.saveTrustedContacts();
         this.onTrustedContactsChanged?.({ type: 'remove', address: normalizedAddress });
         Logger.info('Removed trusted contact:', address);

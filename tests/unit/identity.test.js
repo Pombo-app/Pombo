@@ -302,9 +302,14 @@ describe('IdentityManager', () => {
                 expect(identityManager.trustedContacts.has('0xremove')).toBe(false);
             });
             
-            it('should handle removing non-existent contact', async () => {
-                // Should not throw
+            it('should handle removing non-existent contact without saving or asking for a push', async () => {
+                identityManager.onTrustedContactsChanged = vi.fn();
+                vi.clearAllMocks();
+
                 await identityManager.removeTrustedContact('0xNonExistent');
+
+                expect(secureStorage.setTrustedContacts).not.toHaveBeenCalled();
+                expect(identityManager.onTrustedContactsChanged).not.toHaveBeenCalled();
             });
             
             it('should save contacts after removing', async () => {

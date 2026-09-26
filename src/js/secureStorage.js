@@ -624,8 +624,9 @@ class SecureStorage {
      */
     async setTrustedContacts(contacts) {
         if (!this.isUnlocked) return;
+        const changed = JSON.stringify(this.cache.trustedContacts) !== JSON.stringify(contacts);
         this.cache.trustedContacts = contacts;
-        this._stampSliceTs('trustedContacts');
+        if (changed) this._stampSliceTs('trustedContacts');
         await this.saveToStorage();
     }
 
@@ -659,8 +660,8 @@ class SecureStorage {
      */
     async setUsername(username) {
         if (!this.isUnlocked) return;
+        if (this.cache.username !== username) this._stampSliceTs('username');
         this.cache.username = username;
-        this._stampSliceTs('username');
         // Also store in plain localStorage for pre-unlock display (unlock modal)
         // Skip in guest mode — guest sessions are memory-only
         if (this.address && !this.isGuestMode) {
@@ -751,8 +752,8 @@ class SecureStorage {
      */
     async setGraphApiKey(apiKey) {
         if (!this.isUnlocked) return;
+        if (this.cache.graphApiKey !== apiKey) this._stampSliceTs('graphApiKey');
         this.cache.graphApiKey = apiKey;
-        this._stampSliceTs('graphApiKey');
         await this.saveToStorage();
     }
 
@@ -1026,6 +1027,7 @@ class SecureStorage {
         if (!messages) return;
         const msg = messages.find(m => m.id === messageId);
         if (!msg) return;
+        if (Object.entries(fields).every(([key, value]) => JSON.stringify(msg[key]) === JSON.stringify(value))) return;
         Object.assign(msg, fields);
         await this.saveToStorage();
         this.onSentDataChanged?.({ type: 'sentMessage', streamId });
@@ -1081,6 +1083,9 @@ class SecureStorage {
      */
     async addSentReaction(streamId, messageId, emoji, user, action = 'add') {
         if (!this.isUnlocked) return;
+        const held = (this.cache.sentReactions?.[streamId]?.[messageId]?.[emoji] || [])
+            .some(u => u.toLowerCase() === user.toLowerCase());
+        if (held === (action !== 'remove')) return;
         if (!this.cache.sentReactions) {
             this.cache.sentReactions = {};
         }
