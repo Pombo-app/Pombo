@@ -616,7 +616,7 @@ class StreamrController {
             Logger.info('Creating message stream...');
             const startTime = Date.now();
             
-            const messageStream = await createStreamWithRetry(messageStreamId, metadata, 'message', STREAM_CONFIG.MESSAGE_STREAM.PARTITIONS);  // 11 partitions for channels (content + control + 9 storage-file chunks)
+            const messageStream = await createStreamWithRetry(messageStreamId, metadata, 'message', STREAM_CONFIG.MESSAGE_STREAM.PARTITIONS);  // 12 partitions for channels (content + control + moderation + 9 storage-file chunks)
             try { onProgress(); } catch (_) { /* progress callback errors must not break creation */ }
             
             // Step 2: Create EPHEMERAL STREAM (3 partitions: control + media signals + media data)
@@ -1106,7 +1106,7 @@ class StreamrController {
     /**
      * Create the DM inbox for the current user (dual-stream: message + ephemeral)
      * Idempotent — if streams already exist, returns their IDs without recreating.
-     * Permissions: public SUBSCRIBE + PUBLISH (Streamr is a blind pipe; E2E encryption at app layer)
+     * Permissions: many-to-one, public PUBLISH and owner-only SUBSCRIBE (Streamr is a blind pipe; E2E encryption at app layer)
      * @param {string} publicKey - Owner's compressed public key (hex, for ECDH)
      * @param {Object} options - Storage options
      * @param {string} options.storageProvider - 'streamr' or 'custom' (default: 'streamr')

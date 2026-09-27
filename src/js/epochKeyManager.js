@@ -111,7 +111,7 @@ const SEEN_WRAPS_MAX = KEYS_HISTORY_COUNT;
 const PENDING_REQUEST_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const PENDING_REQUESTS_MAX = 8;
 
-// Roster (-4/P1) read cache: the members panel refreshes freely; the resend
+// Roster (-4/P2) read cache: the members panel refreshes freely; the resend
 // behind it should not.
 const ROSTER_CACHE_TTL_MS = 60 * 1000;
 const ROSTER_HISTORY_COUNT = 500;
@@ -1886,7 +1886,7 @@ class EpochKeyManager {
             Logger.debug('epochKeys: member hello failed:', e.message));
     }
 
-    // ==================== ROSTER (-4/P1) ====================
+    // ==================== ROSTER (-4/P2) ====================
 
     /**
      * Does this channel's -4 carry the roster partition? Resolved once per
@@ -2000,7 +2000,7 @@ class EpochKeyManager {
     }
 
     /**
-     * The channel roster: MEMBER_HELLO authors from -4/P1, deduped by account,
+     * The channel roster: MEMBER_HELLO authors from -4/P2, deduped by account,
      * newest hello wins. Persistent and device-independent, unlike
      * seenRequesters — the candidate source the members panel unions in.
      * Every entry is authenticated: the hello opens with an epoch key valid at
