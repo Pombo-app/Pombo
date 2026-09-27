@@ -112,21 +112,35 @@ describe('subscribeToDualStream', () => {
         expect(done).toHaveBeenCalledTimes(1);
         expect(done).toHaveBeenCalledWith({
             contentLoaded: 12, contentRequested: 30, controlLoaded: 3, controlRequested: 30, readError: null,
-            failed: false,
+            failed: false, overridesFailed: false,
         });
     });
 
-    it('says the history read failed when either stored partition failed', async () => {
+    it('says the history read failed when either stored partition failed, and whether it was the overrides', async () => {
         const calls = stubSubscribe();
         const done = vi.fn();
 
         await streamrController.subscribeToDualStream(
             MESSAGE, EPHEMERAL, { onMessage: () => {}, onOverride: () => {} }, null, 30, done
         );
+        // calls[0] is the control partition, calls[1] the content one.
         await calls[0].onDone({ loaded: 0, requested: 30, failed: true });
         await calls[1].onDone({ loaded: 12, requested: 30 });
 
-        expect(done).toHaveBeenCalledWith(expect.objectContaining({ failed: true }));
+        expect(done).toHaveBeenCalledWith(expect.objectContaining({ failed: true, overridesFailed: true }));
+    });
+
+    it('does not blame the overrides for a content read that failed', async () => {
+        const calls = stubSubscribe();
+        const done = vi.fn();
+
+        await streamrController.subscribeToDualStream(
+            MESSAGE, EPHEMERAL, { onMessage: () => {}, onOverride: () => {} }, null, 30, done
+        );
+        await calls[0].onDone({ loaded: 3, requested: 30 });
+        await calls[1].onDone({ loaded: 0, requested: 30, failed: true });
+
+        expect(done).toHaveBeenCalledWith(expect.objectContaining({ failed: true, overridesFailed: false }));
     });
 
     it('signals completion once even if a partition reports twice', async () => {

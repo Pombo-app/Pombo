@@ -848,6 +848,8 @@ class App {
                 if (data.streamId === currentStreamId) {
                     Logger.debug(`History loaded: ${data.loaded} messages, hasMore: ${data.hasMore}`);
                 }
+            } else if (event === 'history_page_due') {
+                if (data.streamId === currentStreamId) chatAreaUI.handleMessagesScroll();
             } else if (event === 'history_batch_loaded') {
                 if (data.streamId === currentStreamId) {
                     const channel = channelManager.getCurrentChannel();

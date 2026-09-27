@@ -217,7 +217,9 @@ export class History {
         // response, no error). Without confirmation, one truncated response
         // falsely latches `hasMore: false` and kills scroll-up pagination
         // for the rest of the session.
+        let lastPassBroke = false;
         const collectRange = async () => {
+            lastPassBroke = false;
             // Gated: raw resend — same reason as fetchHistoryAsync (the SDK
             // validator re-checks stored envelopes against the present gate
             // state and erases ex-members' history; authorship comes from the
@@ -267,6 +269,7 @@ export class History {
                         continue;
                     }
                     Logger.warn('fetchOlderHistory iteration error:', iterError.message);
+                    lastPassBroke = true;
                     continue;
                 }
                 
@@ -385,6 +388,7 @@ export class History {
             Logger.debug(`Fetching ${count} older messages before ${new Date(beforeTimestamp).toISOString()}`);
             
             let allMessages = await collectRange();
+            let broke = lastPassBroke;
             
             // Exhaustion claimed (range returned ≤ count messages)? Confirm on a
             // fresh connection before trusting it — one truncated response would
@@ -406,6 +410,7 @@ export class History {
                         if (!byKey.has(k)) byKey.set(k, m);
                     }
                     allMessages = Array.from(byKey.values());
+                    broke = broke && lastPassBroke;
                 } catch (confirmError) {
                     Logger.debug('fetchOlderHistory: confirmation pass failed (keeping first result):', confirmError.message);
                 }
@@ -432,13 +437,18 @@ export class History {
             // P0/P1 breakdown — keep this one at debug level to avoid duplicate noise.
             Logger.debug(`fetchOlderHistory partition ${partition}: ${resultMessages.length} messages (hasMore: ${hasMore})`);
             
+            // Same rule as the open's read: a 4xx is the node's answer, any
+            // other break left the page unread.
+            const readError = storageFetch.lastReadError(messageStreamId, partition);
             return {
                 messages: resultMessages,
-                hasMore: hasMore
+                hasMore: hasMore,
+                failed: broke && !(readError?.status >= 400 && readError?.status < 500)
             };
         } catch (error) {
             Logger.warn('Older history fetch error:', error.message);
-            return { messages: [], hasMore: false };
+            const noStorage = error?.code === 'NO_STORAGE_NODES' || String(error?.message).includes('NO_STORAGE_NODES');
+            return { messages: [], hasMore: false, failed: !noStorage };
         }
     }
 

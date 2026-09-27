@@ -18,6 +18,8 @@ import { messageTime } from '../utils/messageTime.js';
 import { storageFetch } from '../storageFetch.js';
 import { NO_NETWORK, isOffline } from '../utils/network.js';
 
+const PAGING_RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
+
 export class MessageFlow {
     /**
      * Self-calls go through `manager` on purpose: while the manager is still
@@ -757,6 +759,30 @@ export class MessageFlow {
         channel.messages.sort((a, b) => messageTime(a) - messageTime(b));
     }
 
+    /** Forgets an incomplete page's backoff: on a reopen, or once a page came back whole. */
+    resetPagingBackoff(channel) {
+        clearTimeout(channel._pagingNudgeTimer);
+        channel._pagingNudgeTimer = null;
+        channel._pagingFailures = 0;
+        channel._pagingRetryAt = 0;
+    }
+
+    /** Asks for the page again after a backoff; past the last one, only the user's scroll does. */
+    _backOffPaging(channel, messageStreamId, generation) {
+        const failures = channel._pagingFailures || 0;
+        const wait = PAGING_RETRY_DELAYS_MS[Math.min(failures, PAGING_RETRY_DELAYS_MS.length - 1)];
+        channel._pagingFailures = failures + 1;
+        channel._pagingRetryAt = Date.now() + wait;
+        clearTimeout(channel._pagingNudgeTimer);
+        channel._pagingNudgeTimer = null;
+        if (channel._pagingFailures > PAGING_RETRY_DELAYS_MS.length) return;
+        channel._pagingNudgeTimer = setTimeout(() => {
+            channel._pagingNudgeTimer = null;
+            if (this.manager.switchGeneration !== generation) return;
+            this.manager.notifyHandlers('history_page_due', { streamId: messageStreamId });
+        }, wait);
+    }
+
     /**
      * Load more (older) history from MESSAGE stream - for lazy loading / infinite scroll
      * In dual-stream architecture, only messageStream has storage
@@ -815,6 +841,11 @@ export class MessageFlow {
         if (!channel.hasMoreHistory) {
             Logger.debug('No more history to load');
             return { loaded: 0, hasMore: false };
+        }
+        // The open's reads are the retry's until they are back: its success
+        // resets hasMoreHistory, and would undo what a page read meanwhile found.
+        if (channel.historyRetrying || Date.now() < (channel._pagingRetryAt || 0)) {
+            return { loaded: 0, hasMore: channel.hasMoreHistory };
         }
         
         // Use oldest message timestamp, or Date.now() if history was only reactions
@@ -885,6 +916,18 @@ export class MessageFlow {
                 fetchContent(), fetchOverrides(), fetchReactions()
             ]);
 
+            // Taken whole or not at all: content without its overrides paints
+            // edits and deletions undone, and the cursor would move past
+            // overrides that nothing reads again.
+            if (contentResult.failed || overrideResult.failed) {
+                Logger.warn('loadMoreHistory: page came back incomplete, asking again later');
+                channel.loadingHistory = false;
+                this.manager.notifyHandlers('history_loading', { streamId: messageStreamId, loading: false });
+                this._backOffPaging(channel, messageStreamId, generationAtStart);
+                return { loaded: 0, hasMore: channel.hasMoreHistory };
+            }
+            this.resetPagingBackoff(channel);
+
             // Older reactions never gate "is there more history": that is the
             // -1's question, and a reaction page that runs dry says nothing
             // about the conversation behind it.
@@ -928,7 +971,7 @@ export class MessageFlow {
                     await new Promise(r => setTimeout(r, backoffMs[attempt]));
                     if (signal?.aborted || this.manager.switchGeneration !== generationAtStart) break;
                     const [retryContent, retryOverride] = await Promise.all([fetchContent(), fetchOverrides()]);
-                    if (!isEmpty(retryContent, retryOverride)) {
+                    if (!isEmpty(retryContent, retryOverride) && !retryContent.failed && !retryOverride.failed) {
                         Logger.info(
                             `loadMoreHistory: retry #${attempt + 1} recovered messages after empty first response`
                         );

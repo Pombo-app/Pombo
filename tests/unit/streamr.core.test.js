@@ -1290,10 +1290,10 @@ describe('StreamrController Core', () => {
             expect(cryptoManager.decryptJSON).toHaveBeenCalled();
         });
 
-        it('should return empty on fetch error', async () => {
+        it('should return an empty failed page on fetch error', async () => {
             mockClient.resend.mockRejectedValue(new Error('fail'));
             const result = await streamrController.fetchOlderHistory('stream-1', 0, 1000);
-            expect(result).toEqual({ messages: [], hasMore: false });
+            expect(result).toEqual({ messages: [], hasMore: false, failed: true });
         });
 
         it('should confirm exhaustion with a second pass and merge truncated results', async () => {

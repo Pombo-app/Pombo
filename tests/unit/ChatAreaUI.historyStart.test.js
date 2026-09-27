@@ -61,14 +61,16 @@ import { subscriptionBannerUI } from '../../src/js/ui/SubscriptionBannerUI.js';
 
 const MESSAGES = [{ id: 'm1', text: 'hello', sender: '0xabc', timestamp: 1_789_000_000_000 }];
 
-function render({ hasMoreHistory, historyError, historyReadFailed = false }) {
+function render({ hasMoreHistory, historyError, historyReadFailed = false, historyRetrying = false, overridesOwed = false }) {
     const channel = {
         streamId: '0xowner/chan-1',
         name: 'Chan',
         messages: MESSAGES,
         hasMoreHistory,
         historyError,
-        historyReadFailed
+        historyReadFailed,
+        historyRetrying,
+        overridesOwed
     };
     chatAreaUI.setDependencies({
         getActiveChannel: () => channel,
@@ -119,6 +121,10 @@ describe('the start-of-history line', () => {
         expect(claimsTheStart(render({ hasMoreHistory: false, historyError: null, historyReadFailed: true }))).toBe(false);
     });
 
+    it('stays away while the reads of the open are being read again', () => {
+        expect(claimsTheStart(render({ hasMoreHistory: false, historyError: null, historyRetrying: true }))).toBe(false);
+    });
+
     it('stays away on a lapsed gate, where the subscription strip explains instead', () => {
         subscriptionBannerUI.stateOf.mockReturnValue('expired');
         const html = render({
@@ -127,6 +133,33 @@ describe('the start-of-history line', () => {
         });
         expect(claimsTheStart(html)).toBe(false);
         expect(html).not.toContain('history-error-banner');
+    });
+});
+
+describe('the line for edits and deletions that did not come back', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        subscriptionBannerUI.stateOf.mockReturnValue('active');
+        document.body.innerHTML = '<div id="messages-area"></div><div id="message-input" contenteditable="true"></div>';
+        chatAreaUI.init({
+            messagesArea: document.getElementById('messages-area'),
+            messageInput: document.getElementById('message-input')
+        });
+    });
+
+    it('says they are still loading while they are read again', () => {
+        const html = render({ hasMoreHistory: true, historyError: null, overridesOwed: true, historyRetrying: true });
+        expect(html).toContain('Loading edits and deletions…');
+    });
+
+    it('says they could not be loaded once the reads gave up', () => {
+        const html = render({ hasMoreHistory: false, historyError: null, overridesOwed: true, historyReadFailed: true });
+        expect(html).toContain('Edits and deletions could not be loaded. Reopen the channel');
+        expect(html).not.toContain('Loading edits and deletions');
+    });
+
+    it('is absent when they came back', () => {
+        expect(render({ hasMoreHistory: true, historyError: null })).not.toContain('overrides-owed-banner');
     });
 });
 

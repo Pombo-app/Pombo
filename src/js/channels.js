@@ -1918,6 +1918,8 @@ class ChannelManager {
             channel._openReads = {};
             channel.historyRetrying = false;
             channel.historyReadFailed = false;
+            channel.overridesOwed = false;
+            this.messageFlow.resetPagingBackoff(channel);
         }
 
         // Skip network subscription for write-only channels (no subscribe permission)
@@ -2124,6 +2126,7 @@ class ChannelManager {
             // refusal closed.
             channel.historyError = stats?.readError || null;
             channel.hasMoreHistory = !channel.historyError;
+            channel.overridesOwed = !!stats?.overridesFailed;
             if (stats?.failed || reactionsRead?.failed) this._retryOpenReads(messageStreamId);
 
             channel.initialLoadInProgress = false;
@@ -2421,8 +2424,16 @@ class ChannelManager {
         if (!channel?.gate?.address) return;
         clearTimeout(channel._historyRefreshTimer);
         channel._historyRefreshTimer = setTimeout(() => {
-            this._runHistoryRefresh(messageStreamId).catch(e =>
-                Logger.warn('History refresh failed:', e.message));
+            this._runHistoryRefresh(messageStreamId)
+                .then(() => {
+                    // Its edits and deletions did not come back and nothing
+                    // is reading them again yet.
+                    if (channel.overridesOwed && !channel.historyRetrying && !channel.historyReadFailed
+                        && this.currentChannel === messageStreamId) {
+                        this._retryOpenReads(messageStreamId);
+                    }
+                })
+                .catch(e => Logger.warn('History refresh failed:', e.message));
         }, 1500);
     }
 
@@ -2513,6 +2524,7 @@ class ChannelManager {
             await this.awaitAllFlushes(messageStreamId);
             this.applyPendingOverrides(channel);
             this.sortMessagesByTimestamp(channel);
+            if (controlRead) channel.overridesOwed = !!controlRead.failed;
 
             // A clean read reopens only what a refusal closed: an exhausted
             // history stays exhausted.

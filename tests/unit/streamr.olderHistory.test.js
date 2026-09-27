@@ -23,6 +23,7 @@ vi.mock('../../src/js/envelopeSigner.js', async (importOriginal) => ({
 }));
 
 const { streamrController } = await import('../../src/js/streamr.js');
+const { storageFetch } = await import('../../src/js/storageFetch.js');
 
 const AUTHOR = '0x' + '11'.repeat(20);
 const STREAM = '0xaaa/older-history-1';
@@ -35,9 +36,15 @@ const text = (ts, over = {}) => ({
     publisherId: AUTHOR,
 });
 
+/** An Error in the list is thrown there, the way the SDK's iterator surfaces a node that failed. */
 async function* streamOf(...messages) {
-    for (const m of messages) yield m;
+    for (const m of messages) {
+        if (m instanceof Error) throw m;
+        yield m;
+    }
 }
+
+const storageNodeError = () => Object.assign(new Error('Failed to fetch'), { code: 'STORAGE_NODE_ERROR' });
 
 /** Returns the resend calls it recorded, and serves `pages` one call at a time. */
 function serve(...pages) {
@@ -228,12 +235,55 @@ describe('fetchOlderHistory', () => {
         expect(out.messages.map((m) => m.id)).toEqual(['id-100', 'id-200']);
     });
 
-    it('answers with an empty page when the resend itself fails', async () => {
+    it('answers with a failed page when the resend itself fails, not with the end of history', async () => {
         streamrController.client = { resend: vi.fn(async () => { throw new Error('storage down'); }) };
 
         const out = await streamrController.fetchOlderHistory(STREAM, P_MESSAGES, 1000, 10);
 
-        expect(out).toEqual({ messages: [], hasMore: false });
+        expect(out).toEqual({ messages: [], hasMore: false, failed: true });
+    });
+
+    it('takes a stream with no storage as answered', async () => {
+        const noStorage = Object.assign(new Error(`no storage assigned: ${STREAM}`), { code: 'NO_STORAGE_NODES' });
+        streamrController.client = { resend: vi.fn(async () => { throw noStorage; }) };
+
+        const out = await streamrController.fetchOlderHistory(STREAM, P_MESSAGES, 1000, 10);
+
+        expect(out.failed).toBe(false);
+    });
+
+    it('says a page the storage node broke off failed', async () => {
+        serve([text(100), storageNodeError()]);
+
+        const out = await streamrController.fetchOlderHistory(STREAM, P_MESSAGES, 1000, 10);
+
+        expect(out.failed).toBe(true);
+    });
+
+    it('lets a confirmation pass that read the range whole stand for a broken first pass', async () => {
+        serve([text(100), storageNodeError()], [text(90), text(100)]);
+
+        const out = await streamrController.fetchOlderHistory(STREAM, P_MESSAGES, 1000, 10);
+
+        expect(out.failed).toBe(false);
+        expect(out.messages.map((m) => m.id)).toEqual(['id-90', 'id-100']);
+    });
+
+    it('takes a 4xx from the storage node as its answer', async () => {
+        vi.spyOn(storageFetch, 'lastReadError').mockReturnValue({ status: 403, signed: true });
+        serve([storageNodeError()]);
+
+        const out = await streamrController.fetchOlderHistory(STREAM, P_MESSAGES, 1000, 10);
+
+        expect(out.failed).toBe(false);
+    });
+
+    it('does not fail a page over a row it cannot decrypt', async () => {
+        serve([text(100), Object.assign(new Error('no encryption key'), { code: 'DECRYPT_ERROR' })]);
+
+        const out = await streamrController.fetchOlderHistory(STREAM, P_MESSAGES, 1000, 10);
+
+        expect(out.failed).toBe(false);
     });
 
     it('stamps the transport timestamp and publisher onto the row', async () => {
