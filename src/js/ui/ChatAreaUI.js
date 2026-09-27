@@ -731,9 +731,10 @@ class ChatAreaUI {
         const currentAddress = authManager?.getAddress();
 
         let historyStartIndicator = '';
-        // A refused or failed read also clears hasMoreHistory, and there the
-        // start is unknown, not reached.
-        if (!hasMoreHistory && !effectiveChannel?.historyError && !effectiveChannel?.historyReadFailed) {
+        // A refused, failed or unfinished read also leaves hasMoreHistory
+        // false, and there the start is unknown, not reached.
+        if (!hasMoreHistory && !effectiveChannel?.historyError && !effectiveChannel?.historyReadFailed
+            && effectiveChannel?.historyRetrying !== true) {
             historyStartIndicator = `
                 <div class="flex justify-center py-4">
                     <div class="text-white/[0.12] text-xs">
@@ -754,6 +755,16 @@ class ChatAreaUI {
             historyErrorBanner = `
                 <div id="history-error-banner" class="flex flex-col items-center gap-1 py-3 px-4 text-center">
                     <span class="text-sm text-white/40">${escapeHtml(title)}</span>
+                </div>
+            `;
+        }
+        let overridesBanner = '';
+        if (effectiveChannel?.overridesOwed) {
+            overridesBanner = `
+                <div id="overrides-owed-banner" class="flex flex-col items-center gap-1 py-3 px-4 text-center">
+                    <span class="text-sm text-white/40">${effectiveChannel.historyReadFailed
+        ? 'Edits and deletions could not be loaded. Reopen the channel'
+        : 'Loading edits and deletions…'}</span>
                 </div>
             `;
         }
@@ -832,7 +843,7 @@ class ChatAreaUI {
             messagesHtml += messageRenderer.buildMessageGroupCloseHTML();
         }
 
-        this.messagesArea.innerHTML = historyErrorBanner + historyStartIndicator + messagesHtml;
+        this.messagesArea.innerHTML = historyErrorBanner + overridesBanner + historyStartIndicator + messagesHtml;
 
         if (!this.isLoadingMore) {
             this.messagesArea.scrollTop = this.messagesArea.scrollHeight;
