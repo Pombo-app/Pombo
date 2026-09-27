@@ -1278,6 +1278,15 @@ body.cannot-write .reply-trigger {
     top: calc(1.125rem + 36px);
 }
 
+/* The history strip is in the same flow; its height is set by ChatAreaUI,
+   since a line can wrap. */
+.messages-wrapper:has(#history-status-strip:not(.hidden)) .pinned-banner {
+    top: calc(0.625rem + var(--history-strip-height, 44px));
+}
+.messages-wrapper:has(.subscription-banner:not(.hidden)):has(#history-status-strip:not(.hidden)) .pinned-banner {
+    top: calc(1.125rem + 36px + var(--history-strip-height, 44px));
+}
+
 @media (min-width: 768px) {
     .subscription-banner,
     .pinned-banner-name,

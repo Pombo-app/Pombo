@@ -61,11 +61,12 @@ import { subscriptionBannerUI } from '../../src/js/ui/SubscriptionBannerUI.js';
 
 const MESSAGES = [{ id: 'm1', text: 'hello', sender: '0xabc', timestamp: 1_789_000_000_000 }];
 
-function render({ hasMoreHistory, historyError, historyReadFailed = false, historyRetrying = false, overridesOwed = false }) {
+/** The strip fixed above the messages, then the scrolled list, as one string. */
+function render({ hasMoreHistory, historyError, historyReadFailed = false, historyRetrying = false, overridesOwed = false, messages = MESSAGES }) {
     const channel = {
         streamId: '0xowner/chan-1',
         name: 'Chan',
-        messages: MESSAGES,
+        messages,
         hasMoreHistory,
         historyError,
         historyReadFailed,
@@ -77,9 +78,16 @@ function render({ hasMoreHistory, historyError, historyReadFailed = false, histo
         channelManager: { getCurrentChannel: () => channel },
         authManager: { getAddress: () => '0xabc' }
     });
-    chatAreaUI.renderMessages(MESSAGES);
-    return document.getElementById('messages-area').innerHTML;
+    chatAreaUI.renderMessages(messages);
+    return document.getElementById('history-status-strip').innerHTML
+        + document.getElementById('messages-area').innerHTML;
 }
+
+const PAGE = `
+    <div id="history-status-strip" class="hidden"></div>
+    <div id="messages-area" style="height: 500px; overflow-y: auto;"></div>
+    <div id="message-input" contenteditable="true"></div>
+`;
 
 const claimsTheStart = (html) => html.includes('beginning of conversation');
 
@@ -90,10 +98,7 @@ describe('the start-of-history line', () => {
         chatAreaUI.isLoadingMore = false;
         chatAreaUI._channelSwitching = false;
         chatAreaUI._loadOp = null;
-        document.body.innerHTML = `
-            <div id="messages-area" style="height: 500px; overflow-y: auto;"></div>
-            <div id="message-input" contenteditable="true"></div>
-        `;
+        document.body.innerHTML = PAGE;
         chatAreaUI.init({
             messagesArea: document.getElementById('messages-area'),
             messageInput: document.getElementById('message-input')
@@ -140,7 +145,7 @@ describe('the line for edits and deletions that did not come back', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         subscriptionBannerUI.stateOf.mockReturnValue('active');
-        document.body.innerHTML = '<div id="messages-area"></div><div id="message-input" contenteditable="true"></div>';
+        document.body.innerHTML = PAGE;
         chatAreaUI.init({
             messagesArea: document.getElementById('messages-area'),
             messageInput: document.getElementById('message-input')
@@ -161,6 +166,24 @@ describe('the line for edits and deletions that did not come back', () => {
     it('is absent when they came back', () => {
         expect(render({ hasMoreHistory: true, historyError: null })).not.toContain('overrides-owed-banner');
     });
+
+    it('sits in the strip above the messages, not in the list that scrolls', () => {
+        render({ hasMoreHistory: true, historyError: null, overridesOwed: true, historyRetrying: true });
+        const strip = document.getElementById('history-status-strip');
+        expect(strip.classList.contains('hidden')).toBe(false);
+        expect(strip.innerHTML).toContain('overrides-owed-banner');
+        expect(document.getElementById('messages-area').innerHTML).not.toContain('overrides-owed-banner');
+        // The floating pinned pill clears the strip by this height.
+        expect(strip.parentElement.style.getPropertyValue('--history-strip-height')).toMatch(/^\d+px$/);
+    });
+
+    it('leaves an empty channel to its empty state, with the strip hidden', () => {
+        render({ hasMoreHistory: true, historyError: null, overridesOwed: true, historyRetrying: true });
+        render({ hasMoreHistory: false, historyError: null, overridesOwed: true, historyReadFailed: true, messages: [] });
+        const strip = document.getElementById('history-status-strip');
+        expect(strip.classList.contains('hidden')).toBe(true);
+        expect(strip.innerHTML).toBe('');
+    });
 });
 
 describe('the refusal banner over the messages', () => {
@@ -168,7 +191,7 @@ describe('the refusal banner over the messages', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        document.body.innerHTML = '<div id="messages-area"></div><div id="message-input" contenteditable="true"></div>';
+        document.body.innerHTML = PAGE;
         chatAreaUI.init({
             messagesArea: document.getElementById('messages-area'),
             messageInput: document.getElementById('message-input')

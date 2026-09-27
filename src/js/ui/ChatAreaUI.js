@@ -336,6 +336,15 @@ class ChatAreaUI {
         }
     }
 
+    /** The lines about the history, fixed above the messages; empty hides the strip. */
+    _setHistoryStrip(html) {
+        const strip = document.getElementById('history-status-strip');
+        if (!strip) return;
+        strip.innerHTML = html;
+        strip.classList.toggle('hidden', !html);
+        strip.parentElement?.style.setProperty('--history-strip-height', `${strip.offsetHeight}px`);
+    }
+
     /**
      * Empty-state copy for a history read the storage node refused.
      * @param {{status: number, signed: boolean}} error
@@ -633,6 +642,7 @@ class ChatAreaUI {
         }
         
         if (messagesForRender.length === 0) {
+            this._setHistoryStrip('');
             // "No messages yet" requires every loading signal to be quiescent;
             // otherwise we keep the spinner. Avoids the prior timer-based
             // fallback that raced slow resend iterators.
@@ -843,7 +853,8 @@ class ChatAreaUI {
             messagesHtml += messageRenderer.buildMessageGroupCloseHTML();
         }
 
-        this.messagesArea.innerHTML = historyErrorBanner + overridesBanner + historyStartIndicator + messagesHtml;
+        this._setHistoryStrip(historyErrorBanner + overridesBanner);
+        this.messagesArea.innerHTML = historyStartIndicator + messagesHtml;
 
         if (!this.isLoadingMore) {
             this.messagesArea.scrollTop = this.messagesArea.scrollHeight;
