@@ -24,6 +24,7 @@ vi.mock('../../src/js/envelopeSigner.js', async (importOriginal) => ({
 
 const { streamrController } = await import('../../src/js/streamr.js');
 const { cryptoManager } = await import('../../src/js/crypto.js');
+const { storageFetch } = await import('../../src/js/storageFetch.js');
 
 const OWNER = '0x' + '77'.repeat(20);
 const AUTHOR = '0x' + '88'.repeat(20);
@@ -44,6 +45,26 @@ function serve(...messages) {
     };
     return calls;
 }
+
+/**
+ * The SDK's shape for a storage node that fails the read: `resend()` resolves
+ * and the error comes out of the iterator. Each step is a row or an error.
+ */
+function serveSteps(...steps) {
+    let i = 0;
+    const iterator = {
+        next: async () => {
+            if (i >= steps.length) return { done: true, value: undefined };
+            const step = steps[i++];
+            if (step instanceof Error) throw step;
+            return { done: false, value: step };
+        },
+        [Symbol.asyncIterator]() { return this; },
+    };
+    streamrController.client = { resend: vi.fn(async () => iterator) };
+}
+
+const storageNodeError = () => Object.assign(new Error('Failed to fetch'), { code: 'STORAGE_NODE_ERROR' });
 
 const row = (ts, content) => ({
     content,
@@ -86,7 +107,7 @@ describe('fetchHistoryAsync', () => {
         await streamrController.fetchHistoryAsync(MESSAGE, 0, 40, handler, null, done);
 
         expect(handler).toHaveBeenCalledTimes(1);
-        expect(done).toHaveBeenCalledWith({ loaded: 3, requested: 40, readError: null });
+        expect(done).toHaveBeenCalledWith({ loaded: 3, requested: 40, readError: null, failed: false });
     });
 
     it('still reports when storage is unreachable, so the channel does not hang', async () => {
@@ -95,7 +116,62 @@ describe('fetchHistoryAsync', () => {
 
         await streamrController.fetchHistoryAsync(MESSAGE, 0, 40, () => {}, null, done);
 
-        expect(done).toHaveBeenCalledWith({ loaded: 0, requested: 40, readError: null });
+        expect(done).toHaveBeenCalledWith({ loaded: 0, requested: 40, readError: null, failed: true });
+    });
+
+    it('reports a stream with no storage as answered, not as a failed read', async () => {
+        const noStorage = Object.assign(new Error(`no storage assigned: ${MESSAGE}`), { code: 'NO_STORAGE_NODES' });
+        streamrController.client = { resend: vi.fn(async () => { throw noStorage; }) };
+        const done = vi.fn();
+
+        await streamrController.fetchHistoryAsync(MESSAGE, 0, 40, () => {}, null, done);
+
+        expect(done).toHaveBeenCalledWith({ loaded: 0, requested: 40, readError: null, failed: false });
+    });
+
+    it('says the read failed when the storage node breaks off the iteration', async () => {
+        serveSteps(row(100, { type: 'text', id: 'a', text: 'x', sender: AUTHOR, timestamp: 100 }), storageNodeError());
+        const handler = vi.fn();
+        const done = vi.fn();
+
+        await streamrController.fetchHistoryAsync(MESSAGE, 0, 40, handler, null, done);
+
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(done).toHaveBeenCalledWith({ loaded: 1, requested: 40, readError: null, failed: true });
+    });
+
+    it('counts a page refused for the storedAt its node owes as a failed read', async () => {
+        const refused = { status: 503, signed: false, reason: 'storedAt' };
+        vi.spyOn(storageFetch, 'lastReadError').mockReturnValue(refused);
+        serveSteps(storageNodeError());
+        const done = vi.fn();
+
+        await streamrController.fetchHistoryAsync(MESSAGE, 0, 40, () => {}, null, done);
+
+        expect(done).toHaveBeenCalledWith({ loaded: 0, requested: 40, readError: refused, failed: true });
+    });
+
+    it('takes a 4xx from the storage node as its answer, not as a failed read', async () => {
+        const refused = { status: 403, signed: true };
+        vi.spyOn(storageFetch, 'lastReadError').mockReturnValue(refused);
+        serveSteps(storageNodeError());
+        const done = vi.fn();
+
+        await streamrController.fetchHistoryAsync(MESSAGE, 0, 40, () => {}, null, done);
+
+        expect(done).toHaveBeenCalledWith({ loaded: 0, requested: 40, readError: refused, failed: false });
+    });
+
+    it('does not fail the read over a row it cannot decrypt', async () => {
+        const decrypt = Object.assign(new Error('no encryption key'), { code: 'DECRYPT_ERROR' });
+        serveSteps(decrypt, row(100, { type: 'text', id: 'a', text: 'x', sender: AUTHOR, timestamp: 100 }));
+        const handler = vi.fn();
+        const done = vi.fn();
+
+        await streamrController.fetchHistoryAsync(MESSAGE, 0, 40, handler, null, done);
+
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(done).toHaveBeenCalledWith({ loaded: 1, requested: 40, readError: null, failed: false });
     });
 
     it('survives a completion callback that throws', async () => {

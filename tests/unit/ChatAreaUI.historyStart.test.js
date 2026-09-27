@@ -61,13 +61,14 @@ import { subscriptionBannerUI } from '../../src/js/ui/SubscriptionBannerUI.js';
 
 const MESSAGES = [{ id: 'm1', text: 'hello', sender: '0xabc', timestamp: 1_789_000_000_000 }];
 
-function render({ hasMoreHistory, historyError }) {
+function render({ hasMoreHistory, historyError, historyReadFailed = false }) {
     const channel = {
         streamId: '0xowner/chan-1',
         name: 'Chan',
         messages: MESSAGES,
         hasMoreHistory,
-        historyError
+        historyError,
+        historyReadFailed
     };
     chatAreaUI.setDependencies({
         getActiveChannel: () => channel,
@@ -112,6 +113,10 @@ describe('the start-of-history line', () => {
         });
         expect(claimsTheStart(html)).toBe(false);
         expect(html).toContain('history-error-banner');
+    });
+
+    it('stays away when the reads of the open gave up over what the cache holds', () => {
+        expect(claimsTheStart(render({ hasMoreHistory: false, historyError: null, historyReadFailed: true }))).toBe(false);
     });
 
     it('stays away on a lapsed gate, where the subscription strip explains instead', () => {

@@ -1609,6 +1609,18 @@ describe('ChannelManager Extended', () => {
             expect(channel.hasMoreHistory).toBe(false);
         });
 
+        it('reads the open again after a read that failed, and not after a clean one', async () => {
+            const retry = vi.spyOn(channelManager, '_retryOpenReads').mockImplementation(() => {});
+
+            await loadWith({ readError: null, failed: false });
+            expect(retry).not.toHaveBeenCalled();
+
+            channelManager.channels.delete(streamId);
+            await loadWith({ readError: null, failed: true });
+            expect(retry).toHaveBeenCalledWith(streamId);
+            retry.mockRestore();
+        });
+
         it('reopens it on the next clean read, with no page reload', async () => {
             const channel = await loadWith({ readError: { status: 403, signed: true, at: Date.now() } });
             expect(channel.hasMoreHistory).toBe(false);

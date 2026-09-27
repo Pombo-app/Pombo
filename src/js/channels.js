@@ -43,6 +43,7 @@ import { ModDeltas, MOD_ACTION_TYPE } from './channels/ModDeltas.js';
 import { stampChangedFields } from './syncMerge.js';
 
 const GATE_REPAIR_WAIT_MS = 10_000;
+const OPEN_READ_RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
 
 class ChannelManager {
     constructor() {
@@ -1914,6 +1915,9 @@ class ChannelManager {
             channel.initialLoadInProgress = true;
             // The override read that follows re-establishes every delete.
             channel._deletedIds = new Set();
+            channel._openReads = {};
+            channel.historyRetrying = false;
+            channel.historyReadFailed = false;
         }
 
         // Skip network subscription for write-only channels (no subscribe permission)
@@ -2078,6 +2082,7 @@ class ChannelManager {
             // Reactions live on the -5 — their history is a separate read,
             // awaited here so the first render already has them instead of
             // popping in after.
+            let reactionsRead = null;
             if (channel.interactionsStreamId) {
                 await streamrController.fetchHistoryAsync(
                     channel.interactionsStreamId,
@@ -2085,7 +2090,7 @@ class ChannelManager {
                     STREAM_CONFIG.INITIAL_MESSAGES,
                     (data) => this.handleControlMessage(messageStreamId, data),
                     pwd,
-                    null,
+                    (s) => { reactionsRead = s; },
                     false,
                     { quiet: true }
                 ).catch(e => Logger.warn('Interactions history failed:', e.message));
@@ -2119,6 +2124,7 @@ class ChannelManager {
             // refusal closed.
             channel.historyError = stats?.readError || null;
             channel.hasMoreHistory = !channel.historyError;
+            if (stats?.failed || reactionsRead?.failed) this._retryOpenReads(messageStreamId);
 
             channel.initialLoadInProgress = false;
             
@@ -2433,19 +2439,28 @@ class ChannelManager {
         }, CONFIG.subscriptions.renewalHistoryRetryMs);
     }
 
-    async _runHistoryRefresh(messageStreamId) {
+    /**
+     * @param {Object} [opts]
+     * @param {boolean} [opts.adminFirst] - read the -3 before the -1 rather than after
+     * @returns {Promise<boolean>} whether every read of the group came back
+     */
+    async _runHistoryRefresh(messageStreamId, { adminFirst = false } = {}) {
         const channel = this.channels.get(messageStreamId);
-        if (!channel) return;
+        if (!channel) return false;
 
         // Never overlap the initial load or another refresh: concurrent P0/P1
         // fetches let an override land before its target and park forever in
         // _pendingOverrides. Reschedule through the debounce instead.
         if (channel.initialLoadInProgress || channel._historyRefreshRunning) {
             this.refreshHistory(messageStreamId);
-            return;
+            return false;
         }
         channel._historyRefreshRunning = true;
         Logger.info('Refreshing history:', messageStreamId.slice(-20));
+        if (adminFirst) {
+            await this.refreshAdminState(messageStreamId)
+                .catch(e => Logger.warn('Admin state refresh failed:', e?.message));
+        }
 
         // Same discipline as the initial-load pipeline: gate per-message
         // renders (no flash of pre-override originals), P0 before P1, then
@@ -2453,6 +2468,8 @@ class ChannelManager {
         // deleted messages), and render ONCE.
         channel.initialLoadInProgress = true;
         let contentRead = null;
+        let controlRead = null;
+        let reactionsRead = null;
         try {
             await streamrController.fetchHistoryAsync(
                 messageStreamId,
@@ -2471,7 +2488,7 @@ class ChannelManager {
                     STREAM_CONFIG.INITIAL_MESSAGES,
                     (data) => this.handleOverrideMessage(messageStreamId, data, true),
                     channel.password || null,
-                    null,
+                    (stats) => { controlRead = stats; },
                     false,
                     { quiet: true }
                 );
@@ -2486,7 +2503,7 @@ class ChannelManager {
                     STREAM_CONFIG.INITIAL_MESSAGES,
                     (data) => this.handleControlMessage(messageStreamId, data),
                     channel.password || null,
-                    null,
+                    (stats) => { reactionsRead = stats; },
                     false,
                     { quiet: true }
                 ).catch(e => Logger.warn('Interactions history failed:', e.message));
@@ -2514,13 +2531,52 @@ class ChannelManager {
         // until this key arrived — pins/moderation and a hidden channel's
         // image need their own re-pull (the refresh above only covers -1;
         // the admin poller would take up to a full tick to converge).
-        await this.refreshAdminState(messageStreamId);
+        if (!adminFirst) await this.refreshAdminState(messageStreamId);
         const adminId = channel.adminStreamId || deriveAdminId(messageStreamId);
         if (adminId) {
             channelImageManager.get(adminId, { password: channel.password || null, force: true })
                 .catch(() => {});
         }
         this.notifyHandlers('initial_history_complete', { streamId: messageStreamId });
+        return !!contentRead && !contentRead.failed && !controlRead?.failed && !reactionsRead?.failed;
+    }
+
+    /**
+     * The open's reads failed, which is not an empty channel: read them again,
+     * the -3 first so nothing paints without its moderation. A cure replaces
+     * the client and re-reads the active channel itself, so that ends this;
+     * so does leaving or reopening the channel.
+     */
+    _retryOpenReads(messageStreamId) {
+        const channel = this.channels.get(messageStreamId);
+        if (!channel) return;
+        const openReads = channel._openReads;
+        const client = streamrController.client;
+        const stillOpen = () => this.channels.get(messageStreamId) === channel
+            && channel._openReads === openReads
+            && this.currentChannel === messageStreamId
+            && streamrController.client === client;
+        channel.historyRetrying = true;
+        (async () => {
+            for (const [attempt, wait] of OPEN_READ_RETRY_DELAYS_MS.entries()) {
+                await new Promise(resolve => setTimeout(resolve, wait));
+                if (!stillOpen()) return;
+                Logger.info(`History ${messageStreamId.slice(-20)}: reading the open's group again (attempt ${attempt + 1})`);
+                const readAll = await this._runHistoryRefresh(messageStreamId, { adminFirst: true });
+                if (!stillOpen()) return;
+                if (readAll) {
+                    channel.historyRetrying = false;
+                    // The open's rule: what a paginate over the failing reads concluded is no verdict.
+                    channel.hasMoreHistory = !channel.historyError;
+                    this.notifyHandlers('initial_history_complete', { streamId: messageStreamId });
+                    return;
+                }
+            }
+            channel.historyRetrying = false;
+            channel.historyReadFailed = true;
+            channel.hasMoreHistory = false;
+            this.notifyHandlers('initial_history_complete', { streamId: messageStreamId });
+        })().catch(e => Logger.warn('Open history retry failed:', e?.message));
     }
 
     // ==================== Message Overrides ====================

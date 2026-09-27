@@ -638,6 +638,7 @@ class ChatAreaUI {
             // fallback that raced slow resend iterators.
             const isTerminalEmpty =
                 effectiveChannel?.initialLoadInProgress !== true &&
+                effectiveChannel?.historyRetrying !== true &&
                 hasMoreHistory === false &&
                 this._loadOp == null &&
                 !effectiveChannel?.loadingHistory &&
@@ -690,6 +691,13 @@ class ChatAreaUI {
                 `;
                     this.messagesArea.querySelector('#empty-state-renew-btn')
                         ?.addEventListener('click', () => subscriptionBannerUI.renewCurrent());
+                } else if (effectiveChannel?.historyReadFailed) {
+                    this.messagesArea.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                        <span class="text-sm">Channel history could not be loaded</span>
+                        <span class="text-xs text-white/25">Check your connection and reopen the channel</span>
+                    </div>
+                `;
                 } else {
                     this.messagesArea.innerHTML = waitingForKeys
                         ? `
@@ -723,9 +731,9 @@ class ChatAreaUI {
         const currentAddress = authManager?.getAddress();
 
         let historyStartIndicator = '';
-        // A refused read also clears hasMoreHistory, and there the start is
-        // unknown, not reached.
-        if (!hasMoreHistory && !effectiveChannel?.historyError) {
+        // A refused or failed read also clears hasMoreHistory, and there the
+        // start is unknown, not reached.
+        if (!hasMoreHistory && !effectiveChannel?.historyError && !effectiveChannel?.historyReadFailed) {
             historyStartIndicator = `
                 <div class="flex justify-center py-4">
                     <div class="text-white/[0.12] text-xs">

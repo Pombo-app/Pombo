@@ -4752,8 +4752,8 @@ class StreamrController {
         // even when the iterator never signals `done` (e.g. legacy single-
         // partition channels).
         const historyStats = {
-            content: { loaded: 0, requested: 0, readError: null },
-            control: { loaded: 0, requested: 0, readError: null },
+            content: { loaded: 0, requested: 0, readError: null, failed: false },
+            control: { loaded: 0, requested: 0, readError: null, failed: false },
         };
 
         const maybeSignalHistoryComplete = async () => {
@@ -4767,6 +4767,7 @@ class StreamrController {
                         controlLoaded: historyStats.control.loaded,
                         controlRequested: historyStats.control.requested,
                         readError: historyStats.content.readError || historyStats.control.readError,
+                        failed: historyStats.content.failed || historyStats.control.failed,
                     });
                 } catch (e) { Logger.warn('onHistoryComplete error:', e); }
             }
@@ -4782,12 +4783,14 @@ class StreamrController {
                     loaded: stats.loaded ?? 0,
                     requested: stats.requested ?? 0,
                     readError: stats.readError ?? null,
+                    failed: !!stats.failed,
                 };
             } else if (stats && partition === STREAM_CONFIG.MESSAGE_STREAM.CONTROL) {
                 historyStats.control = {
                     loaded: stats.loaded ?? 0,
                     requested: stats.requested ?? 0,
                     readError: stats.readError ?? null,
+                    failed: !!stats.failed,
                 };
             }
             Logger.debug(`History complete for ${partitionLabel}. Pending: ${pendingHistoryCompletions}`);
