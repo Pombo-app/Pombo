@@ -4768,6 +4768,7 @@ class StreamrController {
                         controlRequested: historyStats.control.requested,
                         readError: historyStats.content.readError || historyStats.control.readError,
                         failed: historyStats.content.failed || historyStats.control.failed,
+                        overridesFailed: historyStats.control.failed,
                     });
                 } catch (e) { Logger.warn('onHistoryComplete error:', e); }
             }

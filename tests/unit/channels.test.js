@@ -1635,6 +1635,65 @@ describe('ChannelManager', () => {
             expect(channel.messages.some(m => m.id === 'msg-verify')).toBe(false);
         });
 
+        describe('a page taken whole or not at all', () => {
+            const older = { id: 'msg-old', timestamp: 500, text: 'older', sender: '0x2' };
+            const serveHalves = ({ contentFailed = false, overridesFailed = false }) => {
+                streamrController.fetchOlderHistory.mockImplementation(async (id, partition) => (
+                    partition === 1
+                        ? { messages: [], hasMore: false, failed: overridesFailed }
+                        : { messages: [older], hasMore: true, failed: contentFailed }
+                ));
+            };
+            const notTaken = (result) => {
+                const channel = channelManager.channels.get(streamId);
+                expect(result.loaded).toBe(0);
+                expect(channel.messages.some(m => m.id === 'msg-old')).toBe(false);
+                expect(channel.hasMoreHistory).toBe(true);
+                expect(channel.oldestTimestamp).toBe(1000);
+                expect(channel.loadingHistory).toBe(false);
+            };
+
+            it('does not take a page whose overrides did not come back', async () => {
+                serveHalves({ overridesFailed: true });
+                notTaken(await channelManager.loadMoreHistory(streamId));
+            });
+
+            it('does not take a page whose content did not come back', async () => {
+                serveHalves({ contentFailed: true });
+                notTaken(await channelManager.loadMoreHistory(streamId));
+            });
+
+            it('waits while the open is being read again', async () => {
+                channelManager.channels.get(streamId).historyRetrying = true;
+                serveHalves({});
+
+                notTaken(await channelManager.loadMoreHistory(streamId));
+                expect(streamrController.fetchOlderHistory).not.toHaveBeenCalled();
+            });
+
+            it('asks again only after a backoff, and then says the page is due', async () => {
+                vi.useFakeTimers();
+                try {
+                    const notify = vi.spyOn(channelManager, 'notifyHandlers');
+                    serveHalves({ overridesFailed: true });
+                    await channelManager.loadMoreHistory(streamId);
+                    const reads = streamrController.fetchOlderHistory.mock.calls.length;
+
+                    await channelManager.loadMoreHistory(streamId);
+                    expect(streamrController.fetchOlderHistory.mock.calls.length).toBe(reads);
+
+                    await vi.advanceTimersByTimeAsync(5_000);
+                    expect(notify).toHaveBeenCalledWith('history_page_due', { streamId });
+
+                    serveHalves({});
+                    const result = await channelManager.loadMoreHistory(streamId);
+                    expect(result.loaded).toBe(1);
+                } finally {
+                    vi.useRealTimers();
+                }
+            });
+        });
+
         it('should pass abort signal to fetchOlderHistory', async () => {
             streamrController.fetchOlderHistory.mockResolvedValue({ messages: [], hasMore: false });
             

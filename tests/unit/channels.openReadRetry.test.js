@@ -33,18 +33,25 @@ function open() {
 
 describe('reading the open again after a failed read', () => {
     let failing;
+    let overridesFailing;
     let calls;
 
     beforeEach(() => {
         vi.useFakeTimers();
         failing = true;
+        overridesFailing = false;
         calls = [];
         streamrController.client = { id: 'first' };
         vi.spyOn(streamrController, 'fetchHistoryAsync').mockImplementation(
             async (id, partition, count, handler, password, done) => {
-                if (id !== ID || partition !== STREAM_CONFIG.MESSAGE_STREAM.MESSAGES) return;
-                calls.push('content');
-                await done?.({ loaded: 0, requested: count, readError: null, failed: failing });
+                if (id !== ID) return;
+                if (partition === STREAM_CONFIG.MESSAGE_STREAM.MESSAGES) {
+                    calls.push('content');
+                    await done?.({ loaded: 0, requested: count, readError: null, failed: failing });
+                } else if (partition === STREAM_CONFIG.MESSAGE_STREAM.CONTROL) {
+                    calls.push('overrides');
+                    await done?.({ loaded: 0, requested: count, readError: null, failed: overridesFailing });
+                }
             });
         vi.spyOn(channelManager, 'refreshAdminState').mockImplementation(async () => { calls.push('admin'); });
         for (const method of ['flushBatchVerification', 'awaitAllFlushes']) {
@@ -126,5 +133,49 @@ describe('reading the open again after a failed read', () => {
         reopened._openReads = {};
         await vi.advanceTimersByTimeAsync(BACKOFF_MS[0]);
         expect(calls).toEqual([]);
+    });
+
+    it('keeps the edits and deletions owed while their read fails, and clears it when it comes back', async () => {
+        const channel = open();
+        channel._controlPartitionSupported = true;
+        failing = false;
+        overridesFailing = true;
+
+        channelManager._retryOpenReads(ID);
+        await vi.advanceTimersByTimeAsync(BACKOFF_MS[0]);
+        expect(channel.overridesOwed).toBe(true);
+        expect(channel.historyRetrying).toBe(true);
+
+        overridesFailing = false;
+        await vi.advanceTimersByTimeAsync(BACKOFF_MS[1]);
+        expect(channel.overridesOwed).toBe(false);
+        expect(channel.historyRetrying).toBe(false);
+    });
+
+    it('gives up with the edits and deletions still owed', async () => {
+        const channel = open();
+        channel._controlPartitionSupported = true;
+        failing = false;
+        overridesFailing = true;
+
+        channelManager._retryOpenReads(ID);
+        await vi.advanceTimersByTimeAsync(BACKOFF_MS.reduce((a, b) => a + b, 0));
+
+        expect(channel.historyReadFailed).toBe(true);
+        expect(channel.overridesOwed).toBe(true);
+    });
+
+    it('reads again when a refresh left the edits and deletions owed and nothing reads them', async () => {
+        const channel = open();
+        channel._controlPartitionSupported = true;
+        channel.gate = { address: '0x' + '44'.repeat(20) };
+        failing = false;
+        overridesFailing = true;
+
+        channelManager.refreshHistory(ID);
+        await vi.advanceTimersByTimeAsync(1500);
+
+        expect(channel.overridesOwed).toBe(true);
+        expect(channel.historyRetrying).toBe(true);
     });
 });

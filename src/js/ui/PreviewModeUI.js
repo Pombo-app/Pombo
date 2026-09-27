@@ -1109,6 +1109,10 @@ class PreviewModeUI {
             );
 
             let [contentResult, overrideResult] = await Promise.all([fetchContent(), fetchOverrides()]);
+            // Taken whole or not at all, as in channels.loadMoreHistory.
+            if (contentResult.failed || overrideResult.failed) {
+                return { loaded: 0, hasMore: channel.hasMoreHistory !== false };
+            }
 
             // Storage race mitigation (symmetric with `channels.loadMoreHistory`):
             // when both partitions return zero across a non-trivial range, the
@@ -1122,7 +1126,7 @@ class PreviewModeUI {
                     await new Promise(r => setTimeout(r, backoffMs[attempt]));
                     if (this.previewChannel !== channel) break;
                     const [retryContent, retryOverride] = await Promise.all([fetchContent(), fetchOverrides()]);
-                    if (!isEmpty(retryContent, retryOverride)) {
+                    if (!isEmpty(retryContent, retryOverride) && !retryContent.failed && !retryOverride.failed) {
                         Logger.info?.(
                             `loadMorePreviewHistory: retry #${attempt + 1} recovered messages after empty first response`
                         );

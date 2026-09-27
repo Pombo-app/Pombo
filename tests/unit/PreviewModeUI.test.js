@@ -87,4 +87,28 @@ describe('PreviewModeUI', () => {
         expect(previewModeUI.previewChannel.messages).toEqual([]);
         expect(result).toEqual({ loaded: 1, hasMore: false });
     });
+
+    it('does not take a page whose overrides did not come back', async () => {
+        previewModeUI.previewChannel = {
+            streamId: 'preview-stream',
+            password: null,
+            messages: [],
+            _pendingOverrides: new Map(),
+            loadingHistory: false,
+            oldestTimestamp: 1000,
+            hasMoreHistory: true
+        };
+        deps.streamrController.fetchOlderHistory.mockImplementation(async (_streamId, partition) => (
+            partition === 0
+                ? { messages: [{ id: 'msg-1', text: 'hello', sender: '0x1', timestamp: 900 }], hasMore: false }
+                : { messages: [], hasMore: false, failed: true }
+        ));
+
+        const result = await previewModeUI.loadMorePreviewHistory();
+
+        expect(previewModeUI.previewChannel.messages).toEqual([]);
+        expect(previewModeUI.previewChannel.oldestTimestamp).toBe(1000);
+        expect(previewModeUI.previewChannel.loadingHistory).toBe(false);
+        expect(result).toEqual({ loaded: 0, hasMore: true });
+    });
 });

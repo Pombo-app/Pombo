@@ -1621,6 +1621,18 @@ describe('ChannelManager Extended', () => {
             retry.mockRestore();
         });
 
+        it('marks the edits and deletions owed when it was their read that failed', async () => {
+            const retry = vi.spyOn(channelManager, '_retryOpenReads').mockImplementation(() => {});
+
+            const owed = await loadWith({ readError: null, failed: true, overridesFailed: true });
+            expect(owed.overridesOwed).toBe(true);
+
+            channelManager.channels.delete(streamId);
+            const contentOnly = await loadWith({ readError: null, failed: true, overridesFailed: false });
+            expect(contentOnly.overridesOwed).toBe(false);
+            retry.mockRestore();
+        });
+
         it('reopens it on the next clean read, with no page reload', async () => {
             const channel = await loadWith({ readError: { status: 403, signed: true, at: Date.now() } });
             expect(channel.hasMoreHistory).toBe(false);
