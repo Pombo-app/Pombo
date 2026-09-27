@@ -15,8 +15,8 @@
  *     -5  → Interactions     (WITH storage) — reactions, where members participate
  *
  * MESSAGE STREAM (-1):
- *   Regular channels use 11 partitions:
- *     P0 content, P1 control overrides, P2-P10 storage-file chunks.
+ *   Regular channels use 12 partitions:
+ *     P0 content, P1 control overrides, P2 moderator deltas (gated), P3-P11 storage-file chunks.
  *   DM inboxes use 13 partitions:
  *     P0 messages, P1 sync, P2 sync_blobs, P3 notifications, P4-P12 storage-file chunks.
  *
@@ -30,21 +30,22 @@
  *   3 partitions: control (presence/typing), media signals, media data.
  *
  * ADMIN STREAM (-3):
- *   3 partitions reserved by protocol; only P0 used in initial scope.
- *     P0: ADMIN_STATE  (moderation: bannedMembers, hiddenMessageIds, pins) — IMPLEMENTED
- *     P1: CHANNEL_IMAGE                                                    — RESERVED
- *     P2: PASSWORD_CHALLENGE                                               — RESERVED
+ *   3 partitions:
+ *     P0: ADMIN_STATE  (moderation: bannedMembers, hiddenMessageIds, pins)
+ *     P1: CHANNEL_IMAGE
+ *     P2: PASSWORD_CHALLENGE
  *   Permissions: only owner publishes; readers vary by channel type
  *   (public/password: public subscribe; gated: clone subscribe).
  *
  * KEYS STREAM (-4) — gated channels only:
- *   P0 carries the epoch-key protocol (KEY_ANNOUNCE / KEY_REQUEST / KEY_WRAP).
+ *   P0 carries the announces (KEY_ANNOUNCE), P1 the requests and their wraps
+ *   (KEY_REQUEST / KEY_WRAP).
  *   Content on -1 is encrypted with a channel-wide epoch key versioned by
  *   `kid`; this stream is how members obtain those keys.
- *   P1 carries the member roster (MEMBER_HELLO): one hello per member per
+ *   P2 carries the member roster (MEMBER_HELLO): one hello per member per
  *   epoch, ALWAYS sealed with that epoch's key — the -4 resend is publicly
  *   readable over HTTP, so a cleartext roster would be the worst membership
- *   leak in the system. Channels created before P1 existed have a
+ *   leak in the system. Channels created before the roster existed have a
  *   single-partition -4 (capability = on-chain partition count).
  *   Permissions: members publish AND subscribe (any member may answer a request
  *   with a KEY_WRAP — k-of-n distribution). KEY_ANNOUNCE authority is app-layer:
@@ -79,7 +80,7 @@ export const MESSAGE_STREAM = Object.freeze({
  * Persistent File Sharing over storage nodes (message stream -1, chunk partitions).
  *
  * Chunks are round-robined over 9 partitions starting right after the last
- * "classic" partition of the stream flavor: P2 on regular channels, P4 on DM
+ * "classic" partition of the stream flavor: P3 on regular channels, P4 on DM
  * inboxes. The announcement is a normal signed chat message on P0
  * (type 'storage_file_announce') and carries firstChunkPartition/chunkPartitions,
  * so readers follow the announce, not these local constants.
@@ -93,7 +94,7 @@ export const STORAGE_FILE = Object.freeze({
 /**
  * Partition for storage-file chunk i.
  * @param {number} i - Chunk index
- * @param {number} firstPartition - First chunk partition (2 regular / 4 DM, or from announce)
+ * @param {number} firstPartition - First chunk partition (3 regular / 4 DM, or from announce)
  * @param {number} [count] - Number of chunk partitions (default 9, or from announce)
  * @returns {number}
  */
@@ -113,7 +114,7 @@ export const EPHEMERAL_STREAM = Object.freeze({
 
 export const ADMIN_STREAM = Object.freeze({
     SUFFIX: STREAM_SUFFIX.ADMIN,
-    PARTITIONS: 3,        // P0 implemented; P1 (channel image) and P2 (password challenge) reserved
+    PARTITIONS: 3,        // P0 moderation, P1 channel image, P2 password challenge
 
     // Partition indexes
     MODERATION: 0,        // ADMIN_STATE: bannedMembers, hiddenMessageIds, pins
@@ -178,7 +179,7 @@ export const INTERACTIONS_STREAM = Object.freeze({
  *                 account key, so retained requests answer asynchronously.
  *                 Receivers verify sha256(unwrapped) === announced keyHash
  *                 before adopting, both formats.
- *   MEMBER_HELLO  roster entry on P1 (never P0), sealed with the epoch key:
+ *   MEMBER_HELLO  roster entry on P2 (never P0), sealed with the epoch key:
  *                 { account, spk, ts } — published on first adoption of each
  *                 CURRENT epoch's key; readers require the envelope signer to
  *                 equal `account` (no planting hellos for someone else)

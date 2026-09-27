@@ -224,7 +224,7 @@ export class Membership {
      */
     /**
      * Candidate membership answered by the gate: the local cache, the
-     * KEY_REQUEST authors seen on -4, the -4/P1 roster and, on Closed gates,
+     * KEY_REQUEST authors seen on -4, the -4/P2 roster and, on Closed gates,
      * the contract's own enumeration — which makes the candidate set complete
      * there instead of limited to what this client happened to see. Empty on
      * failure — each caller picks its own fallback.
@@ -322,7 +322,7 @@ export class Membership {
         const gateAddr = channel.gate.address.toLowerCase();
         try {
             const { gateManager } = await import('../gate.js');
-            // Roster (-4/P1) is the persistent, device-independent candidate
+            // Roster (-4/P2) is the persistent, device-independent candidate
             // source; seenRequesters stays as the fallback for channels
             // created before the roster partition existed.
             const roster = await epochKeyManager.getRosterMembers(channel)
