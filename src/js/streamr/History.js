@@ -564,6 +564,8 @@ export class History {
         // an out-of-scope variable via typeof and always reported 0)
         let rawCount = 0;
         let readError = null;
+        let failed = false;
+        let iterationBroke = false;
         try {
             Logger.debug(`Fetching ${count} historical messages for partition ${partition}${password ? ' (encrypted)' : ''}...`);
 
@@ -662,6 +664,7 @@ export class History {
                     }
                     // Other iterator errors - log and try to continue
                     Logger.warn('History iteration error:', iterError.message);
+                    iterationBroke = true;
                     continue;
                 }
                 
@@ -815,11 +818,17 @@ export class History {
         } catch (error) {
             // CORS errors and other network issues are caught here
             Logger.warn(`History fetch failed for partition ${partition} (may be CORS on localhost):`, error.message);
+            // A stream the client has no storage for is an answer: the SDK
+            // keeps that verdict for the client's life, so reading again cannot help.
+            failed = error?.code !== 'NO_STORAGE_NODES' && !String(error?.message).includes('NO_STORAGE_NODES');
         } finally {
             // A refusal by the storage node surfaces as an iterator error the
             // loop above skips, so the verdict comes from the fetch layer, which
             // clears it on the next successful read of this partition.
             readError = storageFetch.lastReadError(streamId, partition) || null;
+            // A 4xx is the node's answer about this read; any other break
+            // (network, 5xx, a page refused for its storedAt) left it unread.
+            if (iterationBroke && !(readError?.status >= 400 && readError?.status < 500)) failed = true;
             // Signal that initial history fetch is complete (success or failure).
             // Pass `loaded`/`requested` so callers can detect exhaustion (when
             // fewer raw messages came back than requested → no more history
@@ -827,7 +836,7 @@ export class History {
             // `hasMoreHistory=false` deterministically.
             if (onHistoryComplete) {
                 try {
-                    await onHistoryComplete({ loaded: rawCount, requested: count, readError });
+                    await onHistoryComplete({ loaded: rawCount, requested: count, readError, failed });
                 } catch (e) { Logger.warn('onHistoryComplete error:', e); }
             }
         }
