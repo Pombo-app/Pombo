@@ -1401,66 +1401,6 @@ class ChannelManager {
         }
     }
 
-    /**
-     * Sync channel info from The Graph (members, type, owner)
-     * Use this to refresh on-chain data for a channel
-     * @param {string} messageStreamId - Message Stream ID
-     * @returns {Promise<Object|null>} - Updated channel or null if not found
-     */
-    async syncChannelFromGraph(messageStreamId) {
-        const channel = this.channels.get(messageStreamId);
-        if (!channel) {
-            Logger.warn('Channel not found for sync:', messageStreamId);
-            return null;
-        }
-
-        try {
-            Logger.debug('Syncing channel from The Graph:', messageStreamId);
-            
-            // OPTIMIZATION: Fetch all Graph data in parallel
-            const [streamData, type, membersResult] = await Promise.all([
-                graphAPI.getStream(messageStreamId),
-                graphAPI.detectStreamType(messageStreamId),
-                graphAPI.getStreamMembers(messageStreamId)
-            ]);
-            
-            if (!streamData) {
-                Logger.warn('Stream not found in The Graph');
-                return channel;
-            }
-
-            // Update type based on permissions
-            if (type !== 'unknown') {
-                channel.type = type;
-            }
-
-            const members = membersResult.ok ? membersResult.data : [];
-
-            // Update members
-            channel.members = members.map(m => m.address);
-
-            // Get owner
-            const owner = members.find(m => m.isOwner);
-            if (owner) {
-                channel.createdBy = owner.address;
-            }
-
-            // Save updated info
-            await this.saveChannels();
-            
-            Logger.debug('Channel synced:', {
-                type: channel.type,
-                members: channel.members.length,
-                owner: channel.createdBy?.slice(0, 10)
-            });
-
-            return channel;
-        } catch (error) {
-            Logger.warn('Failed to sync channel from Graph:', error);
-            return channel;
-        }
-    }
-
     // Lives in channels/Membership.js; the manager keeps the entry points
     // its callers already use.
 
