@@ -185,6 +185,7 @@ vi.mock('../../src/js/epochKeyManager.js', () => ({
     epochKeyManager: {
         rotateEpoch: vi.fn().mockResolvedValue(undefined),
         getSeenRequesters: vi.fn().mockReturnValue([]),
+        getCurrentKeyHolders: vi.fn().mockReturnValue([]),
         getRosterMembers: vi.fn().mockResolvedValue([]),
         onKeyAdopted: vi.fn(),
         handleKeysMessage: vi.fn(),
@@ -662,6 +663,69 @@ describe('ChannelManager Extended', () => {
 
             expect(channel.rotatedForNoAccess).toContain('0xmember1');
             expect(channelManager.isRotationOwed(streamId)).toBe(false);
+        });
+
+        describe("the owner's sweep and whoever holds the key in force", () => {
+            const gateSays = (access) => vi.spyOn(channelManager, 'getGateMemberFlags').mockResolvedValue([
+                { address: '0xmyaddress', access: true, isOwner: true },
+                { address: '0xmember3', access }
+            ]);
+
+            beforeEach(() => {
+                channel.accessSnapshot = ['0xmyaddress', '0xmember1'];
+                epochKeyManager.rotateEpoch.mockResolvedValue(undefined);
+            });
+
+            afterEach(() => epochKeyManager.getCurrentKeyHolders.mockReturnValue([]));
+
+            it('rotates for a re-admitted member who took the key in force and was removed, though covered', async () => {
+                channel.rotatedForNoAccess = ['0xmember3'];
+                epochKeyManager.getCurrentKeyHolders.mockReturnValue(['0xmember3']);
+                gateSays(false);
+
+                await channelManager._rotateForLostAccess(channel);
+
+                expect(epochKeyManager.rotateEpoch).toHaveBeenCalledTimes(1);
+                expect(channel.rotatedForNoAccess).toEqual(['0xmember3']);
+            });
+
+            it('leaves a covered member alone when they hold no key in force', async () => {
+                channel.rotatedForNoAccess = ['0xmember3'];
+                gateSays(false);
+
+                await channelManager._rotateForLostAccess(channel);
+
+                expect(epochKeyManager.rotateEpoch).not.toHaveBeenCalled();
+            });
+
+            it('rotates for a member the owner never saw who took the key in force', async () => {
+                epochKeyManager.getCurrentKeyHolders.mockReturnValue(['0xmember3']);
+                gateSays(false);
+
+                await channelManager._rotateForLostAccess(channel);
+
+                expect(epochKeyManager.rotateEpoch).toHaveBeenCalledTimes(1);
+                expect(channel.rotatedForNoAccess).toContain('0xmember3');
+            });
+
+            it('leaves a key holder the gate still admits alone', async () => {
+                epochKeyManager.getCurrentKeyHolders.mockReturnValue(['0xmember3']);
+                gateSays(true);
+
+                await channelManager._rotateForLostAccess(channel);
+
+                expect(epochKeyManager.rotateEpoch).not.toHaveBeenCalled();
+            });
+
+            it('keeps key holders among the gate candidates', async () => {
+                const { gateManager } = await import('../../src/js/gate.js');
+                epochKeyManager.getCurrentKeyHolders.mockReturnValue(['0xmember3']);
+                gateManager.getGateMembers.mockClear();
+
+                await channelManager.getGateMemberFlags(streamId);
+
+                expect(gateManager.getGateMembers.mock.calls[0][1]).toContain('0xmember3');
+            });
         });
     });
 
@@ -1529,6 +1593,43 @@ describe('ChannelManager Extended', () => {
 
             expect(streamrController.subscribeToKeysStream).not.toHaveBeenCalled();
             expect(epochKeyManager.onKeyAdopted).not.toHaveBeenCalled();
+        });
+
+        it('on a warm open, sweeps for lost access only after the -4 read that names the key holders', async () => {
+            const channel = gated();
+            channelManager.channels.set(channel.messageStreamId, channel);
+            epochKeyManager.ensureChannelKeys.mockClear();
+
+            await channelManager.startEpochKeys(channel);
+            expect(channelManager._rotateForLostAccess).not.toHaveBeenCalled();
+
+            await vi.advanceTimersByTimeAsync(8_000);
+
+            expect(channelManager._rotateForLostAccess).toHaveBeenCalledWith(channel);
+            expect(epochKeyManager.ensureChannelKeys.mock.invocationCallOrder[0])
+                .toBeLessThan(channelManager._rotateForLostAccess.mock.invocationCallOrder[0]);
+        });
+
+        it('on a warm open whose -4 read fails, still sweeps with what it knows', async () => {
+            const channel = gated();
+            channelManager.channels.set(channel.messageStreamId, channel);
+            epochKeyManager.ensureChannelKeys.mockRejectedValueOnce(new Error('P1 timed out'));
+            vi.spyOn(channelManager, '_scheduleEpochSetupRetry').mockImplementation(() => {});
+
+            await channelManager.startEpochKeys(channel);
+            await vi.advanceTimersByTimeAsync(8_000);
+
+            expect(channelManager._rotateForLostAccess).toHaveBeenCalledWith(channel);
+        });
+
+        it('on a cold open, sweeps once the setup has read the -4, as before', async () => {
+            const channel = gated();
+            channelManager.channels.set(channel.messageStreamId, channel);
+            epochKeyManager.hasCurrentKey.mockReturnValue(false);
+
+            await channelManager.startEpochKeys(channel);
+
+            expect(channelManager._rotateForLostAccess).toHaveBeenCalledWith(channel);
         });
     });
 

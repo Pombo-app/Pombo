@@ -199,6 +199,9 @@ class EpochKeyManager {
                 // enumerates members for TOKEN/NFT/PAID gates where holding
                 // or pay() bypasses the owner — no indexer, no event scan.
                 seenRequesters: new Set(),
+                // requestId → the account that sent that KEY_REQUEST; memory
+                // only, the -4 history refills it on every open
+                requestAuthors: new Map(),
                 // epoch → wraps that arrived before the announce that
                 // legitimises them. A responder answers a request as soon as
                 // it hears it, so on a cold subscribe the wrap regularly
@@ -668,6 +671,7 @@ class EpochKeyManager {
             } else if (data.t === KEYS_MSG_TYPE.KEY_REQUEST) {
                 storedRequests.push({ data, publisherId, timestamp });
                 this._recordRequester(s, publisherId, channel.messageStreamId);
+                this._recordRequestAuthor(s, data.requestId, publisherId);
             }
         }
         if (changed) await this._persist(channel.messageStreamId, s);
@@ -1436,6 +1440,7 @@ class EpochKeyManager {
 
     async _handleRequest(channel, s, data, publisherId) {
         this._recordRequester(s, publisherId, channel.messageStreamId);
+        this._recordRequestAuthor(s, data.requestId, publisherId);
         // Skip only what THIS session asked for, by requestId. Skipping
         // every request from our own account left a second device of the
         // same account unable to ever get the keys: nobody else answers a
@@ -1679,6 +1684,31 @@ class EpochKeyManager {
     getSeenRequesters(messageStreamId) {
         const s = this.state.get(messageStreamId);
         return s ? Array.from(s.seenRequesters) : [];
+    }
+
+    _recordRequestAuthor(s, requestId, publisherId) {
+        const addr = (publisherId || '').toLowerCase();
+        if (typeof requestId !== 'string' || !/^0x[0-9a-f]{40}$/.test(addr)) return;
+        if (!s.requestAuthors.has(requestId) && s.requestAuthors.size >= SEEN_WRAPS_MAX) {
+            s.requestAuthors.delete(s.requestAuthors.keys().next().value);
+        }
+        s.requestAuthors.set(requestId, addr);
+    }
+
+    /**
+     * Accounts some responder handed the key in force to, whoever answered,
+     * as far as the -4 history this session read goes back.
+     */
+    getCurrentKeyHolders(messageStreamId) {
+        const s = this.state.get(messageStreamId);
+        const keyId = s?.announces.get(s.currentEpoch)?.keyId;
+        if (!keyId) return [];
+        const holders = new Set();
+        for (const [requestId, keyIds] of s.seenWraps) {
+            const author = s.requestAuthors.get(requestId);
+            if (author && keyIds.has(keyId)) holders.add(author);
+        }
+        return [...holders];
     }
 
     _recordSeenWrap(s, requestId, keyId) {

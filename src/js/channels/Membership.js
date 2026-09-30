@@ -275,6 +275,9 @@ export class Membership {
                 ...(channel.accessSnapshot || []),
                 ...(channel.rotatedForNoAccess || channel.rotatedForBanned || []),
                 ...epochKeyManager.getSeenRequesters(channel.messageStreamId),
+                // The requester pool stops growing at its cap; whoever holds
+                // the key in force must stay a candidate.
+                ...epochKeyManager.getCurrentKeyHolders(channel.messageStreamId),
                 ...roster.map(m => m.account),
                 ...onChain
             ];
