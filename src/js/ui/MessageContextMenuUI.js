@@ -537,22 +537,6 @@ class MessageContextMenuUI {
             case 'ban-user': {
                 const ch = channelManager?.getCurrentChannel?.();
                 if (!ch) break;
-                // A moderator's ban is a delta and has no on-chain half, so
-                // the two-level modal (which spends gas) is the owner's.
-                if (channelManager.isCachedModerator?.(ch.streamId)
-                    && !channelManager.getCachedDeletePermission?.(ch.streamId)?.canDelete) {
-                    if (!await confirmDialog({ title: 'Hide their messages', message: `Every message from ${address.slice(0, 10)}… is hidden from now on.`, confirmLabel: 'Hide' })) break;
-                    try {
-                        const { epochKeyManager } = await import('../epochKeyManager.js');
-                        await channelManager.publishModAction(
-                            ch.streamId, 'ban', address,
-                            epochKeyManager.currentEpoch(ch.streamId));
-                        showNotification('Member banned', 'success');
-                    } catch (err) {
-                        showNotification(err?.message || 'Failed to ban member', 'error');
-                    }
-                    break;
-                }
                 const { channelModalsUI } = await import('./ChannelModalsUI.js');
                 channelModalsUI.showBanMemberModal(address, ch);
                 break;
