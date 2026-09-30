@@ -190,7 +190,8 @@ vi.mock('../../src/js/epochKeyManager.js', () => ({
         handleKeysMessage: vi.fn(),
         forgetChannel: vi.fn().mockResolvedValue(undefined),
         ensureChannelKeys: vi.fn().mockResolvedValue(undefined),
-        getWaitingInfo: vi.fn().mockReturnValue({ waiting: false })
+        getWaitingInfo: vi.fn().mockReturnValue({ waiting: false }),
+        isOwnAdmin: vi.fn().mockReturnValue(true)
     }
 }));
 
@@ -328,6 +329,22 @@ describe('ChannelManager Extended', () => {
             expect(gateManager.revokeAllow).toHaveBeenCalledWith('0xgate', '0xmember1');
             expect(gateManager.ban).not.toHaveBeenCalled();
             expect(epochKeyManager.rotateEpoch).toHaveBeenCalled();
+        });
+
+        it("leaves a moderator's removal to the owner, with no rotation owed on this device", async () => {
+            const { gateManager } = await import('../../src/js/gate.js');
+            const { epochKeyManager } = await import('../../src/js/epochKeyManager.js');
+            epochKeyManager.rotateEpoch.mockClear();
+            epochKeyManager.isOwnAdmin.mockReturnValue(false);
+            try {
+                await channelManager.removeMember(streamId, '0xmember1');
+
+                expect(gateManager.revokeAllow).toHaveBeenCalledWith('0xgate', '0xmember1');
+                expect(epochKeyManager.rotateEpoch).not.toHaveBeenCalled();
+                expect(channelManager.isRotationOwed(streamId)).toBe(false);
+            } finally {
+                epochKeyManager.isOwnAdmin.mockReturnValue(true);
+            }
         });
 
         it('removes member from local list', async () => {

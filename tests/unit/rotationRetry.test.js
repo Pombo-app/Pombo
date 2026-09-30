@@ -99,14 +99,52 @@ describe('RotationRetry', () => {
 
     it('a channel this account no longer owns stops the retry', async () => {
         failures = Infinity;
-        owned = false;
-
+        clock = parkedClock();
         expect(await retry.rotateFor(CHANNEL, ['0xabc'])).toBe(false);
+
+        owned = false;
+        clock.resolve();
         await settleDown();
 
         expect(waits).toEqual([5000]);
         expect(retry.isOwed(CHANNEL)).toBe(false);
         expect(covered).toEqual([]);
+    });
+
+    it("a moderator's cut owes nothing: the owner rotates on their next open", async () => {
+        owned = false;
+
+        expect(await retry.rotateFor(CHANNEL, ['0xabc'])).toBe(false);
+        await settleDown();
+
+        expect(retry.isOwed(CHANNEL)).toBe(false);
+        expect(rotations).toBe(0);
+        expect(waits).toEqual([]);
+    });
+
+    it('a debt this account cannot pay is dropped, not held against its sends', async () => {
+        failures = Infinity;
+        clock = parkedClock();
+        await retry.rotateFor(CHANNEL, ['0xabc']);
+        owned = false;
+
+        await retry.settle(CHANNEL);
+
+        expect(retry.isOwed(CHANNEL)).toBe(false);
+    });
+
+    it('a debt left on a channel this account does not own is dropped when the next session connects', async () => {
+        failures = Infinity;
+        clock = parkedClock();
+        await retry.rotateFor(CHANNEL, ['0xabc']);
+        const next = newRetry();
+        owned = false;
+
+        next.resume([CHANNEL]);
+        await settleDown();
+
+        expect(next.isOwed(CHANNEL)).toBe(false);
+        await expect(next.settle(CHANNEL)).resolves.toBeUndefined();
     });
 
     it('one rotation covers every cut owed on the channel', async () => {

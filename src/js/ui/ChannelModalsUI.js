@@ -5,6 +5,7 @@
 
 import { GasEstimator } from './GasEstimator.js';
 import { authManager } from '../auth.js';
+import { confirmDialog } from './ConfirmDialogUI.js';
 import { streamrController } from '../streamr.js';
 import { CONFIG } from '../config.js';
 import { snapRetentionDays, retentionLabel } from '../utils/retention.js';
@@ -750,9 +751,15 @@ class ChannelModalsUI {
      * @param {() => void} [options.onBanned] - runs once the ban went through
      */
     showBanMemberModal(address, channel, { onBanned } = {}) {
+        const owner = !!channel && this.channelManager.isChannelOwner(channel.streamId);
+        if (!owner && this.channelManager.isCachedModerator?.(channel?.streamId)) {
+            this._hideAsModerator(address, channel, { onBanned });
+            return;
+        }
         const gated = !!channel?.gate?.address;
-        const me = authManager.getAddress()?.toLowerCase();
-        const canClientBan = !!me && me === channel?.createdBy?.toLowerCase();
+        const canClientBan = owner;
+        // The gate's ban() is onlyOwner: offered to anyone else, it reverts.
+        const canProtocolBan = gated && owner;
 
         const label = document.getElementById('ban-member-label');
         if (label) label.textContent = `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -790,8 +797,8 @@ class ChannelModalsUI {
         }
         document.getElementById('ban-level-purge-row')?.classList.toggle('opacity-40', !canPurge);
         if (protocol) {
-            protocol.checked = gated;
-            protocol.disabled = !gated;
+            protocol.checked = canProtocolBan;
+            protocol.disabled = !canProtocolBan;
         }
         if (clientDetail && !canClientBan) {
             clientDetail.textContent = 'Only the channel creator can publish this.';
@@ -800,18 +807,20 @@ class ChannelModalsUI {
         }
         if (protocolDetail && !gated) {
             protocolDetail.textContent = 'Only gated channels have a gate to ban on.';
+        } else if (protocolDetail && !owner) {
+            protocolDetail.textContent = 'Only the channel creator can cut access.';
         } else if (protocolDetail) {
             protocolDetail.textContent = 'Cuts their access on the gate and rotates the channel key. One transaction.';
         }
         document.getElementById('ban-level-client-row')?.classList.toggle('opacity-40', !canClientBan);
-        document.getElementById('ban-level-protocol-row')?.classList.toggle('opacity-40', !gated);
+        document.getElementById('ban-level-protocol-row')?.classList.toggle('opacity-40', !canProtocolBan);
 
         const confirmBtn = document.getElementById('confirm-ban-member-btn');
         if (confirmBtn) {
             confirmBtn.onclick = async () => {
                 const levels = {
                     client: !!client?.checked && canClientBan,
-                    protocol: !!protocol?.checked && gated
+                    protocol: !!protocol?.checked && canProtocolBan
                 };
                 const erase = !!purge?.checked && canPurge && levels.client;
                 if (!levels.client && !levels.protocol) return;
@@ -852,6 +861,25 @@ class ChannelModalsUI {
         if (cancelBtn) cancelBtn.onclick = () => this.deps.modalManager?.hide('ban-member-modal');
 
         this.deps.modalManager?.show('ban-member-modal');
+    }
+
+    /** A moderator's ban: a delta every client composes over the owner's state. It hides, with no on-chain half. */
+    async _hideAsModerator(address, channel, { onBanned } = {}) {
+        if (!await confirmDialog({
+            title: 'Hide their messages',
+            message: `Every message from ${address.slice(0, 10)}… is hidden from now on. Only the channel creator can cut their access.`,
+            confirmLabel: 'Hide'
+        })) return;
+        try {
+            const { epochKeyManager } = await import('../epochKeyManager.js');
+            await this.channelManager.publishModAction(
+                channel.streamId, 'ban', address, epochKeyManager.currentEpoch(channel.streamId));
+            this.showNotification('Member banned', 'success');
+        } catch (error) {
+            this.showNotification(error?.message || 'Failed to ban member', 'error');
+            return;
+        }
+        onBanned?.();
     }
 
     /**

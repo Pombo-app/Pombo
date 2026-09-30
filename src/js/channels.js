@@ -1411,10 +1411,10 @@ class ChannelManager {
     banMemberLevels(messageStreamId, address, levels) { return this.membership.banMemberLevels(messageStreamId, address, levels); }
     /** A ban or removal whose key rotation has not gone out yet. */
     isRotationOwed(messageStreamId) { return this.rotationRetry.isOwed(messageStreamId); }
-    /** Owed rotations of the gated channels this account owns, taken up once the client connects. */
+    /** Owed rotations of the gated channels, taken up once the client connects; the ones this account cannot pay are dropped. */
     resumeOwedRotations() {
         this.rotationRetry.resume([...this.channels.values()]
-            .filter(ch => ch.gate?.address && epochKeyManager.isOwnAdmin(ch))
+            .filter(ch => ch.gate?.address)
             .map(ch => ch.messageStreamId));
     }
     unbanMemberLevels(messageStreamId, address) { return this.membership.unbanMemberLevels(messageStreamId, address); }
