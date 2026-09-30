@@ -75,12 +75,17 @@ export async function executeWithRetry(operationName, asyncFn, options = {}) {
 }
 
 /**
- * Execute with retry, checking if resource exists after error
- * Useful for blockchain operations where tx may succeed despite error response
- * 
+ * Execute an on-chain write with retry, never sending it twice.
+ *
+ * A write whose receipt read failed has usually landed anyway, so each retry
+ * first asks the chain: `checkExistsFn` resolves truthy when the effect is
+ * there (returned as the result), falsy when it is missing (send again), and
+ * throws when the chain could not be read — which waits for the next round
+ * rather than sending blind.
+ *
  * @param {string} operationName - Name for logging
- * @param {Function} asyncFn - Async function to execute
- * @param {Function} checkExistsFn - Function to check if resource was created despite error
+ * @param {Function} asyncFn - Async function that sends the write
+ * @param {Function} checkExistsFn - Is the write's effect already on chain?
  * @param {Object} options - Retry options (same as executeWithRetry)
  * @returns {Promise<any>} - Result of asyncFn or checkExistsFn
  */
@@ -88,36 +93,40 @@ export async function executeWithRetryAndVerify(operationName, asyncFn, checkExi
     const {
         maxRetries = CONFIG.retry.maxAttempts,
         baseDelay = CONFIG.retry.baseDelayMs,
-        backoffMultiplier = CONFIG.retry.backoffMultiplier
+        backoffMultiplier = CONFIG.retry.backoffMultiplier,
+        shouldRetry = () => true
     } = options;
 
     let lastError;
+    let send = true;
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            Logger.debug(`${operationName} (attempt ${attempt}/${maxRetries})...`);
-            return await asyncFn();
-
-        } catch (error) {
-            lastError = error;
-            Logger.warn(`${operationName} attempt ${attempt} failed:`, error.message);
-
-            // Check if operation actually succeeded despite error
+    for (let round = 1; round <= maxRetries; round++) {
+        if (send) {
             try {
-                const existing = await checkExistsFn();
-                if (existing) {
-                    Logger.info(`${operationName}: resource exists despite error`);
-                    return existing;
-                }
-            } catch (checkError) {
-                // Resource doesn't exist, continue retry
+                Logger.debug(`${operationName} (attempt ${round}/${maxRetries})...`);
+                return await asyncFn();
+            } catch (error) {
+                lastError = error;
+                Logger.warn(`${operationName} attempt ${round} failed:`, error.message);
+                if (!shouldRetry(error)) throw error;
             }
+        }
+        if (round === maxRetries) break;
 
-            if (attempt < maxRetries) {
-                const delay = baseDelay * Math.pow(backoffMultiplier, attempt - 1);
-                Logger.debug(`Retrying ${operationName} in ${delay / 1000}s...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
+        // The wait comes first: a write still pending when its receipt read
+        // failed gets mined meanwhile, and the check then sees it.
+        const delay = baseDelay * Math.pow(backoffMultiplier, round - 1);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        try {
+            const existing = await checkExistsFn();
+            if (existing) {
+                Logger.info(`${operationName}: already on chain`);
+                return existing;
             }
+            send = true;
+        } catch (checkError) {
+            Logger.warn(`${operationName}: could not confirm on chain, not resending yet:`, checkError.message);
+            send = false;
         }
     }
 

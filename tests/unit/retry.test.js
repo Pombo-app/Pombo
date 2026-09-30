@@ -153,31 +153,85 @@ describe('retry', () => {
             expect(asyncFn).toHaveBeenCalledTimes(2);
         });
 
-        it('should continue retrying if checkExists throws', async () => {
-            const asyncFn = vi.fn()
-                .mockRejectedValueOnce(new Error('fail'))
-                .mockResolvedValue('success');
-            const checkExistsFn = vi.fn().mockRejectedValue(new Error('check failed'));
-            
-            const result = await executeWithRetryAndVerify('test', asyncFn, checkExistsFn, { 
-                maxRetries: 3, 
-                baseDelay: 10 
+        it('never sends a write again that landed while its receipt read failed', async () => {
+            const asyncFn = vi.fn().mockRejectedValue(new Error('Error while waiting transaction'));
+            const checkExistsFn = vi.fn().mockResolvedValue(true);
+
+            const result = await executeWithRetryAndVerify('test', asyncFn, checkExistsFn, {
+                maxRetries: 5,
+                baseDelay: 10
             });
-            
+
+            expect(result).toBe(true);
+            expect(asyncFn).toHaveBeenCalledTimes(1);
+        });
+
+        it('checks only after the wait, when a pending write has had time to land', async () => {
+            const order = [];
+            const asyncFn = vi.fn(async () => { order.push('send'); throw new Error('receipt read failed'); });
+            const checkExistsFn = vi.fn(async () => { order.push('check'); return true; });
+
+            await executeWithRetryAndVerify('test', asyncFn, checkExistsFn, { maxRetries: 3, baseDelay: 10 });
+
+            expect(order).toEqual(['send', 'check']);
+        });
+
+        it('an unreadable chain sends nothing until the check answers, then sends only if missing', async () => {
+            const asyncFn = vi.fn()
+                .mockRejectedValueOnce(new Error('receipt read failed'))
+                .mockResolvedValue('success');
+            const checkExistsFn = vi.fn()
+                .mockRejectedValueOnce(new Error('RPC down'))
+                .mockRejectedValueOnce(new Error('RPC down'))
+                .mockResolvedValue(false);
+
+            const result = await executeWithRetryAndVerify('test', asyncFn, checkExistsFn, {
+                maxRetries: 6,
+                baseDelay: 10
+            });
+
             expect(result).toBe('success');
+            expect(checkExistsFn).toHaveBeenCalledTimes(3);
+            expect(asyncFn).toHaveBeenCalledTimes(2);
+        });
+
+        it('an unreadable chain to the end sends nothing more and fails with the write error', async () => {
+            const asyncFn = vi.fn().mockRejectedValue(new Error('receipt read failed'));
+            const checkExistsFn = vi.fn().mockRejectedValue(new Error('RPC down'));
+
+            await expect(executeWithRetryAndVerify('test', asyncFn, checkExistsFn, {
+                maxRetries: 4,
+                baseDelay: 10
+            })).rejects.toThrow('receipt read failed');
+
+            expect(asyncFn).toHaveBeenCalledTimes(1);
+            expect(checkExistsFn).toHaveBeenCalledTimes(3);
         });
 
         it('should throw after all retries if resource never exists', async () => {
             const asyncFn = vi.fn().mockRejectedValue(new Error('persistent error'));
             const checkExistsFn = vi.fn().mockResolvedValue(null);
-            
-            await expect(executeWithRetryAndVerify('test', asyncFn, checkExistsFn, { 
-                maxRetries: 2, 
-                baseDelay: 10 
+
+            await expect(executeWithRetryAndVerify('test', asyncFn, checkExistsFn, {
+                maxRetries: 2,
+                baseDelay: 10
             })).rejects.toThrow('persistent error');
-            
+
             expect(asyncFn).toHaveBeenCalledTimes(2);
-            expect(checkExistsFn).toHaveBeenCalledTimes(2);
+            expect(checkExistsFn).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not retry an error the caller rules out', async () => {
+            const asyncFn = vi.fn().mockRejectedValue(new Error('insufficient funds'));
+            const checkExistsFn = vi.fn();
+
+            await expect(executeWithRetryAndVerify('test', asyncFn, checkExistsFn, {
+                maxRetries: 3,
+                baseDelay: 10,
+                shouldRetry: () => false
+            })).rejects.toThrow('insufficient funds');
+
+            expect(checkExistsFn).not.toHaveBeenCalled();
         });
     });
 
