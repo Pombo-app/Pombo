@@ -291,8 +291,46 @@ describe('ChannelManager Extended', () => {
             await expect(channelManager.addMember('public-ch', '0x1')).rejects.toThrow('gated channels');
         });
 
-        it('throws if already a member', async () => {
+        it('throws if the gate still allows someone already listed, with no transaction', async () => {
+            const { gateManager } = await import('../../src/js/gate.js');
+            gateManager.getGateMembers.mockResolvedValueOnce([{ address: '0xmyaddress', allowed: true }]);
             await expect(channelManager.addMember(streamId, '0xMyAddress')).rejects.toThrow('already a member');
+            expect(gateManager.allow).not.toHaveBeenCalled();
+        });
+
+        it('re-adds someone this device still lists but the gate no longer allows', async () => {
+            const { gateManager } = await import('../../src/js/gate.js');
+            channelManager.channels.get(streamId).members.push('0xremoved');
+            gateManager.getGateMembers.mockResolvedValueOnce([{ address: '0xremoved', allowed: false }]);
+
+            await channelManager.addMember(streamId, '0xRemoved');
+
+            expect(gateManager.allow).toHaveBeenCalledWith('0xgate', '0xRemoved');
+            const listed = channelManager.channels.get(streamId).members.filter(m => m.toLowerCase() === '0xremoved');
+            expect(listed).toHaveLength(1);
+        });
+
+        it('a batch skips only who the gate still allows', async () => {
+            const { gateManager } = await import('../../src/js/gate.js');
+            gateManager.allowBatch.mockClear();
+            channelManager.channels.get(streamId).members.push('0xremoved', '0xstill');
+            gateManager.getGateMembers.mockResolvedValueOnce([
+                { address: '0xremoved', allowed: false },
+                { address: '0xstill', allowed: true }
+            ]);
+
+            await channelManager.addMembers(streamId, ['0xremoved', '0xstill', '0xnew']);
+
+            expect(gateManager.allowBatch).toHaveBeenCalledWith('0xgate', ['0xremoved', '0xnew']);
+        });
+
+        it('a batch of addresses the gate all still allows sends nothing', async () => {
+            const { gateManager } = await import('../../src/js/gate.js');
+            gateManager.allowBatch.mockClear();
+            gateManager.getGateMembers.mockResolvedValueOnce([{ address: '0xmyaddress', allowed: true }]);
+
+            await expect(channelManager.addMembers(streamId, ['0xmyaddress'])).rejects.toThrow('already a member');
+            expect(gateManager.allowBatch).not.toHaveBeenCalled();
         });
 
         it('throws chain error on gate failure', async () => {

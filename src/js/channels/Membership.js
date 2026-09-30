@@ -43,7 +43,8 @@ export class Membership {
 
         const normalizedAddress = address.toLowerCase();
 
-        if (channel.members.map(m => m.toLowerCase()).includes(normalizedAddress)) {
+        if (channel.members.some(m => m.toLowerCase() === normalizedAddress)
+                && (await this._stillAllowed(channel, [normalizedAddress])).has(normalizedAddress)) {
             throw new Error('Address is already a member');
         }
 
@@ -75,8 +76,10 @@ export class Membership {
         if (!channel) throw new Error('Channel not found');
         if (!channel.gate?.address) throw new Error('Can only add members to gated channels');
 
-        const known = new Set(channel.members.map(m => m.toLowerCase()));
-        const fresh = [...new Set(addresses.map(a => a.toLowerCase()))].filter(a => !known.has(a));
+        const unique = [...new Set(addresses.map(a => a.toLowerCase()))];
+        const listed = new Set(channel.members.map(m => m.toLowerCase()));
+        const allowed = await this._stillAllowed(channel, unique.filter(a => listed.has(a)));
+        const fresh = unique.filter(a => !allowed.has(a));
         if (fresh.length === 0) throw new Error('Every address is already a member');
 
         try {
@@ -91,6 +94,26 @@ export class Membership {
             Logger.error('Failed to allow members on gate:', error);
             throw new Error(parseChainError(error).message);
         }
+    }
+
+    /**
+     * Of the addresses this device lists as members, the ones the gate still
+     * allows. The list goes stale when a moderator or another device revokes
+     * someone, so the entries the gate no longer allows are dropped here.
+     * @returns {Promise<Set<string>>} lowercase addresses still allowed
+     */
+    async _stillAllowed(channel, addresses) {
+        if (addresses.length === 0) return new Set();
+        const { gateManager } = await import('../gate.js');
+        const asked = new Set(addresses);
+        const allowed = new Set((await gateManager.getGateMembers(channel.gate.address, addresses))
+            .filter(m => asked.has(m.address) && m.allowed)
+            .map(m => m.address));
+        channel.members = channel.members.filter(m => {
+            const addr = m.toLowerCase();
+            return !asked.has(addr) || allowed.has(addr);
+        });
+        return allowed;
     }
 
     /**
