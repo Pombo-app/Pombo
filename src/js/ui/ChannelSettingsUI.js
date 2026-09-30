@@ -2001,7 +2001,9 @@ class ChannelSettingsUI {
         try {
             showLoading('Removing member (on-chain transaction)...');
             await channelManager.removeMember(currentChannel.streamId, address);
-            if (channelManager.isRotationOwed(currentChannel.streamId)) {
+            if (!channelManager.isChannelOwner(currentChannel.streamId)) {
+                showNotification('Member removed. The key rotates when the owner next opens the channel.', 'info', 5000);
+            } else if (channelManager.isRotationOwed(currentChannel.streamId)) {
                 showNotification('Member removed. The channel key rotates the next time the app connects.', 'warning', 5000);
             } else {
                 showNotification('Member removed successfully!', 'success');

@@ -65,20 +65,23 @@ export class RotationRetry {
     }
 
     /**
-     * Rotate for the addresses now; on failure keep them owed and retry.
+     * Rotate for the addresses now; on failure keep them owed and retry. Only
+     * the owner announces epochs: anyone else's cut is left to the owner's
+     * next open, and a debt they took on would hold back their own sends.
      * @returns {Promise<boolean>} true when the rotation went out now
      */
     async rotateFor(messageStreamId, addresses) {
+        if (!this.host.stillOwned(messageStreamId)) return false;
         this._update(messageStreamId, (owed) => [...owed, ...addresses.map(a => a.toLowerCase())]);
         if (await this._attempt(messageStreamId)) return true;
         this._ensureLoop(messageStreamId);
         return false;
     }
 
-    /** Take up what an earlier session left owed on these channels. */
+    /** Take up what an earlier session left owed on these channels, and drop what this account cannot pay. */
     resume(messageStreamIds) {
         for (const messageStreamId of messageStreamIds) {
-            if (!this.isOwed(messageStreamId)) continue;
+            if (!this.isOwed(messageStreamId) || this._dropUnpayable(messageStreamId)) continue;
             this._attempt(messageStreamId).then((done) => {
                 if (!done) this._ensureLoop(messageStreamId);
             });
@@ -87,8 +90,15 @@ export class RotationRetry {
 
     /** Before the admin publishes: an owed rotation goes first, or the publish does not go. */
     async settle(messageStreamId) {
-        if (!this.isOwed(messageStreamId)) return;
+        if (!this.isOwed(messageStreamId) || this._dropUnpayable(messageStreamId)) return;
         if (!await this._attempt(messageStreamId)) throw new Error(OWED_ROTATION_MESSAGE);
+    }
+
+    /** A debt on a channel this account does not own can never be paid. */
+    _dropUnpayable(messageStreamId) {
+        if (this.host.stillOwned(messageStreamId)) return false;
+        this._update(messageStreamId, () => []);
+        return true;
     }
 
     _attempt(messageStreamId) {
@@ -127,10 +137,7 @@ export class RotationRetry {
             try {
                 for (let round = 0; this.isOwed(messageStreamId); round++) {
                     await this.sleep(this.delaysMs[Math.min(round, this.delaysMs.length - 1)]);
-                    if (!this.host.stillOwned(messageStreamId)) {
-                        this._update(messageStreamId, () => []);
-                        return;
-                    }
+                    if (this._dropUnpayable(messageStreamId)) return;
                     await this._attempt(messageStreamId);
                 }
             } finally {
