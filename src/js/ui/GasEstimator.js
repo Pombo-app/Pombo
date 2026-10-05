@@ -4,11 +4,13 @@
  */
 
 import { Logger } from '../logger.js';
-import { CONFIG } from '../config.js';
+import { CONFIG, getRpcEndpoints } from '../config.js';
 
 export const GasEstimator = {
-    // RPC endpoints from centralized config
-    RPC_URLS: CONFIG.network.rpcEndpoints,
+    // The user's RPC selection, read per call so a change in Settings applies at once
+    get RPC_URLS() {
+        return getRpcEndpoints().map(e => e.url);
+    },
     currentRpcIndex: 0,
     
     // Approximate gas units for Streamr operations (based on real tx data)
@@ -31,11 +33,12 @@ export const GasEstimator = {
     async rpcCall(method, params = []) {
         let lastError = null;
         const startIndex = this.currentRpcIndex;
+        const urls = this.RPC_URLS;
         
         // Try each RPC in sequence, starting from the last successful one
-        for (let i = 0; i < this.RPC_URLS.length; i++) {
-            const index = (startIndex + i) % this.RPC_URLS.length;
-            const rpcUrl = this.RPC_URLS[index];
+        for (let i = 0; i < urls.length; i++) {
+            const index = (startIndex + i) % urls.length;
+            const rpcUrl = urls[index];
             
             try {
                 const controller = new AbortController();
