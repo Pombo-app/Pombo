@@ -117,6 +117,16 @@ describe('GasEstimator', () => {
                 expect(isPolygonUrl).toBe(true);
             });
         });
+
+        it('should follow the RPC selection in Settings', () => {
+            localStorage.setItem('pombo_rpc_preference',
+                JSON.stringify({ v: 3, rows: [{ key: 'sentio', on: true }], customUrl: '' }));
+            try {
+                expect(GasEstimator.RPC_URLS).toEqual(['https://matic.rpc.sentio.xyz']);
+            } finally {
+                localStorage.removeItem('pombo_rpc_preference');
+            }
+        });
     });
 
     describe('CACHE_DURATION', () => {
