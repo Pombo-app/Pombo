@@ -154,6 +154,12 @@ describe('config', () => {
             const keys = RPC_ENDPOINTS.map(e => e.key);
             RPC_DEFAULT_ENABLED.forEach(k => expect(keys).toContain(k));
         });
+
+        it('should enable at most four endpoints by default, all usable from the Android bridge', () => {
+            expect(RPC_DEFAULT_ENABLED.length).toBeLessThanOrEqual(4);
+            RPC_DEFAULT_ENABLED.forEach(k =>
+                expect(RPC_ENDPOINTS.find(e => e.key === k).webviewSafe).toBe(true));
+        });
     });
 
     describe('getRpcEndpoints with localStorage', () => {
@@ -261,6 +267,20 @@ describe('config', () => {
             const sel = loadRpcSelection();
             expect(sel.rows[0]).toEqual({ key: 'drpc', on: true });
             sel.rows.slice(1).forEach(r => expect(r.on).toBe(false));
+        });
+
+        it('should leave a saved selection as it was when the default changes', () => {
+            saveRpcSelection({
+                rows: [
+                    { key: 'drpc', on: true }, { key: 'publicnode', on: true },
+                    { key: 'tenderly', on: true }, { key: '1rpc', on: false }
+                ],
+                customUrl: ''
+            });
+            const sel = loadRpcSelection();
+            expect(rpcSelectionUrls(sel)).toEqual(['drpc', 'publicnode', 'tenderly']
+                .map(k => RPC_ENDPOINTS.find(e => e.key === k).url));
+            expect(sel.rows.find(r => r.key === 'pocket')).toEqual({ key: 'pocket', on: false });
         });
 
         it('should fall back to the default when nothing is enabled', () => {

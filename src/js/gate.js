@@ -323,11 +323,11 @@ class GateManager {
         }
     }
 
-    /** One checkAccess read against a specific RPC url. null on any RPC error. */
+    /** One checkAccess read against a specific RPC url. null on any RPC error or timeout. */
     async _readAccessAt(url, gateAddress, userAddress) {
         try {
             const contract = new ethers.Contract(gateAddress, GATE_ABI, this._makeProvider(url));
-            return await contract.checkAccess(userAddress);
+            return await withTimeout(contract.checkAccess(userAddress), 'The network');
         } catch (error) {
             Logger.debug('gate: quorum read failed at', url, '-', error.message);
             return null;

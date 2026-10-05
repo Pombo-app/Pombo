@@ -112,8 +112,8 @@ describe('GasEstimator', () => {
 
         it('should have polygon/matic RPC URLs', () => {
             GasEstimator.RPC_URLS.forEach(url => {
-                // URLs can contain 'polygon' or 'matic' (both refer to Polygon network)
-                const isPolygonUrl = url.includes('polygon') || url.includes('matic');
+                // URLs can contain 'polygon', 'matic' or Pocket's 'poly.' (all refer to Polygon network)
+                const isPolygonUrl = url.includes('polygon') || url.includes('matic') || url.includes('//poly.');
                 expect(isPolygonUrl).toBe(true);
             });
         });
