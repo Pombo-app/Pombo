@@ -2252,20 +2252,23 @@ class ChannelManager {
      */
     async startEpochKeys(channel) {
         if (!channel?.gate?.address) return;
+        let sweepDeferred = false;
         try {
-            await this._setupEpochKeys(channel);
+            sweepDeferred = await this._setupEpochKeys(channel);
             channel._epochSetupRetry = 0;
         } catch (e) {
             Logger.warn('Epoch key setup failed (messages will wait for key):', e.message);
             this._scheduleEpochSetupRetry(channel);
         }
-        this._rotateForLostAccess(channel).catch(() => {});
+        if (!sweepDeferred) this._rotateForLostAccess(channel).catch(() => {});
     }
 
     /**
      * Wire a gated channel into the epoch-key protocol: live -4
      * subscription, refresh-on-adopt listener, and initial key state
      * (bootstrap as admin, or request as member). Idempotent per channel.
+     * @returns {Promise<boolean>} true when the -4 history is read in the
+     *   background, and the owner's lost-access sweep runs after it
      */
     async _setupEpochKeys(channel) {
         const keysStreamId = channel.keysStreamId || deriveKeysId(channel.messageStreamId);
@@ -2301,9 +2304,11 @@ class ChannelManager {
                     // cold path.
                     Logger.warn('Background epoch reconcile failed (will retry):', e.message);
                     this._scheduleEpochSetupRetry(channel);
-                });
+                })
+                    // Who holds the key in force comes from this -4 read.
+                    .finally(() => this._rotateForLostAccess(channel).catch(() => {}));
             }, 8_000);
-            return;
+            return true;
         }
 
         await epochKeyManager.ensureChannelKeys(channel);
@@ -2360,10 +2365,16 @@ class ChannelManager {
             (channel.rotatedForNoAccess || channel.rotatedForBanned || [])
                 .map(lower).filter(a => !withAccess.has(a)));
 
+        // Whoever holds the key in force and lost access rotates even when
+        // covered: a moderator may have re-admitted and removed them between
+        // two owner opens, with no sweep seeing the regain.
+        const holders = new Set(epochKeyManager.getCurrentKeyHolders(channel.messageStreamId));
+
         const pending = [...new Set([
-            ...[...noAccessNow].filter(a => previously.has(a)),
-            ...bannedNow
-        ])].filter(a => !covered.has(a));
+            ...[...noAccessNow].filter(a => previously.has(a) && !covered.has(a)),
+            ...bannedNow.filter(a => !covered.has(a)),
+            ...[...noAccessNow].filter(a => holders.has(a))
+        ])];
 
         try {
             if (pending.length > 0) {

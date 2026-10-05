@@ -149,3 +149,52 @@ describe('epochKeyManager seen requesters (N-D member candidates)', () => {
         expect(epochKeyManager.getSeenRequesters('0xaaa/none')).toEqual([]);
     });
 });
+
+describe('epochKeyManager holders of the key in force', () => {
+    const A = '0x' + 'a1'.repeat(20);
+    const RESPONDER = '0x' + 'b2'.repeat(20);
+    const streamId = '0xaaa/holders';
+    const channel = { messageStreamId: streamId, keysStreamId: '0xaaa/holders-4', type: 'gated', gate: { address: GATE } };
+
+    const inForce = () => {
+        const s = epochKeyManager._getState(streamId);
+        s.announces = new Map([[1, { keyId: '1.old' }], [2, { keyId: '2.now' }]]);
+        s.currentEpoch = 2;
+    };
+    const request = (requestId, from = A) => epochKeyManager.handleKeysMessage(channel,
+        { t: 'key_request', requestId, fromEpoch: 1 }, from, 1000);
+    const wrap = (requestId, keyId) => epochKeyManager.handleKeysMessage(channel,
+        { t: 'key_wrap', requestId, keyId, epoch: 2, tag: 't' }, RESPONDER, 1000);
+
+    beforeEach(inForce);
+    afterEach(() => epochKeyManager.state.clear());
+
+    it('a wrap of the key in force from any responder makes the requester a holder', async () => {
+        await request('r1', A.toUpperCase().replace('0X', '0x'));
+        await wrap('r1', '2.now');
+        expect(epochKeyManager.getCurrentKeyHolders(streamId)).toEqual([A]);
+    });
+
+    it('counts in either order', async () => {
+        await wrap('r1', '2.now');
+        await request('r1');
+        expect(epochKeyManager.getCurrentKeyHolders(streamId)).toEqual([A]);
+    });
+
+    it('a wrap only of an epoch already rotated away does not count', async () => {
+        await request('r1');
+        await wrap('r1', '1.old');
+        expect(epochKeyManager.getCurrentKeyHolders(streamId)).toEqual([]);
+    });
+
+    it('a request nobody answered does not count', async () => {
+        await request('r1');
+        expect(epochKeyManager.getCurrentKeyHolders(streamId)).toEqual([]);
+    });
+
+    it('a wrap with no matching request in the window does not count', async () => {
+        await request('r1');
+        await wrap('r2', '2.now');
+        expect(epochKeyManager.getCurrentKeyHolders(streamId)).toEqual([]);
+    });
+});
