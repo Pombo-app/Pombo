@@ -503,6 +503,7 @@ class EpochKeyManager {
         const key = kind === 'int' ? this.mintInteractionsKey(rev) : this.mintPublishKey(rev);
         s[slots.pending] = { ...key, oldAddress, mintedAt: Date.now() };
         await this._persist(channel.messageStreamId, s);
+        this.onKeysAdopted?.(channel.messageStreamId, key.keyId);
 
         // An unsettled earlier re-key may still land: revoking its key too
         // leaves the new one as the only holder whichever lands last.

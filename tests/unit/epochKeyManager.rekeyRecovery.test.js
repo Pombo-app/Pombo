@@ -82,13 +82,21 @@ describe('recovering a re-key', () => {
     });
 
     describe('in the reset call', () => {
-        it('writes the new key down before the grant is sent', async () => {
+        it('writes the new key down, and hands it to sync, before the grant is sent', async () => {
             let seenAtGrant = null;
+            const synced = [];
+            epochKeyManager.onKeysAdopted = (_, keyId) => synced.push(keyId);
             vi.spyOn(streamrController, 'rekeyInteractionsGrants').mockImplementation(async (_, next) => {
-                seenAtGrant = { next, record: record() };
+                seenAtGrant = { next, record: record(), synced: [...synced] };
             });
 
-            await epochKeyManager.rekeyInteractionsKey(channel);
+            try {
+                await epochKeyManager.rekeyInteractionsKey(channel);
+            } finally {
+                epochKeyManager.onKeysAdopted = undefined;
+            }
+
+            expect(seenAtGrant.synced).toEqual([seenAtGrant.record.intKeyPending.keyId]);
 
             expect(seenAtGrant.record.intKeyPending).toMatchObject({
                 address: seenAtGrant.next, rev: 2, oldAddress: OLD_INT.address

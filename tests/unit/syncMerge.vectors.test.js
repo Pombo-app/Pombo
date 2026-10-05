@@ -50,6 +50,12 @@ describe('sync merge parity vectors', () => {
         });
     }
 
+    for (const v of vectors.keys) {
+        it(v.what, () => {
+            expect(mergeState(v.base, v.incoming).epochKeys).toEqual(v.expected.epochKeys);
+        });
+    }
+
     for (const v of vectors.publish.cases) {
         it(v.what, () => {
             const from = applyPatch(vectors.publish.base, v.basePatch);
