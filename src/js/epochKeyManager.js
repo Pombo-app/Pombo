@@ -588,7 +588,20 @@ class EpochKeyManager {
         if (grants.next.every(Boolean)) {
             return await this._promoteRekey(channel, s, kind, pending.keyId) ? 'promoted' : 'none';
         }
-        if (grants.next.some(Boolean)) return 'partial';
+        if (grants.next.some(Boolean)) {
+            // Only the publish key's grants are one transaction per stream:
+            // finish the reset the owner already started on the rest.
+            if (kind !== 'pub') return 'partial';
+            const missing = grants.streamIds.filter((_, index) => !grants.next[index]);
+            try {
+                await streamrController.rekeySharedPublishGrants(channel, pending.address,
+                    pending.oldAddress ? [pending.oldAddress] : [], missing);
+            } catch (e) {
+                Logger.warn(`epochKeys: ${slots.label} re-key still partial:`, e?.message);
+                return 'partial';
+            }
+            return await this._promoteRekey(channel, s, kind, pending.keyId) ? 'promoted' : 'none';
+        }
         if (pending.oldAddress && !grants.old.every(Boolean)) return 'inconsistent';
         if (Date.now() - (pending.mintedAt || 0) < REKEY_PENDING_MAX_AGE_MS) return 'kept';
         if (s[slots.pending]?.keyId !== pending.keyId) return 'none';

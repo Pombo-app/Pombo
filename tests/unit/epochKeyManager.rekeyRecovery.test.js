@@ -237,6 +237,39 @@ describe('recovering a re-key', () => {
             expect(warnings).toEqual([UNSETTLED]);
         });
 
+        it('finishes a publish re-key whose grant landed on one stream only', async () => {
+            const PENDING_PUB = { keyId: 'p2.k', keyHex: '0x' + '99'.repeat(32), address: '0x' + '99'.repeat(20), rev: 2 };
+            seed({ pubKeyPending: { ...PENDING_PUB, oldAddress: OLD_PUB.address, mintedAt: Date.now() } });
+            const s = restart();
+            vi.spyOn(streamrController, 'rekeyGrantsState').mockResolvedValue({
+                streamIds: [channel.messageStreamId, channel.ephemeralStreamId], next: [true, false], old: [false, true]
+            });
+            const grants = vi.spyOn(streamrController, 'rekeySharedPublishGrants').mockResolvedValue(undefined);
+
+            await epochKeyManager._settleRekeys(channel, s);
+
+            expect(grants).toHaveBeenCalledWith(channel, PENDING_PUB.address, [OLD_PUB.address], [channel.ephemeralStreamId]);
+            expect(s.pubKey.keyId).toBe(PENDING_PUB.keyId);
+            expect(record().pubKeyPending).toBeUndefined();
+            expect(warnings).toEqual([]);
+        });
+
+        it('keeps a half-landed publish re-key pending, and warns, when the missing grant fails again', async () => {
+            const PENDING_PUB = { keyId: 'p2.k', keyHex: '0x' + '99'.repeat(32), address: '0x' + '99'.repeat(20), rev: 2 };
+            seed({ pubKeyPending: { ...PENDING_PUB, oldAddress: OLD_PUB.address, mintedAt: Date.now() } });
+            const s = restart();
+            vi.spyOn(streamrController, 'rekeyGrantsState').mockResolvedValue({
+                streamIds: [channel.messageStreamId, channel.ephemeralStreamId], next: [true, false], old: [false, true]
+            });
+            vi.spyOn(streamrController, 'rekeySharedPublishGrants').mockRejectedValue(new Error('rpc down'));
+
+            await epochKeyManager._settleRekeys(channel, s);
+
+            expect(s.pubKey.keyId).toBe(OLD_PUB.keyId);
+            expect(record().pubKeyPending.keyId).toBe(PENDING_PUB.keyId);
+            expect(warnings).toEqual(['The publish key reset has not finished. It retries when you open the channel.']);
+        });
+
         it('adopts it without the chain when another device already announced it', async () => {
             seed({
                 intKeyPending: { ...PENDING_INT, mintedAt: Date.now() },
@@ -293,7 +326,10 @@ describe('reading a re-key off the chain', () => {
         streamrController.client = { hasPermission };
         try {
             const grants = await streamrController.rekeyGrantsState(channel, 'int', '0xNEW', '0xOLD');
-            expect(grants).toEqual({ next: [true, false], old: [false, false] });
+            expect(grants).toEqual({
+                streamIds: [channel.interactionsStreamId, channel.ephemeralStreamId],
+                next: [true, false], old: [false, false]
+            });
         } finally {
             streamrController.client = previous;
         }

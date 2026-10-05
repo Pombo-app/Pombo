@@ -2852,8 +2852,8 @@ class StreamrController {
      * an empty permission list clears that user). The admin escape valve
      * against ex-key-holder abuse; exceptional, never routine.
      */
-    async rekeySharedPublishGrants(channel, newAddress, revoke = []) {
-        for (const streamId of this._rekeyStreamIds(channel, 'pub')) {
+    async rekeySharedPublishGrants(channel, newAddress, revoke = [], streamIds = this._rekeyStreamIds(channel, 'pub')) {
+        for (const streamId of streamIds) {
             const assignments = [
                 // PUBLISH alone: the shared key writes, the clone reads.
                 { userId: newAddress.toLowerCase(), permissions: ['publish'] },
@@ -2891,18 +2891,19 @@ class StreamrController {
     /**
      * Which side of a re-key holds PUBLISH on chain, stream by stream. Reads
      * the registry; throws when the chain cannot be read.
-     * @returns {Promise<{next: boolean[], old: boolean[]}>}
+     * @returns {Promise<{streamIds: string[], next: boolean[], old: boolean[]}>}
      */
     async rekeyGrantsState(channel, kind, newAddress, oldAddress) {
         const holds = (streamId, address) => this.client.hasPermission(
             { streamId, userId: address.toLowerCase(), permission: 'publish', allowPublic: false });
+        const streamIds = this._rekeyStreamIds(channel, kind);
         const next = [];
         const old = [];
-        for (const streamId of this._rekeyStreamIds(channel, kind)) {
+        for (const streamId of streamIds) {
             next.push(await holds(streamId, newAddress));
             old.push(oldAddress ? await holds(streamId, oldAddress) : false);
         }
-        return { next, old };
+        return { streamIds, next, old };
     }
 
     /**
