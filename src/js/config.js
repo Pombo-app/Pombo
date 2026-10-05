@@ -51,8 +51,7 @@ export const CONFIG = {
         // Ethereum mainnet providers for ENS resolution 
         ensProviderUrls: [
             'https://ethereum-rpc.publicnode.com',
-            'https://eth.drpc.org',
-            'https://cloudflare-eth.com'
+            'https://eth.drpc.org'
         ],
         rpcTimeoutMs: 5000,            // Per-call HTTP RPC timeout (GasEstimator)
         fallbackGasPriceGwei: 120      // Fallback gas price when all RPCs fail
