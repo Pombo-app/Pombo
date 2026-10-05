@@ -442,7 +442,29 @@ export function loadRpcSelection() {
     } catch (e) {
         saved = null;
     }
-    return normalizeRpcSelection(saved && saved.v === 2 ? saved : migrateRpcPreference(saved));
+    if (saved && saved.v === 3) return normalizeRpcSelection(saved);
+    if (saved && saved.v === 2) return normalizeRpcSelection(leavePreviousDefault(saved));
+    return normalizeRpcSelection(migrateRpcPreference(saved));
+}
+
+const PREVIOUS_DEFAULT = ['drpc', 'publicnode', 'tenderly'];
+
+/**
+ * A selection saved before the default changed whose enabled set is exactly
+ * the old default never chose anything: it moves to the current default,
+ * keeping a custom URL as an off row. Any other v2 selection stays as it was,
+ * and saving writes v3, so a later choice is never moved.
+ */
+function leavePreviousDefault(sel) {
+    const on = (Array.isArray(sel.rows) ? sel.rows : []).filter(r => r && r.on).map(r => r.key);
+    const isPrevious = on.length === PREVIOUS_DEFAULT.length && PREVIOUS_DEFAULT.every(k => on.includes(k));
+    if (!isPrevious) return sel;
+    return {
+        v: 3,
+        rows: RPC_ENDPOINTS.map(e => ({ key: e.key, on: false }))
+            .concat([{ key: RPC_CUSTOM_KEY, on: false }]),
+        customUrl: typeof sel.customUrl === 'string' ? sel.customUrl : ''
+    };
 }
 
 /**
@@ -498,7 +520,7 @@ function normalizeRpcSelection(sel) {
 /** @param {{rows: Array<{key: string, on: boolean}>, customUrl: string}} sel */
 export function saveRpcSelection(sel) {
     localStorage.setItem(CONFIG.storageKeys.rpcPreference, JSON.stringify({
-        v: 2,
+        v: 3,
         rows: sel.rows.map(r => ({ key: r.key, on: !!r.on })),
         customUrl: (sel.customUrl || '').trim()
     }));

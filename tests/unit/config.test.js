@@ -310,6 +310,65 @@ describe('config', () => {
         });
     });
 
+    describe('a selection saved with the previous default', () => {
+        const STORAGE_KEY = 'pombo_rpc_preference';
+        const OLD_DEFAULT = ['drpc', 'publicnode', 'tenderly'];
+        const saveV2 = (rows, customUrl = '') =>
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: 2, rows, customUrl }));
+        const enabled = (sel) => sel.rows.filter(r => r.on).map(r => r.key);
+        const defaultUrls = () =>
+            RPC_DEFAULT_ENABLED.map(k => RPC_ENDPOINTS.find(e => e.key === k).url);
+
+        beforeEach(() => localStorage.removeItem(STORAGE_KEY));
+        afterEach(() => localStorage.removeItem(STORAGE_KEY));
+
+        it('should move to the current default, whatever the saved order', () => {
+            saveV2([
+                { key: 'tenderly', on: true }, { key: 'drpc', on: true },
+                { key: 'publicnode', on: true }, { key: '1rpc', on: false }
+            ]);
+            expect(rpcSelectionUrls(loadRpcSelection())).toEqual(defaultUrls());
+        });
+
+        it('should keep a custom url as an off row when it moves', () => {
+            saveV2(
+                OLD_DEFAULT.map(k => ({ key: k, on: true })).concat([{ key: RPC_CUSTOM_KEY, on: false }]),
+                'https://my-own-node.example'
+            );
+            const sel = loadRpcSelection();
+            expect(rpcSelectionUrls(sel)).toEqual(defaultUrls());
+            expect(sel.customUrl).toBe('https://my-own-node.example');
+            expect(sel.rows.find(r => r.key === RPC_CUSTOM_KEY)).toEqual({ key: RPC_CUSTOM_KEY, on: false });
+        });
+
+        it('should leave any other saved choice as it was', () => {
+            const choices = [
+                { rows: [{ key: 'drpc', on: true }, { key: 'tenderly', on: true }], customUrl: '' },
+                { rows: OLD_DEFAULT.concat(['1rpc']).map(k => ({ key: k, on: true })), customUrl: '' },
+                {
+                    rows: OLD_DEFAULT.map(k => ({ key: k, on: true })).concat([{ key: RPC_CUSTOM_KEY, on: true }]),
+                    customUrl: 'https://my-own-node.example'
+                }
+            ];
+            for (const { rows, customUrl } of choices) {
+                saveV2(rows, customUrl);
+                expect(enabled(loadRpcSelection())).toEqual(rows.filter(r => r.on).map(r => r.key));
+            }
+        });
+
+        it('should never move a choice saved after the change, even the old default', () => {
+            saveRpcSelection({ rows: OLD_DEFAULT.map(k => ({ key: k, on: true })), customUrl: '' });
+            expect(enabled(loadRpcSelection())).toEqual(OLD_DEFAULT);
+        });
+
+        it('should stay put once moved and saved', () => {
+            saveV2(OLD_DEFAULT.map(k => ({ key: k, on: true })));
+            const moved = loadRpcSelection();
+            saveRpcSelection(moved);
+            expect(loadRpcSelection()).toEqual(moved);
+        });
+    });
+
     describe('migration from the preset setting', () => {
         const STORAGE_KEY = 'pombo_rpc_preference';
 
