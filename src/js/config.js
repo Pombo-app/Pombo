@@ -51,8 +51,6 @@ export const CONFIG = {
         // Ethereum mainnet providers for ENS resolution 
         ensProviderUrls: [
             'https://ethereum-rpc.publicnode.com',
-            'https://eth.meowrpc.com',
-            'https://eth.llamarpc.com',
             'https://eth.drpc.org',
             'https://cloudflare-eth.com'
         ],
