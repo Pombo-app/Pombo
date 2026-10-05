@@ -9,8 +9,8 @@
 // The vectors fix the slice outcome of one merge step (base = this device,
 // incoming = a remote snapshot), the stamping of unstamped values before a
 // state leaves the device, how sent DMs carry deletions and edits, how two
-// copies of a channel record merge, and which changes to a state are news
-// worth a push.
+// copies of a channel record merge, how shared keys and pending re-keys
+// merge, and which changes to a state are news worth a push.
 import { mergeState, stampedSliceTs } from '../../src/js/syncMerge.js';
 import { syncStateKey } from '../../src/js/syncStateKey.js';
 
@@ -83,7 +83,9 @@ const PUBLISH_BASE = {
             pendingRequests: { r1: { fromEpoch: 1, sentAt: 100 } },
             helloEpochs: [1], helloName: 'Bob', helloTs: 100, seenRequesters: [A(1)],
             pubKey: { keyId: 'p1', keyHex: '0xbb', rev: 1 }, pubAnnounce: { keyId: 'p1', rev: 1, timestamp: 100 },
-            intKey: { keyId: 'i1', keyHex: '0xcc', rev: 1 }, intAnnounce: { keyId: 'i1', rev: 1, timestamp: 100 }
+            intKey: { keyId: 'i1', keyHex: '0xcc', rev: 1 }, intAnnounce: { keyId: 'i1', rev: 1, timestamp: 100 },
+            pubKeyPending: { keyId: 'p2', keyHex: '0xdd', rev: 2, oldAddress: A(13), mintedAt: 100 },
+            intKeyPending: { keyId: 'i2', keyHex: '0xee', rev: 2, oldAddress: A(14), mintedAt: 100 }
         }
     },
     blockedPeers: [A(6)],
@@ -104,7 +106,7 @@ const NEWS = {
     channel: ['name', 'type', 'createdAt', 'joinedAt', 'storageDays', 'accessSnapshot', 'gate', 'wireIdentity', 'createdBy', 'password',
         'members', 'rotatedForNoAccess', 'knownBanned', 'storageEnabled', 'adminStorageDays', 'keysStorageDays', 'interactionsStorageDays',
         'exposure', 'description', 'language', 'category', 'metaUpdatedAt', 'readOnly', 'writeOnly', 'classification', 'peerAddress', 'fieldTs'],
-    epochKeys: ['epochs', 'currentEpoch', 'pubKey', 'intKey']
+    epochKeys: ['epochs', 'currentEpoch', 'pubKey', 'intKey', 'pubKeyPending', 'intKeyPending']
 };
 const mutate = (value) => {
     if (typeof value === 'string') return `${value}x`;
@@ -177,6 +179,25 @@ const publishCases = [
 const sent = (what, base, incoming) => {
     const merged = mergeState(base, incoming);
     return { what, base, incoming, expected: { sentMessages: merged.sentMessages, sentDeletedAt: merged.sentDeletedAt } };
+};
+
+// Shared keys: the higher rev wins. A pending re-key travels the same way and
+// is dropped once a key or announce at its rev or above shows it was settled.
+const HELD = {
+    epochs: {}, announces: {}, currentEpoch: 1,
+    pubKey: { keyId: 'p1', keyHex: '0xbb', rev: 1 }, pubAnnounce: { keyId: 'p1', rev: 1, timestamp: 100 },
+    intKey: { keyId: 'i1', keyHex: '0xcc', rev: 1 }, intAnnounce: { keyId: 'i1', rev: 1, timestamp: 100 }
+};
+const pending = (prefix, rev) => ({ keyId: `${prefix}${rev}`, keyHex: `0x${rev}${rev}`, rev, oldAddress: A(15), mintedAt: 100 * rev });
+const keys = (what, base, incoming, survivors) => {
+    const state = (slice) => ({ channels: [record()], epochKeys: { [CH]: slice } });
+    const epochKeys = mergeState(state(base), state(incoming)).epochKeys;
+    for (const slot of ['pubKeyPending', 'intKeyPending']) {
+        if ((epochKeys[CH][slot]?.keyId ?? null) !== (survivors[slot] ?? null)) {
+            throw new Error(`keys vector "${what}": expected ${slot} ${survivors[slot] ?? 'gone'}`);
+        }
+    }
+    return { what, base: state(base), incoming: state(incoming), expected: { epochKeys } };
 };
 
 console.log(JSON.stringify({
@@ -270,6 +291,20 @@ console.log(JSON.stringify({
         channel('a join newer than the leave keeps the channel and retires the leave',
             { channels: [record({ joinedAt: 7000 })] },
             { channels: [], channelsLeftAt: { [CH]: 5000 } })
+    ],
+    keys: [
+        keys('a pending re-key held here is kept', { ...HELD, intKeyPending: pending('i', 2) }, HELD,
+            { intKeyPending: 'i2' }),
+        keys('a pending re-key from another device arrives', HELD, { ...HELD, intKeyPending: pending('i', 2) },
+            { intKeyPending: 'i2' }),
+        keys('the later of two pending re-keys wins', { ...HELD, intKeyPending: pending('i', 2) },
+            { ...HELD, intKeyPending: pending('i', 3) }, { intKeyPending: 'i3' }),
+        keys('a pending re-key another device promoted is dropped', { ...HELD, intKeyPending: pending('i', 2) },
+            { ...HELD, intKey: { keyId: 'i2', keyHex: '0x22', rev: 2 }, intAnnounce: { keyId: 'i2', rev: 2, timestamp: 200 } }, {}),
+        keys('a pending re-key a later announce superseded is dropped', { ...HELD, intKeyPending: pending('i', 2) },
+            { ...HELD, intAnnounce: { keyId: 'i3', rev: 3, timestamp: 300 } }, {}),
+        keys('a pending publish key travels like the interactions one', HELD, { ...HELD, pubKeyPending: pending('p', 2) },
+            { pubKeyPending: 'p2' })
     ],
     publish: { base: PUBLISH_BASE, cases: publishCases }
 }, null, 2));

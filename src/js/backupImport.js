@@ -17,7 +17,7 @@
  */
 
 import { Logger } from './logger.js';
-import { mergeChannels, mergeSentDeletedAt, withoutDeleted } from './syncMerge.js';
+import { dropSettledPending, mergeChannels, mergeSentDeletedAt, withoutDeleted } from './syncMerge.js';
 
 /**
  * Apply backup state to the unlocked secure storage and the live managers.
@@ -188,6 +188,14 @@ export async function importBackupData(data, { secureStorage, channelManager, id
                 local.currentEpoch = incoming.currentEpoch;
                 summary.changed = true;
             }
+            // Shared keys and pending re-keys: the higher rev wins, as in the sync merge.
+            for (const field of ['pubKey', 'pubAnnounce', 'intKey', 'intAnnounce', 'pubKeyPending', 'intKeyPending']) {
+                if (incoming[field] && (incoming[field].rev || 0) > (local[field]?.rev || 0)) {
+                    local[field] = incoming[field];
+                    summary.changed = true;
+                }
+            }
+            dropSettledPending(local);
         }
     }
 

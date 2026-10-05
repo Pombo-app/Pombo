@@ -125,6 +125,22 @@ const ROTATION_RETRY_MS = 60 * 60 * 1000;
 /** Wraps held for an announce that has not arrived; memory only. */
 const PARKED_WRAPS_PER_EPOCH = 4;
 const PARKED_EPOCHS = 8;
+// A re-key whose grant is nowhere on chain after this long never landed. It
+// outlasts the write's own retries, so a transaction still pending is not
+// mistaken for one that was never sent.
+const REKEY_PENDING_MAX_AGE_MS = 60 * 60 * 1000;
+const REKEY_SLOTS = {
+    pub: {
+        key: 'pubKey', announce: 'pubAnnounce', pending: 'pubKeyPending',
+        freshness: 'pubAnnounceFreshness', grants: 'rekeySharedPublishGrants', label: 'publish',
+        unsettledWarning: 'The publish key reset has not finished. It retries when you open the channel.'
+    },
+    int: {
+        key: 'intKey', announce: 'intAnnounce', pending: 'intKeyPending',
+        freshness: 'intAnnounceFreshness', grants: 'rekeyInteractionsGrants', label: 'interactions',
+        unsettledWarning: 'The interactions key reset has not finished. It retries when you open the channel.'
+    }
+};
 
 class EpochKeyManager {
     constructor() {
@@ -184,6 +200,12 @@ class EpochKeyManager {
                 // Newest pub_announce timestamp seen in storage — drives the
                 // TTL re-announce, exactly like announceFreshness.
                 pubAnnounceFreshness: 0,
+                // A re-key between mint and on-chain confirmation:
+                // { keyId, keyHex, address, rev, oldAddress, mintedAt }.
+                // Persisted BEFORE the grant is sent: a grant that lands while
+                // the call fails has already revoked the old key.
+                pubKeyPending: null,
+                intKeyPending: null,
                 // Session pseudonym for our own publishes in this channel:
                 // { privateKey, publicKey, bindProof } — MEMORY ONLY. Members
                 // resolve the account from the bind proof, so a fresh
@@ -270,6 +292,10 @@ class EpochKeyManager {
         if (persisted.intAnnounce && (persisted.intAnnounce.rev || 0) > (s.intAnnounce?.rev || 0)) {
             s.intAnnounce = { ...persisted.intAnnounce };
         }
+        for (const slot of ['pubKeyPending', 'intKeyPending']) {
+            const pending = persisted[slot];
+            if (pending && (pending.rev || 0) > (s[slot]?.rev || 0)) s[slot] = { ...pending };
+        }
     }
 
     async _persist(messageStreamId, s) {
@@ -304,6 +330,8 @@ class EpochKeyManager {
                 }
             } : {}),
             ...(s.intKey ? { intKey: { ...s.intKey } } : {}),
+            ...(s.pubKeyPending ? { pubKeyPending: { ...s.pubKeyPending } } : {}),
+            ...(s.intKeyPending ? { intKeyPending: { ...s.intKeyPending } } : {}),
             ...(s.intAnnounce ? {
                 intAnnounce: {
                     keyId: s.intAnnounce.keyId, keyHash: s.intAnnounce.keyHash,
@@ -440,37 +468,7 @@ class EpochKeyManager {
         if (!this.isOwnAdmin(channel)) {
             throw new Error('rekeyPublishKey: only the channel admin can re-key');
         }
-        const s = this._getState(channel.messageStreamId);
-        if (!s.loaded) {
-            this._loadPersisted(channel.messageStreamId, s);
-            s.loaded = true;
-        }
-        const oldAddress = s.pubKey?.address || s.pubAnnounce?.address || null;
-        const rev = Math.max(s.pubKey?.rev || 0, s.pubAnnounce?.rev || 0) + 1;
-        const pubKey = this.mintPublishKey(rev);
-
-        // Chain first: a published announce for a key the network rejects
-        // would strand every member on an unusable key.
-        await streamrController.rekeySharedPublishGrants(channel, pubKey.address, oldAddress);
-
-        s.pubKey = { ...pubKey };
-        const announce = {
-            t: KEYS_MSG_TYPE.PUB_ANNOUNCE,
-            keyId: pubKey.keyId,
-            keyHash: await epochKeyCrypto.computeKeyHash(pubKey.keyHex),
-            addr: pubKey.address,
-            rev
-        };
-        await streamrController.publishKeysMessage(channel.keysStreamId, announce);
-        this._applyPubAnnounce(channel, s, announce, authManager.getAddress(), Date.now());
-        s.pubAnnounceFreshness = Date.now();
-        await this._persist(channel.messageStreamId, s);
-        this.onKeysAdopted?.(channel.messageStreamId, pubKey.keyId);
-        Logger.info(`epochKeys: publish key re-keyed to rev ${rev} on`, channel.keysStreamId.slice(-30));
-        // Members cannot write until this announce is readable from storage —
-        // verify retention exactly like a fresh epoch announce.
-        this._ensureAnnounceRetained(channel, announce).catch(() => {});
-        return rev;
+        return this._rekeyShared(channel, 'pub');
     }
 
     /**
@@ -484,36 +482,148 @@ class EpochKeyManager {
         if (!this.isOwnAdmin(channel)) {
             throw new Error('rekeyInteractionsKey: only the channel admin can re-key');
         }
+        return this._rekeyShared(channel, 'int');
+    }
+
+    async _rekeyShared(channel, kind) {
+        const slots = REKEY_SLOTS[kind];
         const s = this._getState(channel.messageStreamId);
         if (!s.loaded) {
             this._loadPersisted(channel.messageStreamId, s);
             s.loaded = true;
         }
-        const oldAddress = s.intKey?.address || s.intAnnounce?.address || null;
-        const rev = Math.max(s.intKey?.rev || 0, s.intAnnounce?.rev || 0) + 1;
-        const intKey = this.mintInteractionsKey(rev);
+        // Minting over a pending key the chain cannot settle drops the only
+        // record of a key whose grant may have landed.
+        if (s[slots.pending] && await this._reconcileRekey(channel, s, kind) === 'unreadable') {
+            throw new Error('the previous reset has not settled and the chain cannot be read right now');
+        }
+        const unsettled = s[slots.pending];
+        const oldAddress = s[slots.key]?.address || s[slots.announce]?.address || null;
+        const rev = Math.max(s[slots.key]?.rev || 0, s[slots.announce]?.rev || 0, unsettled?.rev || 0) + 1;
+        const key = kind === 'int' ? this.mintInteractionsKey(rev) : this.mintPublishKey(rev);
+        s[slots.pending] = { ...key, oldAddress, mintedAt: Date.now() };
+        await this._persist(channel.messageStreamId, s);
+        this.onKeysAdopted?.(channel.messageStreamId, key.keyId);
 
+        // An unsettled earlier re-key may still land: revoking its key too
+        // leaves the new one as the only holder whichever lands last.
+        const revoke = [...new Set([oldAddress, unsettled?.address]
+            .filter(Boolean).map((address) => address.toLowerCase()))];
         // Chain first: a published announce for a key the network rejects
-        // would leave every member reacting into the void.
-        await streamrController.rekeyInteractionsGrants(channel, intKey.address, oldAddress);
+        // would strand every member on an unusable key.
+        try {
+            await streamrController[slots.grants](channel, key.address, revoke);
+        } catch (e) {
+            if (await this._reconcileRekey(channel, s, kind) !== 'promoted') throw e;
+            return rev;
+        }
+        await this._promoteRekey(channel, s, kind, key.keyId);
+        return rev;
+    }
 
-        s.intKey = { ...intKey };
+    /** The pending key becomes the held one, reaches sync, and is announced. */
+    async _promoteRekey(channel, s, kind, expectedKeyId) {
+        const slots = REKEY_SLOTS[kind];
+        const pending = s[slots.pending];
+        if (pending?.keyId !== expectedKeyId) return false;
+        const { keyId, keyHex, address, rev } = pending;
+        s[slots.key] = { keyId, keyHex, address, rev };
+        s[slots.pending] = null;
+        await this._persist(channel.messageStreamId, s);
+        this.onKeysAdopted?.(channel.messageStreamId, keyId);
+
         const announce = {
             t: KEYS_MSG_TYPE.PUB_ANNOUNCE,
-            k: 'i',
-            keyId: intKey.keyId,
-            keyHash: await epochKeyCrypto.computeKeyHash(intKey.keyHex),
-            addr: intKey.address,
+            ...(kind === 'int' ? { k: 'i' } : {}),
+            keyId,
+            keyHash: await epochKeyCrypto.computeKeyHash(keyHex),
+            addr: address,
             rev
         };
         await streamrController.publishKeysMessage(channel.keysStreamId, announce);
         this._applyPubAnnounce(channel, s, announce, authManager.getAddress(), Date.now());
-        s.intAnnounceFreshness = Date.now();
+        s[slots.freshness] = Date.now();
         await this._persist(channel.messageStreamId, s);
-        this.onKeysAdopted?.(channel.messageStreamId, intKey.keyId);
-        Logger.info(`epochKeys: interactions key re-keyed to rev ${rev} on`, channel.keysStreamId.slice(-30));
+        Logger.info(`epochKeys: ${slots.label} key re-keyed to rev ${rev} on`, channel.keysStreamId.slice(-30));
+        // Members cannot write until this announce is readable from storage —
+        // verify retention exactly like a fresh epoch announce.
         this._ensureAnnounceRetained(channel, announce).catch(() => {});
-        return rev;
+        return true;
+    }
+
+    /**
+     * Settle a pending re-key from what the chain holds. The old key is let go
+     * only once the new one holds its grant on every stream.
+     * @returns {Promise<'none'|'promoted'|'dropped'|'kept'|'partial'|'unreadable'|'inconsistent'>}
+     */
+    async _reconcileRekey(channel, s, kind) {
+        const slots = REKEY_SLOTS[kind];
+        const pending = s[slots.pending];
+        if (!pending) return 'none';
+        const held = s[slots.key];
+        const announced = s[slots.announce];
+
+        if (announced?.keyId === pending.keyId) {
+            // Another device of the account confirmed and announced it.
+            const { keyId, keyHex, address, rev } = pending;
+            s[slots.key] = { keyId, keyHex, address, rev };
+            s[slots.pending] = null;
+            await this._persist(channel.messageStreamId, s);
+            this.onKeysAdopted?.(channel.messageStreamId, keyId);
+            return 'promoted';
+        }
+        if (pending.rev <= Math.max(held?.rev || 0, announced?.rev || 0)) {
+            s[slots.pending] = null;
+            await this._persist(channel.messageStreamId, s);
+            return 'dropped';
+        }
+
+        let grants;
+        try {
+            grants = await streamrController.rekeyGrantsState(channel, kind, pending.address, pending.oldAddress);
+        } catch (e) {
+            Logger.warn(`epochKeys: ${slots.label} re-key unsettled, chain unreadable:`, e?.message);
+            return 'unreadable';
+        }
+        if (grants.next.every(Boolean)) {
+            return await this._promoteRekey(channel, s, kind, pending.keyId) ? 'promoted' : 'none';
+        }
+        if (grants.next.some(Boolean)) {
+            // Only the publish key's grants are one transaction per stream:
+            // finish the reset the owner already started on the rest.
+            if (kind !== 'pub') return 'partial';
+            const missing = grants.streamIds.filter((_, index) => !grants.next[index]);
+            try {
+                await streamrController.rekeySharedPublishGrants(channel, pending.address,
+                    pending.oldAddress ? [pending.oldAddress] : [], missing);
+            } catch (e) {
+                Logger.warn(`epochKeys: ${slots.label} re-key still partial:`, e?.message);
+                return 'partial';
+            }
+            return await this._promoteRekey(channel, s, kind, pending.keyId) ? 'promoted' : 'none';
+        }
+        if (pending.oldAddress && !grants.old.every(Boolean)) return 'inconsistent';
+        if (Date.now() - (pending.mintedAt || 0) < REKEY_PENDING_MAX_AGE_MS) return 'kept';
+        if (s[slots.pending]?.keyId !== pending.keyId) return 'none';
+        s[slots.pending] = null;
+        await this._persist(channel.messageStreamId, s);
+        Logger.info(`epochKeys: ${slots.label} re-key never landed, pending key dropped on`,
+            channel.keysStreamId.slice(-30));
+        return 'dropped';
+    }
+
+    /** Channel-open settle of both shared keys; never fails the open. */
+    async _settleRekeys(channel, s) {
+        for (const kind of ['pub', 'int']) {
+            try {
+                const outcome = await this._reconcileRekey(channel, s, kind);
+                if (outcome === 'unreadable' || outcome === 'inconsistent' || outcome === 'partial') {
+                    this._gateWarningHandler?.(channel.messageStreamId, REKEY_SLOTS[kind].unsettledWarning);
+                }
+            } catch (e) {
+                Logger.warn(`epochKeys: ${REKEY_SLOTS[kind].label} re-key settle failed:`, e?.message);
+            }
+        }
     }
 
     /**
@@ -707,6 +817,7 @@ class EpochKeyManager {
             if (this.isOwnAdmin(channel)) {
                 await this._bootstrapFirstEpoch(channel, s);
                 this._armScheduledRotation(channel, s);
+                await this._settleRekeys(channel, s);
                 await this._maybeAnnouncePub(channel, s);
                 await this._maybeAnnounceInteractions(channel, s);
             } else {
@@ -726,6 +837,7 @@ class EpochKeyManager {
         if (this.isOwnAdmin(channel)) {
             await this._maybeReannounceAging(channel, s);
             this._armScheduledRotation(channel, s);
+            await this._settleRekeys(channel, s);
             await this._maybeAnnouncePub(channel, s);
             await this._maybeAnnounceInteractions(channel, s);
         }
@@ -790,9 +902,12 @@ class EpochKeyManager {
         // is on-chain work.
         if (!usesSharedPublish(channel) || !s.intKey) return;
         if (s.intAnnounce && s.intAnnounce.rev > s.intKey.rev) return;
+        // A fresh announce of an OLDER rev says nothing about the held key.
+        const unannounced = (s.intAnnounce?.rev || 0) < s.intKey.rev;
         const retentionMs = keysRetentionDays(channel) * 86_400_000;
         const freshest = s.intAnnounceFreshness || 0;
-        if (freshest && Date.now() - freshest < retentionMs * CONFIG.storage.ttlRepublishAgeFraction) return;
+        if (!unannounced && freshest
+            && Date.now() - freshest < retentionMs * CONFIG.storage.ttlRepublishAgeFraction) return;
 
         const announce = {
             t: KEYS_MSG_TYPE.PUB_ANNOUNCE,
@@ -813,9 +928,11 @@ class EpochKeyManager {
     async _maybeAnnouncePub(channel, s) {
         if (!usesSharedPublish(channel) || !s.pubKey) return;
         if (s.pubAnnounce && s.pubAnnounce.rev > s.pubKey.rev) return;   // we hold the superseded key
+        const unannounced = (s.pubAnnounce?.rev || 0) < s.pubKey.rev;
         const retentionMs = keysRetentionDays(channel) * 86_400_000;
         const freshest = s.pubAnnounceFreshness || 0;
-        if (freshest && Date.now() - freshest < retentionMs * CONFIG.storage.ttlRepublishAgeFraction) return;
+        if (!unannounced && freshest
+            && Date.now() - freshest < retentionMs * CONFIG.storage.ttlRepublishAgeFraction) return;
 
         const announce = {
             t: KEYS_MSG_TYPE.PUB_ANNOUNCE,

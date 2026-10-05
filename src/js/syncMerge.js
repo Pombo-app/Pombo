@@ -294,16 +294,39 @@ export function mergeEpochKeys(base, incoming, keepIds = null) {
         const pubAnnounce = higherRev(b.pubAnnounce, i.pubAnnounce);
         const intKey = higherRev(b.intKey, i.intKey);
         const intAnnounce = higherRev(b.intAnnounce, i.intAnnounce);
-        result[streamId] = {
+        const pubKeyPending = higherRev(b.pubKeyPending, i.pubKeyPending);
+        const intKeyPending = higherRev(b.intKeyPending, i.intKeyPending);
+        result[streamId] = dropSettledPending({
             epochs, announces, currentEpoch, pendingRequests, helloEpochs,
             ...(pubKey ? { pubKey } : {}),
             ...(pubAnnounce ? { pubAnnounce } : {}),
             ...(intKey ? { intKey } : {}),
-            ...(intAnnounce ? { intAnnounce } : {})
-        };
+            ...(intAnnounce ? { intAnnounce } : {}),
+            ...(pubKeyPending ? { pubKeyPending } : {}),
+            ...(intKeyPending ? { intKeyPending } : {})
+        });
     }
 
     return result;
+}
+
+/**
+ * A pending re-key travels with the shared keys; a key or announce at its rev
+ * or above means some device already settled it, so it is dropped.
+ * @param {Object} record - One channel's epoch-key record, changed in place
+ * @returns {Object} the same record
+ */
+export function dropSettledPending(record) {
+    for (const [pending, key, announce] of [
+        ['pubKeyPending', 'pubKey', 'pubAnnounce'],
+        ['intKeyPending', 'intKey', 'intAnnounce']
+    ]) {
+        if (record[pending] && (record[pending].rev || 0)
+                <= Math.max(record[key]?.rev || 0, record[announce]?.rev || 0)) {
+            delete record[pending];
+        }
+    }
+    return record;
 }
 
 /**

@@ -1325,6 +1325,769 @@
       }
     }
   ],
+  "keys": [
+    {
+      "what": "a pending re-key held here is kept",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ],
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKeyPending": {
+              "keyId": "i2",
+              "keyHex": "0x22",
+              "rev": 2,
+              "oldAddress": "0x0000000000000000000000000000000000000015",
+              "mintedAt": 200
+            }
+          }
+        }
+      },
+      "incoming": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ],
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i1",
+              "rev": 1,
+              "timestamp": 100
+            }
+          }
+        }
+      },
+      "expected": {
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pendingRequests": {},
+            "helloEpochs": [],
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKeyPending": {
+              "keyId": "i2",
+              "keyHex": "0x22",
+              "rev": 2,
+              "oldAddress": "0x0000000000000000000000000000000000000015",
+              "mintedAt": 200
+            }
+          }
+        }
+      }
+    },
+    {
+      "what": "a pending re-key from another device arrives",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ],
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i1",
+              "rev": 1,
+              "timestamp": 100
+            }
+          }
+        }
+      },
+      "incoming": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ],
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKeyPending": {
+              "keyId": "i2",
+              "keyHex": "0x22",
+              "rev": 2,
+              "oldAddress": "0x0000000000000000000000000000000000000015",
+              "mintedAt": 200
+            }
+          }
+        }
+      },
+      "expected": {
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pendingRequests": {},
+            "helloEpochs": [],
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKeyPending": {
+              "keyId": "i2",
+              "keyHex": "0x22",
+              "rev": 2,
+              "oldAddress": "0x0000000000000000000000000000000000000015",
+              "mintedAt": 200
+            }
+          }
+        }
+      }
+    },
+    {
+      "what": "the later of two pending re-keys wins",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ],
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKeyPending": {
+              "keyId": "i2",
+              "keyHex": "0x22",
+              "rev": 2,
+              "oldAddress": "0x0000000000000000000000000000000000000015",
+              "mintedAt": 200
+            }
+          }
+        }
+      },
+      "incoming": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ],
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKeyPending": {
+              "keyId": "i3",
+              "keyHex": "0x33",
+              "rev": 3,
+              "oldAddress": "0x0000000000000000000000000000000000000015",
+              "mintedAt": 300
+            }
+          }
+        }
+      },
+      "expected": {
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pendingRequests": {},
+            "helloEpochs": [],
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKeyPending": {
+              "keyId": "i3",
+              "keyHex": "0x33",
+              "rev": 3,
+              "oldAddress": "0x0000000000000000000000000000000000000015",
+              "mintedAt": 300
+            }
+          }
+        }
+      }
+    },
+    {
+      "what": "a pending re-key another device promoted is dropped",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ],
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKeyPending": {
+              "keyId": "i2",
+              "keyHex": "0x22",
+              "rev": 2,
+              "oldAddress": "0x0000000000000000000000000000000000000015",
+              "mintedAt": 200
+            }
+          }
+        }
+      },
+      "incoming": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ],
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i2",
+              "keyHex": "0x22",
+              "rev": 2
+            },
+            "intAnnounce": {
+              "keyId": "i2",
+              "rev": 2,
+              "timestamp": 200
+            }
+          }
+        }
+      },
+      "expected": {
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pendingRequests": {},
+            "helloEpochs": [],
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i2",
+              "keyHex": "0x22",
+              "rev": 2
+            },
+            "intAnnounce": {
+              "keyId": "i2",
+              "rev": 2,
+              "timestamp": 200
+            }
+          }
+        }
+      }
+    },
+    {
+      "what": "a pending re-key a later announce superseded is dropped",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ],
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKeyPending": {
+              "keyId": "i2",
+              "keyHex": "0x22",
+              "rev": 2,
+              "oldAddress": "0x0000000000000000000000000000000000000015",
+              "mintedAt": 200
+            }
+          }
+        }
+      },
+      "incoming": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ],
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i3",
+              "rev": 3,
+              "timestamp": 300
+            }
+          }
+        }
+      },
+      "expected": {
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pendingRequests": {},
+            "helloEpochs": [],
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i3",
+              "rev": 3,
+              "timestamp": 300
+            }
+          }
+        }
+      }
+    },
+    {
+      "what": "a pending publish key travels like the interactions one",
+      "base": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ],
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i1",
+              "rev": 1,
+              "timestamp": 100
+            }
+          }
+        }
+      },
+      "incoming": {
+        "channels": [
+          {
+            "messageStreamId": "0x00000000000000000000000000000000000000a1/c0ffee-1",
+            "name": "Channel",
+            "type": "public",
+            "createdAt": 1000,
+            "joinedAt": 1000,
+            "storageDays": 30,
+            "accessSnapshot": []
+          }
+        ],
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "pubKeyPending": {
+              "keyId": "p2",
+              "keyHex": "0x22",
+              "rev": 2,
+              "oldAddress": "0x0000000000000000000000000000000000000015",
+              "mintedAt": 200
+            }
+          }
+        }
+      },
+      "expected": {
+        "epochKeys": {
+          "0x00000000000000000000000000000000000000a1/c0ffee-1": {
+            "epochs": {},
+            "announces": {},
+            "currentEpoch": 1,
+            "pendingRequests": {},
+            "helloEpochs": [],
+            "pubKey": {
+              "keyId": "p1",
+              "keyHex": "0xbb",
+              "rev": 1
+            },
+            "pubAnnounce": {
+              "keyId": "p1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "intKey": {
+              "keyId": "i1",
+              "keyHex": "0xcc",
+              "rev": 1
+            },
+            "intAnnounce": {
+              "keyId": "i1",
+              "rev": 1,
+              "timestamp": 100
+            },
+            "pubKeyPending": {
+              "keyId": "p2",
+              "keyHex": "0x22",
+              "rev": 2,
+              "oldAddress": "0x0000000000000000000000000000000000000015",
+              "mintedAt": 200
+            }
+          }
+        }
+      }
+    }
+  ],
   "publish": {
     "base": {
       "sentMessages": {
@@ -1455,6 +2218,20 @@
             "keyId": "i1",
             "rev": 1,
             "timestamp": 100
+          },
+          "pubKeyPending": {
+            "keyId": "p2",
+            "keyHex": "0xdd",
+            "rev": 2,
+            "oldAddress": "0x0000000000000000000000000000000000000013",
+            "mintedAt": 100
+          },
+          "intKeyPending": {
+            "keyId": "i2",
+            "keyHex": "0xee",
+            "rev": 2,
+            "oldAddress": "0x0000000000000000000000000000000000000014",
+            "mintedAt": 100
           }
         }
       },
@@ -2305,6 +3082,52 @@
                 "keyId": "i1",
                 "keyHex": "0xcc",
                 "rev": 1,
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's epoch keys pubKeyPending is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "epochKeys",
+                "0x00000000000000000000000000000000000000a1/c0ffee-1",
+                "pubKeyPending"
+              ],
+              {
+                "keyId": "p2",
+                "keyHex": "0xdd",
+                "rev": 2,
+                "oldAddress": "0x0000000000000000000000000000000000000013",
+                "mintedAt": 100,
+                "x": 1
+              }
+            ]
+          ]
+        },
+        "same": false
+      },
+      {
+        "what": "a change in a channel's epoch keys intKeyPending is news",
+        "patch": {
+          "set": [
+            [
+              [
+                "epochKeys",
+                "0x00000000000000000000000000000000000000a1/c0ffee-1",
+                "intKeyPending"
+              ],
+              {
+                "keyId": "i2",
+                "keyHex": "0xee",
+                "rev": 2,
+                "oldAddress": "0x0000000000000000000000000000000000000014",
+                "mintedAt": 100,
                 "x": 1
               }
             ]

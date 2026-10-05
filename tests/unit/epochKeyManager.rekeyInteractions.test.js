@@ -54,7 +54,7 @@ describe('resetting the interactions key', () => {
 
         const s = epochKeyManager.state.get(STREAM);
         expect(rev).toBe(2);
-        expect(calls[0].grants).toEqual({ next: s.intKey.address, old: OLD.address });
+        expect(calls[0].grants).toEqual({ next: s.intKey.address, old: [OLD.address] });
         expect(calls[1].published).toMatchObject({ t: 'pub_announce', k: 'i', keyId: s.intKey.keyId, rev: 2 });
         expect(s.intKey.address).not.toBe(OLD.address);
         expect(s.intAnnounce.keyId).toBe(s.intKey.keyId);
@@ -62,6 +62,7 @@ describe('resetting the interactions key', () => {
 
     it('announces nothing when the grants did not move', async () => {
         streamrController.rekeyInteractionsGrants.mockRejectedValueOnce(new Error('tx reverted'));
+        vi.spyOn(streamrController, 'rekeyGrantsState').mockResolvedValue({ next: [false, false], old: [true, true] });
 
         await expect(epochKeyManager.rekeyInteractionsKey(channel)).rejects.toThrow('tx reverted');
 
@@ -83,7 +84,7 @@ describe('the interactions grants', () => {
         const previous = streamrController.client;
         streamrController.client = { setPermissions };
         try {
-            await streamrController.rekeyInteractionsGrants(channel, '0xNEW', '0xOLD');
+            await streamrController.rekeyInteractionsGrants(channel, '0xNEW', ['0xOLD']);
         } finally {
             streamrController.client = previous;
         }
