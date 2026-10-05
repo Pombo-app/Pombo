@@ -2837,20 +2837,27 @@ class StreamrController {
         return password ? cryptoManager.encryptedLength(bytes) + 2 : bytes;
     }
 
+    /** The streams a shared key ('pub' or 'int') publishes to. */
+    _rekeyStreamIds(channel, kind) {
+        return (kind === 'int'
+            ? [channel.interactionsStreamId || deriveInteractionsId(channel.messageStreamId), channel.ephemeralStreamId]
+            : [channel.messageStreamId, channel.ephemeralStreamId]
+        ).filter(Boolean);
+    }
+
     /**
      * Re-key a Sealed channel's shared publish grants: the new key's
-     * address gains publish+subscribe on -1/-2 and the old one loses
-     * everything — one setPermissions tx per stream (an assignment with an
-     * empty permission list clears that user). The admin escape valve
+     * address gains publish+subscribe on -1/-2 and every address in `revoke`
+     * loses everything — one setPermissions tx per stream (an assignment with
+     * an empty permission list clears that user). The admin escape valve
      * against ex-key-holder abuse; exceptional, never routine.
      */
-    async rekeySharedPublishGrants(channel, newAddress, oldAddress) {
-        for (const streamId of [channel.messageStreamId, channel.ephemeralStreamId]) {
-            if (!streamId) continue;
+    async rekeySharedPublishGrants(channel, newAddress, revoke = []) {
+        for (const streamId of this._rekeyStreamIds(channel, 'pub')) {
             const assignments = [
                 // PUBLISH alone: the shared key writes, the clone reads.
                 { userId: newAddress.toLowerCase(), permissions: ['publish'] },
-                ...(oldAddress ? [{ userId: oldAddress.toLowerCase(), permissions: [] }] : [])
+                ...revoke.map((address) => ({ userId: address.toLowerCase(), permissions: [] }))
             ];
             await executeWithRetryAndVerify(`rekeySharedPublishGrants(${streamId.slice(-20)})`, async () => {
                 await this.client.setPermissions({ streamId, assignments });
@@ -2861,17 +2868,15 @@ class StreamrController {
 
     /**
      * Re-key a Sealed channel's interactions grants on -5 and -2 in ONE
-     * transaction: the new key's address gains publish, the old one loses it.
+     * transaction: the new key's address gains publish, every address in
+     * `revoke` loses it.
      */
-    async rekeyInteractionsGrants(channel, newAddress, oldAddress) {
+    async rekeyInteractionsGrants(channel, newAddress, revoke = []) {
         const assignments = [
             { userId: newAddress.toLowerCase(), permissions: ['publish'] },
-            ...(oldAddress ? [{ userId: oldAddress.toLowerCase(), permissions: [] }] : [])
+            ...revoke.map((address) => ({ userId: address.toLowerCase(), permissions: [] }))
         ];
-        const items = [
-            channel.interactionsStreamId || deriveInteractionsId(channel.messageStreamId),
-            channel.ephemeralStreamId
-        ].filter(Boolean).map((streamId) => ({ streamId, assignments }));
+        const items = this._rekeyStreamIds(channel, 'int').map((streamId) => ({ streamId, assignments }));
         await executeWithRetryAndVerify('rekeyInteractionsGrants', async () => {
             await this.client.setPermissions(...items);
             return true;
@@ -2881,6 +2886,23 @@ class StreamrController {
             }
             return true;
         });
+    }
+
+    /**
+     * Which side of a re-key holds PUBLISH on chain, stream by stream. Reads
+     * the registry; throws when the chain cannot be read.
+     * @returns {Promise<{next: boolean[], old: boolean[]}>}
+     */
+    async rekeyGrantsState(channel, kind, newAddress, oldAddress) {
+        const holds = (streamId, address) => this.client.hasPermission(
+            { streamId, userId: address.toLowerCase(), permission: 'publish', allowPublic: false });
+        const next = [];
+        const old = [];
+        for (const streamId of this._rekeyStreamIds(channel, kind)) {
+            next.push(await holds(streamId, newAddress));
+            old.push(oldAddress ? await holds(streamId, oldAddress) : false);
+        }
+        return { next, old };
     }
 
     /**
