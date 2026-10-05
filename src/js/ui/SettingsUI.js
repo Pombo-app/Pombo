@@ -8,6 +8,7 @@ import {
     RPC_ENDPOINTS,
     RPC_CUSTOM_KEY
 } from '../config.js';
+import { rpcHealth, describeVerdict } from '../rpcHealth.js';
 import { MESSAGE_STREAM } from '../streamConstants.js';
 import { importBackupData } from '../backupImport.js';
 import { positionPillDropdown } from './pillDropdown.js';
@@ -1819,14 +1820,22 @@ class SettingsUI {
 
         const byKey = new Map(RPC_ENDPOINTS.map(e => [e.key, e]));
         const last = this.rpcSelection.rows.length - 1;
+        const { fallback } = rpcHealth.usable();
+        const fallbackNote = fallback
+            ? '<div class="text-[11px] text-yellow-400/90 px-1">No endpoint passed the health check, so all of them are in use.</div>'
+            : '';
 
-        list.innerHTML = this.rpcSelection.rows.map((row, i) => {
+        list.innerHTML = fallbackNote + this.rpcSelection.rows.map((row, i) => {
             const isCustom = row.key === RPC_CUSTOM_KEY;
             const endpoint = byKey.get(row.key);
             const name = isCustom ? 'Custom' : (endpoint?.name || row.key);
             const url = isCustom ? this.rpcSelection.customUrl : endpoint?.url;
             const probe = this.rpcProbes?.get(url || row.key);
             const host = (url || '').replace(/^https:\/\//, '');
+            const health = row.on && url ? rpcHealth.verdict(url) : null;
+            const healthLine = health && health.ok === false
+                ? `<div class="text-[11px] text-red-400/80">${fallback ? 'failing' : 'excluded'}: ${_escapeHtml(describeVerdict(health))} at ${new Date(health.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>`
+                : '';
 
             const remove = isCustom
                 ? `<button class="rpc-row-remove shrink-0 text-white/30 hover:text-red-400/90 px-1 rounded transition" title="Remove">
@@ -1837,9 +1846,12 @@ class SettingsUI {
             return `
                 <div data-rpc-key="${row.key}" class="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-white/[0.03] border ${row.on ? 'border-white/15' : 'border-white/5'} transition">
                     <input type="checkbox" class="rpc-row-check w-3.5 h-3.5 accent-white rounded shrink-0" ${row.on ? 'checked' : ''} />
-                    <div class="min-w-0 flex-1 flex items-baseline gap-2">
-                        <span class="rpc-row-name text-sm ${row.on ? 'text-white' : 'text-white/50'}">${_escapeHtml(name)}</span>
-                        <span class="text-[11px] text-white/25 truncate">${_escapeHtml(host)}</span>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-baseline gap-2">
+                            <span class="rpc-row-name text-sm ${row.on ? 'text-white' : 'text-white/50'}">${_escapeHtml(name)}</span>
+                            <span class="text-[11px] text-white/25 truncate">${_escapeHtml(host)}</span>
+                        </div>
+                        ${healthLine}
                     </div>
                     <span class="text-[11px] shrink-0 whitespace-nowrap">${this.renderRpcProbe(probe)}</span>
                     ${remove}
@@ -2006,7 +2018,10 @@ class SettingsUI {
         urls.forEach(u => this.rpcProbes.set(u, { state: 'testing' }));
         this.renderRpcEndpoints();
 
-        const results = await Promise.all(urls.map(url => this.probeRpcEndpoint(url)));
+        const [results] = await Promise.all([
+            Promise.all(urls.map(url => this.probeRpcEndpoint(url))),
+            all ? rpcHealth.probe() : null
+        ]);
         urls.forEach((url, i) => this.rpcProbes.set(url, results[i]));
 
         this.rpcTesting = false;
@@ -2061,6 +2076,7 @@ class SettingsUI {
         this.rpcNotice = null;
         document.getElementById('rpc-add-form')?.classList.add('hidden');
         document.getElementById('rpc-add-toggle-btn')?.classList.remove('hidden');
+        this.rpcHealthUnsubscribe ??= rpcHealth.onChange(() => this.renderRpcEndpoints());
         this.renderRpcEndpoints();
     }
 
