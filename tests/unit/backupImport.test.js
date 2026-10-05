@@ -283,6 +283,43 @@ describe('importBackupData', () => {
         expect(merged.currentEpoch).toBe(2);                  // never regresses
     });
 
+    it('restores the shared keys by rev when the channel already has local keys', async () => {
+        const key = (prefix, rev) => ({ keyId: `${prefix}${rev}`, keyHex: `0x${rev}`, rev });
+        const { secureStorage, channelManager, cache } = makeDeps({
+            epochKeys: {
+                'ch-1': { epochs: {}, currentEpoch: 1, intKey: key('i', 1), pubKey: key('p', 3) },
+                'ch-2': { epochs: {}, currentEpoch: 1, intKey: key('i', 1) }
+            }
+        });
+        const data = {
+            epochKeys: {
+                'ch-1': { epochs: {}, currentEpoch: 1, intKey: key('i', 2), pubKey: key('p', 2) },
+                'ch-2': { epochs: {}, currentEpoch: 1, intKeyPending: key('i', 2) }
+            }
+        };
+
+        const summary = await importBackupData(data, { secureStorage, channelManager });
+
+        expect(summary.changed).toBe(true);
+        expect(cache.epochKeys['ch-1'].intKey.rev).toBe(2);      // newer from the backup
+        expect(cache.epochKeys['ch-1'].pubKey.rev).toBe(3);      // newer here, kept
+        expect(cache.epochKeys['ch-2'].intKeyPending.keyId).toBe('i2');
+    });
+
+    it('drops a pending re-key from the backup that the local keys already settled', async () => {
+        const { secureStorage, channelManager, cache } = makeDeps({
+            epochKeys: { 'ch-1': { epochs: {}, currentEpoch: 1, intKey: { keyId: 'i2', keyHex: '0x2', rev: 2 } } }
+        });
+        const data = {
+            epochKeys: { 'ch-1': { epochs: {}, currentEpoch: 1, intKeyPending: { keyId: 'i2', keyHex: '0x2', rev: 2 } } }
+        };
+
+        await importBackupData(data, { secureStorage, channelManager });
+
+        expect(cache.epochKeys['ch-1']).not.toHaveProperty('intKeyPending');
+        expect(cache.epochKeys['ch-1'].intKey.keyId).toBe('i2');
+    });
+
     it('returns an empty summary when data is null or storage is locked', async () => {
         const { secureStorage, channelManager } = makeDeps();
 
