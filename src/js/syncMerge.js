@@ -364,6 +364,18 @@ export function stampedSliceTs(state) {
     return sliceTs;
 }
 
+/**
+ * The ENS entries that carry a name. A "no name" never travels: each device
+ * learns its own, and a stale remote one would overwrite one a provider just
+ * confirmed here.
+ * @param {Object} ensCache - address -> { name, timestamp, confirmed? }
+ * @returns {Object}
+ */
+export function ensNames(ensCache) {
+    return Object.fromEntries(Object.entries(ensCache || {})
+        .filter(([, e]) => !(e && typeof e === 'object' && !e.name)));
+}
+
 export function mergeState(base, incoming, maxSentMessages = CONFIG.dm.maxSentMessages) {
     const { channels, channelsLeftAt } = mergeChannels(
         base?.channels,
@@ -437,7 +449,7 @@ export function mergeState(base, incoming, maxSentMessages = CONFIG.dm.maxSentMe
         trustedContacts: pickSlice('trustedContacts'),
         ensCache: {
             ...(base?.ensCache || {}),
-            ...(incoming?.ensCache || {})
+            ...ensNames(incoming?.ensCache)
         },
         username: pickSlice('username') || null,
         graphApiKey,

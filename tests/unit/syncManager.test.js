@@ -803,6 +803,29 @@ describe('syncManager', () => {
             expect(result.epochKeys['ch-1']).toBeUndefined();
         });
 
+        it('should take remote ENS names but never a remote "no name"', () => {
+            const base = {
+                ensCache: {
+                    '0xa': { name: null, timestamp: 2000, confirmed: true },
+                    '0xb': { name: null, timestamp: 2000, confirmed: true }
+                }
+            };
+            const incoming = {
+                ensCache: {
+                    '0xa': { name: null, timestamp: 3000 },
+                    '0xb': { name: 'b.eth', timestamp: 1000 },
+                    '0xc': { name: null, timestamp: 3000 }
+                }
+            };
+
+            const result = syncManager.mergeState(base, incoming);
+
+            expect(result.ensCache).toEqual({
+                '0xa': { name: null, timestamp: 2000, confirmed: true },
+                '0xb': { name: 'b.eth', timestamp: 1000 }
+            });
+        });
+
         it('should merge sent messages by ID', () => {
             const base = {
                 sentMessages: {

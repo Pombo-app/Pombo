@@ -58,6 +58,7 @@ globalThis.ethers = mockEthers;
 import { identityManager } from '../../src/js/identity.js';
 import { cryptoWorkerPool } from '../../src/js/workers/cryptoWorkerPool.js';
 import { CONFIG } from '../../src/js/config.js';
+import { secureStorage } from '../../src/js/secureStorage.js';
 
 const ORIGINAL_DECOY_COUNT = CONFIG.identity.ensDecoyCount;
 
@@ -303,5 +304,56 @@ describe('identity — ENS privacy', () => {
 
             expect(identityManager.ensCache.get('0xnew').name).toBe('found.eth');
         });
+    });
+});
+describe('identity — a cached "no name"', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        CONFIG.identity.ensDecoyCount = 0;
+        identityManager.ensCache = new Map();
+        identityManager.pendingENSLookups = new Map();
+        identityManager.providerHealth = new Map();
+        mockLookupAddress.mockReset();
+        mockLookupAddress.mockResolvedValue(null);
+        identityManager.ensProviders = [{ _ensUrl: 'https://mock-rpc.test', lookupAddress: mockLookupAddress }];
+    });
+
+    it('keeps a null some provider confirmed for the positive TTL, and stores it', async () => {
+        expect(await identityManager.resolveENS('0xNoName')).toBeNull();
+        const entry = identityManager.ensCache.get('0xnoname');
+        expect(entry.confirmed).toBe(true);
+        await Promise.resolve();
+        expect(secureStorage.setENSCache).toHaveBeenCalled();
+
+        entry.timestamp = Date.now() - (CONFIG.identity.ensNullCacheDurationMs + 1000);
+        await identityManager.resolveENS('0xNoName');
+        expect(mockLookupAddress).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks again soon when only failures produced the null', async () => {
+        mockLookupAddress.mockRejectedValue(new Error('provider down'));
+        expect(await identityManager.resolveENS('0xFails')).toBeNull();
+        const entry = identityManager.ensCache.get('0xfails');
+        expect(entry.confirmed).toBeUndefined();
+
+        entry.timestamp = Date.now() - (CONFIG.identity.ensNullCacheDurationMs + 1000);
+        identityManager.providerHealth = new Map();
+        mockLookupAddress.mockResolvedValue(null);
+        await identityManager.resolveENS('0xFails');
+        expect(mockLookupAddress).toHaveBeenCalledTimes(2);
+    });
+
+    it('drops only the unconfirmed nulls when the stored cache is loaded', async () => {
+        const now = Date.now();
+        secureStorage.getENSCache.mockReturnValue({
+            '0xconfirmed': { name: null, timestamp: now, confirmed: true },
+            '0xfailed': { name: null, timestamp: now },
+            '0xnamed': { name: 'named.eth', timestamp: now }
+        });
+        await identityManager.init();
+        expect(identityManager.ensCache.has('0xconfirmed')).toBe(true);
+        expect(identityManager.ensCache.has('0xfailed')).toBe(false);
+        expect(identityManager.ensCache.has('0xnamed')).toBe(true);
+        secureStorage.getENSCache.mockReturnValue({});
     });
 });
