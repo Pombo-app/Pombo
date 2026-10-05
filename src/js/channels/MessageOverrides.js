@@ -297,6 +297,7 @@ export class MessageOverrides {
             const idx = channel.messages.indexOf(original);
             if (idx >= 0) channel.messages.splice(idx, 1);
             this.rememberDeleted(channel, targetId);
+            await secureStorage.removeFailedOutbox(streamId, targetId);
 
             this.manager.notifyHandlers('message_deleted', { streamId, targetId });
 

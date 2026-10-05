@@ -134,5 +134,6 @@ export class DeliveryConfirm {
         this.manager.notifyHandlers('message_failed', {
             streamId: messageStreamId, messageId: message.id, message, error: UNDELIVERED_REASON
         });
+        this.manager.messageFlow?.keepForRetry(messageStreamId, message);
     }
 }

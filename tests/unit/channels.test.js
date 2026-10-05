@@ -112,6 +112,10 @@ vi.mock('../../src/js/secureStorage.js', () => ({
         addBlockedPeer: vi.fn().mockResolvedValue(undefined),
         addToChannelOrder: vi.fn().mockResolvedValue(undefined),
         addSentMessage: vi.fn().mockResolvedValue(undefined),
+        getFailedOutbox: vi.fn().mockReturnValue([]),
+        putFailedOutbox: vi.fn().mockResolvedValue(undefined),
+        removeFailedOutbox: vi.fn().mockResolvedValue(undefined),
+        clearFailedOutbox: vi.fn().mockResolvedValue(undefined),
         // Members-only creation adopts the publish key into the epoch slice
         getEpochKeys: vi.fn().mockReturnValue(null),
         setEpochKeys: vi.fn().mockResolvedValue(undefined)

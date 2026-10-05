@@ -1384,6 +1384,7 @@ class DMManager {
 
             // Persist locally (we can't read from peer's inbox, so save our sent copy)
             await secureStorage.addSentMessage(peerInboxStreamId, message);
+            await secureStorage.removeFailedOutbox(peerInboxStreamId, message.id).catch(() => {});
 
             channelManager.notifyHandlers('message_confirmed', {
                 streamId: peerInboxStreamId,
@@ -1408,6 +1409,7 @@ class DMManager {
                 message,
                 error: error.message
             });
+            await channelManager.messageFlow.keepForRetry(peerInboxStreamId, message);
             throw error;
         }
     }
@@ -1484,6 +1486,7 @@ class DMManager {
         const idx = channel.messages.indexOf(original);
         if (idx >= 0) channel.messages.splice(idx, 1);
         secureStorage.removeSentMessage(peerInboxStreamId, targetId);
+        secureStorage.removeFailedOutbox(peerInboxStreamId, targetId);
 
         channelManager.notifyHandlers('message_deleted', { streamId: peerInboxStreamId, targetId });
 
@@ -1526,9 +1529,14 @@ class DMManager {
             return !from || from === normalizedPeer;
         });
 
+        // Sends that failed come last, so a sent or received copy of the same
+        // id wins: it reached the network after all.
+        const failedSends = secureStorage.getFailedOutbox(channelStreamId)
+            .map(entry => ({ ...entry, failed: true, pending: false, _dmSent: true }));
+
         // Merge: combine sent + received, deduplicate by id, sort by timestamp
         // Prefer versions that have imageData (storage-backed messages may have it when sentMessages lost it)
-        const allMessages = [...sent, ...received];
+        const allMessages = [...sent, ...received, ...failedSends];
         const unique = new Map();
         for (const msg of allMessages) {
             if (!msg.id) continue;
