@@ -16,6 +16,8 @@ import { STREAM_CONFIG } from '../streamConfig.js';
 import { isMessageStream } from '../streamConstants.js';
 import { verifyEnvelopeAuthenticity } from '../envelopeSigner.js';
 import { storageFetch, envelopeSequenceNumber } from '../storageFetch.js';
+import { isRpcError } from '../utils/rpcErrors.js';
+import { rpcHealth } from '../rpcHealth.js';
 
 // The same forgery clamp the live handler applies (MessageFlow): a payload
 // dated ahead of the wall clock or its own signed envelope beyond skew is
@@ -446,6 +448,7 @@ export class History {
                 failed: broke && !(readError?.status >= 400 && readError?.status < 500)
             };
         } catch (error) {
+            if (isRpcError(error)) rpcHealth.noteReadFailure();
             Logger.warn('Older history fetch error:', error.message);
             const noStorage = error?.code === 'NO_STORAGE_NODES' || String(error?.message).includes('NO_STORAGE_NODES');
             return { messages: [], hasMore: false, failed: !noStorage };
@@ -826,6 +829,7 @@ export class History {
                     ` (raw received: ${rawCount})`);
             }
         } catch (error) {
+            if (isRpcError(error)) rpcHealth.noteReadFailure();
             // CORS errors and other network issues are caught here
             Logger.warn(`History fetch failed for partition ${partition} (may be CORS on localhost):`, error.message);
             // A stream the client has no storage for is an answer: the SDK

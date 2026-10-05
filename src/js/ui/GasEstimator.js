@@ -4,12 +4,14 @@
  */
 
 import { Logger } from '../logger.js';
-import { CONFIG, getRpcEndpoints } from '../config.js';
+import { CONFIG } from '../config.js';
+import { getUsableRpcEndpoints } from '../rpcHealth.js';
 
 export const GasEstimator = {
-    // The user's RPC selection, read per call so a change in Settings applies at once
+    // The user's RPC selection minus the endpoints failing their health
+    // check, read per call so a change applies at once
     get RPC_URLS() {
-        return getRpcEndpoints().map(e => e.url);
+        return getUsableRpcEndpoints().map(e => e.url);
     },
     currentRpcIndex: 0,
     

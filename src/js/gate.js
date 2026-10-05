@@ -23,7 +23,8 @@
  * tool.
  */
 
-import { CONFIG, getRpcEndpoints } from './config.js';
+import { CONFIG } from './config.js';
+import { getUsableRpcEndpoints } from './rpcHealth.js';
 import { Logger } from './logger.js';
 
 const GATE_ABI = [
@@ -171,11 +172,10 @@ class GateManager {
     // ------------------------------------------------------------- provider
 
     _currentRpcUrl() {
-        // getRpcEndpoints() reads the user's RPC preference (Settings) —
-        // entries are Streamr-SDK-shaped ({ url }), not plain strings, and
+        // Entries are Streamr-SDK-shaped ({ url }), not plain strings, and
         // JsonRpcProvider needs the string or it treats the object as a
         // FetchRequest ("url.clone is not a function").
-        const endpoints = getRpcEndpoints();
+        const endpoints = getUsableRpcEndpoints();
         const entry = endpoints[this._rpcIndex % endpoints.length];
         return typeof entry === 'string' ? entry : entry?.url;
     }
@@ -405,7 +405,7 @@ class GateManager {
             return { access: cached.value };
         }
 
-        const urls = getRpcEndpoints().map(e => e.url).filter(Boolean);
+        const urls = getUsableRpcEndpoints().map(e => e.url).filter(Boolean);
         if (urls.length === 0) return { access: false };
         const gen = this._generation(gateAddress);
 
