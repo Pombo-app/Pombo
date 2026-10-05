@@ -105,6 +105,10 @@ vi.mock('../../src/js/secureStorage.js', () => ({
         addSentMessage: vi.fn().mockResolvedValue(undefined),
         getSentMessages: vi.fn().mockReturnValue([]),
         getSentReactions: vi.fn().mockReturnValue({}),
+        getFailedOutbox: vi.fn().mockReturnValue([]),
+        putFailedOutbox: vi.fn().mockResolvedValue(undefined),
+        removeFailedOutbox: vi.fn().mockResolvedValue(undefined),
+        clearFailedOutbox: vi.fn().mockResolvedValue(undefined),
         getEpochKeys: vi.fn().mockReturnValue(null),
         setEpochKeys: vi.fn().mockResolvedValue(undefined),
         clearEpochKeys: vi.fn().mockResolvedValue(undefined)

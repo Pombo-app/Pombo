@@ -15,6 +15,8 @@ import { StorageError } from './utils/errors.js';
 import { cryptoWorkerPool } from './workers/cryptoWorkerPool.js';
 import { stampedSliceTs, ensNames } from './syncMerge.js';
 
+const FAILED_OUTBOX_MAX = 20;
+
 class SecureStorage {
     constructor() {
         this.storageKey = null;       // AES-256-GCM key
@@ -1049,6 +1051,56 @@ class SecureStorage {
         if (idx >= 0) messages.splice(idx, 1);
         await this.saveToStorage();
         this.onSentDataChanged?.({ type: 'sentMessage', streamId });
+    }
+
+    /**
+     * Failed text sends of a conversation, kept so the "Not sent" bubble and
+     * its Retry survive a restart. Device-local: neither exportForSync nor
+     * exportForBackup carries this slice, or every device of the account
+     * would offer a Retry for the same message.
+     * @param {string} streamId
+     * @returns {Array<Object>}
+     */
+    getFailedOutbox(streamId) {
+        if (!this.isUnlocked) return [];
+        return this.cache.failedOutbox?.[streamId] || [];
+    }
+
+    /**
+     * Add or replace the entry with the same id; past the cap the oldest go.
+     * @param {string} streamId
+     * @param {Object} entry - The message as published, plus failError/undelivered/failedAt
+     */
+    async putFailedOutbox(streamId, entry) {
+        if (!this.isUnlocked || !entry?.id) return;
+        if (!this.cache.failedOutbox) this.cache.failedOutbox = {};
+        const kept = (this.cache.failedOutbox[streamId] || []).filter(m => m.id !== entry.id);
+        kept.push(entry);
+        kept.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        this.cache.failedOutbox[streamId] = kept.slice(-FAILED_OUTBOX_MAX);
+        await this.saveToStorage();
+    }
+
+    /**
+     * @param {string} streamId
+     * @param {string} messageId
+     */
+    async removeFailedOutbox(streamId, messageId) {
+        const entries = this.isUnlocked ? this.cache.failedOutbox?.[streamId] : null;
+        if (!entries?.some(m => m.id === messageId)) return;
+        const kept = entries.filter(m => m.id !== messageId);
+        if (kept.length) this.cache.failedOutbox[streamId] = kept;
+        else delete this.cache.failedOutbox[streamId];
+        await this.saveToStorage();
+    }
+
+    /**
+     * @param {string} streamId
+     */
+    async clearFailedOutbox(streamId) {
+        if (!this.isUnlocked || !this.cache.failedOutbox?.[streamId]) return;
+        delete this.cache.failedOutbox[streamId];
+        await this.saveToStorage();
     }
 
     /**

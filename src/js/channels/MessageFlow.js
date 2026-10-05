@@ -17,6 +17,7 @@ import { adminStatePoller } from '../adminStatePoller.js';
 import { messageTime } from '../utils/messageTime.js';
 import { storageFetch } from '../storageFetch.js';
 import { NO_NETWORK, isOffline } from '../utils/network.js';
+import { dropLocalState } from '../publisherProof.js';
 
 const PAGING_RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
 
@@ -260,6 +261,15 @@ export class MessageFlow {
             if (Number.isFinite(data._timestamp) && !Number.isFinite(existing._timestamp)) {
                 existing._timestamp = data._timestamp;
                 if (Number.isFinite(data._seq)) existing._seq = data._seq;
+            }
+            if (existing.failed) {
+                // A send marked failed reached the network after all.
+                existing.failed = false;
+                existing.pending = false;
+                delete existing.failError;
+                delete existing.undelivered;
+                secureStorage.removeFailedOutbox(streamId, existing.id).catch(() => {});
+                this.manager.notifyHandlers('message_confirmed', { streamId, messageId: existing.id, message: existing });
             }
             Logger.debug('Message already exists, skipping duplicate:', data.id);
             return;
@@ -640,6 +650,46 @@ export class MessageFlow {
     }
 
     /**
+     * Keep a failed text send so its bubble and Retry come back after a
+     * restart. Never fails the caller: the send's own error is what surfaces.
+     * @param {string} messageStreamId
+     * @param {Object} message
+     */
+    async keepForRetry(messageStreamId, message) {
+        try {
+            await secureStorage.putFailedOutbox(messageStreamId, {
+                ...dropLocalState({ ...message }),
+                failError: message.failError || null,
+                undelivered: !!message.undelivered,
+                failedAt: Date.now()
+            });
+        } catch (error) {
+            Logger.warn('Could not keep the failed send for a retry:', error?.message);
+        }
+    }
+
+    /**
+     * Put back the failed sends this timeline does not hold. Runs before
+     * history: an id history then delivers clears itself in handleTextMessage.
+     * @param {Object} channel
+     */
+    async restoreFailedOutbox(channel) {
+        const shown = new Set(channel.messages.map(m => m.id));
+        const entries = secureStorage.getFailedOutbox(channel.messageStreamId)
+            .filter(entry => entry.id && !shown.has(entry.id));
+        if (!entries.length) return;
+        for (const entry of entries) {
+            channel.messages.push({
+                ...entry,
+                failed: true,
+                pending: false,
+                verified: { valid: true, trustLevel: await identityManager.getTrustLevel(entry.sender) }
+            });
+        }
+        this.manager.sortMessagesByTimestamp(channel);
+    }
+
+    /**
      * Publish a message already on the timeline and settle its send state.
      * @param {Object} channel
      * @param {Object} message - Pending message, present in channel.messages
@@ -658,12 +708,14 @@ export class MessageFlow {
             message.failed = true;
             message.failError = error.message;
             this.manager.notifyHandlers('message_failed', { streamId: messageStreamId, messageId: message.id, message, error: error.message });
+            await this.keepForRetry(messageStreamId, message);
             throw error;
         }
 
         message.pending = false;
         message.failed = false;
         delete message.failError;
+        await secureStorage.removeFailedOutbox(messageStreamId, message.id).catch(() => {});
 
         // For write-only channels, persist sent messages locally
         // (no subscribe permission = can't fetch history from network)

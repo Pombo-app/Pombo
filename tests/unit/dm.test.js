@@ -77,7 +77,9 @@ vi.mock('../../src/js/secureStorage.js', () => ({
         getDMLeftAt: vi.fn().mockReturnValue(null),
         clearDMLeftAt: vi.fn().mockResolvedValue(undefined),
         updateSentMessage: vi.fn().mockResolvedValue(undefined),
-        removeSentMessage: vi.fn().mockResolvedValue(undefined)
+        removeSentMessage: vi.fn().mockResolvedValue(undefined),
+        getFailedOutbox: vi.fn().mockReturnValue([]),
+        removeFailedOutbox: vi.fn().mockResolvedValue(undefined)
     }
 }));
 
@@ -169,7 +171,8 @@ vi.mock('../../src/js/channels.js', () => ({
         handleControlMessage: vi.fn(),
         handleOverrideMessage: vi.fn(),
         storeReaction: vi.fn(),
-        sendWakeSignals: vi.fn().mockResolvedValue(undefined)
+        sendWakeSignals: vi.fn().mockResolvedValue(undefined),
+        messageFlow: { keepForRetry: vi.fn().mockResolvedValue(undefined) }
     }
 }));
 
@@ -502,6 +505,26 @@ describe('DMManager', () => {
             await dmManager.loadDMTimeline(peer);
 
             expect(channel.messages.map(m => m.id)).toEqual(['ok']);
+        });
+
+        it('puts back the DMs that failed, unless a sent copy of the same id exists', async () => {
+            const peer = '0xpeer666666666666666666666666666666666666';
+            const streamId = peer + '/Pombo-DM-1';
+            const channel = { messageStreamId: streamId, type: 'dm', peerAddress: peer, messages: [] };
+            channelManager.channels.set(streamId, channel);
+            dmManager.conversations.set(peer, streamId);
+            secureStorage.getSentMessages.mockReturnValueOnce([
+                { id: 'delivered', text: 'went out on a retry', timestamp: 1 }
+            ]);
+            secureStorage.getFailedOutbox.mockReturnValueOnce([
+                { id: 'delivered', text: 'went out on a retry', timestamp: 1, failError: 'No network' },
+                { id: 'failed', text: 'still not sent', timestamp: 2, failError: 'No network' }
+            ]);
+
+            await dmManager.loadDMTimeline(peer);
+
+            expect(channel.messages.map(m => [m.id, !!m.failed])).toEqual([['delivered', false], ['failed', true]]);
+            expect(channel.messages[1]).toMatchObject({ failError: 'No network', _dmSent: true });
         });
 
         /**
@@ -1235,6 +1258,25 @@ describe('DMManager', () => {
 
             // Must NOT have published anything
             expect(streamrController.publishAs).not.toHaveBeenCalled();
+        });
+
+        it('keeps a DM that failed for its retry, and drops it once a retry is sent', async () => {
+            const peerAddress = '0xpeerbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+            const streamId = `${peerAddress}/Pombo-DM-1`;
+            channelManager.channels.set(streamId, {
+                messageStreamId: streamId, type: 'dm', peerAddress, messages: []
+            });
+            streamrController.getDMPublicKey.mockResolvedValueOnce(null);
+            dmCrypto.peerPublicKeys.clear();
+
+            await expect(dmManager.sendMessage(streamId, 'Should fail')).rejects.toThrow();
+
+            const [keptStream, kept] = channelManager.messageFlow.keepForRetry.mock.calls.at(-1);
+            expect(keptStream).toBe(streamId);
+            expect(kept).toMatchObject({ text: 'Should fail', failed: true });
+
+            await dmManager.resendMessage(streamId, kept.id);
+            expect(secureStorage.removeFailedOutbox).toHaveBeenCalledWith(streamId, kept.id);
         });
 
         it('should throw when wallet private key is missing', async () => {

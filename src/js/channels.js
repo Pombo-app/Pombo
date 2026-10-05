@@ -1922,6 +1922,10 @@ class ChannelManager {
             this.messageFlow.resetPagingBackoff(channel);
         }
 
+        if (channel && channel.type !== 'dm') {
+            await this.messageFlow.restoreFailedOutbox(channel);
+        }
+
         // Skip network subscription for write-only channels (no subscribe permission)
         // Instead, load locally persisted sent messages and reactions
         if (channel?.writeOnly) {
@@ -2815,6 +2819,7 @@ class ChannelManager {
                 try { await streamrController.unsubscribe(keysStreamId); } catch { /* not subscribed */ }
                 await epochKeyManager.forgetChannel(messageStreamId);
             }
+            await secureStorage.clearFailedOutbox(messageStreamId);
             
             // Cancel any pending batch verifications for this channel
             this.cancelPendingVerifications(messageStreamId);
