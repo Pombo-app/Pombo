@@ -5,8 +5,9 @@
 
 // Polygon RPC endpoints, in the default order of preference. The user's
 // selection in Settings is an ordered subset of these plus an optional custom
-// URL: what is enabled is exactly what gets used, and the first one is the
-// preferred one.
+// URL: what is enabled is exactly what gets used. The order only matters where
+// the app walks the list (gate reads, the first two of the access quorum, gas
+// estimation); the Streamr SDK sends each request to one of them at random.
 //
 // `webviewSafe` records whether the endpoint answers CORS from the Android
 // bridge's https://pombo.local origin. That property is independent from being
@@ -14,18 +15,24 @@
 // the origin. Only the Android client is constrained by it.
 export const RPC_ENDPOINTS = [
     { key: 'drpc', name: 'dRPC', url: 'https://polygon.drpc.org', webviewSafe: true },
-    { key: 'publicnode', name: 'PublicNode', url: 'https://polygon-bor-rpc.publicnode.com', webviewSafe: true },
+    { key: 'pocket', name: 'Pocket Network', url: 'https://poly.api.pocket.network', webviewSafe: true },
+    { key: 'sentio', name: 'Sentio', url: 'https://matic.rpc.sentio.xyz', webviewSafe: true },
+    { key: 'blockmachine', name: 'Blockmachine', url: 'https://rpc-polygon.blockmachine.io/', webviewSafe: true },
+    { key: 'tenderly-community', name: 'Tenderly (Polygon community)', url: 'https://tenderly.rpc.polygon.community', webviewSafe: true },
     { key: 'tenderly', name: 'Tenderly', url: 'https://polygon.gateway.tenderly.co', webviewSafe: true },
+    { key: 'quiknode', name: 'QuickNode (public)', url: 'https://rpc-mainnet.matic.quiknode.pro', webviewSafe: true },
+    { key: 'publicnode', name: 'PublicNode', url: 'https://polygon-bor-rpc.publicnode.com', webviewSafe: true },
     { key: '1rpc', name: '1RPC (Privacy)', url: 'https://1rpc.io/matic', webviewSafe: true }
 ];
 
 /** The custom URL is a row of its own, orderable and toggleable like the rest. */
 export const RPC_CUSTOM_KEY = 'custom';
 
-/** On by default: the reliable providers, several so a lone one going down is
- * not an outage and access reads cross-check. 1RPC (privacy relay) stays a row
- * users can turn on, but its latency and outages hurt as a default. */
-export const RPC_DEFAULT_ENABLED = ['drpc', 'publicnode', 'tenderly'];
+/** On by default: providers that answer contract reads reliably without a key
+ * and from both client origins. At most four: the SDK gives each request to
+ * one of them at random, so a degraded one fails its share of calls, and every
+ * client start waits for all of them. */
+export const RPC_DEFAULT_ENABLED = ['drpc', 'pocket', 'sentio'];
 
 export const CONFIG = {
     // Polygon Network Configuration
