@@ -62,11 +62,10 @@ class IdentityManager {
         this.loadENSCache();
         this.loadUsername();
         
-        // Clear null cache entries on startup to give providers a fresh chance
-        // (previous session may have cached nulls due to broken providers)
+        // A null that no provider confirmed came from a failure: retry it now.
         let nullsCleared = 0;
         for (const [key, value] of this.ensCache) {
-            if (!value.name) {
+            if (!value.name && !value.confirmed) {
                 this.ensCache.delete(key);
                 nullsCleared++;
             }
@@ -604,8 +603,8 @@ class IdentityManager {
      * Read a still-valid ENS name from cache. Never touches the network.
      *
      * Used by the hot verification path, which must not make an RPC call per
-     * message seen. Honours the same TTLs as resolveENS (24h positive,
-     * 15min null) so a stale entry doesn't pin a wrong name forever.
+     * message seen. Honours the same TTLs as resolveENS (_ensTtl) so a stale
+     * entry doesn't pin a wrong name forever.
      *
      * @param {string} address - Ethereum address
      * @returns {string|null} - ENS name, or null if unknown / expired / absent
@@ -614,9 +613,17 @@ class IdentityManager {
         if (!address || typeof address !== 'string') return null;
         const cached = this.ensCache.get(address.toLowerCase());
         if (!cached) return null;
-        const duration = cached.name ? ENS_CACHE_DURATION : ENS_NULL_CACHE_DURATION;
-        if (Date.now() - cached.timestamp >= duration) return null;
+        if (Date.now() - cached.timestamp >= this._ensTtl(cached)) return null;
         return cached.name;
+    }
+
+    /**
+     * 24h for a name and for a confirmed "no name" (at least one provider
+     * answered null); a null that only failures produced keeps the short TTL.
+     * @private
+     */
+    _ensTtl(entry) {
+        return entry.name || entry.confirmed ? ENS_CACHE_DURATION : ENS_NULL_CACHE_DURATION;
     }
 
     /**
@@ -640,10 +647,7 @@ class IdentityManager {
         // "no ENS", otherwise addresses without a name would be re-queried on
         // every render.
         const cached = this.ensCache.get(normalized);
-        if (cached) {
-            const duration = cached.name ? ENS_CACHE_DURATION : ENS_NULL_CACHE_DURATION;
-            if (Date.now() - cached.timestamp < duration) return;
-        }
+        if (cached && Date.now() - cached.timestamp < this._ensTtl(cached)) return;
 
         if (this._ensQueue.has(normalized)) return;
         this._ensQueue.add(normalized);
@@ -751,13 +755,9 @@ class IdentityManager {
     async resolveENS(address) {
         const normalizedAddress = address.toLowerCase();
         
-        // Check cache first (positive results: 24h, null results: 1h)
         const cached = this.ensCache.get(normalizedAddress);
-        if (cached) {
-            const cacheDuration = cached.name ? ENS_CACHE_DURATION : ENS_NULL_CACHE_DURATION;
-            if (Date.now() - cached.timestamp < cacheDuration) {
-                return cached.name;
-            }
+        if (cached && Date.now() - cached.timestamp < this._ensTtl(cached)) {
+            return cached.name;
         }
 
         // In-flight deduplication: if a lookup for this address is already running, reuse it
@@ -841,13 +841,17 @@ class IdentityManager {
             }
         }
 
-        // All providers returned null or failed — cache null with short duration
+        const confirmed = nullProviders.length > 0;
         this.ensCache.set(normalizedAddress, {
             name: null,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            ...(confirmed ? { confirmed: true } : {})
         });
-        if (nullProviders.length > 0) {
+        if (confirmed) {
             Logger.info(`ENS: ${address.slice(0,8)}... → (no Primary Name) — ${nullProviders.length} providers confirmed null`);
+            this.saveENSCache().catch(e => {
+                Logger.debug('ENS cache save failed (non-critical):', e.message);
+            });
         } else {
             Logger.warn('ENS lookup failed for', address, '(all providers exhausted)');
         }
@@ -1171,8 +1175,7 @@ class IdentityManager {
     pruneExpiredENSEntries() {
         const now = Date.now();
         for (const [addr, entry] of this.ensCache) {
-            const duration = entry.name ? ENS_CACHE_DURATION : ENS_NULL_CACHE_DURATION;
-            if (now - entry.timestamp > duration) {
+            if (now - entry.timestamp > this._ensTtl(entry)) {
                 this.ensCache.delete(addr);
             }
         }

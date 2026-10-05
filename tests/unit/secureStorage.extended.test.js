@@ -829,6 +829,16 @@ describe('secureStorage extended', () => {
             expect(secureStorage.exportForBackup().sliceTs).toEqual({ trustedContacts: 5, username: 1 });
             expect(secureStorage.cache.sliceTs).toEqual({ trustedContacts: 5 });
         });
+
+        it('syncs ENS names only, while the backup keeps every entry', () => {
+            secureStorage.initAsGuest('0xEnsSlice');
+            secureStorage.cache.ensCache = {
+                '0xa': { name: 'a.eth', timestamp: 1 },
+                '0xb': { name: null, timestamp: 1, confirmed: true }
+            };
+            expect(secureStorage.exportForSync().ensCache).toEqual({ '0xa': { name: 'a.eth', timestamp: 1 } });
+            expect(Object.keys(secureStorage.exportForBackup().ensCache)).toEqual(['0xa', '0xb']);
+        });
     });
 
     // ==================== importFromSync edge cases ====================
