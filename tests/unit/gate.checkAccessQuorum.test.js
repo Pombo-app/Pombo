@@ -94,6 +94,30 @@ describe('checkAccessQuorum over enabled RPCs', () => {
         expect(new Set(urlsQueried)).toEqual(new Set(['a', 'b']));
     });
 
+    it('an endpoint that never answers costs the read deadline, not the whole decision', async () => {
+        readSpy.mockRestore();
+        const TRUE = '0x' + '0'.repeat(63) + '1';
+        vi.spyOn(gateManager, '_makeProvider').mockImplementation((url) => ({
+            call: url === 'hangs' ? () => new Promise(() => {}) : async () => TRUE
+        }));
+        const savedEthers = globalThis.ethers;
+        globalThis.ethers = (await import('ethers')).ethers;
+        vi.useFakeTimers();
+        try {
+            ENABLED = ['hangs', 'answers'];
+            let result = null;
+            gateManager.checkAccessQuorum(GATE, USER).then((r) => { result = r; });
+            await vi.advanceTimersByTimeAsync(19_000);
+            expect(result).toBeNull();
+            await vi.advanceTimersByTimeAsync(1_000);
+            expect(result).toEqual({ access: true });
+        } finally {
+            vi.useRealTimers();
+            vi.restoreAllMocks();
+            globalThis.ethers = savedEthers;
+        }
+    });
+
     it('warn is rate-limited per gate (second unresolved call is silent)', async () => {
         ENABLED = ['a', 'b']; answers = { a: true, b: false };
         const first = await gateManager.checkAccessQuorum(GATE, USER);
