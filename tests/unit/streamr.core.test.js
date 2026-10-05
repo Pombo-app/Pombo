@@ -954,7 +954,7 @@ describe('StreamrController Core', () => {
         });
 
         it('should return failure on error', async () => {
-            executeWithRetry.mockRejectedValueOnce(new Error('fail'));
+            executeWithRetryAndVerify.mockRejectedValueOnce(new Error('fail'));
             const result = await streamrController.enableStorage('stream-1');
             expect(result.success).toBe(false);
         });
@@ -985,13 +985,13 @@ describe('StreamrController Core', () => {
 
             it('retries the retention independently of the node assignment', async () => {
                 await streamrController.enableStorage('stream-1', { storageDays: 30 });
-                const named = executeWithRetry.mock.calls.map(([name]) => name);
+                const named = executeWithRetryAndVerify.mock.calls.map(([name]) => name);
                 expect(named).toContain('enableStorage');
                 expect(named).toContain('setStorageDayCount');
             });
 
             it('reports no retention when the node assignment itself failed', async () => {
-                executeWithRetry.mockRejectedValueOnce(new Error('fail'));
+                executeWithRetryAndVerify.mockRejectedValueOnce(new Error('fail'));
                 const result = await streamrController.enableStorage('stream-1', { storageDays: 30 });
                 expect(result.storageDays).toBeNull();
                 expect(result.retentionApplied).toBe(false);
@@ -1687,6 +1687,7 @@ describe('StreamrController Core', () => {
             const mockEph = { id: '0xmyaddress/abcd1234-2' };
             let callCount = 0;
             executeWithRetryAndVerify.mockImplementation(async (name, fn) => {
+                if (!name.startsWith('createStream')) return fn();
                 callCount++;
                 if (callCount === 1) return mockMsg;
                 return mockEph;
@@ -1702,6 +1703,7 @@ describe('StreamrController Core', () => {
             const mockEph = { id: '0xmyaddress/abcd1234-2' };
             let callCount = 0;
             executeWithRetryAndVerify.mockImplementation(async (name, fn) => {
+                if (!name.startsWith('createStream')) return fn();
                 callCount++;
                 if (callCount === 1) return mockMsg;
                 return mockEph;
@@ -1740,7 +1742,8 @@ describe('StreamrController Core', () => {
         it('should set many-to-one permissions', async () => {
             mockClient.getStream.mockRejectedValue(new Error('not found'));
             let count = 0;
-            executeWithRetryAndVerify.mockImplementation(async () => {
+            executeWithRetryAndVerify.mockImplementation(async (name, fn) => {
+                if (!name.startsWith('createDMStream')) return fn();
                 count++;
                 return { id: count === 1 ? '0xmyaddress/Pombo-DM-1' : '0xmyaddress/Pombo-DM-2' };
             });
@@ -1759,8 +1762,9 @@ describe('StreamrController Core', () => {
 
             const result = await streamrController.createDMInbox('pk123');
             expect(result.messageStreamId).toBeDefined();
-            // Should NOT have called executeWithRetryAndVerify (no creation needed)
-            expect(executeWithRetryAndVerify).not.toHaveBeenCalled();
+            // No creation needed
+            expect(executeWithRetryAndVerify.mock.calls.filter(([name]) => name.startsWith('createDMStream')))
+                .toHaveLength(0);
         });
     });
 

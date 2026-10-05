@@ -56,6 +56,11 @@ import {
 /** A publish grant added after a stream was cached takes this long to be seen. */
 const WRITER_CACHE_TTL_MS = 60_000;
 
+/** Streamr's StreamRegistry on Polygon, read directly past the SDK's metadata cache. */
+const STREAM_REGISTRY_ADDRESS = '0x0D483E10612F327FC11965Fc82E90dC19b141641';
+const STREAM_REGISTRY_ABI = ['function getStreamMetadata(string streamId) view returns (string)'];
+const REGISTRY_READ_TIMEOUT_MS = 10_000;
+
 // === STREAM CONFIG (DUAL-STREAM ARCHITECTURE) ===
 import { STREAM_CONFIG } from './streamConfig.js';
 import { History } from './streamr/History.js';
@@ -595,13 +600,9 @@ class StreamrController {
                         return stream;
                     },
                     async () => {
-                        // Check if stream was actually created despite error
-                        const existingStream = await this.client.getStream(streamId);
-                        if (existingStream) {
-                            Logger.info(`✓ Stream exists (created despite error): ${existingStream.id}`);
-                            return existingStream;
-                        }
-                        return null;
+                        const existingStream = await this._streamIfExists(streamId);
+                        if (existingStream) Logger.info(`✓ Stream exists (created despite error): ${existingStream.id}`);
+                        return existingStream;
                     },
                     { maxRetries }
                 );
@@ -978,13 +979,72 @@ class StreamrController {
             return;
         }
 
-        await executeWithRetry('setStreamPermissions', async () => {
+        await executeWithRetryAndVerify('setStreamPermissions', async () => {
             await this.client.setPermissions({
                 streamId: streamId,
                 assignments: assignments
             });
             Logger.debug('Permissions set successfully (batch)');
-        }, { maxRetries: retries });
+            return true;
+        }, () => this._permissionsInPlace(streamId, assignments), { maxRetries: retries });
+    }
+
+    /**
+     * Does the chain already hold exactly these assignments? setPermissions
+     * replaces a grantee's set, so a grant is in place only when every
+     * permission matches, the ones it leaves out included. Reads the
+     * registry directly: throws when the chain cannot be read.
+     */
+    async _permissionsInPlace(streamId, assignments) {
+        const all = ['publish', 'subscribe', 'edit', 'delete', 'grant'];
+        for (const assignment of assignments) {
+            const wanted = new Set(assignment.permissions);
+            for (const permission of all) {
+                const held = await this.client.hasPermission(assignment.public
+                    ? { streamId, public: true, permission }
+                    : { streamId, userId: assignment.userId, permission, allowPublic: false });
+                if (held !== wanted.has(permission)) return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The retention the chain holds now. The SDK caches stream metadata and
+     * keeps the old value after a write whose receipt read failed, so this
+     * reads the registry itself. Throws when no endpoint answers.
+     * @returns {Promise<number|null>} null when the stream sets none
+     */
+    async _chainStorageDays(streamId) {
+        let lastError = new Error('No RPC endpoint');
+        for (const { url } of getRpcEndpoints()) {
+            try {
+                const provider = new ethers.JsonRpcProvider(url, CONFIG.network.chainId,
+                    { staticNetwork: true, batchMaxCount: 1 });
+                const registry = new ethers.Contract(STREAM_REGISTRY_ADDRESS, STREAM_REGISTRY_ABI, provider);
+                const raw = await Promise.race([
+                    registry.getStreamMetadata(streamId),
+                    new Promise((_, reject) => setTimeout(
+                        () => reject(new Error('registry read timed out')), REGISTRY_READ_TIMEOUT_MS))
+                ]);
+                let metadata = {};
+                try { metadata = raw ? JSON.parse(raw) : {}; } catch { /* the chain answered: no retention set */ }
+                return Number.isFinite(metadata.storageDays) ? metadata.storageDays : null;
+            } catch (e) {
+                lastError = e;
+            }
+        }
+        throw lastError;
+    }
+
+    /** The stream, or null when the chain says it does not exist; throws when the chain cannot be read. */
+    async _streamIfExists(streamId) {
+        try {
+            return await this.client.getStream(streamId);
+        } catch (e) {
+            if (e?.code === 'STREAM_NOT_FOUND') return null;
+            throw e;
+        }
     }
 
     /**
@@ -996,16 +1056,12 @@ class StreamrController {
         // If string passed, get the stream object
         const streamId = typeof stream === 'string' ? stream : stream.id;
 
-        await executeWithRetry('grantPublicPermissions', async () => {
-            await this.client.setPermissions({
-                streamId: streamId,
-                assignments: [{
-                    public: true,
-                    permissions: ['subscribe', 'publish']
-                }]
-            });
+        const assignments = [{ public: true, permissions: ['subscribe', 'publish'] }];
+        await executeWithRetryAndVerify('grantPublicPermissions', async () => {
+            await this.client.setPermissions({ streamId, assignments });
             Logger.debug('Public permissions granted successfully');
-        }, { maxRetries: retries });
+            return true;
+        }, () => this._permissionsInPlace(streamId, assignments), { maxRetries: retries });
     }
 
     /**
@@ -1015,16 +1071,12 @@ class StreamrController {
     async grantPublicReadOnlyPermissions(stream, retries = 7) {
         const streamId = typeof stream === 'string' ? stream : stream.id;
 
-        await executeWithRetry('grantPublicReadOnlyPermissions', async () => {
-            await this.client.setPermissions({
-                streamId: streamId,
-                assignments: [{
-                    public: true,
-                    permissions: ['subscribe']
-                }]
-            });
+        const assignments = [{ public: true, permissions: ['subscribe'] }];
+        await executeWithRetryAndVerify('grantPublicReadOnlyPermissions', async () => {
+            await this.client.setPermissions({ streamId, assignments });
             Logger.debug('Public read-only permissions granted successfully');
-        }, { maxRetries: retries });
+            return true;
+        }, () => this._permissionsInPlace(streamId, assignments), { maxRetries: retries });
     }
 
     /**
@@ -1035,16 +1087,13 @@ class StreamrController {
     async grantManyToOnePermissions(stream, retries = 7) {
         const streamId = typeof stream === 'string' ? stream : stream.id;
 
-        await executeWithRetry('grantManyToOnePermissions', async () => {
-            await this.client.setPermissions({
-                streamId: streamId,
-                assignments: [{
-                    public: true,
-                    permissions: ['publish']  // Only PUBLISH, not SUBSCRIBE
-                }]
-            });
+        // Only PUBLISH, not SUBSCRIBE
+        const assignments = [{ public: true, permissions: ['publish'] }];
+        await executeWithRetryAndVerify('grantManyToOnePermissions', async () => {
+            await this.client.setPermissions({ streamId, assignments });
             Logger.debug('Many-to-one permissions granted (public publish, owner-only subscribe)');
-        }, { maxRetries: retries });
+            return true;
+        }, () => this._permissionsInPlace(streamId, assignments), { maxRetries: retries });
     }
 
     /**
@@ -1171,10 +1220,7 @@ class StreamrController {
                         });
                         return stream;
                     },
-                    async () => {
-                        const s = await this.client.getStream(streamId);
-                        return s || null;
-                    },
+                    () => this._streamIfExists(streamId),
                     { maxRetries: 7 }
                 );
             }
@@ -1395,10 +1441,7 @@ class StreamrController {
                         description: metadata,
                         partitions: STREAM_CONFIG.MESSAGE_STREAM.DM_PARTITIONS
                     }),
-                    async () => {
-                        const s = await this.client.getStream(messageStreamId);
-                        return s || null;
-                    },
+                    () => this._streamIfExists(messageStreamId),
                     { maxRetries: 7 }
                 );
                 result.messageStream = 'ok';
@@ -1442,10 +1485,7 @@ class StreamrController {
                         description: ephemeralMetadata,
                         partitions: STREAM_CONFIG.EPHEMERAL_STREAM.PARTITIONS
                     }),
-                    async () => {
-                        const s = await this.client.getStream(ephemeralStreamId);
-                        return s || null;
-                    },
+                    () => this._streamIfExists(ephemeralStreamId),
                     { maxRetries: 7 }
                 );
                 result.ephemeralStream = 'ok';
@@ -2812,9 +2852,10 @@ class StreamrController {
                 { userId: newAddress.toLowerCase(), permissions: ['publish'] },
                 ...(oldAddress ? [{ userId: oldAddress.toLowerCase(), permissions: [] }] : [])
             ];
-            await executeWithRetry(`rekeySharedPublishGrants(${streamId.slice(-20)})`, async () => {
+            await executeWithRetryAndVerify(`rekeySharedPublishGrants(${streamId.slice(-20)})`, async () => {
                 await this.client.setPermissions({ streamId, assignments });
-            });
+                return true;
+            }, () => this._permissionsInPlace(streamId, assignments));
         }
     }
 
@@ -2831,8 +2872,14 @@ class StreamrController {
             channel.interactionsStreamId || deriveInteractionsId(channel.messageStreamId),
             channel.ephemeralStreamId
         ].filter(Boolean).map((streamId) => ({ streamId, assignments }));
-        await executeWithRetry('rekeyInteractionsGrants', async () => {
+        await executeWithRetryAndVerify('rekeyInteractionsGrants', async () => {
             await this.client.setPermissions(...items);
+            return true;
+        }, async () => {
+            for (const { streamId } of items) {
+                if (!await this._permissionsInPlace(streamId, assignments)) return false;
+            }
+            return true;
         });
     }
 
@@ -4294,12 +4341,13 @@ class StreamrController {
         });
 
         try {
-            await executeWithRetry('enableStorage', async () => {
+            await executeWithRetryAndVerify('enableStorage', async () => {
                 const stream = await this.client.getStream(messageStreamId);
                 await stream.addToStorageNode(nodeAddress);
-                try { options.onProgress?.(); } catch (_) { /* progress callback errors must not break flow */ }
-                Logger.info('Storage enabled:', { stream: messageStreamId, provider: providerId });
-            }, { maxRetries: retries });
+                return true;
+            }, () => this.client.isStoredStream(messageStreamId, nodeAddress), { maxRetries: retries });
+            try { options.onProgress?.(); } catch (_) { /* progress callback errors must not break flow */ }
+            Logger.info('Storage enabled:', { stream: messageStreamId, provider: providerId });
         } catch (error) {
             Logger.error('All storage attempts failed for:', messageStreamId);
             return { success: false, provider: providerId, storageDays: null, retentionApplied: false };
@@ -4311,10 +4359,11 @@ class StreamrController {
         let retentionApplied = false;
         if (storageDays && providerConfig.supportsTTL) {
             try {
-                await executeWithRetry('setStorageDayCount', async () => {
+                await executeWithRetryAndVerify('setStorageDayCount', async () => {
                     const stream = await this.client.getStream(messageStreamId);
                     await stream.setStorageDayCount(storageDays);
-                }, { maxRetries: retries });
+                    return true;
+                }, async () => (await this._chainStorageDays(messageStreamId)) === storageDays, { maxRetries: retries });
                 retentionApplied = true;
                 Logger.debug('Storage days set to:', storageDays);
             } catch (ttlError) {
