@@ -106,6 +106,9 @@ const READ_TIMEOUT_MS = 20_000;
 /** How long a sent transaction is waited on before the user is told. */
 const CONFIRM_TIMEOUT_MS = 120_000;
 
+/** Entries kept per kind in CONFIG.storageKeys.chainFacts; the oldest goes first. */
+const CHAIN_FACTS_MAX = 500;
+
 const withTimeout = (promise, what, ms = READ_TIMEOUT_MS) => {
     let timer;
     return Promise.race([
@@ -136,6 +139,33 @@ class GateManager {
         this._infoCache = new Map();
         // token → { symbol, decimals } — immutable, fetched once
         this._tokenMetaCache = new Map();
+        // token → Promise, so concurrent first reads share one
+        this._tokenMetaPending = new Map();
+    }
+
+    // ---------------------------------------------------------- chain facts
+
+    _chainFacts(kind) {
+        try {
+            const all = JSON.parse(localStorage.getItem(CONFIG.storageKeys.chainFacts) || '{}');
+            return (all && all[kind]) || {};
+        } catch {
+            return {};
+        }
+    }
+
+    _rememberChainFact(kind, address, value) {
+        try {
+            const all = JSON.parse(localStorage.getItem(CONFIG.storageKeys.chainFacts) || '{}') || {};
+            const bucket = all[kind] || (all[kind] = {});
+            delete bucket[address];
+            bucket[address] = value;
+            const keys = Object.keys(bucket);
+            for (let i = 0; i < keys.length - CHAIN_FACTS_MAX; i++) delete bucket[keys[i]];
+            localStorage.setItem(CONFIG.storageKeys.chainFacts, JSON.stringify(all));
+        } catch {
+            // Storage full or unavailable: the facts are read from the chain again.
+        }
     }
 
     // ------------------------------------------------------------- provider
@@ -237,25 +267,50 @@ class GateManager {
         return info;
     }
 
+    /**
+     * Only price and duration are read once a gate's initialize parameters
+     * are known: PomboGate sets the other six in initialize and never again.
+     */
     _readGateInfo(gateAddress) {
+        const address = gateAddress.toLowerCase();
+        const known = this._chainFacts('gates')[address];
         return this._withProvider(async () => {
             const gate = this._readContract(gateAddress);
+            if (known) {
+                const [price, duration] = await Promise.all([gate.price(), gate.duration()]);
+                return this._gateInfo({ ...known, minBalance: BigInt(known.minBalance), price, duration });
+            }
             const [owner, mode, token, minBalance, price, duration, wireIdentity, readOnly] = await Promise.all([
                 gate.owner(), gate.mode(), gate.token(),
                 gate.minBalance(), gate.price(), gate.duration(),
                 gate.wireIdentity(), gate.readOnly()
             ]);
-            return {
+            const fixed = {
                 owner: owner.toLowerCase(),
                 mode: Number(mode),
-                modeName: GATE_MODE_NAMES[Number(mode)] ?? 'unknown',
                 token: token.toLowerCase(),
-                minBalance, price, duration,
+                minBalance: minBalance.toString(),
                 wireIdentity: Number(wireIdentity),
-                wireIdentityName: WIRE_IDENTITY_NAMES[Number(wireIdentity)] ?? 'visible',
                 readOnly: Boolean(readOnly)
             };
+            this._rememberChainFact('gates', address, fixed);
+            return this._gateInfo({ ...fixed, minBalance, price, duration });
         });
+    }
+
+    _gateInfo(f) {
+        return {
+            owner: f.owner,
+            mode: f.mode,
+            modeName: GATE_MODE_NAMES[f.mode] ?? 'unknown',
+            token: f.token,
+            minBalance: f.minBalance,
+            price: f.price,
+            duration: f.duration,
+            wireIdentity: f.wireIdentity,
+            wireIdentityName: WIRE_IDENTITY_NAMES[f.wireIdentity] ?? 'visible',
+            readOnly: f.readOnly
+        };
     }
 
     /** Drop the cached parameters for one gate (after setPrice/setDuration). */
@@ -459,16 +514,35 @@ class GateManager {
     async getTokenMeta(tokenAddress) {
         const key = tokenAddress.toLowerCase();
         if (this._tokenMetaCache.has(key)) return this._tokenMetaCache.get(key);
-        const meta = await this._withProvider(async () => {
+        const stored = this._chainFacts('tokens')[key];
+        if (stored) {
+            this._tokenMetaCache.set(key, stored);
+            return stored;
+        }
+        if (this._tokenMetaPending.has(key)) return this._tokenMetaPending.get(key);
+        const pending = this._withProvider(async () => {
             const token = this._readToken(tokenAddress);
+            let readBoth = true;
             const [symbol, decimals] = await Promise.all([
-                token.symbol().catch(() => `${tokenAddress.slice(0, 6)}…${tokenAddress.slice(-4)}`),
-                token.decimals().then(Number).catch(() => null)
+                token.symbol().catch(() => {
+                    readBoth = false;
+                    return `${tokenAddress.slice(0, 6)}…${tokenAddress.slice(-4)}`;
+                }),
+                token.decimals().then(Number).catch(() => {
+                    readBoth = false;
+                    return null;
+                })
             ]);
-            return { symbol, decimals };
-        });
-        this._tokenMetaCache.set(key, meta);
-        return meta;
+            return { meta: { symbol, decimals }, readBoth };
+        }).then(({ meta, readBoth }) => {
+            this._tokenMetaCache.set(key, meta);
+            // A fallback symbol or a missing decimals may be a failed read, not
+            // the token's answer (an ERC-721 has no decimals), so neither is kept.
+            if (readBoth) this._rememberChainFact('tokens', key, meta);
+            return meta;
+        }).finally(() => this._tokenMetaPending.delete(key));
+        this._tokenMetaPending.set(key, pending);
+        return pending;
     }
 
     /** ERC-20 balance, or owned-token count for an ERC-721 collection. */

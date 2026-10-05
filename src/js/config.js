@@ -371,6 +371,9 @@ export const CONFIG = {
         // Static keys (no per-account scoping)
         keystores: 'pombo_keystores',
         rpcPreference: 'pombo_rpc_preference',
+        // Contract facts that cannot change (a gate's initialize parameters, a
+        // token's symbol and decimals). Public chain data, so device global.
+        chainFacts: 'pombo_chain_facts',
         // Plain mirror of the encrypted "ENS Avatars" setting ('0' = off). Device
         // global, not per address: the renderer only knows whose face it draws,
         // never who is looking, and the unlock/account modals draw avatars
