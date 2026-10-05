@@ -790,9 +790,12 @@ class EpochKeyManager {
         // is on-chain work.
         if (!usesSharedPublish(channel) || !s.intKey) return;
         if (s.intAnnounce && s.intAnnounce.rev > s.intKey.rev) return;
+        // A fresh announce of an OLDER rev says nothing about the held key.
+        const unannounced = (s.intAnnounce?.rev || 0) < s.intKey.rev;
         const retentionMs = keysRetentionDays(channel) * 86_400_000;
         const freshest = s.intAnnounceFreshness || 0;
-        if (freshest && Date.now() - freshest < retentionMs * CONFIG.storage.ttlRepublishAgeFraction) return;
+        if (!unannounced && freshest
+            && Date.now() - freshest < retentionMs * CONFIG.storage.ttlRepublishAgeFraction) return;
 
         const announce = {
             t: KEYS_MSG_TYPE.PUB_ANNOUNCE,
@@ -813,9 +816,11 @@ class EpochKeyManager {
     async _maybeAnnouncePub(channel, s) {
         if (!usesSharedPublish(channel) || !s.pubKey) return;
         if (s.pubAnnounce && s.pubAnnounce.rev > s.pubKey.rev) return;   // we hold the superseded key
+        const unannounced = (s.pubAnnounce?.rev || 0) < s.pubKey.rev;
         const retentionMs = keysRetentionDays(channel) * 86_400_000;
         const freshest = s.pubAnnounceFreshness || 0;
-        if (freshest && Date.now() - freshest < retentionMs * CONFIG.storage.ttlRepublishAgeFraction) return;
+        if (!unannounced && freshest
+            && Date.now() - freshest < retentionMs * CONFIG.storage.ttlRepublishAgeFraction) return;
 
         const announce = {
             t: KEYS_MSG_TYPE.PUB_ANNOUNCE,
