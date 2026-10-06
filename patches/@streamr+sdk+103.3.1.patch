@@ -1,0 +1,224 @@
+diff --git a/node_modules/@streamr/sdk/dist/exports-browser.cjs b/node_modules/@streamr/sdk/dist/exports-browser.cjs
+index 6a6e48a..bac92d7 100644
+--- a/node_modules/@streamr/sdk/dist/exports-browser.cjs
++++ b/node_modules/@streamr/sdk/dist/exports-browser.cjs
+@@ -462,6 +462,7 @@ var __param$g = (globalThis && globalThis.__param) || function (paramIndex, deco
+  */
+ let StorageNodeRegistry = class StorageNodeRegistry {
+     nodeRegistryContract;
++    nodeMetadataCache;
+     nodeRegistryContractReadonly;
+     contractFactory;
+     rpcProviderSource;
+@@ -473,6 +474,10 @@ let StorageNodeRegistry = class StorageNodeRegistry {
+         this.config = config;
+         this.identity = identity;
+         this.nodeRegistryContractReadonly = this.contractFactory.createReadContract(utils.toEthereumAddress(this.config.contracts.storageNodeRegistryChainAddress), networkContracts.NodeRegistryABI, rpcProviderSource.getProvider(), 'storageNodeRegistry');
++        this.nodeMetadataCache = createCacheMap({
++            valueFactory: (nodeAddress) => this.getStorageNodeMetadata_nonCached(nodeAddress),
++            ...config.cache
++        });
+     }
+     async connectToContract() {
+         if (this.nodeRegistryContract === undefined) {
+@@ -489,8 +494,15 @@ let StorageNodeRegistry = class StorageNodeRegistry {
+         else {
+             await waitForTx(this.nodeRegistryContract.removeNodeSelf(ethersOverrides));
+         }
++        this.nodeMetadataCache.invalidate(() => true);
+     }
+     async getStorageNodeMetadata(nodeAddress) {
++        return this.nodeMetadataCache.get(nodeAddress);
++    }
++    invalidateStorageNodeMetadata(nodeAddress) {
++        this.nodeMetadataCache.invalidate((key) => key === nodeAddress);
++    }
++    async getStorageNodeMetadata_nonCached(nodeAddress) {
+         const [resultNodeAddress, metadata] = await this.nodeRegistryContractReadonly.getNode(nodeAddress);
+         const NODE_NOT_FOUND = '0x0000000000000000000000000000000000000000';
+         if (resultNodeAddress !== NODE_NOT_FOUND) {
+@@ -6767,7 +6779,15 @@ let Resends = class Resends {
+             getStorageNodes: async () => without(nodeAddresses, nodeAddress),
+             config: (nodeAddresses.length === 1) ? { ...this.config, orderMessages: false } : this.config
+         });
+-        const lines = transformError(fetchLengthPrefixedFrameHttpBinaryStream(url, abortSignal), getHttpErrorTransform());
++        const httpErrorTransform = getHttpErrorTransform();
++        const lines = transformError(fetchLengthPrefixedFrameHttpBinaryStream(url, abortSignal), (err) => {
++            // A node that did not answer, or answered 5xx, may have moved: read its URLs again next time.
++            const answered = (err instanceof FetchHttpStreamResponseError) && (err.response.status < 500);
++            if (!answered && (err?.name !== 'AbortError')) {
++                this.storageNodeRegistry.invalidateStorageNodeMetadata(nodeAddress);
++            }
++            return httpErrorTransform(err);
++        });
+         setImmediate(async () => {
+             let count = 0;
+             const messages = map(lines, (bytes) => convertBytesToStreamMessage(bytes));
+diff --git a/node_modules/@streamr/sdk/dist/exports-browser.js b/node_modules/@streamr/sdk/dist/exports-browser.js
+index c4d7b91..a92c799 100644
+--- a/node_modules/@streamr/sdk/dist/exports-browser.js
++++ b/node_modules/@streamr/sdk/dist/exports-browser.js
+@@ -460,6 +460,7 @@ var __param$g = (globalThis && globalThis.__param) || function (paramIndex, deco
+  */
+ let StorageNodeRegistry = class StorageNodeRegistry {
+     nodeRegistryContract;
++    nodeMetadataCache;
+     nodeRegistryContractReadonly;
+     contractFactory;
+     rpcProviderSource;
+@@ -471,6 +472,10 @@ let StorageNodeRegistry = class StorageNodeRegistry {
+         this.config = config;
+         this.identity = identity;
+         this.nodeRegistryContractReadonly = this.contractFactory.createReadContract(toEthereumAddress(this.config.contracts.storageNodeRegistryChainAddress), NodeRegistryABI, rpcProviderSource.getProvider(), 'storageNodeRegistry');
++        this.nodeMetadataCache = createCacheMap({
++            valueFactory: (nodeAddress) => this.getStorageNodeMetadata_nonCached(nodeAddress),
++            ...config.cache
++        });
+     }
+     async connectToContract() {
+         if (this.nodeRegistryContract === undefined) {
+@@ -487,8 +492,15 @@ let StorageNodeRegistry = class StorageNodeRegistry {
+         else {
+             await waitForTx(this.nodeRegistryContract.removeNodeSelf(ethersOverrides));
+         }
++        this.nodeMetadataCache.invalidate(() => true);
+     }
+     async getStorageNodeMetadata(nodeAddress) {
++        return this.nodeMetadataCache.get(nodeAddress);
++    }
++    invalidateStorageNodeMetadata(nodeAddress) {
++        this.nodeMetadataCache.invalidate((key) => key === nodeAddress);
++    }
++    async getStorageNodeMetadata_nonCached(nodeAddress) {
+         const [resultNodeAddress, metadata] = await this.nodeRegistryContractReadonly.getNode(nodeAddress);
+         const NODE_NOT_FOUND = '0x0000000000000000000000000000000000000000';
+         if (resultNodeAddress !== NODE_NOT_FOUND) {
+@@ -6765,7 +6777,15 @@ let Resends = class Resends {
+             getStorageNodes: async () => without(nodeAddresses, nodeAddress),
+             config: (nodeAddresses.length === 1) ? { ...this.config, orderMessages: false } : this.config
+         });
+-        const lines = transformError(fetchLengthPrefixedFrameHttpBinaryStream(url, abortSignal), getHttpErrorTransform());
++        const httpErrorTransform = getHttpErrorTransform();
++        const lines = transformError(fetchLengthPrefixedFrameHttpBinaryStream(url, abortSignal), (err) => {
++            // A node that did not answer, or answered 5xx, may have moved: read its URLs again next time.
++            const answered = (err instanceof FetchHttpStreamResponseError) && (err.response.status < 500);
++            if (!answered && (err?.name !== 'AbortError')) {
++                this.storageNodeRegistry.invalidateStorageNodeMetadata(nodeAddress);
++            }
++            return httpErrorTransform(err);
++        });
+         setImmediate(async () => {
+             let count = 0;
+             const messages = map(lines, (bytes) => convertBytesToStreamMessage(bytes));
+diff --git a/node_modules/@streamr/sdk/dist/exports-nodejs.cjs b/node_modules/@streamr/sdk/dist/exports-nodejs.cjs
+index 6f9cbce..5e65fc9 100644
+--- a/node_modules/@streamr/sdk/dist/exports-nodejs.cjs
++++ b/node_modules/@streamr/sdk/dist/exports-nodejs.cjs
+@@ -469,6 +469,7 @@ var __param$g = (globalThis && globalThis.__param) || function (paramIndex, deco
+  */
+ let StorageNodeRegistry = class StorageNodeRegistry {
+     nodeRegistryContract;
++    nodeMetadataCache;
+     nodeRegistryContractReadonly;
+     contractFactory;
+     rpcProviderSource;
+@@ -480,6 +481,10 @@ let StorageNodeRegistry = class StorageNodeRegistry {
+         this.config = config;
+         this.identity = identity;
+         this.nodeRegistryContractReadonly = this.contractFactory.createReadContract(utils.toEthereumAddress(this.config.contracts.storageNodeRegistryChainAddress), networkContracts.NodeRegistryABI, rpcProviderSource.getProvider(), 'storageNodeRegistry');
++        this.nodeMetadataCache = createCacheMap({
++            valueFactory: (nodeAddress) => this.getStorageNodeMetadata_nonCached(nodeAddress),
++            ...config.cache
++        });
+     }
+     async connectToContract() {
+         if (this.nodeRegistryContract === undefined) {
+@@ -496,8 +501,15 @@ let StorageNodeRegistry = class StorageNodeRegistry {
+         else {
+             await waitForTx(this.nodeRegistryContract.removeNodeSelf(ethersOverrides));
+         }
++        this.nodeMetadataCache.invalidate(() => true);
+     }
+     async getStorageNodeMetadata(nodeAddress) {
++        return this.nodeMetadataCache.get(nodeAddress);
++    }
++    invalidateStorageNodeMetadata(nodeAddress) {
++        this.nodeMetadataCache.invalidate((key) => key === nodeAddress);
++    }
++    async getStorageNodeMetadata_nonCached(nodeAddress) {
+         const [resultNodeAddress, metadata] = await this.nodeRegistryContractReadonly.getNode(nodeAddress);
+         const NODE_NOT_FOUND = '0x0000000000000000000000000000000000000000';
+         if (resultNodeAddress !== NODE_NOT_FOUND) {
+@@ -6849,7 +6861,15 @@ let Resends = class Resends {
+             getStorageNodes: async () => without(nodeAddresses, nodeAddress),
+             config: (nodeAddresses.length === 1) ? { ...this.config, orderMessages: false } : this.config
+         });
+-        const lines = transformError(fetchLengthPrefixedFrameHttpBinaryStream(url, abortSignal), getHttpErrorTransform());
++        const httpErrorTransform = getHttpErrorTransform();
++        const lines = transformError(fetchLengthPrefixedFrameHttpBinaryStream(url, abortSignal), (err) => {
++            // A node that did not answer, or answered 5xx, may have moved: read its URLs again next time.
++            const answered = (err instanceof FetchHttpStreamResponseError) && (err.response.status < 500);
++            if (!answered && (err?.name !== 'AbortError')) {
++                this.storageNodeRegistry.invalidateStorageNodeMetadata(nodeAddress);
++            }
++            return httpErrorTransform(err);
++        });
+         setImmediate(async () => {
+             let count = 0;
+             const messages = map(lines, (bytes) => convertBytesToStreamMessage(bytes));
+diff --git a/node_modules/@streamr/sdk/dist/exports-nodejs.js b/node_modules/@streamr/sdk/dist/exports-nodejs.js
+index cccbc90..d57c922 100644
+--- a/node_modules/@streamr/sdk/dist/exports-nodejs.js
++++ b/node_modules/@streamr/sdk/dist/exports-nodejs.js
+@@ -467,6 +467,7 @@ var __param$g = (globalThis && globalThis.__param) || function (paramIndex, deco
+  */
+ let StorageNodeRegistry = class StorageNodeRegistry {
+     nodeRegistryContract;
++    nodeMetadataCache;
+     nodeRegistryContractReadonly;
+     contractFactory;
+     rpcProviderSource;
+@@ -478,6 +479,10 @@ let StorageNodeRegistry = class StorageNodeRegistry {
+         this.config = config;
+         this.identity = identity;
+         this.nodeRegistryContractReadonly = this.contractFactory.createReadContract(toEthereumAddress(this.config.contracts.storageNodeRegistryChainAddress), NodeRegistryABI, rpcProviderSource.getProvider(), 'storageNodeRegistry');
++        this.nodeMetadataCache = createCacheMap({
++            valueFactory: (nodeAddress) => this.getStorageNodeMetadata_nonCached(nodeAddress),
++            ...config.cache
++        });
+     }
+     async connectToContract() {
+         if (this.nodeRegistryContract === undefined) {
+@@ -494,8 +499,15 @@ let StorageNodeRegistry = class StorageNodeRegistry {
+         else {
+             await waitForTx(this.nodeRegistryContract.removeNodeSelf(ethersOverrides));
+         }
++        this.nodeMetadataCache.invalidate(() => true);
+     }
+     async getStorageNodeMetadata(nodeAddress) {
++        return this.nodeMetadataCache.get(nodeAddress);
++    }
++    invalidateStorageNodeMetadata(nodeAddress) {
++        this.nodeMetadataCache.invalidate((key) => key === nodeAddress);
++    }
++    async getStorageNodeMetadata_nonCached(nodeAddress) {
+         const [resultNodeAddress, metadata] = await this.nodeRegistryContractReadonly.getNode(nodeAddress);
+         const NODE_NOT_FOUND = '0x0000000000000000000000000000000000000000';
+         if (resultNodeAddress !== NODE_NOT_FOUND) {
+@@ -6847,7 +6859,15 @@ let Resends = class Resends {
+             getStorageNodes: async () => without(nodeAddresses, nodeAddress),
+             config: (nodeAddresses.length === 1) ? { ...this.config, orderMessages: false } : this.config
+         });
+-        const lines = transformError(fetchLengthPrefixedFrameHttpBinaryStream(url, abortSignal), getHttpErrorTransform());
++        const httpErrorTransform = getHttpErrorTransform();
++        const lines = transformError(fetchLengthPrefixedFrameHttpBinaryStream(url, abortSignal), (err) => {
++            // A node that did not answer, or answered 5xx, may have moved: read its URLs again next time.
++            const answered = (err instanceof FetchHttpStreamResponseError) && (err.response.status < 500);
++            if (!answered && (err?.name !== 'AbortError')) {
++                this.storageNodeRegistry.invalidateStorageNodeMetadata(nodeAddress);
++            }
++            return httpErrorTransform(err);
++        });
+         setImmediate(async () => {
+             let count = 0;
+             const messages = map(lines, (bytes) => convertBytesToStreamMessage(bytes));
