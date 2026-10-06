@@ -25,6 +25,7 @@ import { cryptoManager } from './crypto.js';
 import { CONFIG, getRpcEndpoints } from './config.js';
 import { executeWithRetry, executeWithRetryAndVerify } from './utils/retry.js';
 import { isRpcError, createPermissionResult } from './utils/rpcErrors.js';
+import { rpcHealth, getUsableRpcEndpoints } from './rpcHealth.js';
 import { authManager } from './auth.js';
 import { NodeRevival } from './streamr/NodeRevival.js';
 import {
@@ -117,6 +118,12 @@ export const isWebSafeStorageNodeUrl = (value) => {
     }
 };
 
+const CHAIN_WRITES = [
+    'createStream', 'deleteStream', 'updateStream', 'setStreamMetadata',
+    'setPermissions', 'grantPermissions', 'revokePermissions',
+    'addStreamToStorageNode', 'removeStreamFromStorageNode'
+];
+
 class StreamrController {
     constructor() {
         this.client = null;
@@ -136,6 +143,29 @@ class StreamrController {
             networkUp: () => this._networkReachable(),
             rebuild: () => this.replaceClient()
         });
+        this._chainWrites = 0;
+        rpcHealth.attachClient({
+            writing: () => this._chainWrites > 0,
+            rebuild: () => (this.client ? this.replaceClient() : Promise.resolve())
+        });
+    }
+
+    /**
+     * Counts the chain writes in flight, so a health rebuild never destroys a
+     * client in the middle of one. The SDK's Stream objects write through
+     * these same client methods.
+     */
+    _trackChainWrites(client) {
+        for (const name of CHAIN_WRITES) {
+            const write = client[name];
+            if (typeof write !== 'function') continue;
+            client[name] = (...args) => {
+                this._chainWrites++;
+                return Promise.resolve()
+                    .then(() => write.apply(client, args))
+                    .finally(() => { this._chainWrites--; });
+            };
+        }
     }
 
     /**
@@ -263,6 +293,8 @@ class StreamrController {
                 throw new Error('Signer must have a privateKey');
             }
 
+            const { urls: rpcUrls } = await rpcHealth.ensureProbed();
+
             const client = new StreamrClient({
                 auth: {
                     privateKey: signer.privateKey
@@ -295,12 +327,15 @@ class StreamrController {
                         // Disable highGasPriceStrategy to avoid gasstation.polygon.technology errors
                         highGasPriceStrategy: false
                     },
-                    rpcs: getRpcEndpoints(),
+                    rpcs: rpcUrls.map((url) => ({ url })),
                     // Use first RPC that responds (faster, less reliable for consensus)
                     rpcQuorum: 1
                 }
             });
+            this._trackChainWrites(client);
             this.client = client;
+            rpcHealth.noteApplied(rpcUrls);
+            rpcHealth.start();
 
             this.address = await client.getAddress();
             Logger.info('Streamr client initialized with address:', this.address);
@@ -1017,7 +1052,7 @@ class StreamrController {
      */
     async _chainStorageDays(streamId) {
         let lastError = new Error('No RPC endpoint');
-        for (const { url } of getRpcEndpoints()) {
+        for (const { url } of getUsableRpcEndpoints()) {
             try {
                 const provider = new ethers.JsonRpcProvider(url, CONFIG.network.chainId,
                     { staticNetwork: true, batchMaxCount: 1 });
@@ -1838,10 +1873,12 @@ class StreamrController {
             });
             
             Logger.debug('hasPublishPermission check:', { streamId, currentAddress: currentAddress.slice(0,10), hasPublish, allowPublic });
+            rpcHealth.noteReadSuccess();
             return createPermissionResult(hasPublish, false);
         } catch (error) {
             // Check if this is an RPC/network error vs actual permission error
             if (isRpcError(error)) {
+                rpcHealth.noteReadFailure();
                 Logger.warn('RPC error checking PUBLISH permission:', error.message);
                 return createPermissionResult(null, true, error.message);
             }
@@ -1895,8 +1932,10 @@ class StreamrController {
             });
             
             Logger.debug('hasSubscribePermission check:', { streamId, currentAddress: currentAddress.slice(0,10), hasSubscribe, allowPublic });
+            rpcHealth.noteReadSuccess();
             return hasSubscribe;
         } catch (error) {
+            if (isRpcError(error)) rpcHealth.noteReadFailure();
             Logger.error('Failed to check SUBSCRIBE permission:', error);
             return false;
         }
@@ -4238,6 +4277,7 @@ class StreamrController {
     async disconnect() {
         this._session++;
         this.revival.stop();
+        rpcHealth.stop();
         const client = this.client;
         if (client) {
             // Out before anything is awaited: a node start still pending settles

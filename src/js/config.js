@@ -54,7 +54,16 @@ export const CONFIG = {
             'https://eth.drpc.org'
         ],
         rpcTimeoutMs: 5000,            // Per-call HTTP RPC timeout (GasEstimator)
-        fallbackGasPriceGwei: 120      // Fallback gas price when all RPCs fail
+        fallbackGasPriceGwei: 120,     // Fallback gas price when all RPCs fail
+        // Endpoint health (rpcHealth.js)
+        rpcHealth: {
+            probeTimeoutMs: 3000,
+            maxBlockLag: 10,
+            reprobeIntervalMs: 15 * 60 * 1000,
+            failuresBeforeReprobe: 3,
+            failureWindowMs: 2 * 60 * 1000,
+            minRebuildIntervalMs: 10 * 60 * 1000
+        }
     },
 
     // Retry Configuration
