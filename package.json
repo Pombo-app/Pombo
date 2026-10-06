@@ -16,10 +16,11 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "vectors": "node tests/vectors/regen.mjs"
+    "vectors": "node tests/vectors/regen.mjs",
+    "postinstall": "patch-package"
   },
   "dependencies": {
-    "@streamr/sdk": "^103.3.1",
+    "@streamr/sdk": "103.3.1",
     "dompurify": "^3.4.14",
     "ethers": "^6.9.0",
     "qrcode": "^1.5.4"
@@ -31,6 +32,7 @@
     "@vitest/ui": "^4.0.18",
     "happy-dom": "^20.8.3",
     "jsdom": "^28.1.0",
+    "patch-package": "^8.0.1",
     "tailwindcss": "^3.4.1",
     "vitest": "^4.0.18",
     "webpack": "^5.90.0",

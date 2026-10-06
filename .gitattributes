@@ -1,1 +1,2 @@
 *.woff2 binary
+patches/*.patch text eol=lf
