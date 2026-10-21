@@ -110,6 +110,11 @@ const CONFIRM_TIMEOUT_MS = 120_000;
 /** Entries kept per kind in CONFIG.storageKeys.chainFacts; the oldest goes first. */
 const CHAIN_FACTS_MAX = 500;
 
+/** About an hour of Polygon PoS blocks: a gate deploy still unmined after that is not landing. */
+const CREATED_GATE_SCAN_BLOCKS = 1800;
+/** Blocks per eth_getLogs call: dRPC's free plan refuses a wider range. */
+const LOG_RANGE_BLOCKS = 100;
+
 const withTimeout = (promise, what, ms = READ_TIMEOUT_MS) => {
     let timer;
     return Promise.race([
@@ -648,6 +653,50 @@ class GateManager {
             for (const address of page) members.push(address.toLowerCase());
         }
         return members;
+    }
+
+    /** The users a Closed gate does not allow yet. Throws when the chain cannot be read. */
+    async notAllowed(gateAddress, users) {
+        const allowed = await this._withProvider(() => {
+            const gate = this._readContract(gateAddress);
+            return Promise.all(users.map((user) => gate.allowlist(user)));
+        });
+        return users.filter((_, i) => !allowed[i]);
+    }
+
+    /** @returns {Promise<number>} */
+    blockNumber() {
+        return this._withProvider((provider) => provider.getBlockNumber());
+    }
+
+    /**
+     * The gate clone `owner` deployed at or after `fromBlock` with this mode,
+     * skipping the ones already claimed: what an interrupted channel creation
+     * paid for before it could record the address. Throws when the chain
+     * cannot be read.
+     * @param {string} owner
+     * @param {number} fromBlock - read before the deploy was sent
+     * @param {number} mode - GATE_MODE
+     * @param {Iterable<string>} [claimed] - gate addresses already backing a channel
+     * @returns {Promise<string|null>} lowercase address, null when none landed
+     */
+    async findCreatedGate(owner, fromBlock, mode, claimed = []) {
+        const taken = new Set([...claimed].map((address) => String(address).toLowerCase()));
+        const factory = new ethers.Interface(FACTORY_ABI);
+        const topics = [factory.getEvent('GateCreated').topicHash, null, ethers.zeroPadValue(owner, 32)];
+        const last = Math.min(await this.blockNumber(), fromBlock + CREATED_GATE_SCAN_BLOCKS);
+        for (let from = fromBlock; from <= last; from += LOG_RANGE_BLOCKS) {
+            const to = Math.min(last, from + LOG_RANGE_BLOCKS - 1);
+            const logs = await this._withProvider((provider) => provider.getLogs({
+                address: CONFIG.gate.factoryAddress, topics, fromBlock: from, toBlock: to
+            }));
+            for (const log of logs) {
+                const created = factory.parseLog(log);
+                const gate = created.args.gate.toLowerCase();
+                if (Number(created.args.mode) === mode && !taken.has(gate)) return gate;
+            }
+        }
+        return null;
     }
 
     invalidateGrants(gateAddress) {

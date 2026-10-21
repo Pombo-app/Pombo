@@ -39,6 +39,7 @@ vi.mock('../../src/js/streamr.js', () => ({
         hasPublishPermission: vi.fn().mockResolvedValue({ hasPermission: true, rpcError: false }),
         hasDeletePermission: vi.fn().mockResolvedValue(false),
         grantPublicPermissions: vi.fn(),
+        streamExists: vi.fn().mockResolvedValue(false),
         resend: vi.fn(),
         unsubscribeFromDualStream: vi.fn().mockResolvedValue(undefined),
         fetchOlderHistory: vi.fn().mockResolvedValue({ messages: [], hasMore: false }),
@@ -118,7 +119,10 @@ vi.mock('../../src/js/secureStorage.js', () => ({
         clearFailedOutbox: vi.fn().mockResolvedValue(undefined),
         // Members-only creation adopts the publish key into the epoch slice
         getEpochKeys: vi.fn().mockReturnValue(null),
-        setEpochKeys: vi.fn().mockResolvedValue(undefined)
+        setEpochKeys: vi.fn().mockResolvedValue(undefined),
+        getPendingCreates: vi.fn().mockReturnValue([]),
+        putPendingCreate: vi.fn().mockResolvedValue(undefined),
+        removePendingCreate: vi.fn().mockResolvedValue(undefined)
     }
 }));
 
@@ -162,6 +166,9 @@ vi.mock('../../src/js/gate.js', () => ({
     WIRE_IDENTITY: Object.freeze({ VISIBLE: 0, SEALED: 1 }),
     gateManager: {
         createGate: vi.fn().mockResolvedValue('0xgate'),
+        blockNumber: vi.fn().mockResolvedValue(1000),
+        findCreatedGate: vi.fn().mockResolvedValue(null),
+        notAllowed: vi.fn().mockResolvedValue([]),
         allowBatch: vi.fn().mockResolvedValue(true),
         allow: vi.fn().mockResolvedValue(true),
         ban: vi.fn().mockResolvedValue(true),
@@ -2030,6 +2037,158 @@ describe('ChannelManager', () => {
             expect(channel.hasMoreHistory).toBe(true);
             expect(channel.loadingHistory).toBe(false);
             expect(channel.oldestTimestamp).toBeNull();
+        });
+    });
+
+    // A reload part way through creation used to leave a paid channel, and
+    // the only copy of its shared keys, nowhere.
+    describe('interrupted creation', () => {
+        let stored;
+        let gateManager;
+
+        beforeEach(async () => {
+            ({ gateManager } = await import('../../src/js/gate.js'));
+            stored = [];
+            authManager.getAddress.mockReturnValue('0xmyaddress');
+            streamrController.createStream.mockResolvedValue({
+                messageStreamId: '0xmyaddress/test-1',
+                ephemeralStreamId: '0xmyaddress/test-2'
+            });
+            secureStorage.isStorageUnlocked.mockReturnValue(true);
+            secureStorage.getPendingCreates.mockImplementation(() => stored);
+            secureStorage.putPendingCreate.mockImplementation(async (record) => {
+                stored = [...stored.filter(r => r.basePath !== record.basePath), record];
+            });
+            secureStorage.removePendingCreate.mockImplementation(async (basePath) => {
+                stored = stored.filter(r => r.basePath !== basePath);
+            });
+        });
+
+        afterEach(() => {
+            secureStorage.getPendingCreates.mockReturnValue([]);
+            secureStorage.putPendingCreate.mockResolvedValue(undefined);
+            secureStorage.removePendingCreate.mockResolvedValue(undefined);
+            streamrController.streamExists.mockResolvedValue(false);
+            gateManager.notAllowed.mockResolvedValue([]);
+            authManager.getAddress.mockReturnValue('0xmyaddress');
+        });
+
+        const interrupt = async (...args) => {
+            streamrController.createStream.mockRejectedValueOnce(new Error('network down'));
+            await expect(channelManager.createChannel(...args)).rejects.toThrow();
+            return stored[0];
+        };
+
+        it('writes the record, with the stream ids, before the first transaction', async () => {
+            await channelManager.createChannel('Test', 'public');
+
+            const record = secureStorage.putPendingCreate.mock.calls[0][0];
+            expect(record.basePath).toMatch(/^0xmyaddress\/[0-9a-f]{16}$/);
+            expect(secureStorage.putPendingCreate.mock.invocationCallOrder[0])
+                .toBeLessThan(streamrController.createStream.mock.invocationCallOrder[0]);
+            const options = streamrController.createStream.mock.calls[0][3];
+            expect(options.baseStreamPath).toBe(record.basePath);
+            expect(options.verifyFirst).toBe(false);
+        });
+
+        it('a gated creation records the start block and the minted keys before the gate, and the gate before the streams', async () => {
+            await channelManager.createChannel('Group', 'gated', null, []);
+
+            const [first, withGate] = secureStorage.putPendingCreate.mock.calls.map(([r]) => r);
+            const order = secureStorage.putPendingCreate.mock.invocationCallOrder;
+            expect(first.startBlock).toBe(1000);
+            expect(first.publishKey.keyHex).toBeTruthy();
+            expect(first.interactionsKey.keyHex).toBeTruthy();
+            expect(order[0]).toBeLessThan(gateManager.createGate.mock.invocationCallOrder[0]);
+            expect(withGate.gateAddress).toBe('0xgate');
+            expect(order[1]).toBeLessThan(streamrController.createStream.mock.invocationCallOrder[0]);
+            expect(streamrController.createStream.mock.calls[0][3].publishKeyAddress).toBe(first.publishKey.address);
+        });
+
+        it('drops the record only after the channel is saved and its keys adopted', async () => {
+            await channelManager.createChannel('Group', 'gated', null, []);
+
+            const saved = secureStorage.setChannels.mock.invocationCallOrder[0];
+            const adopted = secureStorage.setEpochKeys.mock.invocationCallOrder.at(-1);
+            const dropped = secureStorage.removePendingCreate.mock.invocationCallOrder[0];
+            expect(saved).toBeLessThan(adopted);
+            expect(adopted).toBeLessThan(dropped);
+            expect(stored).toEqual([]);
+        });
+
+        it('keeps the record when a transaction fails part way, free to finish later', async () => {
+            const record = await interrupt('Test', 'public');
+
+            expect(stored).toHaveLength(1);
+            expect(channelManager.channels.size).toBe(0);
+            expect(channelManager.pendingCreates.claim(record.basePath)).toBe(true);
+            channelManager.pendingCreates.release(record.basePath);
+        });
+
+        it('Finish asks the chain before every write and reuses the ids, the gate and the keys', async () => {
+            const record = await interrupt('Group', 'gated', null, [], { storageDays: 30 });
+            gateManager.createGate.mockClear();
+
+            const channel = await channelManager.finishPendingCreate(record.basePath);
+
+            expect(gateManager.createGate).not.toHaveBeenCalled();
+            const options = streamrController.createStream.mock.calls.at(-1)[3];
+            expect(options.baseStreamPath).toBe(record.basePath);
+            expect(options.verifyFirst).toBe(true);
+            expect(options.gateAddress).toBe('0xgate');
+            expect(options.publishKeyAddress).toBe(record.publishKey.address);
+            expect(options.interactionsKeyAddress).toBe(record.interactionsKey.address);
+            expect(streamrController.enableStorage.mock.calls.length).toBeGreaterThan(0);
+            expect(streamrController.enableStorage.mock.calls.every(([, o]) => o.verifyFirst === true)).toBe(true);
+            expect(channel.gate.address).toBe('0xgate');
+            expect(stored).toEqual([]);
+        });
+
+        it('Finish allows only the members the gate does not allow yet', async () => {
+            const record = await interrupt('Group', 'gated', null, ['0xbob', '0xalice']);
+            gateManager.notAllowed.mockResolvedValueOnce(['0xalice']);
+
+            await channelManager.finishPendingCreate(record.basePath);
+
+            expect(gateManager.allowBatch).toHaveBeenCalledTimes(1);
+            expect(gateManager.allowBatch).toHaveBeenCalledWith('0xgate', ['0xalice']);
+        });
+
+        it('Finish refuses a creation nothing of which reached the chain, and keeps it', async () => {
+            const record = await interrupt('Test', 'public');
+            streamrController.streamExists.mockResolvedValue(false);
+
+            await expect(channelManager.finishPendingCreate(record.basePath)).rejects.toThrow('cannot be finished');
+            expect(stored).toHaveLength(1);
+        });
+
+        it('lists a creation for Finish once the chain shows its -1', async () => {
+            const record = await interrupt('Test', 'public');
+            streamrController.streamExists.mockImplementation(async (id) => id === `${record.basePath}-1`);
+
+            await channelManager.reconcilePendingCreates();
+
+            expect(channelManager.getInterruptedCreates().map(r => r.name)).toEqual(['Test']);
+        });
+
+        it('Discard forgets the record', async () => {
+            const record = await interrupt('Test', 'public');
+
+            await channelManager.discardPendingCreate(record.basePath);
+
+            expect(stored).toEqual([]);
+        });
+
+        it('writes nothing into an account switched to while the gate deployed', async () => {
+            gateManager.createGate.mockImplementationOnce(async () => {
+                authManager.getAddress.mockReturnValue('0xother');
+                return '0xgate';
+            });
+
+            await expect(channelManager.createChannel('Group', 'gated', null, [])).rejects.toThrow('account changed');
+
+            expect(streamrController.createStream).not.toHaveBeenCalled();
+            expect(stored[0].gateAddress).toBeNull();
         });
     });
 

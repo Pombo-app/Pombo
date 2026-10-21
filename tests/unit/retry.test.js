@@ -208,6 +208,55 @@ describe('retry', () => {
             expect(checkExistsFn).toHaveBeenCalledTimes(3);
         });
 
+        describe('verifyFirst', () => {
+            it('sends nothing when the chain already holds the write', async () => {
+                const asyncFn = vi.fn().mockResolvedValue('sent');
+                const checkExistsFn = vi.fn().mockResolvedValue({ id: 'there' });
+
+                const result = await executeWithRetryAndVerify('test', asyncFn, checkExistsFn,
+                    { maxRetries: 3, baseDelay: 10, verifyFirst: true });
+
+                expect(result).toEqual({ id: 'there' });
+                expect(asyncFn).not.toHaveBeenCalled();
+            });
+
+            it('asks before the first send and sends when it is missing', async () => {
+                const order = [];
+                const asyncFn = vi.fn(async () => { order.push('send'); return 'sent'; });
+                const checkExistsFn = vi.fn(async () => { order.push('check'); return false; });
+
+                const result = await executeWithRetryAndVerify('test', asyncFn, checkExistsFn,
+                    { maxRetries: 3, baseDelay: 10, verifyFirst: true });
+
+                expect(result).toBe('sent');
+                expect(order).toEqual(['check', 'send']);
+            });
+
+            it('an unreadable chain holds the first send until a check answers', async () => {
+                const asyncFn = vi.fn().mockResolvedValue('sent');
+                const checkExistsFn = vi.fn()
+                    .mockRejectedValueOnce(new Error('RPC down'))
+                    .mockResolvedValue(false);
+
+                const result = await executeWithRetryAndVerify('test', asyncFn, checkExistsFn,
+                    { maxRetries: 3, baseDelay: 10, verifyFirst: true });
+
+                expect(result).toBe('sent');
+                expect(checkExistsFn).toHaveBeenCalledTimes(2);
+                expect(asyncFn).toHaveBeenCalledTimes(1);
+            });
+
+            it('never sends blind when the chain stays unreadable', async () => {
+                const asyncFn = vi.fn().mockResolvedValue('sent');
+                const checkExistsFn = vi.fn().mockRejectedValue(new Error('RPC down'));
+
+                await expect(executeWithRetryAndVerify('test', asyncFn, checkExistsFn,
+                    { maxRetries: 3, baseDelay: 10, verifyFirst: true })).rejects.toThrow('RPC down');
+
+                expect(asyncFn).not.toHaveBeenCalled();
+            });
+        });
+
         it('should throw after all retries if resource never exists', async () => {
             const asyncFn = vi.fn().mockRejectedValue(new Error('persistent error'));
             const checkExistsFn = vi.fn().mockResolvedValue(null);

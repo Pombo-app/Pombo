@@ -194,4 +194,64 @@ describe('ChannelListUI', () => {
 
         cachedImageSpy.mockRestore();
     });
+
+    describe('interrupted creations', () => {
+        const interrupted = { basePath: '0xme/abcd', name: '<b>Group</b>', type: 'gated' };
+        let onFinishPendingCreate;
+        let onDiscardPendingCreate;
+
+        beforeEach(() => {
+            onFinishPendingCreate = vi.fn().mockResolvedValue(undefined);
+            onDiscardPendingCreate = vi.fn().mockResolvedValue(undefined);
+            channelManager.getInterruptedCreates = vi.fn(() => [interrupted]);
+            channelListUI.setDependencies({
+                channelManager, secureStorage, onChannelSelect, onFinishPendingCreate, onDiscardPendingCreate
+            });
+        });
+
+        it('shows one row above the channels, the name as text, and keeps it through re-renders', () => {
+            channelManager.getAllChannels.mockReturnValue([createChannel({ streamId: 'alpha' })]);
+
+            channelListUI.render();
+            channelListUI.render();
+
+            const rows = channelList.querySelectorAll('.pending-create');
+            expect(rows).toHaveLength(1);
+            expect(channelList.firstElementChild.classList.contains('pending-creates')).toBe(true);
+            expect(rows[0].querySelector('b')).toBeNull();
+            expect(rows[0].textContent).toContain('Group');
+            expect(rows[0].textContent).toContain('creation interrupted');
+        });
+
+        it('shows next to the empty state too', () => {
+            channelManager.getAllChannels.mockReturnValue([]);
+
+            channelListUI.render();
+
+            expect(channelList.querySelectorAll('.pending-create')).toHaveLength(1);
+            expect(channelList.textContent).toContain('No channels yet');
+        });
+
+        it('Finish and Discard hand over the creation and never select a channel', async () => {
+            channelManager.getAllChannels.mockReturnValue([]);
+            channelListUI.render();
+
+            channelList.querySelector('[data-pending-action="finish"]').click();
+            await vi.waitFor(() => expect(onFinishPendingCreate).toHaveBeenCalledWith('0xme/abcd'));
+            channelList.querySelector('[data-pending-action="discard"]').click();
+            await vi.waitFor(() => expect(onDiscardPendingCreate).toHaveBeenCalledWith('0xme/abcd'));
+            expect(onChannelSelect).not.toHaveBeenCalled();
+        });
+
+        it('disables both buttons while the action runs', () => {
+            onFinishPendingCreate.mockReturnValue(new Promise(() => {}));
+            channelManager.getAllChannels.mockReturnValue([]);
+            channelListUI.render();
+
+            channelList.querySelector('[data-pending-action="finish"]').click();
+
+            const buttons = [...channelList.querySelectorAll('.pending-create button')];
+            expect(buttons.every(button => button.disabled)).toBe(true);
+        });
+    });
 });

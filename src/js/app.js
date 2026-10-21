@@ -528,6 +528,11 @@ class App {
             const deepLinkStreamId = this._getDeepLinkStreamId();
             streamrController.warmupNetwork(deepLinkStreamId);
             if (!isGuest) channelManager.resumeOwedRotations();
+            if (!isGuest) {
+                channelManager.reconcilePendingCreates()
+                    .then(() => uiController.renderChannelList())
+                    .catch(e => Logger.warn('Interrupted channel creations not reconciled:', e?.message));
+            }
 
             await mediaController.setOwner(address);
 

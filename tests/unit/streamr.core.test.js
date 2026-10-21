@@ -1714,6 +1714,23 @@ describe('StreamrController Core', () => {
             const firstPermCall = mockClient.setPermissions.mock.calls[0][0];
             expect(firstPermCall.assignments[0].permissions).toEqual(['subscribe']);
         });
+
+        it('grows the ids from the given base, and resuming asks the chain before every write', async () => {
+            const writes = [];
+            mockClient.createStream.mockImplementation(async ({ id }) => ({ id }));
+            executeWithRetryAndVerify.mockImplementation(async (name, fn, check, opts) => {
+                writes.push([name, !!opts?.verifyFirst]);
+                return fn();
+            });
+
+            const result = await streamrController.createStream('Test', '0xowner', 'public',
+                { baseStreamPath: '0xmyaddress/feedbeef', verifyFirst: true });
+
+            expect(result.messageStreamId).toBe('0xmyaddress/feedbeef-1');
+            expect(result.interactionsStreamId).toBe('0xmyaddress/feedbeef-5');
+            expect(writes).toHaveLength(8);
+            expect(writes.every(([, verifyFirst]) => verifyFirst)).toBe(true);
+        });
     });
 
     // ==================== createDMInbox() ====================

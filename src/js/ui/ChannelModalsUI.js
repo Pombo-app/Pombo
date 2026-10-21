@@ -1350,6 +1350,46 @@ class ChannelModalsUI {
             this.Logger?.warn('Balance pre-flight check failed (continuing):', preflightError);
         }
 
+        this.hide();
+        await this._runWithCreateProgress(isGated, members.length, 'Creating channel...',
+            (onProgress) => this.channelManager.createChannel(name, type, password, members, {
+                ...options,
+                onProgress
+            }),
+            'Channel created successfully!', 'Failed to create channel: ');
+    }
+
+    /** Finish an interrupted creation: only the missing transactions are sent. */
+    async finishInterruptedCreate(basePath) {
+        const record = this.channelManager.getInterruptedCreates().find(r => r.basePath === basePath);
+        if (!record) return;
+        await this._runWithCreateProgress(record.type === 'gated', record.members?.length || 0, 'Finishing channel...',
+            (onProgress) => this.channelManager.finishPendingCreate(basePath, { onProgress }),
+            'Channel created successfully!', 'Could not finish the channel: ');
+    }
+
+    async discardInterruptedCreate(basePath) {
+        const record = this.channelManager.getInterruptedCreates().find(r => r.basePath === basePath);
+        if (!record) return;
+        const confirmed = await this.notificationUI?.showConfirmToast?.(
+            'Discard this channel?',
+            `“${record.name}” will not be created. What already reached the chain stays there, unused, and the POL it cost is not refunded.`,
+            { confirmLabel: 'Discard', cancelLabel: 'Keep', variant: 'warning' }
+        );
+        if (!confirmed) return;
+        try {
+            await this.channelManager.discardPendingCreate(basePath);
+        } catch (error) {
+            this.showNotification('Could not discard: ' + error.message, 'error');
+        }
+    }
+
+    /**
+     * Run a channel creation under the progress ring. Skipped steps of a
+     * finished creation still tick, so the ring ends full either way.
+     * @private
+     */
+    async _runWithCreateProgress(isGated, memberCount, title, run, successMessage, failurePrefix) {
         try {
             // Total on-chain steps. Every type has the -5, and the -2 is the
             // only stream with no storage:
@@ -1360,9 +1400,9 @@ class ChannelModalsUI {
             const streamCount = isGated ? 5 : 4;
             // A closed channel created with an initial member list allows them
             // in one extra transaction (gate allowBatch).
-            const totalSteps = isGated ? (members.length ? 20 : 19) : 14;
+            const totalSteps = isGated ? (memberCount ? 20 : 19) : 14;
             this.notificationUI?.showLoadingToast(
-                'Creating channel...',
+                title,
                 'This may take a minute',
                 { steps: totalSteps, initialLabel: 'Creating Channel...' }
             );
@@ -1381,12 +1421,7 @@ class ChannelModalsUI {
                 this.notificationUI?.setLoadingProgress(currentStep, labelForStep(currentStep));
             };
 
-            this.hide();
-            
-            const channel = await this.channelManager.createChannel(name, type, password, members, {
-                ...options,
-                onProgress
-            });
+            const channel = await run(onProgress);
             this.Logger?.debug('Channel created in UI:', channel);
 
             this.deps.renderChannelList?.();
@@ -1398,9 +1433,12 @@ class ChannelModalsUI {
                 }, 100);
             }
 
-            this.showNotification('Channel created successfully!', 'success');
+            this.showNotification(successMessage, 'success');
         } catch (error) {
-            this.showNotification('Failed to create channel: ' + error.message, 'error');
+            this.showNotification(failurePrefix + error.message, 'error');
+            this.channelManager.reconcilePendingCreates?.()
+                .then(() => this.deps.renderChannelList?.())
+                .catch(() => {});
         } finally {
             this.notificationUI?.hideLoadingToast();
         }

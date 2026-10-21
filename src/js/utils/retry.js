@@ -87,6 +87,8 @@ export async function executeWithRetry(operationName, asyncFn, options = {}) {
  * @param {Function} asyncFn - Async function that sends the write
  * @param {Function} checkExistsFn - Is the write's effect already on chain?
  * @param {Object} options - Retry options (same as executeWithRetry)
+ * @param {boolean} [options.verifyFirst] - Ask the chain before the first
+ *   send too, for a write an earlier session may already have made
  * @returns {Promise<any>} - Result of asyncFn or checkExistsFn
  */
 export async function executeWithRetryAndVerify(operationName, asyncFn, checkExistsFn, options = {}) {
@@ -94,11 +96,25 @@ export async function executeWithRetryAndVerify(operationName, asyncFn, checkExi
         maxRetries = CONFIG.retry.maxAttempts,
         baseDelay = CONFIG.retry.baseDelayMs,
         backoffMultiplier = CONFIG.retry.backoffMultiplier,
-        shouldRetry = () => true
+        shouldRetry = () => true,
+        verifyFirst = false
     } = options;
 
     let lastError;
     let send = true;
+    if (verifyFirst) {
+        try {
+            const existing = await checkExistsFn();
+            if (existing) {
+                Logger.info(`${operationName}: already on chain`);
+                return existing;
+            }
+        } catch (checkError) {
+            lastError = checkError;
+            Logger.warn(`${operationName}: could not confirm on chain, not sending yet:`, checkError.message);
+            send = false;
+        }
+    }
 
     for (let round = 1; round <= maxRetries; round++) {
         if (send) {
