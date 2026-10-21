@@ -842,9 +842,17 @@ class EpochKeyManager {
             await this._maybeAnnounceInteractions(channel, s);
         }
 
+        this._dropHeldKids(s);
         if (this._missingEpochs(s).length > 0 || this._needsPubKey(channel, s)
                 || this._needsInteractionsKey(channel, s) || s.missingKids?.size > 0) {
             await this._sendKeyRequest(channel, s);
+        }
+    }
+
+    /** A kid noted missing whose key is held since is not missing: left in, it keeps a request going forever. */
+    _dropHeldKids(s) {
+        for (const kid of s.missingKids || []) {
+            if (s.epochs.has(kid)) s.missingKids.delete(kid);
         }
     }
 
@@ -1968,6 +1976,7 @@ class EpochKeyManager {
             return;
         }
         const missing = this._missingEpochs(s);
+        this._dropHeldKids(s);
         // Kids seen on the wire that no held key opens. _missingEpochs is
         // announced-minus-adopted, so an epoch whose announce never arrived
         // has no other evidence than these.
@@ -2328,6 +2337,7 @@ class EpochKeyManager {
      * @param {number} [context.timestamp] - transport timestamp of the message
      */
     async getKeyForKid(messageStreamId, kid, context = {}) {
+        this.loadPersistedState(messageStreamId);
         const s = this.state.get(messageStreamId);
         const entry = s?.epochs.get(kid);
         if (!entry) return null;
