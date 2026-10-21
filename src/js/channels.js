@@ -40,7 +40,9 @@ import { DeliveryConfirm } from './channels/DeliveryConfirm.js';
 import { Membership } from './channels/Membership.js';
 import { RotationRetry } from './channels/RotationRetry.js';
 import { ModDeltas, MOD_ACTION_TYPE } from './channels/ModDeltas.js';
+import { PendingCreates, PENDING_STATE, packCreateOptions, unpackCreateOptions } from './channels/PendingCreates.js';
 import { stampChangedFields } from './syncMerge.js';
+import { cryptoManager } from './crypto.js';
 
 const GATE_REPAIR_WAIT_MS = 10_000;
 const OPEN_READ_RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
@@ -103,6 +105,22 @@ class ChannelManager {
         });
         // Moderator deltas on -1/P2, composed over the owner's snapshot.
         this.modDeltas = new ModDeltas(this);
+        this.pendingCreates = new PendingCreates({
+            records: () => secureStorage.getPendingCreates(),
+            put: (record) => secureStorage.putPendingCreate(record),
+            remove: (basePath) => secureStorage.removePendingCreate(basePath),
+            streamExists: (streamId) => streamrController.streamExists(streamId),
+            findGate: async (record) => {
+                if (!Number.isInteger(record.startBlock)) return null;
+                const { gateManager, GATE_MODE } = await import('./gate.js');
+                const claimed = [
+                    ...Array.from(this.channels.values(), ch => ch.gate?.address),
+                    ...this.pendingCreates.list().map(r => r.gateAddress)
+                ].filter(Boolean);
+                return gateManager.findCreatedGate(record.owner, record.startBlock,
+                    record.options?.gateMode ?? GATE_MODE.NONE, claimed);
+            }
+        });
     }
 
     /**
@@ -647,20 +665,132 @@ class ChannelManager {
             Logger.debug('Creating dual-stream channel:', { name, type, realAddress, members });
 
             const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
+            const pending = await this._beginPendingCreate(realAddress, name, type, password, members, options);
+            return await this._runCreate(pending, { onProgress });
+        } catch (error) {
+            Logger.error('Failed to create channel:', error);
+            // Check if it's a chain/gas error and throw with user-friendly message
+            const chainError = parseChainError(error);
+            throw new Error(chainError.message);
+        }
+    }
 
+    /**
+     * The record of a creation about to start, stored before its first
+     * transaction: the stream ids and the shared keys exist before anything
+     * is paid for. Gated creations also note the block the gate deploy is
+     * sent after, the only way back to a clone whose address was never seen.
+     */
+    async _beginPendingCreate(realAddress, name, type, password, members, options) {
+        const owner = realAddress.toLowerCase();
+        const wireIdentity = type === 'gated' ? (options.wireIdentity || 'sealed') : null;
+        let startBlock = null;
+        if (type === 'gated') {
+            const { gateManager } = await import('./gate.js');
+            startBlock = await gateManager.blockNumber();
+        }
+        const record = {
+            basePath: `${owner}/${cryptoManager.generateRandomHex(8)}`,
+            owner,
+            name,
+            type,
+            password,
+            members,
+            options: packCreateOptions(options),
+            wireIdentity,
+            // Sealed, the default for new gated channels: the SHARED publish
+            // key is minted up front so its address rides the creation
+            // permission batch. The private half is adopted once the channel
+            // is saved and distributed to members via -4 wraps.
+            publishKey: wireIdentity === 'sealed' ? epochKeyManager.mintPublishKey() : null,
+            // The second shared key: same mechanics, wider distribution.
+            // Every member holds it, read-only included — it carries the -5
+            // (reactions) and the -2 (presence), so participating never
+            // depends on being allowed to post.
+            interactionsKey: wireIdentity === 'sealed' ? epochKeyManager.mintInteractionsKey() : null,
+            startBlock,
+            gateAddress: null,
+            startedAt: Date.now()
+        };
+        await this.pendingCreates.begin(record);
+        return record;
+    }
+
+    /** A creation must not write into the account the user switched to meanwhile. */
+    _assertCreator(owner) {
+        if (authManager.getAddress()?.toLowerCase() !== owner) {
+            throw new Error('The account changed during channel creation; finish it from the account that started it');
+        }
+    }
+
+    /**
+     * Channels a reload interrupted after some of their transactions landed,
+     * for Finish / Discard. Filled by reconcilePendingCreates.
+     * @returns {Object[]} pending records
+     */
+    getInterruptedCreates() {
+        return this.pendingCreates.resumable();
+    }
+
+    /** Ask the chain what each stored pending creation left behind. */
+    async reconcilePendingCreates() {
+        return this.pendingCreates.reconcileAll();
+    }
+
+    /**
+     * Send what an interrupted creation still lacks, asking the chain before
+     * each write, and save the channel.
+     * @param {string} basePath
+     * @param {Object} [opts]
+     * @param {Function} [opts.onProgress]
+     * @returns {Promise<Object>} the channel
+     */
+    async finishPendingCreate(basePath, { onProgress = null } = {}) {
+        try {
+            const record = this.pendingCreates.get(basePath);
+            if (!record) throw new Error('This channel creation is no longer pending');
+            if (await this.pendingCreates.reconcile(record) !== PENDING_STATE.RESUMABLE) {
+                throw new Error('This channel creation cannot be finished right now');
+            }
+            if (!this.pendingCreates.claim(basePath)) throw new Error('This channel is still being created');
+            return await this._runCreate(this.pendingCreates.get(basePath), { onProgress, resume: true });
+        } catch (error) {
+            Logger.error('Failed to finish channel creation:', error);
+            throw new Error(parseChainError(error).message);
+        }
+    }
+
+    /**
+     * Forget an interrupted creation. Whatever of it landed stays on chain
+     * unused: deleting streams costs a transaction each.
+     */
+    async discardPendingCreate(basePath) {
+        await this.pendingCreates.discard(basePath);
+    }
+
+    /**
+     * The creation transactions, then the channel record. Resuming asks the
+     * chain before every write and sends only what is missing.
+     *
+     * The end is ordered: the channel is saved, its shared keys adopted, and
+     * only then the pending record dropped — the record is the only copy of
+     * keys the stream grants already name.
+     */
+    async _runCreate(pending, { onProgress = null, resume = false } = {}) {
+        const { basePath, owner, name, type, password, members, wireIdentity, publishKey, interactionsKey } = pending;
+        const options = unpackCreateOptions(pending.options);
+        let completed = false;
+        try {
             // Gated channels (N-C): the gate clone comes FIRST — its address
             // goes into the stream metadata and receives every permission
             // grant. One factory tx; the creator becomes the gate owner. The
             // identity mode and the read-only flag are immutable fields of
             // the clone — the contract is the authority on both, and the
             // stream-metadata flags written below are cached copies.
-            const wireIdentity = type === 'gated' ? (options.wireIdentity || 'sealed') : null;
-            let gateAddress = null;
-            if (type === 'gated') {
+            if (type === 'gated' && !pending.gateAddress) {
                 const { gateManager, GATE_MODE, WIRE_IDENTITY } = await import('./gate.js');
-                const gateMode = options.gateMode ?? GATE_MODE.NONE;
-                gateAddress = await gateManager.createGate({
-                    mode: gateMode,
+                const created = await gateManager.createGate({
+                    mode: options.gateMode ?? GATE_MODE.NONE,
                     token: options.gateToken,
                     minBalance: options.gateMinBalance,
                     price: options.gatePrice,
@@ -669,35 +799,27 @@ class ChannelManager {
                         ? WIRE_IDENTITY.SEALED : WIRE_IDENTITY.VISIBLE,
                     readOnly: !!options.readOnly
                 });
-                Logger.info('Gate clone created:', gateAddress);
+                Logger.info('Gate clone created:', created);
+                this._assertCreator(owner);
+                pending = { ...pending, gateAddress: created };
+                await this.pendingCreates.update(pending);
+            }
+            if (type === 'gated') {
                 try { onProgress?.(); } catch (_) { /* ignore */ }
             }
-
-            // Sealed, the default for new gated channels: mint the SHARED
-            // publish key now so its address
-            // rides the creation permission batch. The private half is
-            // adopted below and distributed to members via -4 wraps.
-            let publishKey = null;
-            let interactionsKey = null;
-            if (wireIdentity === 'sealed') {
-                publishKey = epochKeyManager.mintPublishKey();
-                // The second shared key: same mechanics, wider distribution.
-                // Every member holds it, read-only included — it carries the
-                // -5 (reactions) and the -2 (presence), so participating never
-                // depends on being allowed to post.
-                interactionsKey = epochKeyManager.mintInteractionsKey();
-            }
+            const gateAddress = pending.gateAddress;
 
             // Create dual-stream channel - streamrController handles on-chain operations
             // Returns: { messageStreamId, ephemeralStreamId, type, name }
             const streamInfo = await streamrController.createStream(
                 name,
-                realAddress,
+                owner,
                 type,
                 {
                     ...options, onProgress, gateAddress,
                     wireIdentity, publishKeyAddress: publishKey?.address,
-                    interactionsKeyAddress: interactionsKey?.address
+                    interactionsKeyAddress: interactionsKey?.address,
+                    baseStreamPath: basePath, verifyFirst: resume
                 }
             );
             Logger.debug('Triple-stream created:', { 
@@ -717,7 +839,8 @@ class ChannelManager {
                     storageProvider: options.storageProvider,
                     customStorageAddress: options.customStorageAddress,
                     storageDays: options.storageDays,
-                    onProgress
+                    onProgress,
+                    verifyFirst: resume
                 });
                 Logger.debug('Message storage result:', storageResult);
             } catch (storageError) {
@@ -730,7 +853,8 @@ class ChannelManager {
                         storageProvider: options.storageProvider,
                         customStorageAddress: options.customStorageAddress,
                         storageDays: options.storageDays,
-                        onProgress
+                        onProgress,
+                        verifyFirst: resume
                     });
                     Logger.debug('Admin storage result:', adminStorageResult);
                 } catch (storageError) {
@@ -747,7 +871,8 @@ class ChannelManager {
                         storageProvider: options.storageProvider,
                         customStorageAddress: options.customStorageAddress,
                         storageDays: options.storageDays,
-                        onProgress
+                        onProgress,
+                        verifyFirst: resume
                     });
                     Logger.debug('Keys storage result:', keysStorageResult);
                 } catch (storageError) {
@@ -763,7 +888,8 @@ class ChannelManager {
                         storageProvider: options.storageProvider,
                         customStorageAddress: options.customStorageAddress,
                         storageDays: options.storageDays,
-                        onProgress
+                        onProgress,
+                        verifyFirst: resume
                     });
                     Logger.debug('Interactions storage result:', interactionsStorageResult);
                 } catch (storageError) {
@@ -812,13 +938,23 @@ class ChannelManager {
             if (type === 'gated' && members.length > 0) {
                 try {
                     const { gateManager } = await import('./gate.js');
-                    await gateManager.allowBatch(gateAddress, members);
-                    Logger.info(`Gate: ${members.length} member(s) allowed in one tx`);
+                    let toAllow = members;
+                    if (resume) {
+                        // Allowing someone already allowed only costs gas, so an unreadable chain sends them all.
+                        toAllow = await gateManager.notAllowed(gateAddress, members).catch(() => members);
+                    }
+                    if (toAllow.length > 0) {
+                        await gateManager.allowBatch(gateAddress, toAllow);
+                        Logger.info(`Gate: ${toAllow.length} member(s) allowed in one tx`);
+                    }
                 } catch (allowError) {
                     Logger.warn('Gate allowBatch failed (re-add members later):', allowError.message);
                 }
                 try { onProgress?.(); } catch (_) { /* ignore */ }
             }
+
+            this._assertCreator(owner);
+            const realAddress = authManager.getAddress();
 
             // Create channel object with dual-stream IDs
             // Include owner in members array for gated channels (local UI
@@ -899,7 +1035,9 @@ class ChannelManager {
             
             // Add to channel order (new channels go to top)
             await secureStorage.addToChannelOrder(channel.messageStreamId);
-            
+            await this.pendingCreates.complete(basePath);
+            completed = true;
+
             Logger.debug('Channel saved to localStorage:', channel.messageStreamId);
             Logger.debug('Total channels:', this.channels.size);
 
@@ -938,13 +1076,10 @@ class ChannelManager {
                     Logger.warn('Failed to auto-enable notifications:', err.message);
                 }
             }
-            
+
             return channel;
-        } catch (error) {
-            Logger.error('Failed to create channel:', error);
-            // Check if it's a chain/gas error and throw with user-friendly message
-            const chainError = parseChainError(error);
-            throw new Error(chainError.message);
+        } finally {
+            if (!completed) this.pendingCreates.release(basePath);
         }
     }
 

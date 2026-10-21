@@ -528,6 +528,8 @@ class StreamrController {
      * @param {string} creatorAddress - Creator's Ethereum address
      * @param {string} type - Channel type: 'public', 'password', 'gated'
      * @param {Object} options - Additional options { exposure: 'visible'|'hidden' }
+     * @param {string} [options.baseStreamPath] - `owner/random` the stream ids grow from; generated when absent
+     * @param {boolean} [options.verifyFirst] - Ask the chain before every write, sending only what is missing
      * @returns {Promise<Object>} - Stream info with messageStreamId, ephemeralStreamId, adminStreamId
      */
     async createStream(channelName, creatorAddress, type = 'public', options = {}) {
@@ -537,11 +539,10 @@ class StreamrController {
 
         // Use the address for the stream namespace
         const ownerAddress = this.address;
-        
-        // Generate unique base ID (8 char random hex)
-        const randomHash = cryptoManager.generateRandomHex(8);
-        const baseStreamPath = `${ownerAddress}/${randomHash}`;
-        
+
+        const baseStreamPath = options.baseStreamPath || `${ownerAddress}/${cryptoManager.generateRandomHex(8)}`;
+        const verifyFirst = !!options.verifyFirst;
+
         // Stream IDs (triple-stream; gated channels add a 4th for epoch keys)
         const messageStreamId = `${baseStreamPath}-1`;
         const ephemeralStreamId = `${baseStreamPath}-2`;
@@ -636,10 +637,10 @@ class StreamrController {
                     },
                     async () => {
                         const existingStream = await this._streamIfExists(streamId);
-                        if (existingStream) Logger.info(`✓ Stream exists (created despite error): ${existingStream.id}`);
+                        if (existingStream) Logger.info(`✓ Stream exists: ${existingStream.id}`);
                         return existingStream;
                     },
-                    { maxRetries }
+                    { maxRetries, verifyFirst }
                 );
             };
             
@@ -698,15 +699,15 @@ class StreamrController {
                 // For read-only channels:
                 // - Message stream (-1): public subscribe only (read-only)
                 // - Ephemeral stream (-2): public subscribe AND publish (for presence/online members)
-                const messageGrantFn = readOnly 
-                    ? (stream) => this.grantPublicReadOnlyPermissions(stream)
-                    : (stream) => this.grantPublicPermissions(stream);
-                
+                const messageGrantFn = readOnly
+                    ? (stream) => this.grantPublicReadOnlyPermissions(stream, 7, { verifyFirst })
+                    : (stream) => this.grantPublicPermissions(stream, 7, { verifyFirst });
+
                 // Ephemeral stream always gets full public permissions (presence data)
-                const ephemeralGrantFn = (stream) => this.grantPublicPermissions(stream);
-                
+                const ephemeralGrantFn = (stream) => this.grantPublicPermissions(stream, 7, { verifyFirst });
+
                 // Admin stream: public subscribe only; only owner publishes
-                const adminGrantFn = (stream) => this.grantPublicReadOnlyPermissions(stream);
+                const adminGrantFn = (stream) => this.grantPublicReadOnlyPermissions(stream, 7, { verifyFirst });
                 
                 // Sequential to avoid nonce conflicts. Progress is reported regardless
                 // of success: the user has already paid the time cost for the attempt.
@@ -742,7 +743,7 @@ class StreamrController {
                 // that they cannot react — the whole reason reactions have a
                 // stream of their own.
                 try {
-                    await this.grantPublicPermissions(interactionsStream);
+                    await this.grantPublicPermissions(interactionsStream, 7, { verifyFirst });
                     Logger.info('✓ Interactions stream: public permissions set');
                 } catch (e) {
                     Logger.error('✗ Interactions stream permissions failed:', e.message);
@@ -837,7 +838,7 @@ class StreamrController {
                                         : (stream === interactionsStream
                                             ? interactionMembers : gateMembers))
                             };
-                        await this.setStreamPermissions(stream.id, perms);
+                        await this.setStreamPermissions(stream.id, { ...perms, verifyFirst });
                         Logger.info(`✓ ${label} stream: gate clone permissions set`);
                     } catch (e) {
                         Logger.error(`✗ ${label} stream permissions failed:`, e.message);
@@ -968,6 +969,7 @@ class StreamrController {
      *   (e.g. admin stream `-3` where only owner publishes).
      * @param {string[]} options.publicPermissions - Permissions to grant publicly
      *   (default: ['subscribe', 'publish']).
+     * @param {boolean} [options.verifyFirst] - Ask the chain before the first send
      * @param {number} retries - Number of retry attempts
      */
     async setStreamPermissions(streamId, options = {}, retries = 7) {
@@ -1021,7 +1023,8 @@ class StreamrController {
             });
             Logger.debug('Permissions set successfully (batch)');
             return true;
-        }, () => this._permissionsInPlace(streamId, assignments), { maxRetries: retries });
+        }, () => this._permissionsInPlace(streamId, assignments),
+        { maxRetries: retries, verifyFirst: !!options.verifyFirst });
     }
 
     /**
@@ -1082,12 +1085,18 @@ class StreamrController {
         }
     }
 
+    /** Whether the stream exists on chain; throws when the chain cannot be read. */
+    async streamExists(streamId) {
+        if (!this.client) throw new Error('Streamr client not initialized');
+        return !!(await this._streamIfExists(streamId));
+    }
+
     /**
      * Grant public SUBSCRIBE and PUBLISH permissions to a stream
      * Uses setPermissions for single transaction
      * @param {Object} stream - Stream object (or streamId string)
      */
-    async grantPublicPermissions(stream, retries = 7) {
+    async grantPublicPermissions(stream, retries = 7, { verifyFirst = false } = {}) {
         // If string passed, get the stream object
         const streamId = typeof stream === 'string' ? stream : stream.id;
 
@@ -1096,14 +1105,14 @@ class StreamrController {
             await this.client.setPermissions({ streamId, assignments });
             Logger.debug('Public permissions granted successfully');
             return true;
-        }, () => this._permissionsInPlace(streamId, assignments), { maxRetries: retries });
+        }, () => this._permissionsInPlace(streamId, assignments), { maxRetries: retries, verifyFirst });
     }
 
     /**
      * Grant public SUBSCRIBE only permissions (read-only channel)
      * @param {Object} stream - Stream object (or streamId string)
      */
-    async grantPublicReadOnlyPermissions(stream, retries = 7) {
+    async grantPublicReadOnlyPermissions(stream, retries = 7, { verifyFirst = false } = {}) {
         const streamId = typeof stream === 'string' ? stream : stream.id;
 
         const assignments = [{ public: true, permissions: ['subscribe'] }];
@@ -1111,7 +1120,7 @@ class StreamrController {
             await this.client.setPermissions({ streamId, assignments });
             Logger.debug('Public read-only permissions granted successfully');
             return true;
-        }, () => this._permissionsInPlace(streamId, assignments), { maxRetries: retries });
+        }, () => this._permissionsInPlace(streamId, assignments), { maxRetries: retries, verifyFirst });
     }
 
     /**
@@ -4342,6 +4351,7 @@ class StreamrController {
      * @param {string} options.storageProvider - 'streamr' or 'custom' (default: from config)
      * @param {string} [options.customStorageAddress] - EVM address of the custom storage node (required if provider is 'custom')
      * @param {number} options.storageDays - Retention days (default: 180)
+     * @param {boolean} [options.verifyFirst] - Ask the chain before the first send of each write
      * @param {number} retries - Number of retry attempts
      * @returns {Promise<{success: boolean, provider: string, storageDays: number|null, retentionApplied: boolean}>}
      *          `success` covers the storage node assignment; `storageDays` is
@@ -4408,7 +4418,8 @@ class StreamrController {
                 const stream = await this.client.getStream(messageStreamId);
                 await stream.addToStorageNode(nodeAddress);
                 return true;
-            }, () => this.client.isStoredStream(messageStreamId, nodeAddress), { maxRetries: retries });
+            }, () => this.client.isStoredStream(messageStreamId, nodeAddress),
+            { maxRetries: retries, verifyFirst: !!options.verifyFirst });
             try { options.onProgress?.(); } catch (_) { /* progress callback errors must not break flow */ }
             Logger.info('Storage enabled:', { stream: messageStreamId, provider: providerId });
         } catch (error) {
@@ -4426,7 +4437,8 @@ class StreamrController {
                     const stream = await this.client.getStream(messageStreamId);
                     await stream.setStorageDayCount(storageDays);
                     return true;
-                }, async () => (await this._chainStorageDays(messageStreamId)) === storageDays, { maxRetries: retries });
+                }, async () => (await this._chainStorageDays(messageStreamId)) === storageDays,
+                { maxRetries: retries, verifyFirst: !!options.verifyFirst });
                 retentionApplied = true;
                 Logger.debug('Storage days set to:', storageDays);
             } catch (ttlError) {

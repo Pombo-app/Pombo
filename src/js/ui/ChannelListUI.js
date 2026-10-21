@@ -26,6 +26,8 @@ class ChannelListUI {
         this.channelManager = null;
         this.secureStorage = null;
         this.onChannelSelect = null;
+        this.onFinishPendingCreate = null;
+        this.onDiscardPendingCreate = null;
 
         // Tracks which adminStreamIds / DM peers we have *attempted* to
         // resolve. Any row not in these sets renders a spinner placeholder
@@ -43,10 +45,12 @@ class ChannelListUI {
     /**
      * Set dependencies for the module
      */
-    setDependencies({ channelManager, secureStorage, onChannelSelect }) {
+    setDependencies({ channelManager, secureStorage, onChannelSelect, onFinishPendingCreate, onDiscardPendingCreate }) {
         this.channelManager = channelManager;
         this.secureStorage = secureStorage;
         this.onChannelSelect = onChannelSelect;
+        this.onFinishPendingCreate = onFinishPendingCreate || null;
+        this.onDiscardPendingCreate = onDiscardPendingCreate || null;
 
         // Wire a single global listener for channel-image updates so any
         // visible row gets its avatar refreshed without a full re-render.
@@ -390,6 +394,8 @@ class ChannelListUI {
 
         if (channels.length === 0) {
             this._renderEmptyState();
+            this._renderInterruptedCreates();
+            this._attachClickListeners();
             return;
         }
 
@@ -408,6 +414,7 @@ class ChannelListUI {
 
         // Reconcile channel items without rebuilding unchanged rows
         this._reconcileChannelItems(channelViewModels);
+        this._renderInterruptedCreates();
 
         // Refresh per-channel image listeners (idempotent for unchanged set)
         this._channelImageGlobalUnsub = this._subscribeAllImages();
@@ -451,6 +458,43 @@ class ChannelListUI {
             default:
                 // 'all' - no filtering
                 return channels;
+        }
+    }
+
+    /**
+     * Creations a reload interrupted after something of them landed, above
+     * the channels: Finish sends what is missing, Discard forgets them.
+     * @private
+     */
+    _renderInterruptedCreates() {
+        this.elements.channelList.querySelector('.pending-creates')?.remove();
+        const records = this.channelManager.getInterruptedCreates?.() || [];
+        if (records.length === 0) return;
+        const block = document.createElement('div');
+        block.className = 'pending-creates space-y-1.5';
+        block.innerHTML = records.map(record => `
+            <div class="pending-create mx-2 rounded-xl bg-white/[0.02] border border-white/[0.04] px-3 py-2.5" data-pending-base="${escapeAttr(record.basePath)}">
+                <div class="flex items-center gap-1.5 min-w-0">
+                    <h3 class="text-sm font-medium text-white/90 truncate">${escapeHtml(sanitizeText(record.name))}</h3>
+                    <span class="text-[12px] text-white/40 flex-shrink-0">· creation interrupted</span>
+                </div>
+                <div class="flex items-center gap-2 mt-2">
+                    <button type="button" data-pending-action="finish" class="bg-white/90 hover:bg-white text-[#0a0a0a] px-3 py-1 rounded-md text-[11px] font-medium transition">Finish</button>
+                    <button type="button" data-pending-action="discard" class="bg-white/10 hover:bg-white/20 text-white/70 px-3 py-1 rounded-md text-[11px] font-medium transition">Discard</button>
+                </div>
+            </div>`).join('');
+        this.elements.channelList.prepend(block);
+    }
+
+    /** @private */
+    async _onPendingAction(action, basePath, row) {
+        const handler = action === 'finish' ? this.onFinishPendingCreate : this.onDiscardPendingCreate;
+        if (!handler) return;
+        row.querySelectorAll('button').forEach(button => { button.disabled = true; });
+        try {
+            await handler(basePath);
+        } finally {
+            this.render();
         }
     }
 
@@ -725,6 +769,12 @@ class ChannelListUI {
 
         this.elements.channelList.addEventListener('click', (event) => {
             const clickTarget = event.target instanceof Element ? event.target : null;
+            const pendingAction = clickTarget?.closest('[data-pending-action]');
+            const pendingRow = pendingAction?.closest('.pending-create');
+            if (pendingRow) {
+                this._onPendingAction(pendingAction.dataset.pendingAction, pendingRow.dataset.pendingBase, pendingRow);
+                return;
+            }
             const item = this._getChannelItemFromEventTarget(event.target);
             if (!item || clickTarget?.closest('.drag-handle')) {
                 return;

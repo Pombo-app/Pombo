@@ -1104,6 +1104,32 @@ class SecureStorage {
     }
 
     /**
+     * Channel creations started here and not finished, with what they need
+     * to finish: the stream ids, the parameters and the minted shared keys.
+     * Device-local: neither exportForSync nor exportForBackup carries this
+     * slice, or two devices would each pay for the missing transactions.
+     * @returns {Array<Object>}
+     */
+    getPendingCreates() {
+        if (!this.isUnlocked) return [];
+        return this.cache.pendingCreates || [];
+    }
+
+    /** Add or replace the record with the same basePath. */
+    async putPendingCreate(record) {
+        if (!this.isUnlocked || !record?.basePath) return;
+        const kept = (this.cache.pendingCreates || []).filter(r => r.basePath !== record.basePath);
+        this.cache.pendingCreates = [...kept, record];
+        await this.saveToStorage();
+    }
+
+    async removePendingCreate(basePath) {
+        if (!this.isUnlocked || !this.cache.pendingCreates?.some(r => r.basePath === basePath)) return;
+        this.cache.pendingCreates = this.cache.pendingCreates.filter(r => r.basePath !== basePath);
+        await this.saveToStorage();
+    }
+
+    /**
      * Clear sent reactions for a channel
      * @param {string} streamId - Stream ID
      */

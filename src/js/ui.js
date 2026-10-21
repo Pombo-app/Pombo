@@ -286,7 +286,9 @@ class UIController {
         channelListUI.setDependencies({
             channelManager,
             secureStorage,
-            onChannelSelect: (streamId) => this.selectChannel(streamId)
+            onChannelSelect: (streamId) => this.selectChannel(streamId),
+            onFinishPendingCreate: (basePath) => channelModalsUI.finishInterruptedCreate(basePath),
+            onDiscardPendingCreate: (basePath) => channelModalsUI.discardInterruptedCreate(basePath)
         });
 
         // ChannelModalsUI
