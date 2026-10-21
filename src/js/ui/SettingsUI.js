@@ -619,6 +619,7 @@ class SettingsUI {
         document.getElementById('export-key-step2')?.classList.add('hidden');
         const exportKeyPassword = document.getElementById('export-key-password');
         if (exportKeyPassword) exportKeyPassword.value = '';
+        this.setInertForGuest('export-key-step1', exportKeyPassword, 'unlock-private-key-btn');
     }
 
     /**
@@ -629,6 +630,19 @@ class SettingsUI {
         document.getElementById('delete-account-step2')?.classList.add('hidden');
         const deleteAccountPassword = document.getElementById('delete-account-password');
         if (deleteAccountPassword) deleteAccountPassword.value = '';
+        this.setInertForGuest('delete-account-step1', deleteAccountPassword, 'verify-delete-account-btn');
+    }
+
+    /**
+     * A guest holds no stored key, so the Security cards stay visible but
+     * cannot be used.
+     */
+    setInertForGuest(stepId, input, buttonId) {
+        const isGuest = !!this.authManager?.isGuestMode?.();
+        document.getElementById(stepId)?.classList.toggle('opacity-40', isGuest);
+        if (input) input.disabled = isGuest;
+        const button = document.getElementById(buttonId);
+        if (button) button.disabled = isGuest;
     }
 
     /**
