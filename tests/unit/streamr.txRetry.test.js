@@ -66,6 +66,40 @@ describe('on-chain writes retried against the chain', () => {
         chainDays.mockRestore();
     });
 
+    it('sends a retention change again when the chain shows it did not land', async () => {
+        stream.setStorageDayCount.mockRejectedValueOnce(new Error('Failed to fetch')).mockResolvedValue(undefined);
+        const chainDays = vi.spyOn(streamrController, '_chainStorageDays').mockResolvedValue(7);
+
+        const ok = await settled(streamrController.setStorageDays(STREAM, 30, { retries: 4 }));
+
+        expect(ok).toBe(true);
+        expect(stream.setStorageDayCount).toHaveBeenCalledTimes(2);
+        chainDays.mockRestore();
+    });
+
+    it('does not change the retention twice when the first change landed', async () => {
+        stream.setStorageDayCount.mockRejectedValue(receiptFailed());
+        const chainDays = vi.spyOn(streamrController, '_chainStorageDays').mockResolvedValue(30);
+
+        const ok = await settled(streamrController.setStorageDays(STREAM, 30, { retries: 4 }));
+
+        expect(ok).toBe(true);
+        expect(stream.setStorageDayCount).toHaveBeenCalledTimes(1);
+        chainDays.mockRestore();
+    });
+
+    it('changes the retention once, without asking the chain, unless retries are asked for', async () => {
+        stream.setStorageDayCount.mockRejectedValue(receiptFailed());
+        const chainDays = vi.spyOn(streamrController, '_chainStorageDays');
+
+        const ok = await settled(streamrController.setStorageDays(STREAM, 30));
+
+        expect(ok).toBe(false);
+        expect(stream.setStorageDayCount).toHaveBeenCalledTimes(1);
+        expect(chainDays).not.toHaveBeenCalled();
+        chainDays.mockRestore();
+    });
+
     it('does not grant twice when the first grant landed', async () => {
         client.setPermissions.mockRejectedValue(receiptFailed());
         client.hasPermission.mockImplementation(async ({ permission }) => permission === 'subscribe');
