@@ -2215,7 +2215,7 @@ class SettingsUI {
             retentionSave.textContent = 'Saving…';
             this.showNotification('Updating retention…', 'info');
             try {
-                const ok = await this.streamrController.setStorageDays(streamId, days);
+                const ok = await this.streamrController.setStorageDays(streamId, days, { retries: 7 });
                 this.showNotification(
                     ok ? `Retention updated to ${days} days` : 'Failed to update retention',
                     ok ? 'success' : 'error'

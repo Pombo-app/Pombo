@@ -4553,16 +4553,23 @@ class StreamrController {
      * Update storage days for a stream (only works with Streamr storage node)
      * @param {string} messageStreamId - Message Stream ID
      * @param {number} days - Number of days to retain messages
+     * @param {Object} [options]
+     * @param {number} [options.retries=1] - Above 1, each retry first asks the chain whether the
+     *   retention already landed, so a write whose receipt read failed is not sent twice
      * @returns {Promise<boolean>} - Success status
      */
-    async setStorageDays(messageStreamId, days) {
+    async setStorageDays(messageStreamId, days, { retries = 1 } = {}) {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
         
         try {
-            const stream = await this.client.getStream(messageStreamId);
-            await stream.setStorageDayCount(days);
+            await executeWithRetryAndVerify('setStorageDays', async () => {
+                const stream = await this.client.getStream(messageStreamId);
+                await stream.setStorageDayCount(days);
+                return true;
+            }, async () => (await this._chainStorageDays(messageStreamId)) === days,
+            { maxRetries: retries });
             Logger.info('Storage days updated:', { streamId: messageStreamId, days });
             return true;
         } catch (error) {
