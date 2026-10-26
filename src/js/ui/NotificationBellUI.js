@@ -9,9 +9,10 @@
  * either.
  *
  * Placement is CSS-driven (components.css): on desktop the bell sits beside
- * the account button, top right; on the mobile viewport it takes the header
- * slot the Create Channel button uses in Explore — but shows in the Chats
- * view instead.
+ * the account button, top right, with both sections; on the mobile viewport
+ * the bell shows invites only and a separate, always-visible transfers button
+ * opens the transfers section, with a progress ring and count while
+ * downloads run.
  */
 
 import { Logger } from '../logger.js';
@@ -32,6 +33,15 @@ class NotificationBellUI {
         // fetched async into this cache when toggled on.
         this.showInactive = false;
         this._inactiveSeeds = [];
+        // Which sections the open menu shows: 'all' (desktop bell), or one of
+        // 'invites' / 'transfers' (the two mobile header buttons).
+        this.section = 'all';
+        this._indicatorTimer = null;
+    }
+
+    _isMobile() {
+        return window.innerWidth < 768
+            || (window.innerHeight <= 500 && window.matchMedia('(orientation: landscape)').matches);
     }
 
     /**
@@ -61,8 +71,13 @@ class NotificationBellUI {
 
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.toggle();
+            this.toggle(undefined, this._isMobile() ? 'invites' : 'all');
         });
+        document.getElementById('transfers-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggle(undefined, 'transfers');
+        });
+        this._indicatorTimer = setInterval(() => this.updateTransfersIndicator(), 1000);
         dropdown.addEventListener('click', (e) => e.stopPropagation());
         document.addEventListener('click', () => { if (this.open) this.toggle(false); });
 
@@ -116,11 +131,23 @@ class NotificationBellUI {
             : [];
     }
 
-    toggle(force) {
+    /**
+     * @param {boolean} [force] - open (true) / close (false); toggles when omitted
+     * @param {'all'|'invites'|'transfers'} [section] - sections to show; a tap on
+     *   the other mobile button while open switches instead of closing
+     */
+    toggle(force, section = this.section) {
         const dropdown = document.getElementById('notif-bell-dropdown');
         if (!dropdown) return;
-        this.open = force !== undefined ? force : !this.open;
+        const switching = this.open && force === undefined && section !== this.section;
+        this.section = section;
+        this.open = switching || (force !== undefined ? force : !this.open);
+        this._applySection();
         dropdown.classList.toggle('hidden', !this.open);
+        if (this.refreshTimer) {
+            clearInterval(this.refreshTimer);
+            this.refreshTimer = null;
+        }
         if (this.open) {
             // Always reopen on the default views.
             if (this.invitesMode !== 'pending') this.setInvitesMode('pending');
@@ -129,10 +156,80 @@ class NotificationBellUI {
             // Speeds move while the menu is open; once a second is enough for
             // a rate readout and cheap enough to not matter.
             this.refreshTimer = setInterval(() => this.render(), 1000);
-        } else if (this.refreshTimer) {
-            clearInterval(this.refreshTimer);
-            this.refreshTimer = null;
         }
+    }
+
+    _applySection() {
+        const s = this.section;
+        document.getElementById('notif-invites-section')?.classList.toggle('hidden', s === 'transfers');
+        document.getElementById('notif-transfers-section')?.classList.toggle('hidden', s === 'invites');
+        document.getElementById('notif-sections-divider')?.classList.toggle('hidden', s !== 'all');
+
+        // The menu lives in the bell's wrapper; opened from the transfers
+        // button it hangs under that button instead.
+        const dropdown = document.getElementById('notif-bell-dropdown');
+        const wrapper = document.getElementById('notif-bell-wrapper');
+        const transfersBtn = document.getElementById('transfers-btn');
+        if (!dropdown) return;
+        if (s === 'transfers' && wrapper && transfersBtn?.offsetParent) {
+            const offset = wrapper.getBoundingClientRect().right - transfersBtn.getBoundingClientRect().right;
+            const width = dropdown.offsetWidth || 320;
+            const maxOffset = wrapper.getBoundingClientRect().right - width - 8;
+            dropdown.style.right = `${Math.max(0, Math.min(offset, maxOffset))}px`;
+        } else {
+            dropdown.style.right = '';
+        }
+    }
+
+    /**
+     * Downloads in flight (mesh + storage node) and their combined progress,
+     * plus the files this device serves. The count covers both; the ring
+     * only the downloads.
+     */
+    _transfersActivity() {
+        let count = 0;
+        let received = 0;
+        let size = 0;
+        const add = (p) => {
+            count++;
+            size += p.fileSize || 0;
+            received += p.total > 0 ? (p.received / p.total) * (p.fileSize || 0) : 0;
+        };
+        const media = this.deps.mediaController;
+        for (const [fileId, transfer] of media?.incomingFiles || []) {
+            const p = media.getDownloadProgress(fileId);
+            if (p && transfer.metadata) add(p);
+        }
+        const storage = this.deps.storageMediaController;
+        for (const [tid, transfer] of storage?.downloads || []) {
+            if (transfer.status !== 'downloading' && transfer.status !== 'paused') continue;
+            const p = storage.getDownloadProgress(tid);
+            if (p && transfer.metadata) add(p);
+        }
+        const downloads = count;
+        // Same rule as the seed rows: a real seed's key matches its fileId.
+        let seeds = 0;
+        for (const [fileId, info] of media?.localFiles || []) {
+            if (info?.metadata?.fileId === fileId) seeds++;
+        }
+        return {
+            count: downloads + seeds,
+            downloads,
+            fraction: size > 0 ? Math.min(1, received / size) : 0
+        };
+    }
+
+    updateTransfersIndicator() {
+        const badge = document.getElementById('transfers-badge');
+        const ring = document.getElementById('transfers-ring');
+        const progress = document.getElementById('transfers-ring-progress');
+        if (!badge || !ring || !progress) return;
+        const { count, downloads, fraction } = this._transfersActivity();
+        badge.classList.toggle('hidden', count === 0);
+        badge.textContent = count > 9 ? '9+' : String(count);
+        ring.classList.toggle('hidden', downloads === 0);
+        // r = 16 → circumference 2πr ≈ 100.5
+        progress.style.strokeDashoffset = String(100.5 * (1 - fraction));
     }
 
     updateBadge() {

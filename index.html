@@ -118,6 +118,19 @@
                     </svg>
                 </button>
             </div>
+            <!-- Transfers: mobile header only, always shown; desktop keeps them in the bell. -->
+            <div id="transfers-btn-wrapper" class="relative">
+                <button id="transfers-btn" class="relative w-12 h-12 hover:bg-white/[0.05] active:bg-white/[0.12] rounded-full flex items-center justify-center transition" title="Transfers">
+                    <svg id="transfers-ring" class="transfers-ring hidden" viewBox="0 0 36 36" aria-hidden="true">
+                        <circle cx="18" cy="18" r="16" class="transfers-ring-track"/>
+                        <circle id="transfers-ring-progress" cx="18" cy="18" r="16" class="transfers-ring-progress"/>
+                    </svg>
+                    <svg class="w-6 h-6 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7.5L7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5"/>
+                    </svg>
+                    <span id="transfers-badge" class="hidden absolute top-[7px] right-[7px] min-w-[16px] h-4 px-1 bg-[#F6851B] rounded-full text-[9px] font-bold text-white flex items-center justify-center">0</span>
+                </button>
+            </div>
             <!-- Wallet: the token balances of this account. Sits beside the
                  bell and follows the same visibility rules. -->
             <div id="wallet-btn-wrapper" class="hidden relative">
@@ -139,21 +152,25 @@
                     <span id="notif-bell-badge" class="hidden absolute top-[7px] right-[7px] min-w-[16px] h-4 px-1 bg-[#F6851B] rounded-full text-[9px] font-bold text-white flex items-center justify-center">0</span>
                 </button>
                 <div id="notif-bell-dropdown" class="hidden absolute top-full right-0 mt-1.5 w-[320px] bg-[#16161b] border border-white/[0.1] rounded-xl py-1 shadow-2xl z-50">
-                    <div class="px-3.5 py-2 flex items-center justify-between">
-                        <span class="text-[10px] font-semibold tracking-widest text-white/35">CHANNEL INVITES</span>
-                        <div class="flex items-center gap-1.5 text-[10px] font-medium">
-                            <button id="notif-invites-mode-pending" class="text-white/70 transition">Pending</button>
-                            <span class="text-white/20">·</span>
-                            <button id="notif-invites-mode-all" class="text-white/30 hover:text-white/50 transition">All</button>
+                    <div id="notif-invites-section">
+                        <div class="px-3.5 py-2 flex items-center justify-between">
+                            <span class="text-[10px] font-semibold tracking-widest text-white/35">CHANNEL INVITES</span>
+                            <div class="flex items-center gap-1.5 text-[10px] font-medium">
+                                <button id="notif-invites-mode-pending" class="text-white/70 transition">Pending</button>
+                                <span class="text-white/20">·</span>
+                                <button id="notif-invites-mode-all" class="text-white/30 hover:text-white/50 transition">All</button>
+                            </div>
                         </div>
+                        <div id="notif-invites-list"></div>
                     </div>
-                    <div id="notif-invites-list"></div>
-                    <div class="mx-3 my-1 border-t border-white/[0.08]"></div>
-                    <div class="px-3.5 py-2 flex items-center justify-between">
-                        <span class="text-[10px] font-semibold tracking-widest text-white/35">TRANSFERS</span>
-                        <button id="notif-transfers-inactive" class="text-[10px] font-medium text-white/30 hover:text-white/50 transition">Show inactive</button>
+                    <div id="notif-sections-divider" class="mx-3 my-1 border-t border-white/[0.08]"></div>
+                    <div id="notif-transfers-section">
+                        <div class="px-3.5 py-2 flex items-center justify-between">
+                            <span class="text-[10px] font-semibold tracking-widest text-white/35">TRANSFERS</span>
+                            <button id="notif-transfers-inactive" class="text-[10px] font-medium text-white/30 hover:text-white/50 transition">Show inactive</button>
+                        </div>
+                        <div id="notif-transfers-list" class="pb-1"></div>
                     </div>
-                    <div id="notif-transfers-list" class="pb-1"></div>
                 </div>
             </div>
             <!-- Desktop: Unified account dropdown (hidden on mobile) -->

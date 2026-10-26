@@ -3770,8 +3770,41 @@ body.guest-mode #pill-wallet-btn {
     display: none !important;
 }
 
-#contacts-btn-wrapper {
+#contacts-btn-wrapper,
+#transfers-btn-wrapper {
     display: none;
+}
+
+/* Progress ring around the transfers icon while downloads run */
+.transfers-ring {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    pointer-events: none;
+}
+
+.transfers-ring.hidden {
+    display: none;
+}
+
+.transfers-ring circle {
+    fill: none;
+    stroke-width: 2;
+}
+
+.transfers-ring-track {
+    stroke: rgba(255, 255, 255, 0.1);
+}
+
+.transfers-ring-progress {
+    stroke: #F6851B;
+    stroke-linecap: round;
+    stroke-dasharray: 100.5;
+    stroke-dashoffset: 100.5;
+    transition: stroke-dashoffset 0.6s ease;
 }
 
 /* ==== Notification bell (channel invites + active transfers) ====
@@ -3799,25 +3832,32 @@ body.guest-mode #pill-wallet-btn {
     body:not(.chat-open):not(.settings-open):not(.contacts-open) #notif-bell-wrapper:not(.hidden) {
         display: block !important;
     }
-    /* On mobile the wallet lives in the pill; contacts take its header slot,
-       beside the bell, on the same views. */
+    /* On mobile the wallet lives in the pill; the header reads
+       contacts · transfers · bell, on the same views as the bell. */
     #wallet-btn-wrapper {
         display: none !important;
     }
-    #contacts-btn-wrapper {
+    #contacts-btn-wrapper,
+    #transfers-btn-wrapper {
         position: absolute;
-        right: 4.125rem;
         top: 50%;
         transform: translateY(-50%);
     }
-    body:not(.chat-open):not(.settings-open):not(.contacts-open):not(.guest-mode) #contacts-btn-wrapper {
+    #transfers-btn-wrapper {
+        right: 4.125rem;
+    }
+    #contacts-btn-wrapper {
+        right: 7.375rem;
+    }
+    body:not(.chat-open):not(.settings-open):not(.contacts-open):not(.guest-mode) #contacts-btn-wrapper,
+    body:not(.chat-open):not(.settings-open):not(.contacts-open):not(.guest-mode) #transfers-btn-wrapper {
         display: block;
     }
     /* The sync spinner docks at this same right edge (absolute, right:
-       1.25rem); whenever the bell is showing, step the spinner to its left
-       instead of letting the two stack. */
+       1.25rem); whenever the header icons are showing, step the spinner to
+       their left instead of letting them stack. */
     body:not(.chat-open):not(.settings-open):not(.contacts-open) .global-sync-indicator {
-        right: 7.75rem;
+        right: 10.75rem;
     }
 }
 
