@@ -2701,26 +2701,6 @@ body.explore-open #explore-channels-list {
         padding-top: 0.5rem;
     }
 
-    .pill-dropdown-item-locked {
-        color: rgba(255, 255, 255, 0.35);
-        cursor: default;
-    }
-
-    .pill-dropdown-item-locked:hover,
-    .pill-dropdown-item-locked:active {
-        background: none;
-    }
-
-    .pill-dropdown-soon {
-        font-size: 0.5625rem;
-        font-weight: 600;
-        letter-spacing: 0.03em;
-        color: rgba(255, 255, 255, 0.4);
-        background: rgba(255, 255, 255, 0.08);
-        border-radius: 9999px;
-        padding: 0.15rem 0.4rem;
-    }
-
     /* ----- SETTINGS DROPDOWN ----- */
     .pill-settings-wrapper {
         position: relative;
@@ -3430,16 +3410,6 @@ body.explore-open #explore-channels-list {
     cursor: default;
 }
 
-.explore-mode-soon {
-    font-size: 0.5625rem;
-    font-weight: 600;
-    letter-spacing: 0.03em;
-    color: rgba(255, 255, 255, 0.4);
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 9999px;
-    padding: 0.15rem 0.4rem;
-}
-
 body.explore-open #browse-channels-btn {
     background: rgba(0, 0, 0, 0.22);
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3),
@@ -3627,8 +3597,13 @@ body.explore-open #browse-channels-btn svg {
 }
 
 /* A guest is a throwaway identity, not an account with funds. */
-body.guest-mode #wallet-btn-wrapper {
+body.guest-mode #wallet-btn-wrapper,
+body.guest-mode #pill-wallet-btn {
     display: none !important;
+}
+
+#contacts-btn-wrapper {
+    display: none;
 }
 
 /* ==== Notification bell (channel invites + active transfers) ====
@@ -3656,17 +3631,19 @@ body.guest-mode #wallet-btn-wrapper {
     body:not(.chat-open):not(.settings-open):not(.contacts-open) #notif-bell-wrapper:not(.hidden) {
         display: block !important;
     }
-    /* The wallet button rides beside the bell, on the same views, one slot to
-       its left. The bell keeps the edge it has always had. */
+    /* On mobile the wallet lives in the pill; contacts take its header slot,
+       beside the bell, on the same views. */
     #wallet-btn-wrapper {
         display: none !important;
+    }
+    #contacts-btn-wrapper {
         position: absolute;
         right: 4.125rem;
         top: 50%;
         transform: translateY(-50%);
     }
-    body:not(.chat-open):not(.settings-open):not(.contacts-open):not(.guest-mode) #wallet-btn-wrapper:not(.hidden) {
-        display: block !important;
+    body:not(.chat-open):not(.settings-open):not(.contacts-open):not(.guest-mode) #contacts-btn-wrapper {
+        display: block;
     }
     /* The sync spinner docks at this same right edge (absolute, right:
        1.25rem); whenever the bell is showing, step the spinner to its left

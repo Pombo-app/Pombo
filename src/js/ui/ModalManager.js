@@ -31,6 +31,12 @@ class ModalManager {
             'wallet-modal'
         ]);
         
+        // Opened over whatever view is showing: closing one must not navigate.
+        // The history.back() that drops its entry lands on the view's own
+        // state, which the mobile router reads as "go to Home" for Explore.
+        this.overlayModals = new Set(['wallet-modal']);
+        this._swallowNextPop = false;
+
         // Flag to prevent recursive popstate handling
         this._handlingPopState = false;
         
@@ -45,6 +51,11 @@ class ModalManager {
      */
     _initHistoryListener() {
         window.addEventListener('popstate', (event) => {
+            if (this._swallowNextPop) {
+                this._swallowNextPop = false;
+                event.stopImmediatePropagation();
+                return;
+            }
             // Check if this is a modal state we pushed
             if (event.state && event.state.modal) {
                 // This is handled - modal was closed via back button
@@ -155,6 +166,7 @@ class ModalManager {
                 // Go back to remove the history entry we added
                 // Skip if: handling popstate, or skipHistory option is set (e.g., switching modals)
                 if (!this._handlingPopState && !options.skipHistory) {
+                    if (this.overlayModals.has(modalId)) this._swallowNextPop = true;
                     window.history.back();
                 }
             }

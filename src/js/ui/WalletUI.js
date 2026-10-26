@@ -106,6 +106,7 @@ class WalletUI {
         this._wired = true;
 
         document.getElementById('wallet-btn')?.addEventListener('click', () => this.open());
+        document.getElementById('pill-wallet-btn')?.addEventListener('click', () => this.open());
         document.getElementById('close-wallet-btn')?.addEventListener('click', () => this.close());
         document.getElementById('wallet-refresh-btn')?.addEventListener('click', () => this.refresh());
         document.getElementById('wallet-fund-btn')?.addEventListener('click', () => this.fundWithMetaMask());

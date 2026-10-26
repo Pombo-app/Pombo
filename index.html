@@ -110,6 +110,14 @@
                 <span class="global-sync-spinner" aria-hidden="true"></span>
                 <span id="global-sync-text" class="global-sync-text">Syncing your data</span>
             </div>
+            <!-- Contacts: mobile header only; desktop reaches contacts from the sidebar footer. -->
+            <div id="contacts-btn-wrapper" class="relative">
+                <button id="contacts-btn" class="w-12 h-12 hover:bg-white/[0.05] active:bg-white/[0.12] rounded-full flex items-center justify-center transition" title="Contacts">
+                    <svg class="w-6 h-6 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/>
+                    </svg>
+                </button>
+            </div>
             <!-- Wallet: the token balances of this account. Sits beside the
                  bell and follows the same visibility rules. -->
             <div id="wallet-btn-wrapper" class="hidden relative">
@@ -204,13 +212,6 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/>
                             </svg>
                             <span id="browse-btn-text">Threads</span>
-                        </button>
-                        <button id="browse-livestreams-btn" class="explore-mode-btn" title="Coming soon" disabled>
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 10.5l4.72-2.362A1 1 0 0122 9v6a1 1 0 01-1.53.862L15.75 13.5m-9.75 6h6a2.25 2.25 0 002.25-2.25v-8.5A2.25 2.25 0 0012 6.5H4.5A2.25 2.25 0 002.25 8.75v8.5A2.25 2.25 0 004.5 19.5z"/>
-                            </svg>
-                            <span>Live</span>
-                            <span class="explore-mode-soon">SOON</span>
                         </button>
                     </div>
                 </div>
@@ -309,32 +310,19 @@
                     </svg>
                     <span>Home</span>
                 </button>
-                <div class="pill-nav-item pill-settings-wrapper" data-pill-tab="explore">
-                    <button id="pill-explore-btn" class="pill-settings-btn">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <circle cx="12" cy="12" r="9" stroke-width="1.5"/>
-                            <path stroke-width="1.5" stroke-linejoin="round" fill="currentColor" d="M15.02 8.98l-2.1 4.14-4.14 2.1 2.1-4.14 4.14-2.1z"/>
-                        </svg>
-                        <span>Explore</span>
-                    </button>
-                    <!-- Explore dropdown (appears above pill) -->
-                    <div id="pill-explore-dropdown" class="pill-settings-dropdown hidden">
-                        <button id="pill-explore-threads-btn" class="pill-dropdown-item">
-                            <svg class="w-4 h-4 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/></svg>
-                            Threads
-                        </button>
-                        <button id="pill-explore-livestreams-btn" class="pill-dropdown-item pill-dropdown-item-locked" disabled>
-                            <svg class="w-4 h-4 text-white/25" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 10.5l4.72-2.362A1 1 0 0122 9v6a1 1 0 01-1.53.862L15.75 13.5m-9.75 6h6a2.25 2.25 0 002.25-2.25v-8.5A2.25 2.25 0 0012 6.5H4.5A2.25 2.25 0 002.25 8.75v8.5A2.25 2.25 0 004.5 19.5z"/></svg>
-                            <span class="flex-1">Live Streams</span>
-                            <span class="pill-dropdown-soon">SOON</span>
-                        </button>
-                    </div>
-                </div>
-                <button id="contacts-btn" class="pill-nav-item" data-pill-tab="contacts">
+                <button id="pill-explore-btn" class="pill-nav-item" data-pill-tab="explore">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/>
+                        <circle cx="12" cy="12" r="9" stroke-width="1.5"/>
+                        <path stroke-width="1.5" stroke-linejoin="round" fill="currentColor" d="M15.02 8.98l-2.1 4.14-4.14 2.1 2.1-4.14 4.14-2.1z"/>
                     </svg>
-                    <span>Contacts</span>
+                    <span>Explore</span>
+                </button>
+                <!-- No data-pill-tab: Wallet opens a sheet over the current view and is never the active tab. -->
+                <button id="pill-wallet-btn" class="pill-nav-item">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3"/>
+                    </svg>
+                    <span>Wallet</span>
                 </button>
                 <div class="pill-nav-item pill-settings-wrapper" data-pill-tab="settings">
                     <button id="settings-btn" class="pill-settings-btn">

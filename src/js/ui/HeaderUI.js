@@ -528,8 +528,6 @@ class HeaderUI {
                 pillNav: document.getElementById('mobile-pill-nav'),
                 pillChatsBtn: document.getElementById('pill-chats-btn'),
                 pillExploreBtn: document.getElementById('pill-explore-btn'),
-                pillExploreDropdown: document.getElementById('pill-explore-dropdown'),
-                pillExploreThreadsBtn: document.getElementById('pill-explore-threads-btn'),
                 pillJoinIdBtn: document.getElementById('pill-join-id-btn'),
                 profileBtn: document.getElementById('pill-profile-btn'),
                 profileDropdown: document.getElementById('pill-profile-dropdown'),
@@ -553,24 +551,9 @@ class HeaderUI {
             onConnect?.();
         });
 
-        // Explore pill tab opens a dropdown (Threads / Live Streams), mirroring Settings
-        pill.pillExploreBtn?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this._toggleExploreDropdown();
-        });
-
-        pill.pillExploreThreadsBtn?.addEventListener('click', () => {
-            this._closeExploreDropdown();
+        pill.pillExploreBtn?.addEventListener('click', () => {
             this._setActivePillTab('explore');
             onExploreTab?.();
-        });
-
-        // Close explore dropdown on outside click
-        document.addEventListener('click', (e) => {
-            if (!pill.pillExploreDropdown || pill.pillExploreDropdown.classList.contains('hidden')) return;
-            if (!pill.pillExploreBtn?.contains(e.target) && !pill.pillExploreDropdown.contains(e.target)) {
-                this._closeExploreDropdown();
-            }
         });
 
         // Create Channel from header button (explore view)
@@ -635,7 +618,6 @@ class HeaderUI {
         } else {
             // Close other pill dropdowns if open
             document.getElementById('pill-settings-dropdown')?.classList.add('hidden');
-            this._closeExploreDropdown();
             positionPillDropdown(pill.profileDropdown);
             pill.profileDropdown.classList.remove('hidden');
             this._profileDropdownOpen = true;
@@ -650,40 +632,6 @@ class HeaderUI {
         if (!pill.profileDropdown) return;
         pill.profileDropdown.classList.add('hidden');
         this._profileDropdownOpen = false;
-    }
-
-    /**
-     * Toggle the Explore pill dropdown (Threads / Live Streams)
-     */
-    _toggleExploreDropdown() {
-        const pill = this._getPillElements();
-        if (!pill.pillExploreDropdown) return;
-
-        if (this._exploreDropdownOpen) {
-            this._closeExploreDropdown();
-        } else {
-            // Close other pill dropdowns if open
-            document.getElementById('pill-settings-dropdown')?.classList.add('hidden');
-            this._closeProfileDropdown();
-            positionPillDropdown(pill.pillExploreDropdown);
-            // Where you are is what the pill says: body.explore-open outlives
-            // a jump to Settings or Contacts, which left Threads lit from
-            // another tab.
-            const activePill = document.querySelector('.pill-nav-item[data-pill-tab].active');
-            pill.pillExploreThreadsBtn?.classList.toggle('active-tab', activePill?.dataset.pillTab === 'explore');
-            pill.pillExploreDropdown.classList.remove('hidden');
-            this._exploreDropdownOpen = true;
-        }
-    }
-
-    /**
-     * Close the Explore pill dropdown
-     */
-    _closeExploreDropdown() {
-        const pill = this._getPillElements();
-        if (!pill.pillExploreDropdown) return;
-        pill.pillExploreDropdown.classList.add('hidden');
-        this._exploreDropdownOpen = false;
     }
 
     /**

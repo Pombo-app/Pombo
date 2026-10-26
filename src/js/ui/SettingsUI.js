@@ -1052,7 +1052,6 @@ class SettingsUI {
             e.stopPropagation();
             // Close other pill dropdowns if open
             document.getElementById('pill-profile-dropdown')?.classList.add('hidden');
-            document.getElementById('pill-explore-dropdown')?.classList.add('hidden');
             if (dropdown.classList.contains('hidden')) positionPillDropdown(dropdown);
             dropdown.classList.toggle('hidden');
         });
