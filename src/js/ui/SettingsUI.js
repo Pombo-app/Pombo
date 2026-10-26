@@ -11,7 +11,6 @@ import {
 import { rpcHealth, describeVerdict } from '../rpcHealth.js';
 import { MESSAGE_STREAM } from '../streamConstants.js';
 import { importBackupData } from '../backupImport.js';
-import { positionPillDropdown } from './pillDropdown.js';
 
 /**
  * Settings UI Manager
@@ -22,9 +21,17 @@ class SettingsUI {
     constructor() {
         this.deps = {};
         this.elements = {};
-        this.settingsTabOrder = ['profile', 'devicesync', 'notifications', 'api', 'linkpreviews', 'privacy', 'security', 'repair', 'about'];
-        this.currentSettingsTabIndex = 0;
-        this.isAnimating = false; // Prevent multiple simultaneous animations
+        this.sectionTitles = {
+            profile: 'Account',
+            devicesync: 'Device Sync',
+            notifications: 'Notifications',
+            api: 'Networks',
+            linkpreviews: 'Content',
+            privacy: 'Privacy',
+            security: 'Security',
+            repair: 'DM Inbox',
+            about: 'About'
+        };
     }
 
     /**
@@ -957,8 +964,8 @@ class SettingsUI {
             // Update Device Sync mode selection
             this.updateSyncModeDisplay();
 
-            // Select first tab by default
-            this.selectSettingsTab('profile');
+            // Mobile opens on the section list; desktop on the first section.
+            this.selectSettingsTab(this.isMobileView?.() ? 'index' : 'profile');
 
             // Reset private key export UI to step 1
             this.resetExportKeyUI();
@@ -1000,10 +1007,7 @@ class SettingsUI {
     _cleanupOnHide() {
         // Remove settings-open class for mobile
         document.body.classList.remove('settings-open');
-        // Clear active tab highlight from settings dropdown
-        document.querySelectorAll('#pill-settings-dropdown .pill-dropdown-item[data-settings-tab]').forEach(item => {
-            item.classList.remove('active-tab');
-        });
+        this._sectionInHistory = false;
         // Only reset pill nav to chats if still on settings tab
         // If pill was already switched (e.g. to explore), don't override
         const activeTab = document.querySelector('.pill-nav-item[data-pill-tab].active');
@@ -1036,217 +1040,83 @@ class SettingsUI {
                 });
             });
         }
-        this.initSettingsCarousel();
-        this.initPillSettingsDropdown();
+        this.initMobileSettingsNav();
     }
 
     /**
-     * Initialize pill settings dropdown for mobile
+     * Mobile: the pill opens Settings on the section list; each row opens its
+     * section and the header's back arrow returns to the list.
      */
-    initPillSettingsDropdown() {
-        const settingsBtn = document.getElementById('settings-btn');
-        const dropdown = document.getElementById('pill-settings-dropdown');
-        if (!settingsBtn || !dropdown) return;
-
-        settingsBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // Close other pill dropdowns if open
-            document.getElementById('pill-profile-dropdown')?.classList.add('hidden');
-            if (dropdown.classList.contains('hidden')) positionPillDropdown(dropdown);
-            dropdown.classList.toggle('hidden');
-        });
-
-        // Tab items in dropdown
-        dropdown.querySelectorAll('.pill-dropdown-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const tabName = item.dataset.settingsTab;
-                if (tabName) {
-                    dropdown.classList.add('hidden');
-                    this.show().then(() => {
-                        this.selectSettingsTab(tabName);
-                    });
-                }
-            });
-        });
-
-        // Close dropdown on outside click
-        document.addEventListener('click', (e) => {
-            if (!settingsBtn.contains(e.target) && !dropdown.contains(e.target)) {
-                dropdown.classList.add('hidden');
+    initMobileSettingsNav() {
+        document.getElementById('settings-btn')?.addEventListener('click', () => {
+            if (this.modalManager?.isVisible('settings-modal')) {
+                this.selectSettingsTab('index');
+            } else {
+                this.show();
             }
         });
-    }
-
-    /**
-     * Initialize settings carousel for mobile
-     */
-    initSettingsCarousel() {
-        const carousel = document.getElementById('settings-carousel');
-        const modal = document.getElementById('settings-modal');
-        if (!carousel || !modal) return;
-
-        const tabElements = carousel.querySelectorAll('.carousel-tab');
-
-        tabElements.forEach((tab, index) => {
-            tab.addEventListener('click', () => {
-                if (index === 0) {
-                    this.navigateSettingsCarousel(-1);
-                } else if (index === 2) {
-                    this.navigateSettingsCarousel(1);
-                }
-            });
+        document.querySelectorAll('[data-settings-open]').forEach(row => {
+            row.addEventListener('click', () => this.selectSettingsTab(row.dataset.settingsOpen));
         });
-
-        // Add swipe support on entire modal
-        let touchStartX = 0;
-        let touchStartY = 0;
-        let isSwiping = false;
-        
-        const modalContainer = modal.querySelector('.bg-\\[\\#111113\\]');
-        if (!modalContainer) return;
-
-        modalContainer.addEventListener('touchstart', (e) => {
-            const target = e.target;
-            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
-                isSwiping = false;
-                return;
-            }
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-            isSwiping = true;
-        }, { passive: true });
-
-        modalContainer.addEventListener('touchend', (e) => {
-            if (!isSwiping || (this.isMobileView && !this.isMobileView())) return;
-            
-            const touchEndX = e.changedTouches[0].clientX;
-            const touchEndY = e.changedTouches[0].clientY;
-            const diffX = touchStartX - touchEndX;
-            const diffY = touchStartY - touchEndY;
-            
-            if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
-                // Infinite carousel - always navigate (loops around)
-                this.navigateSettingsCarousel(diffX > 0 ? 1 : -1);
-            }
-            isSwiping = false;
-        }, { passive: true });
+        document.getElementById('settings-mobile-back')?.addEventListener('click', () => {
+            this.selectSettingsTab('index');
+        });
     }
 
     /**
-     * Navigate carousel by offset (-1 for prev, +1 for next)
+     * Mobile Account shows Device Sync between the address and Backup &
+     * Restore, as on Android; everywhere else the panel sits on its own.
      */
-    navigateSettingsCarousel(offset) {
-        // Prevent multiple simultaneous animations
-        if (this.isAnimating) return;
-        
-        const total = this.settingsTabOrder.length;
-        this.currentSettingsTabIndex = (this.currentSettingsTabIndex + offset + total) % total;
-        const tabName = this.settingsTabOrder[this.currentSettingsTabIndex];
-        this.selectSettingsTab(tabName, offset);
-    }
-
-    /**
-     * Update carousel display with current, prev, and next tabs
-     * @param {string} tabName - Current tab name
-     * @param {number} direction - Direction of navigation for animation (-1, 0, or 1)
-     */
-    updateSettingsCarousel(tabName, direction = 0) {
-        const carousel = document.getElementById('settings-carousel');
-        if (!carousel) return;
-
-        const tabsContainer = carousel.querySelector('.carousel-tabs');
-        const tabs = carousel.querySelectorAll('.carousel-tab');
-        if (tabs.length !== 3 || !tabsContainer) return;
-
-        const total = this.settingsTabOrder.length;
-        const currentIndex = this.settingsTabOrder.indexOf(tabName);
-        if (currentIndex === -1) return;
-
-        this.currentSettingsTabIndex = currentIndex;
-
-        const prevIndex = (currentIndex - 1 + total) % total;
-        const nextIndex = (currentIndex + 1) % total;
-
-        const tabLabels = {
-            'profile': 'Account',
-            'devicesync': 'Device Sync',
-            'notifications': 'Notifications',
-            'api': 'API',
-            'linkpreviews': 'Content',
-            'privacy': 'Privacy',
-            'security': 'Security',
-            'repair': 'Repair',
-            'about': 'About'
-        };
-
-        const newLabels = [
-            tabLabels[this.settingsTabOrder[prevIndex]],
-            tabLabels[this.settingsTabOrder[currentIndex]],
-            tabLabels[this.settingsTabOrder[nextIndex]]
-        ];
-
-        // Simple cross-fade animation for tabs
-        if (direction !== 0) {
-            // Fade out
-            tabsContainer.style.transition = 'opacity 0.15s ease';
-            tabsContainer.style.opacity = '0';
-            
-            setTimeout(() => {
-                // Update labels while hidden
-                tabs[0].textContent = newLabels[0];
-                tabs[0].dataset.tab = this.settingsTabOrder[prevIndex];
-                tabs[0].classList.remove('active');
-                tabs[0].classList.add('adjacent');
-
-                tabs[1].textContent = newLabels[1];
-                tabs[1].dataset.tab = this.settingsTabOrder[currentIndex];
-                tabs[1].classList.add('active');
-                tabs[1].classList.remove('adjacent');
-
-                tabs[2].textContent = newLabels[2];
-                tabs[2].dataset.tab = this.settingsTabOrder[nextIndex];
-                tabs[2].classList.remove('active');
-                tabs[2].classList.add('adjacent');
-
-                // Fade in
-                tabsContainer.style.opacity = '1';
-                
-                setTimeout(() => {
-                    tabsContainer.style.transition = '';
-                    tabsContainer.style.opacity = '';
-                }, 150);
-            }, 150);
-        } else {
-            // Instant update (no animation)
-            tabs[0].textContent = newLabels[0];
-            tabs[0].dataset.tab = this.settingsTabOrder[prevIndex];
-            tabs[0].classList.remove('active');
-            tabs[0].classList.add('adjacent');
-
-            tabs[1].textContent = newLabels[1];
-            tabs[1].dataset.tab = this.settingsTabOrder[currentIndex];
-            tabs[1].classList.add('active');
-            tabs[1].classList.remove('adjacent');
-
-            tabs[2].textContent = newLabels[2];
-            tabs[2].dataset.tab = this.settingsTabOrder[nextIndex];
-            tabs[2].classList.remove('active');
-            tabs[2].classList.add('adjacent');
+    _placeSyncPanel(insideAccount) {
+        const sync = document.getElementById('settings-panel-devicesync');
+        const profile = document.getElementById('settings-panel-profile');
+        const divider = document.getElementById('settings-backup-divider');
+        if (!sync || !profile) return;
+        sync.classList.toggle('settings-panel-follows', insideAccount);
+        if (insideAccount) {
+            divider?.before(sync);
+        } else if (sync.parentElement !== profile.parentElement) {
+            profile.after(sync);
         }
     }
 
     /**
-     * Select a settings tab
-     * @param {string} tabName - Tab to select
-     * @param {number} direction - Direction of navigation (-1 = left, 1 = right, 0 = direct click)
+     * A section is one history step deep, so the system Back returns to the
+     * list instead of closing Settings.
      */
-    selectSettingsTab(tabName, direction = 0) {
-        // Update settings dropdown active indicator
-        document.querySelectorAll('#pill-settings-dropdown .pill-dropdown-item[data-settings-tab]').forEach(item => {
-            item.classList.toggle('active-tab', item.dataset.settingsTab === tabName);
-        });
+    _trackSectionHistory(tabName) {
+        const inSection = tabName !== 'index';
+        if (inSection && !this._sectionInHistory) {
+            this._sectionInHistory = true;
+            this.modalManager?.pushSubState('settings-modal', () => {
+                this._sectionInHistory = false;
+                this.selectSettingsTab('index');
+            });
+        } else if (!inSection && this._sectionInHistory) {
+            this._sectionInHistory = false;
+            this.modalManager?.dropSubState('settings-modal');
+        }
+    }
 
-        if (tabName === 'devicesync') {
+    /** Mobile header: "Settings" on the list, back arrow + section title inside one. */
+    updateMobileSettingsHeader(tabName) {
+        const back = document.getElementById('settings-mobile-back');
+        const title = document.getElementById('settings-mobile-title');
+        const onIndex = tabName === 'index';
+        back?.classList.toggle('hidden', onIndex);
+        if (title) title.textContent = onIndex ? 'Settings' : (this.sectionTitles[tabName] || 'Settings');
+    }
+
+    /**
+     * Select a settings tab
+     * @param {string} tabName - Tab to select ('index' is the mobile section list)
+     */
+    selectSettingsTab(tabName) {
+        const isMobile = this.isMobileView && this.isMobileView();
+        // Mobile Account carries Device Sync below it, as on Android.
+        const withSync = isMobile && tabName === 'profile';
+
+        if (tabName === 'devicesync' || withSync) {
             this.updateSyncModeDisplay();
         }
 
@@ -1267,11 +1137,6 @@ class SettingsUI {
             this.testRpcEndpoints();
         }
 
-        // Start animation lock
-        if (direction !== 0) {
-            this.isAnimating = true;
-        }
-
         this.elements.settingsTabs?.forEach(tab => {
             const isActive = tab.dataset.settingsTab === tabName;
             tab.classList.toggle('bg-white/10', isActive);
@@ -1279,70 +1144,21 @@ class SettingsUI {
             tab.classList.toggle('text-white/60', !isActive);
         });
 
-        if (this.isMobileView && this.isMobileView()) {
-            this.updateSettingsCarousel(tabName, direction);
+        if (isMobile) {
+            this.updateMobileSettingsHeader(tabName);
         }
 
-        // Animate panel transition on mobile
-        const isMobile = this.isMobileView && this.isMobileView();
-        
-        if (isMobile && direction !== 0) {
-            // Find current and target panels
-            let currentPanel = null;
-            let targetPanel = null;
-            
-            this.elements.settingsPanels?.forEach(panel => {
-                const panelName = panel.id.replace('settings-panel-', '');
-                if (panelName === tabName) {
-                    targetPanel = panel;
-                } else if (!panel.classList.contains('hidden')) {
-                    currentPanel = panel;
-                }
-            });
+        this.elements.settingsPanels?.forEach(panel => {
+            const panelName = panel.id.replace('settings-panel-', '');
+            const show = panelName === tabName || (withSync && panelName === 'devicesync');
+            panel.classList.toggle('hidden', !show);
+        });
+        this._placeSyncPanel(withSync);
 
-            if (currentPanel && targetPanel) {
-                // Simple cross-fade for panels (more reliable than slide)
-                currentPanel.style.transition = 'opacity 0.2s ease';
-                currentPanel.style.opacity = '0';
-                
-                setTimeout(() => {
-                    currentPanel.classList.add('hidden');
-                    currentPanel.style.transition = '';
-                    currentPanel.style.opacity = '';
-                    
-                    targetPanel.classList.remove('hidden');
-                    targetPanel.style.opacity = '0';
-                    targetPanel.style.transition = 'opacity 0.2s ease';
-                    
-                    // Force reflow
-                    targetPanel.offsetHeight;
-                    
-                    targetPanel.style.opacity = '1';
-                    
-                    setTimeout(() => {
-                        targetPanel.style.transition = '';
-                        targetPanel.style.opacity = '';
-                        this.isAnimating = false;
-                    }, 200);
-                }, 200);
-            } else if (targetPanel) {
-                targetPanel.classList.remove('hidden');
-                this.isAnimating = false;
-            } else {
-                this.isAnimating = false;
-            }
-        } else {
-            // Instant switch (desktop or direct click)
-            this.elements.settingsPanels?.forEach(panel => {
-                const panelName = panel.id.replace('settings-panel-', '');
-                const isTarget = panelName === tabName;
-                panel.classList.toggle('hidden', !isTarget);
-                panel.style.transition = '';
-                panel.style.opacity = '';
-                panel.style.transform = '';
-            });
-            this.isAnimating = false;
-        }
+        if (isMobile) this._trackSectionHistory(tabName);
+
+        const scroller = document.querySelector('#settings-modal .flex-1.p-6.overflow-y-auto');
+        if (scroller) scroller.scrollTop = 0;
     }
 
     /**

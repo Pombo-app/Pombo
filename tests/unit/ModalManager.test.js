@@ -14,11 +14,14 @@ describe('ModalManager', () => {
         // Reset modal stack and onHide callbacks
         modalManager.modalStack = [];
         modalManager._handlingPopState = false;
+        modalManager._subStates = [];
+        modalManager._swallowNextPop = false;
         modalManager.onHideCallbacks.clear();
-        
+
         // Mock window.history for history integration
         window.history.pushState = vi.fn();
         window.history.back = vi.fn();
+        window.history.go = vi.fn();
         
         // Clear any existing modals
         document.body.innerHTML = '';
@@ -632,6 +635,57 @@ describe('ModalManager', () => {
                 
                 expect(callback).toHaveBeenCalledTimes(1);
                 expect(window.history.back).not.toHaveBeenCalled();
+            });
+        });
+
+        describe('sub-states inside an open modal', () => {
+            const popTo = (state) => window.dispatchEvent(new PopStateEvent('popstate', { state }));
+
+            it('pushes a history step only while the modal is open', () => {
+                modalManager.pushSubState('settings-modal', vi.fn());
+                expect(window.history.pushState).not.toHaveBeenCalled();
+
+                modalManager.modalStack = ['settings-modal'];
+                modalManager.pushSubState('settings-modal', vi.fn());
+                expect(window.history.pushState).toHaveBeenCalledWith({ modal: 'settings-modal', sub: true }, '');
+            });
+
+            it('Back pops the step and keeps the modal open', () => {
+                createModal('settings-modal', false);
+                modalManager.modalStack = ['settings-modal'];
+                const onPop = vi.fn();
+                modalManager.pushSubState('settings-modal', onPop);
+
+                popTo({ modal: 'settings-modal' });
+
+                expect(onPop).toHaveBeenCalledTimes(1);
+                expect(document.getElementById('settings-modal').classList.contains('hidden')).toBe(false);
+                expect(modalManager.modalStack).toEqual(['settings-modal']);
+            });
+
+            it('leaving the step without Back drops its entry and swallows the pop', () => {
+                createModal('settings-modal', false);
+                modalManager.modalStack = ['settings-modal'];
+                const onPop = vi.fn();
+                modalManager.pushSubState('settings-modal', onPop);
+
+                modalManager.dropSubState('settings-modal');
+                expect(window.history.back).toHaveBeenCalledTimes(1);
+
+                popTo({ modal: 'settings-modal' });
+                expect(onPop).not.toHaveBeenCalled();
+                expect(document.getElementById('settings-modal').classList.contains('hidden')).toBe(false);
+            });
+
+            it('closing the modal goes back past its steps too', () => {
+                createModal('settings-modal', false);
+                modalManager.modalStack = ['settings-modal'];
+                modalManager.pushSubState('settings-modal', vi.fn());
+
+                modalManager.hide('settings-modal');
+
+                expect(window.history.go).toHaveBeenCalledWith(-2);
+                expect(modalManager._subStates).toEqual([]);
             });
         });
 

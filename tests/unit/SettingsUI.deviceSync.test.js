@@ -18,10 +18,6 @@ vi.mock('../../src/js/backupImport.js', () => ({
     importBackupData: vi.fn()
 }));
 
-vi.mock('../../src/js/ui/pillDropdown.js', () => ({
-    positionPillDropdown: vi.fn()
-}));
-
 const { settingsUI } = await import('../../src/js/ui/SettingsUI.js');
 
 const MODES = ['automatic', 'not_on_start', 'manual_only'];
@@ -65,10 +61,6 @@ describe('SettingsUI Device Sync panel', () => {
             },
             showNotification: vi.fn()
         });
-    });
-
-    it('lists Device Sync straight after Account', () => {
-        expect(settingsUI.settingsTabOrder.slice(0, 2)).toEqual(['profile', 'devicesync']);
     });
 
     it('checks the radio for the stored mode', () => {

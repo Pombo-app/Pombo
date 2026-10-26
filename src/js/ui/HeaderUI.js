@@ -616,8 +616,6 @@ class HeaderUI {
         if (this._profileDropdownOpen) {
             this._closeProfileDropdown();
         } else {
-            // Close other pill dropdowns if open
-            document.getElementById('pill-settings-dropdown')?.classList.add('hidden');
             positionPillDropdown(pill.profileDropdown);
             pill.profileDropdown.classList.remove('hidden');
             this._profileDropdownOpen = true;

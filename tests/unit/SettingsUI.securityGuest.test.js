@@ -18,10 +18,6 @@ vi.mock('../../src/js/backupImport.js', () => ({
     importBackupData: vi.fn()
 }));
 
-vi.mock('../../src/js/ui/pillDropdown.js', () => ({
-    positionPillDropdown: vi.fn()
-}));
-
 const { settingsUI } = await import('../../src/js/ui/SettingsUI.js');
 
 function renderPanel() {

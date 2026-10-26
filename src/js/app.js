@@ -244,6 +244,11 @@ class App {
             await handleSync(pillSyncBtn);
         });
 
+        const settingsSyncBtn = document.getElementById('settings-sync-devices-btn');
+        settingsSyncBtn?.addEventListener('click', async () => {
+            await handleSync(settingsSyncBtn);
+        });
+
         // Best-effort push when the page is being hidden/unloaded.
         // Only fires when there are unsynced local changes (dirty flag).
         // Note: an async publish may not complete during unload — the dirty

@@ -37,6 +37,10 @@ class ModalManager {
         this.overlayModals = new Set(['wallet-modal']);
         this._swallowNextPop = false;
 
+        // Extra history steps inside an open modal (e.g. a Settings section
+        // over the section list): Back pops one of these before the modal.
+        this._subStates = []; // { modalId, onPop }
+
         // Flag to prevent recursive popstate handling
         this._handlingPopState = false;
         
@@ -53,6 +57,13 @@ class ModalManager {
         window.addEventListener('popstate', (event) => {
             if (this._swallowNextPop) {
                 this._swallowNextPop = false;
+                event.stopImmediatePropagation();
+                return;
+            }
+            const sub = this._subStates[this._subStates.length - 1];
+            if (sub && sub.modalId === this.modalStack[this.modalStack.length - 1]) {
+                this._subStates.pop();
+                sub.onPop();
                 event.stopImmediatePropagation();
                 return;
             }
@@ -163,14 +174,46 @@ class ModalManager {
             const stackIndex = this.modalStack.indexOf(modalId);
             if (stackIndex !== -1) {
                 this.modalStack.splice(stackIndex, 1);
-                // Go back to remove the history entry we added
+                const subSteps = this._dropSubStatesOf(modalId);
+                // Go back to remove the history entries we added
                 // Skip if: handling popstate, or skipHistory option is set (e.g., switching modals)
                 if (!this._handlingPopState && !options.skipHistory) {
                     if (this.overlayModals.has(modalId)) this._swallowNextPop = true;
-                    window.history.back();
+                    if (subSteps) window.history.go(-(1 + subSteps));
+                    else window.history.back();
                 }
             }
         }
+    }
+
+    /**
+     * Add one history step inside an open history modal.
+     * @param {string} modalId - The open modal the step belongs to
+     * @param {Function} onPop - Called when Back pops this step
+     */
+    pushSubState(modalId, onPop) {
+        if (!this.modalStack.includes(modalId)) return;
+        window.history.pushState({ modal: modalId, sub: true }, '');
+        this._subStates.push({ modalId, onPop });
+    }
+
+    /**
+     * Leave the top step of a modal without the Back key (e.g. an in-page back arrow).
+     * @param {string} modalId
+     */
+    dropSubState(modalId) {
+        const top = this._subStates[this._subStates.length - 1];
+        if (!top || top.modalId !== modalId) return;
+        this._subStates.pop();
+        this._swallowNextPop = true;
+        window.history.back();
+    }
+
+    /** @returns {number} how many steps the modal had */
+    _dropSubStatesOf(modalId) {
+        const before = this._subStates.length;
+        this._subStates = this._subStates.filter(s => s.modalId !== modalId);
+        return before - this._subStates.length;
     }
     
     /**
@@ -196,6 +239,7 @@ class ModalManager {
         if (stackIndex !== -1) {
             this.modalStack.splice(stackIndex, 1);
         }
+        this._dropSubStatesOf(modalId);
     }
     
     /**
