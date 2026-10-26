@@ -3644,7 +3644,7 @@ body.guest-mode #wallet-btn-wrapper {
     #notif-bell-wrapper {
         display: none !important;
         position: absolute;
-        right: 1.25rem;
+        right: 0.875rem;
         top: 50%;
         transform: translateY(-50%);
     }
@@ -3661,7 +3661,7 @@ body.guest-mode #wallet-btn-wrapper {
     #wallet-btn-wrapper {
         display: none !important;
         position: absolute;
-        right: 4.5rem;
+        right: 4.125rem;
         top: 50%;
         transform: translateY(-50%);
     }

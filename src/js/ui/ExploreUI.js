@@ -230,8 +230,8 @@ class ExploreUI {
                     <div class="flex items-center gap-2">
                         ${accessMarkersHtml}
                         <div class="flex-1 flex items-center justify-end min-w-0">
-                            <button type="button" id="explore-search-toggle-btn" aria-label="Search channels" class="flex-shrink-0 w-[38px] h-[38px] flex items-center justify-center bg-white/5 border border-white/10 rounded-xl text-white/50 hover:text-white/80 transition">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <button type="button" id="explore-search-toggle-btn" aria-label="Search channels" class="flex-shrink-0 w-12 h-12 -my-[5px] flex items-center justify-center rounded-full text-white/50 hover:text-white/80 hover:bg-white/[0.05] active:bg-white/[0.12] transition">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
                                 </svg>
                             </button>
@@ -256,8 +256,8 @@ class ExploreUI {
                             </div>
                         </div>
                         <div class="relative flex-shrink-0">
-                            <button type="button" id="explore-language-toggle-btn" aria-label="Language filter" class="w-[38px] h-[38px] flex items-center justify-center bg-white/5 border border-white/10 rounded-xl text-white/50 hover:text-white/80 transition">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <button type="button" id="explore-language-toggle-btn" aria-label="Language filter" class="w-12 h-12 -my-[5px] flex items-center justify-center rounded-full text-white/50 hover:text-white/80 hover:bg-white/[0.05] active:bg-white/[0.12] transition">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <circle cx="12" cy="12" r="9"/>
                                     <path stroke-linecap="round" d="M3 12h18M12 3c2.4 2.4 3.8 5.7 3.8 9s-1.4 6.6-3.8 9c-2.4-2.4-3.8-5.7-3.8-9s1.4-6.6 3.8-9z"/>
                                 </svg>
@@ -419,9 +419,7 @@ class ExploreUI {
         const btn = document.getElementById('explore-language-toggle-btn');
         const active = !!this.browseLanguageFilterValue;
         btn?.classList.toggle('text-[#F6851B]', active);
-        btn?.classList.toggle('border-[#F6851B]/50', active);
         btn?.classList.toggle('text-white/50', !active);
-        btn?.classList.toggle('border-white/10', !active);
         document.querySelectorAll('.explore-language-option').forEach(opt => {
             const picked = opt.dataset.language === this.browseLanguageFilterValue;
             opt.classList.toggle('text-white', picked);

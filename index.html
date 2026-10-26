@@ -113,8 +113,8 @@
             <!-- Wallet: the token balances of this account. Sits beside the
                  bell and follows the same visibility rules. -->
             <div id="wallet-btn-wrapper" class="hidden relative">
-                <button id="wallet-btn" class="w-9 h-9 bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] rounded-xl flex items-center justify-center transition" title="Wallet">
-                    <svg class="w-[18px] h-[18px] text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button id="wallet-btn" class="w-12 h-12 hover:bg-white/[0.05] active:bg-white/[0.12] rounded-full flex items-center justify-center transition" title="Wallet">
+                    <svg class="w-6 h-6 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3"/>
                     </svg>
                 </button>
@@ -124,11 +124,11 @@
                  Create Channel uses in Explore, but shown in the Chats view
                  instead (components.css owns the visibility rules). -->
             <div id="notif-bell-wrapper" class="hidden relative">
-                <button id="notif-bell-btn" class="relative w-9 h-9 bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] rounded-xl flex items-center justify-center transition" title="Notifications">
-                    <svg class="w-[18px] h-[18px] text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button id="notif-bell-btn" class="relative w-12 h-12 hover:bg-white/[0.05] active:bg-white/[0.12] rounded-full flex items-center justify-center transition" title="Notifications">
+                    <svg class="w-6 h-6 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"/>
                     </svg>
-                    <span id="notif-bell-badge" class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-[#F6851B] rounded-full text-[9px] font-bold text-white flex items-center justify-center">0</span>
+                    <span id="notif-bell-badge" class="hidden absolute top-[7px] right-[7px] min-w-[16px] h-4 px-1 bg-[#F6851B] rounded-full text-[9px] font-bold text-white flex items-center justify-center">0</span>
                 </button>
                 <div id="notif-bell-dropdown" class="hidden absolute top-full right-0 mt-1.5 w-[320px] bg-[#16161b] border border-white/[0.1] rounded-xl py-1 shadow-2xl z-50">
                     <div class="px-3.5 py-2 flex items-center justify-between">
