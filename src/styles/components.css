@@ -284,7 +284,8 @@ body {
    those two the full width. Mobile has a separate button in the global header
    (#header-create-channel-btn), so this one stays hidden there. A guest cannot
    create a channel, matching Android and the mobile rule. */
-#new-channel-btn {
+#new-channel-btn,
+#explore-join-id-btn {
     display: none;
 }
 
@@ -292,7 +293,8 @@ body {
    short landscape window as mobile however wide it is — there the whole
    #chat-header is hidden and #header-create-channel-btn takes over. */
 @media (min-width: 768px) and (min-height: 501px) {
-    body.explore-open:not(.guest-mode) #new-channel-btn {
+    body.explore-open:not(.guest-mode) #new-channel-btn,
+    body.explore-open #explore-join-id-btn {
         display: flex;
         align-items: center;
         justify-content: center;
@@ -346,6 +348,7 @@ body {
 
     .mobile-channel-menu-btn,
     .mobile-close-btn,
+    #header-join-id-btn,
     #header-create-channel-btn {
         align-items: center !important;
         justify-content: center !important;
@@ -2466,7 +2469,8 @@ body.explore-open #explore-channels-list {
     }
 
     /* Show [+] Create Channel button in header for authenticated users in Explore view */
-    body.explore-open.chat-open:not(.guest-mode) #header-create-channel-btn {
+    body.explore-open.chat-open:not(.guest-mode) #header-create-channel-btn,
+    body.explore-open.chat-open #header-join-id-btn {
         display: flex !important;
     }
     

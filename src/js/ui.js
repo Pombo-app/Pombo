@@ -387,7 +387,6 @@ class UIController {
             joinChannelModal: document.getElementById('join-channel-modal'),
             joinStreamIdInput: document.getElementById('join-stream-id-input'),
             joinPasswordInput: document.getElementById('join-password-input'),
-            joinPasswordField: document.getElementById('join-password-field'),
             joinBtn: document.getElementById('join-btn'),
             cancelJoinBtn: document.getElementById('cancel-join-btn'),
 
@@ -1781,52 +1780,11 @@ class UIController {
         this.joinChannelUI.hideJoinChannelModal();
     }
 
-    async handleQuickJoin(streamId) {
-        return this.joinChannelUI.handleQuickJoin(
-            (msg, type) => this.showNotification(msg, type),
-            () => this.renderChannelList(),
-            streamId
-        );
-    }
-
-    /**
-     * Show the quick join modal (mobile pill)
-     */
-    showQuickJoinModal() {
-        const modal = document.getElementById('quick-join-modal');
-        const input = document.getElementById('quick-join-modal-input');
-        if (modal) {
-            modal.classList.remove('hidden');
-            setTimeout(() => input?.focus(), 100);
-        }
-    }
-
-    /**
-     * Handle join from the quick join modal
-     * @private
-     */
-    async _handleQuickJoinModal() {
-        const modal = document.getElementById('quick-join-modal');
-        const input = document.getElementById('quick-join-modal-input');
-        const streamId = input?.value.trim();
-
-        if (!streamId) {
-            this.showNotification('Please enter a channel ID', 'error');
-            return;
-        }
-
-        // Hide modal
-        modal?.classList.add('hidden');
-        if (input) input.value = '';
-
-        // Delegate to existing quick join logic with the streamId directly
-        await this.handleQuickJoin(streamId);
-    }
-
     async handleJoinChannel() {
         return this.joinChannelUI.handleJoinChannel(
             (msg, type) => this.showNotification(msg, type),
-            () => this.renderChannelList()
+            () => this.renderChannelList(),
+            (sid) => this.selectChannel(sid)
         );
     }
 

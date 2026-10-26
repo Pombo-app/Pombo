@@ -259,33 +259,22 @@ describe('ModalManager', () => {
             streamIdInput.value = 'old-stream-id';
             const passwordInput = document.createElement('input');
             passwordInput.value = 'old-password';
-            const passwordField = document.createElement('div');
-            passwordField.classList.remove('hidden');
-            
-            modalManager.showJoinChannelModal(modal, streamIdInput, passwordInput, passwordField);
-            
+            const localName = document.createElement('input');
+            localName.id = 'join-local-name-input';
+            localName.value = 'old-name';
+            document.body.appendChild(localName);
+
+            modalManager.showJoinChannelModal(modal, streamIdInput, passwordInput);
+
             expect(modal.classList.contains('hidden')).toBe(false);
             expect(streamIdInput.value).toBe('');
             expect(passwordInput.value).toBe('');
-            expect(passwordField.classList.contains('hidden')).toBe(true);
+            expect(localName.value).toBe('');
         });
-        
-        it('should uncheck password checkbox if exists', () => {
-            const modal = createModal('join-modal2', true);
-            const checkbox = document.createElement('input');
-            checkbox.id = 'join-has-password';
-            checkbox.type = 'checkbox';
-            checkbox.checked = true;
-            document.body.appendChild(checkbox);
-            
-            modalManager.showJoinChannelModal(modal, null, null, null);
-            
-            expect(checkbox.checked).toBe(false);
-        });
-        
+
         it('should handle null parameters gracefully', () => {
             // Should not throw
-            modalManager.showJoinChannelModal(null, null, null, null);
+            modalManager.showJoinChannelModal(null, null, null);
         });
     });
 

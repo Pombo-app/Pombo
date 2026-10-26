@@ -31,9 +31,11 @@ class JoinChannelUI {
         modalManager.showJoinChannelModal(
             this.elements.joinChannelModal,
             this.elements.joinStreamIdInput,
-            this.elements.joinPasswordInput,
-            this.elements.joinPasswordField
+            this.elements.joinPasswordInput
         );
+        this.setJoinClassification('personal');
+        this.elements.joinBtn?.setAttribute('disabled', '');
+        this.elements.joinStreamIdInput?.focus();
     }
 
     /**
@@ -44,23 +46,42 @@ class JoinChannelUI {
     }
 
     /**
-     * Handle quick join
+     * Personal/Community selection of the join dialog
+     * @param {string} classification - 'personal' or 'community'
+     */
+    setJoinClassification(classification) {
+        this.joinClassification = classification;
+        document.querySelectorAll('.join-id-classification-tab').forEach(tab => {
+            const isActive = tab.dataset.joinIdClassification === classification;
+            tab.classList.toggle('bg-white/10', isActive);
+            tab.classList.toggle('text-white', isActive);
+            tab.classList.toggle('border-white/10', isActive);
+            tab.classList.toggle('bg-white/5', !isActive);
+            tab.classList.toggle('text-white/50', !isActive);
+            tab.classList.toggle('border-white/5', !isActive);
+        });
+    }
+
+    /**
+     * Handle join channel from modal: ID, optional password, optional local
+     * name and the Personal/Community classification in one step.
      * @param {Function} showNotification - Notification callback
      * @param {Function} renderChannelList - Channel list render callback
-     * @param {string} streamId - Channel stream ID to join
+     * @param {Function} selectChannel - Opens the joined channel
      */
-    async handleQuickJoin(showNotification, renderChannelList, streamId) {
-        
+    async handleJoinChannel(showNotification, renderChannelList, selectChannel) {
+        const streamId = this.elements.joinStreamIdInput?.value.trim();
+        const password = this.elements.joinPasswordInput?.value || null;
+        const localName = document.getElementById('join-local-name-input')?.value.trim() || null;
+        const classification = this.joinClassification || 'personal';
+
         if (!streamId) {
             showNotification('Please enter a channel ID', 'error');
             return;
         }
 
-        // First check cache (from ExploreUI), then query The Graph for channel info
         let channelInfo = exploreUI.cachedPublicChannels?.find(ch => ch.streamId === streamId);
-        
         if (!channelInfo) {
-            // Not in cache - query The Graph
             notificationUI.showLoading('Checking channel...');
             try {
                 channelInfo = await graphAPI.getChannelInfo(streamId);
@@ -70,125 +91,55 @@ class JoinChannelUI {
                 notificationUI.hideLoading();
             }
         }
-        
-        // If we know it's a password-protected channel, show password modal
-        if (channelInfo?.type === 'password') {
-            const displayName = channelInfo.name || channelInfo.displayName || 'this channel';
-            const password = await this.showPasswordInputModal('Join Password Channel', 
-                `Enter password for "${displayName}":`);
-            
-            if (!password) {
-                return; // User cancelled
-            }
-            
+
+        if (channelInfo?.type === 'password' && !password) {
+            showNotification('This channel requires a password', 'error');
+            this.elements.joinPasswordInput?.focus();
+            return;
+        }
+
+        // The on-chain name is authoritative; the local name only fills the
+        // channels that have none.
+        const name = channelInfo?.name || localName || undefined;
+        const attempt = async () => {
             try {
                 notificationUI.showLoadingToast('Joining channel...', 'This may take a moment');
                 await channelManager.joinChannel(streamId, password, {
-                    name: channelInfo.name,
-                    type: 'password'
+                    name,
+                    named: !!localName,
+                    type: channelInfo?.type,
+                    classification,
+                    readOnly: channelInfo?.readOnly || false,
+                    createdBy: channelInfo?.createdBy,
+                    wireIdentity: channelInfo?.wireIdentity || undefined
                 });
-                
                 renderChannelList();
                 showNotification('Joined channel successfully!', 'success');
-            } catch (error) {
-                showNotification('Failed to join: ' + error.message, 'error');
             } finally {
                 notificationUI.hideLoadingToast();
             }
-            return;
-        }
-        
-        // Closed-style channels without an on-chain name need a local name +
-        // classification. A gated channel WITH an on-chain name (visible
-        // token/paid) joins like a public channel — the owner named it.
-        if (channelInfo?.type === 'gated' && !channelInfo?.name) {
-            channelModalsUI.showJoinClosedModal(streamId, channelInfo);
-            return;
-        }
-        
-        // For hidden channels without a name, ask user for a local name
-        // This applies to any channel type with exposure: hidden and name: null
-        if (channelInfo && !channelInfo.name) {
-            channelModalsUI.showJoinHiddenModal(streamId, channelInfo);
-            return;
-        }
-
-        // For unknown channels (no channelInfo), show modal to get name
-        if (!channelInfo) {
-            channelModalsUI.showJoinHiddenModal(streamId, null);
-            return;
-        }
-
-        // For channels with on-chain name, join directly - name is immutable
-        try {
-            notificationUI.showLoadingToast('Joining channel...', 'This may take a moment');
-            await channelManager.joinChannel(streamId, null, {
-                name: channelInfo.name,
-                type: channelInfo.type,
-                readOnly: channelInfo.readOnly || false,
-                createdBy: channelInfo.createdBy
-            });
-
-            renderChannelList();
-            showNotification('Joined channel successfully!', 'success');
-        } catch (error) {
-            if (error.code === 'GATE_ACCESS_DENIED') {
-                channelModalsUI.showGateEntryModal({
-                    streamId,
-                    gateAddress: error.gateAddress,
-                    name: channelInfo.name,
-                    retry: () => this.handleQuickJoin(showNotification, renderChannelList, streamId)
-                });
-            } else {
-                showNotification('Failed to join: ' + error.message, 'error');
-            }
-        } finally {
-            notificationUI.hideLoadingToast();
-        }
-    }
-
-    /**
-     * Handle join channel from modal
-     * @param {Function} showNotification - Notification callback
-     * @param {Function} renderChannelList - Channel list render callback
-     */
-    async handleJoinChannel(showNotification, renderChannelList) {
-        const streamId = this.elements.joinStreamIdInput?.value.trim();
-        const password = this.elements.joinPasswordInput?.value || null;
-
-        if (!streamId) {
-            showNotification('Please enter a Stream ID', 'error');
-            return;
-        }
+        };
 
         try {
-            notificationUI.showLoadingToast('Joining channel...', 'This may take a moment');
-            await channelManager.joinChannel(streamId, password);
+            await attempt();
             this.hideJoinChannelModal();
-            renderChannelList();
-            showNotification('Joined channel successfully!', 'success');
+            await modalManager.historySettled();
+            await selectChannel(streamId);
         } catch (error) {
             if (error.code === 'GATE_ACCESS_DENIED') {
                 this.hideJoinChannelModal();
                 channelModalsUI.showGateEntryModal({
                     streamId,
                     gateAddress: error.gateAddress,
+                    name,
                     retry: async () => {
-                        try {
-                            notificationUI.showLoadingToast('Joining channel...', 'This may take a moment');
-                            await channelManager.joinChannel(streamId, password);
-                            renderChannelList();
-                            showNotification('Joined channel successfully!', 'success');
-                        } finally {
-                            notificationUI.hideLoadingToast();
-                        }
+                        await attempt();
+                        await selectChannel(streamId);
                     }
                 });
             } else {
                 showNotification('Failed to join: ' + error.message, 'error');
             }
-        } finally {
-            notificationUI.hideLoadingToast();
         }
     }
 

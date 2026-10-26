@@ -35,7 +35,7 @@ class ModalManager {
         // Opened over whatever view is showing: closing one must not navigate.
         // The history.back() that drops its entry lands on the view's own
         // state, which the mobile router reads as "go to Home" for Explore.
-        this.overlayModals = new Set(['wallet-modal']);
+        this.overlayModals = new Set(['wallet-modal', 'join-channel-modal']);
         this._swallowNextPop = false;
 
         // Extra history steps inside an open modal (e.g. a Settings section
@@ -58,6 +58,7 @@ class ModalManager {
         window.addEventListener('popstate', (event) => {
             if (this._swallowNextPop) {
                 this._swallowNextPop = false;
+                this._resolveSwallowedPop?.();
                 event.stopImmediatePropagation();
                 return;
             }
@@ -179,12 +180,24 @@ class ModalManager {
                 // Go back to remove the history entries we added
                 // Skip if: handling popstate, or skipHistory option is set (e.g., switching modals)
                 if (!this._handlingPopState && !options.skipHistory) {
-                    if (this.overlayModals.has(modalId)) this._swallowNextPop = true;
+                    if (this.overlayModals.has(modalId)) {
+                        this._swallowNextPop = true;
+                        this._swallowedPop = new Promise(resolve => { this._resolveSwallowedPop = resolve; });
+                    }
                     if (subSteps) window.history.go(-(1 + subSteps));
                     else window.history.back();
                 }
             }
         }
+    }
+
+    /**
+     * Resolves once the history step an overlay modal dropped on hide has
+     * popped. A route pushed before that would be the entry the pop removes.
+     * @returns {Promise<void>}
+     */
+    historySettled() {
+        return this._swallowNextPop ? this._swallowedPop : Promise.resolve();
     }
 
     /**
@@ -303,30 +316,27 @@ class ModalManager {
     }
 
     /**
-     * Show join channel modal
+     * Show join channel modal with every field cleared
      * @param {HTMLElement} modal - Modal element
      * @param {HTMLElement} streamIdInput - Stream ID input
      * @param {HTMLElement} passwordInput - Password input
-     * @param {HTMLElement} passwordField - Password field container
      */
-    showJoinChannelModal(modal, streamIdInput, passwordInput, passwordField) {
-        modal?.classList.remove('hidden');
+    showJoinChannelModal(modal, streamIdInput, passwordInput) {
+        if (modal) this.show(modal.id);
         if (streamIdInput) streamIdInput.value = '';
         if (passwordInput) {
             passwordInput.value = '';
             passwordInput.type = 'password';
             passwordInput.style.webkitTextSecurity = 'disc';
         }
-        passwordField?.classList.add('hidden');
-        
+        const localName = document.getElementById('join-local-name-input');
+        if (localName) localName.value = '';
+
         // Reset join password eye icons
         const joinEyeOpen = document.getElementById('join-pw-eye-open');
         const joinEyeOff = document.getElementById('join-pw-eye-off');
         if (joinEyeOpen) joinEyeOpen.classList.remove('hidden');
         if (joinEyeOff) joinEyeOff.classList.add('hidden');
-
-        const checkbox = document.getElementById('join-has-password');
-        if (checkbox) checkbox.checked = false;
     }
 
     /**

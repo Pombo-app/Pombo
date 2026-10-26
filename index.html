@@ -100,6 +100,11 @@
                 </svg>
                 Create Account
             </button>
+            <button id="header-join-id-btn" class="hidden px-4 py-1.5 bg-white/[0.05] hover:bg-white/[0.08] text-white border border-white/[0.08] text-sm font-medium rounded-xl transition-all duration-200 items-center" title="Join by ID">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5l-3.9 19.5m-2.1-19.5l-3.9 19.5"/>
+                </svg>
+            </button>
             <!-- Create Channel button (shown in explore view for authenticated users) -->
             <button id="header-create-channel-btn" class="hidden px-4 py-1.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-white border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 items-center gap-1.5 hover:shadow-lg hover:shadow-[#F6851B]/10" title="Create Channel">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -190,12 +195,6 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
                         </svg>
                         Switch Account
-                    </button>
-                    <button id="desktop-join-id-btn" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-white/60 hover:bg-white/[0.06] transition text-left">
-                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5l-3.9 19.5m-2.1-19.5l-3.9 19.5"/>
-                        </svg>
-                        Direct Join - #ID
                     </button>
                     <button id="sync-devices-btn" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-white/60 hover:bg-white/[0.06] transition text-left">
                         <svg class="w-4 h-4 flex-shrink-0 sync-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -411,6 +410,12 @@
                          view: mobile has its own in the global header
                          (#header-create-channel-btn). components.css owns the
                          visibility rules, so no Tailwind display class here. -->
+                    <button id="explore-join-id-btn" class="px-4 py-2 bg-white/[0.05] hover:bg-white/[0.08] text-white border border-white/[0.08] text-sm font-medium rounded-xl transition-all duration-200 items-center gap-1.5" title="Join by ID">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5l-3.9 19.5m-2.1-19.5l-3.9 19.5"/>
+                        </svg>
+                        <span>Join</span>
+                    </button>
                     <button id="new-channel-btn" class="px-4 py-2 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-white border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 items-center gap-1.5 hover:shadow-lg hover:shadow-[#F6851B]/10" title="Create Channel">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.5v15m7.5-7.5h-15"/>
@@ -1190,36 +1195,6 @@
         </div>
     </div>
 
-    <!-- Modal: Join Channel -->
-
-    <!-- Modal: Quick Join with ID (mobile) -->
-    <div id="quick-join-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-white/[0.06]">
-            <h3 class="text-base font-medium mb-4 text-white">Join with ID</h3>
-
-            <div class="space-y-3">
-                <div>
-                    <label class="block text-sm text-white/40 mb-1.5">Channel ID</label>
-                    <div class="relative">
-                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-white/25">#</span>
-                        <input
-                            type="text"
-                            id="quick-join-modal-input"
-                            placeholder="Enter channel ID..."
-                            autocomplete="off"
-                            class="w-full bg-white/[0.04] border border-white/[0.07] text-white pl-7 pr-3 py-2.5 rounded-xl text-sm placeholder-white/25 focus:outline-none focus:border-white/20 focus:bg-white/[0.06] transition"
-                        />
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex gap-2 mt-5">
-                <button id="cancel-quick-join-modal" class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 text-sm font-medium px-4 py-2.5 rounded-xl transition">Cancel</button>
-                <button id="confirm-quick-join-modal" class="flex-1 bg-[#F6851B] hover:bg-[#e5780f] text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow-lg shadow-[#F6851B]/20">Join</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Modal: New DM -->
     <div id="new-dm-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
         <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-white/[0.06]">
@@ -1380,43 +1355,44 @@
         </div>
     </div>
 
-    <div id="join-channel-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div id="join-channel-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[110]">
         <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-white/[0.06]">
-            <h3 class="text-base font-medium mb-4 text-white">Join Channel</h3>
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-medium text-white">Join a channel</h3>
+                <button type="button" id="cancel-join-btn" class="w-8 h-8 -mr-1.5 flex items-center justify-center rounded-full text-white/50 hover:text-white hover:bg-white/[0.06] transition" title="Close">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
 
             <div class="space-y-3">
                 <div>
-                    <label class="block text-sm text-white/30 mb-1.5 uppercase tracking-wide">Channel ID</label>
+                    <label for="join-stream-id-input" class="block text-xs text-white/40 mb-1.5 uppercase tracking-wider">Channel ID</label>
                     <input
                         type="text"
                         id="join-stream-id-input"
-                        placeholder="0x.../channel_name_abc123"
+                        placeholder="0x…/name-1"
                         autocomplete="off"
-                        class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
+                        spellcheck="false"
+                        class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2.5 rounded-xl text-sm placeholder-white/25 focus:outline-none focus:border-white/[0.15] transition"
                     />
-                    <p class="text-sm text-white/25 mt-1">Ask the channel creator for the channel ID</p>
                 </div>
 
-                <div class="flex items-center">
-                    <input type="checkbox" id="join-has-password" class="w-3.5 h-3.5 mr-2 accent-white rounded">
-                    <label for="join-has-password" class="text-sm text-white/50">Channel has password</label>
-                </div>
-
-                <div id="join-password-field" class="hidden">
-                    <label class="block text-sm text-white/30 mb-1.5 uppercase tracking-wide">Password</label>
+                <div id="join-password-field">
+                    <label for="join-password-input" class="block text-xs text-white/40 mb-1.5 uppercase tracking-wider">Password (if any)</label>
                     <div class="relative">
                         <input
                             type="password"
                             id="join-password-input"
                             name="channel-decryption-key"
-                            placeholder="Enter password..."
                             autocomplete="off"
                             data-lpignore="true"
                             data-1p-ignore="true"
                             data-form-type="other"
                             spellcheck="false"
                             style="-webkit-text-security: disc;"
-                            class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2 pr-10 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
+                            class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
                         />
                         <button type="button" id="join-password-toggle" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white transition">
                             <svg class="w-4 h-4" id="join-pw-eye-open" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1429,22 +1405,28 @@
                         </button>
                     </div>
                 </div>
+
+                <div>
+                    <label for="join-local-name-input" class="block text-xs text-white/40 mb-1.5 uppercase tracking-wider">Local name (optional)</label>
+                    <input
+                        type="text"
+                        id="join-local-name-input"
+                        placeholder="e.g. Notícias"
+                        autocomplete="off"
+                        class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2.5 rounded-xl text-sm placeholder-white/25 focus:outline-none focus:border-white/[0.15] transition"
+                    />
+                    <p class="text-xs text-white/25 mt-1.5">Stored locally only. Channels with a public name keep it.</p>
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                    <button type="button" data-join-id-classification="personal" class="join-id-classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition border">Personal</button>
+                    <button type="button" data-join-id-classification="community" class="join-id-classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition border">Community</button>
+                </div>
             </div>
 
-            <div class="flex gap-2 mt-5">
-                <button id="cancel-join-btn" class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 text-sm font-medium px-3 py-2.5 rounded-xl transition">
-                    Cancel
-                </button>
-                <button id="join-btn" class="flex-1 bg-white hover:bg-[#f0f0f0] text-black text-sm font-medium px-3 py-2.5 rounded-xl transition">
-                    Join
-                </button>
-            </div>
-            
-            <div class="mt-4 pt-3 border-t border-white/[0.06] text-center">
-                <button type="button" id="switch-to-closed-join-btn" class="text-xs text-white/40 hover:text-white/60 transition">
-                    Joining a Closed channel? <span class="underline">Click here</span>
-                </button>
-            </div>
+            <button id="join-btn" disabled class="w-full mt-5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 border border-[#F6851B]/30 text-white text-sm font-medium px-3 py-2.5 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#F6851B]/15">
+                Join
+            </button>
         </div>
     </div>
 
