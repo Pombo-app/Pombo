@@ -28,7 +28,8 @@ class ModalManager {
             'invite-users-modal',
             'dm-inbox-setup-modal',
             'new-dm-modal',
-            'wallet-modal'
+            'wallet-modal',
+            'accounts-modal'
         ]);
         
         // Opened over whatever view is showing: closing one must not navigate.

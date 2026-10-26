@@ -136,24 +136,65 @@ class WalletFlows {
             const selectedAddress = await this.showWalletSelector(otherWallets);
             if (!selectedAddress) return;
 
-            // Get password to unlock new wallet
+            await this.switchToWallet(selectedAddress);
+        } catch (error) {
+            uiController.showNotification(error.message || 'Failed to switch account', 'error');
+        }
+    }
+
+    /**
+     * Unlock a saved account and make it the current one.
+     * @param {string} address
+     */
+    async switchToWallet(address) {
+        try {
             const password = await this.showSecureInput(
                 'Unlock Account',
                 'Enter password to unlock account:',
                 'password',
-                { walletAddress: selectedAddress.toLowerCase() }
+                { walletAddress: address.toLowerCase() }
             );
             if (!password) return;
 
             // Disconnect current wallet first (skip fallback to guest since we're switching)
             await this._disconnectWallet({ skipFallback: true });
 
-            // Load selected wallet
-            await this.loadWalletWithProgress(password, selectedAddress);
+            await this.loadWalletWithProgress(password, address);
             uiController.showNotification('Account switched!', 'success');
         } catch (error) {
             uiController.showNotification(error.message || 'Failed to switch account', 'error');
         }
+        if (!authManager.getAddress()) {
+            await this._fallbackToGuest('Continuing as Guest');
+        }
+    }
+
+    /**
+     * Create, import or restore another account. The current session stays
+     * up until the new account is ready, so cancelling changes nothing.
+     */
+    async addAccount() {
+        document.body.classList.add('wallet-flow-open');
+        try {
+            await this.showCreateWalletModal();
+        } catch (error) {
+            if (error.message !== 'cancelled') {
+                uiController.showNotification('Failed to add account: ' + error.message, 'error');
+            }
+        } finally {
+            document.body.classList.remove('wallet-flow-open');
+        }
+        if (!authManager.getAddress()) {
+            await this._fallbackToGuest('Continuing as Guest');
+        }
+    }
+
+    /**
+     * Lock the current account: end the session and ask for an unlock.
+     */
+    async lock() {
+        await this._disconnectWallet({ skipFallback: true });
+        await this.connectWallet();
     }
 
     /**
@@ -505,12 +546,13 @@ class WalletFlows {
                 localStorage.setItem(CONFIG.storageKeys.keystores, JSON.stringify(wallets));
             }
 
-            // Upgrading from Guest: tear the guest session down first, same as
-            // connectLocal/importPrivateKey — onWalletConnected must not
-            // re-enter over a live guest client, or the header never leaves
-            // guest state (body.guest-mode keeps "Create Account" visible).
-            if (authManager.isGuestMode()) {
-                await this._disconnectWallet();
+            // Tear any live session down first (guest, or the account being
+            // left by Add account), same as connectLocal/importPrivateKey —
+            // onWalletConnected must not re-enter over a live client, or the
+            // header never leaves guest state (body.guest-mode keeps
+            // "Create Account" visible).
+            if (authManager.getAddress()) {
+                await this._disconnectWallet({ skipFallback: true });
             }
 
             // Now unlock the wallet with the same password
@@ -631,14 +673,20 @@ class WalletFlows {
 
             // Show modal where user picks an avatar (= picks a wallet)
             const setupResult = await this.showNewAccountSetupModal();
-            
-            // User cancelled - connect as guest instead
+
+            // User cancelled - connect as guest instead (an account still
+            // signed in from Add account simply stays)
             if (setupResult === 'cancelled') {
-                await this._fallbackToGuest('Continuing as Guest - your data won\'t be saved');
+                if (!authManager.getAddress()) {
+                    await this._fallbackToGuest('Continuing as Guest - your data won\'t be saved');
+                }
                 return;
             }
-            
+
             if (setupResult) {
+                if (authManager.getAddress()) {
+                    await this._disconnectWallet({ skipFallback: true });
+                }
                 // Set the chosen wallet in authManager
                 const importResult = authManager.importPrivateKey(setupResult.privateKey);
 
@@ -1580,11 +1628,11 @@ class WalletFlows {
 
             const { privateKey, password } = importResult;
 
-            // If upgrading from Guest, disconnect first to cleanup client
-            // Do this AFTER getting the private key so user doesn't get disconnected if they cancel
-            const wasGuest = authManager.isGuestMode();
-            if (wasGuest) {
-                await this._disconnectWallet();
+            // Disconnect the live session (guest, or the account being left by
+            // Add account) to cleanup the client. Do this AFTER getting the
+            // private key so user doesn't get disconnected if they cancel
+            if (authManager.getAddress()) {
+                await this._disconnectWallet({ skipFallback: true });
             }
 
             const result = authManager.importPrivateKey(privateKey);

@@ -104,6 +104,9 @@ class ContactsUI {
                     document.body.classList.remove('settings-open');
                 }
             }
+            if (modalManager.isVisible('accounts-modal')) {
+                modalManager.hide('accounts-modal', { skipHistory: true });
+            }
             // Update pill nav active tab
             document.querySelectorAll('.pill-nav-item[data-pill-tab]').forEach(item => {
                 item.classList.toggle('active', item.dataset.pillTab === 'contacts');

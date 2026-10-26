@@ -990,6 +990,9 @@ class SettingsUI {
                         document.body.classList.remove('contacts-open');
                     }
                 }
+                if (this.modalManager?.isVisible('accounts-modal')) {
+                    this.modalManager.hide('accounts-modal', { skipHistory: true });
+                }
                 // Update pill nav active tab
                 document.querySelectorAll('.pill-nav-item[data-pill-tab]').forEach(item => {
                     item.classList.toggle('active', item.dataset.pillTab === 'settings');

@@ -174,6 +174,7 @@ describe('WalletFlows Extended', () => {
         });
 
         it('generates a new local wallet', async () => {
+            authManager.getAddress.mockReturnValue(null);
             walletFlows.showNewAccountSetupModal = vi.fn().mockResolvedValue('cancelled');
 
             await walletFlows.connectLocal();
@@ -184,6 +185,7 @@ describe('WalletFlows Extended', () => {
         });
 
         it('falls back to guest if user cancels setup', async () => {
+            authManager.getAddress.mockReturnValue(null);
             walletFlows.showNewAccountSetupModal = vi.fn().mockResolvedValue('cancelled');
 
             await walletFlows.connectLocal();
@@ -191,6 +193,33 @@ describe('WalletFlows Extended', () => {
             expect(mockCallbacks.fallbackToGuest).toHaveBeenCalledWith(
                 expect.stringContaining('Guest')
             );
+        });
+
+        it('keeps a signed-in account when its Add account setup is cancelled', async () => {
+            authManager.isGuestMode.mockReturnValue(false);
+            authManager.getAddress.mockReturnValue('0xcurrent');
+            walletFlows.showNewAccountSetupModal = vi.fn().mockResolvedValue('cancelled');
+
+            await walletFlows.connectLocal();
+
+            expect(mockCallbacks.disconnectWallet).not.toHaveBeenCalled();
+            expect(mockCallbacks.fallbackToGuest).not.toHaveBeenCalled();
+        });
+
+        it('leaves a signed-in account only once the new one is set up', async () => {
+            authManager.isGuestMode.mockReturnValue(false);
+            authManager.getAddress.mockReturnValue('0xcurrent');
+            walletFlows.showNewAccountSetupModal = vi.fn().mockResolvedValue({
+                address: '0xChosenAddr',
+                privateKey: '0xChosenKey',
+                password: 'StrongPass123!',
+                displayName: ''
+            });
+            walletFlows.saveWalletWithProgress = vi.fn().mockResolvedValue({});
+
+            await walletFlows.connectLocal();
+
+            expect(mockCallbacks.disconnectWallet).toHaveBeenCalledWith({ skipFallback: true });
         });
 
         it('saves wallet with progress when setup completed', async () => {
@@ -301,16 +330,30 @@ describe('WalletFlows Extended', () => {
             expect(mockCallbacks.disconnectWallet).toHaveBeenCalled();
         });
 
-        it('does not disconnect if not guest', async () => {
+        it('does not disconnect when no session is live', async () => {
             walletFlows.showImportPrivateKeyModal = vi.fn().mockResolvedValue({
                 privateKey: '0xabc123',
                 password: null
             });
             authManager.isGuestMode.mockReturnValue(false);
+            authManager.getAddress.mockReturnValue(null);
 
             await walletFlows.importPrivateKey();
 
             expect(mockCallbacks.disconnectWallet).not.toHaveBeenCalled();
+        });
+
+        it('leaves a signed-in account before importing another (Add account)', async () => {
+            walletFlows.showImportPrivateKeyModal = vi.fn().mockResolvedValue({
+                privateKey: '0xabc123',
+                password: null
+            });
+            authManager.isGuestMode.mockReturnValue(false);
+            authManager.getAddress.mockReturnValue('0xcurrent');
+
+            await walletFlows.importPrivateKey();
+
+            expect(mockCallbacks.disconnectWallet).toHaveBeenCalledWith({ skipFallback: true });
         });
 
         it('imports private key via authManager', async () => {

@@ -10,14 +10,11 @@ import { identityManager } from '../identity.js';
 import { channelImageManager } from '../channelImageManager.js';
 import { deriveAdminId } from '../streamConstants.js';
 import { escapeAttr } from './utils.js';
-import { positionPillDropdown } from './pillDropdown.js';
 
 class HeaderUI {
     constructor() {
         this.deps = {};
-        this._profileDropdownOpen = false;
         this._desktopDropdownOpen = false;
-        this._boundCloseDropdown = null;
         this._boundCloseDesktopDropdown = null;
         this._currentAddress = null;
         this._currentDisplayName = null;
@@ -135,9 +132,6 @@ class HeaderUI {
                 if (pill.profileBtn) {
                     pill.profileBtn.innerHTML = generateAvatar(address, 32, 0.5);
                 }
-                if (pill.profileAddress) {
-                    pill.profileAddress.textContent = `${address.slice(0, 6)}...${address.slice(-4)}`;
-                }
             } else {
                 this._currentAddress = address;
                 const short = `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -173,10 +167,6 @@ class HeaderUI {
                 if (pill.profileBtn) {
                     const ensAvatar = identityManager.getCachedENSAvatar(address);
                     pill.profileBtn.innerHTML = getAvatarHtml(address, 38, 0.5, ensAvatar);
-                }
-                // Update profile address in dropdown (always show address)
-                if (pill.profileAddress) {
-                    pill.profileAddress.textContent = short;
                 }
             }
             // Show settings button
@@ -528,12 +518,7 @@ class HeaderUI {
                 pillNav: document.getElementById('mobile-pill-nav'),
                 pillChatsBtn: document.getElementById('pill-chats-btn'),
                 pillExploreBtn: document.getElementById('pill-explore-btn'),
-                pillJoinIdBtn: document.getElementById('pill-join-id-btn'),
-                profileBtn: document.getElementById('pill-profile-btn'),
-                profileDropdown: document.getElementById('pill-profile-dropdown'),
-                profileAddress: document.getElementById('pill-profile-address'),
-                profileAccounts: document.getElementById('pill-profile-accounts'),
-                disconnectBtn: document.getElementById('pill-disconnect-btn')
+                profileBtn: document.getElementById('pill-profile-btn')
             };
         }
         return this._pillElements;
@@ -543,7 +528,7 @@ class HeaderUI {
      * Initialize mobile pill nav event handlers
      * Called from app.js after DOM is ready
      */
-    initPillNav({ onConnect, onDisconnect, onSwitchWallet, onChatsTab, onExploreTab, onJoinWithId, onCreateChannel }) {
+    initPillNav({ onConnect, onChatsTab, onExploreTab, onProfileTab, onCreateChannel }) {
         const pill = this._getPillElements();
 
         // Floating connect button triggers same action as header connect
@@ -562,27 +547,9 @@ class HeaderUI {
             onCreateChannel?.();
         });
 
-        // Join with ID from profile dropdown
-        pill.pillJoinIdBtn?.addEventListener('click', () => {
-            this._closeProfileDropdown();
-            onJoinWithId?.();
+        pill.profileBtn?.addEventListener('click', () => {
+            onProfileTab?.();
         });
-
-        // Profile avatar toggles dropdown
-        pill.profileBtn?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this._toggleProfileDropdown();
-        });
-
-        // Disconnect from dropdown
-        pill.disconnectBtn?.addEventListener('click', () => {
-            this._closeProfileDropdown();
-            onDisconnect?.();
-        });
-
-        // Close dropdown on outside click
-        this._boundCloseDropdown = () => this._closeProfileDropdown();
-        document.addEventListener('click', this._boundCloseDropdown);
 
         // Pill tabs: chats tab closes any open modal and returns to channel list
         pill.pillChatsBtn?.addEventListener('click', () => {
@@ -604,32 +571,6 @@ class HeaderUI {
                 document.dispatchEvent(new CustomEvent('pombo:open-settings'));
             });
         }
-    }
-
-    /**
-     * Toggle profile dropdown
-     */
-    _toggleProfileDropdown() {
-        const pill = this._getPillElements();
-        if (!pill.profileDropdown) return;
-
-        if (this._profileDropdownOpen) {
-            this._closeProfileDropdown();
-        } else {
-            positionPillDropdown(pill.profileDropdown);
-            pill.profileDropdown.classList.remove('hidden');
-            this._profileDropdownOpen = true;
-        }
-    }
-
-    /**
-     * Close profile dropdown
-     */
-    _closeProfileDropdown() {
-        const pill = this._getPillElements();
-        if (!pill.profileDropdown) return;
-        pill.profileDropdown.classList.add('hidden');
-        this._profileDropdownOpen = false;
     }
 
     /**
@@ -678,41 +619,6 @@ class HeaderUI {
      */
     setActivePillTab(tab) {
         this._setActivePillTab(tab);
-    }
-
-    /**
-     * Update available accounts in profile dropdown
-     * @param {Array} wallets - Array of { address } objects
-     * @param {string} currentAddress - Currently active address
-     * @param {Function} onSwitch - Callback when switching wallets
-     */
-    updatePillAccounts(wallets, currentAddress, onSwitch) {
-        const pill = this._getPillElements();
-        if (!pill.profileAccounts) return;
-
-        const others = wallets.filter(w => w.address !== currentAddress);
-        if (others.length === 0) {
-            pill.profileAccounts.innerHTML = '';
-            return;
-        }
-
-        pill.profileAccounts.innerHTML = others.map(w => {
-            const short = `${w.address.slice(0, 6)}...${w.address.slice(-4)}`;
-            return `<button class="pill-dropdown-item" data-switch-address="${escapeHtml(w.address)}">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
-                </svg>
-                ${escapeHtml(short)}
-            </button>`;
-        }).join('');
-
-        // Bind click handlers for switch buttons
-        pill.profileAccounts.querySelectorAll('[data-switch-address]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this._closeProfileDropdown();
-                onSwitch?.(btn.dataset.switchAddress);
-            });
-        });
     }
 }
 

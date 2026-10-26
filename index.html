@@ -338,29 +338,6 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/>
                         </svg>
                     </button>
-                    <!-- Profile dropdown (appears above pill) -->
-                    <div id="pill-profile-dropdown" class="pill-profile-dropdown hidden">
-                        <div id="pill-profile-address" class="pill-dropdown-address"></div>
-                        <div id="pill-profile-accounts" class="pill-dropdown-accounts"></div>
-                        <button id="pill-join-id-btn" class="pill-dropdown-item">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5l-3.9 19.5m-2.1-19.5l-3.9 19.5"/>
-                            </svg>
-                            Direct Join - #ID
-                        </button>
-                        <button id="pill-sync-devices-btn" class="pill-dropdown-item">
-                            <svg class="w-4 h-4 sync-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
-                            </svg>
-                            <span class="sync-btn-text">Sync Devices</span>
-                        </button>
-                        <button id="pill-disconnect-btn" class="pill-dropdown-item pill-dropdown-disconnect">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"/>
-                            </svg>
-                            Disconnect
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>
@@ -2932,6 +2909,57 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Accounts screen (mobile, from the pill avatar) -->
+    <div id="accounts-modal" class="hidden fixed inset-0 z-50">
+        <div class="accounts-screen">
+            <div class="accounts-identity">
+                <div id="accounts-avatar" class="accounts-avatar"></div>
+                <div id="accounts-name" class="accounts-name"></div>
+                <div id="accounts-username" class="accounts-username hidden"></div>
+                <div id="accounts-address" class="accounts-address"></div>
+            </div>
+            <div id="accounts-list-section">
+                <div class="accounts-label">Accounts</div>
+                <div id="accounts-list" class="accounts-card"></div>
+            </div>
+            <div class="accounts-card">
+                <button id="accounts-add-btn" class="accounts-row">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span>Add account</span>
+                </button>
+                <button id="accounts-guest-btn" class="accounts-row">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3a7 7 0 00-7 7v10.5l2.33-1.5 2.34 1.5L12 19l2.33 1.5 2.34-1.5L19 20.5V10a7 7 0 00-7-7zM9.75 10.5h.008v.008H9.75V10.5zm4.5 0h.008v.008h-.008V10.5z"/></svg>
+                    <span>Browse as guest</span>
+                </button>
+            </div>
+            <div class="accounts-card">
+                <button id="accounts-about-btn" class="accounts-row">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>
+                    <span>About</span>
+                </button>
+            </div>
+            <div id="accounts-lock-section" class="accounts-card">
+                <button id="accounts-lock-btn" class="accounts-row accounts-row-danger">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+                    <span>Lock &amp; disconnect</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- Outside #accounts-modal so it can sit above the pill nav -->
+    <div id="accounts-about-dialog" class="accounts-about-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="accounts-about-title">
+        <div class="accounts-about-card">
+            <div class="accounts-about-head">
+                <span id="accounts-about-title">Disclaimer</span>
+                <button id="accounts-about-close" class="accounts-about-close" aria-label="Close">
+                    <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <p class="accounts-about-text">Pombo provides access to decentralized communication protocols. You assume full legal responsibility for your actions within your jurisdiction. We disclaim all liability and reserve the right to restrict access to specific channels via this interface.</p>
+            <span class="accounts-about-link">pombo.cc</span>
         </div>
     </div>
 

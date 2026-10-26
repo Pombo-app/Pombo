@@ -24,6 +24,7 @@ import { CONFIG } from './config.js';
 import { headerUI } from './ui/HeaderUI.js';
 import { settingsUI } from './ui/SettingsUI.js';
 import { contactsUI } from './ui/ContactsUI.js';
+import { accountsUI } from './ui/AccountsUI.js';
 import { chatAreaUI } from './ui/ChatAreaUI.js';
 import { previewModeUI } from './ui/PreviewModeUI.js';
 import { reactionManager } from './ui/ReactionManager.js';
@@ -127,13 +128,25 @@ class App {
             this.setupWalletHandlers();
 
             // Initialize mobile pill nav
+            accountsUI.init({
+                authManager,
+                identityManager,
+                switchTo: (address) => walletFlows.switchToWallet(address),
+                addAccount: () => walletFlows.addAccount(),
+                browseAsGuest: () => this.disconnectWallet(),
+                lock: () => walletFlows.lock(),
+                hideOtherScreens: () => {
+                    settingsUI.hide({ skipHistory: true });
+                    contactsUI.hide({ skipHistory: true });
+                }
+            });
+
             headerUI.initPillNav({
                 onConnect: () => walletFlows.connectWallet(),
-                onDisconnect: () => this.disconnectWallet(),
-                onSwitchWallet: () => walletFlows.switchWallet(),
                 onChatsTab: () => {
                     settingsUI.hide({ skipHistory: true });
                     contactsUI.hide({ skipHistory: true });
+                    accountsUI.hide({ skipHistory: true });
                     uiController.closeChatView();
                     // Clean orphaned modal history entry
                     if (window.history.state?.modal) {
@@ -143,11 +156,10 @@ class App {
                 onExploreTab: () => {
                     settingsUI.hide({ skipHistory: true });
                     contactsUI.hide({ skipHistory: true });
+                    accountsUI.hide({ skipHistory: true });
                     uiController.openExploreView();
                 },
-                onJoinWithId: () => {
-                    uiController.showQuickJoinModal();
-                },
+                onProfileTab: () => accountsUI.show(),
                 onCreateChannel: () => {
                     channelModalsUI.show();
                 }
@@ -182,7 +194,6 @@ class App {
         const switchBtn = document.getElementById('switch-wallet');
         const desktopJoinIdBtn = document.getElementById('desktop-join-id-btn');
         const syncBtn = document.getElementById('sync-devices-btn');
-        const pillSyncBtn = document.getElementById('pill-sync-devices-btn');
 
         connectBtn.addEventListener('click', () => walletFlows.connectWallet());
 
@@ -238,10 +249,6 @@ class App {
         syncBtn?.addEventListener('click', async () => {
             headerUI._closeDesktopDropdown();
             await handleSync(syncBtn);
-        });
-
-        pillSyncBtn?.addEventListener('click', async () => {
-            await handleSync(pillSyncBtn);
         });
 
         const settingsSyncBtn = document.getElementById('settings-sync-devices-btn');
