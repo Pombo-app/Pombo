@@ -72,6 +72,10 @@
     <script src="./js/vendor.bundle.js?v=20260806i"></script>
 </head>
 <body class="h-screen overflow-hidden">
+    <div id="offline-banner" class="offline-banner hidden" role="status" aria-live="polite">
+        <span class="offline-banner-dot" aria-hidden="true"></span>
+        Offline, trying to connect
+    </div>
     <!-- Global header spans full width -->
     <!-- z-40: above the mobile sidebar/chat layers (z-30/35) so the bell dropdown
          paints over them, but below the settings/contacts modals (z-50), which
@@ -396,6 +400,7 @@
                                 <span id="online-users-count">0</span>
                                 <span class="online-word">Online</span>
                                 <span class="online-connecting">Connecting…</span>
+                                <span class="online-offline">Offline</span>
                             </button>
                             <div id="online-users-list" class="absolute top-full left-0 mt-1 w-56 bg-surface-10 border border-overlay-10 rounded-xl p-3 z-20 hidden max-h-48 overflow-y-auto">
                                 <div class="text-overlay-30 text-sm text-center">No one online</div>

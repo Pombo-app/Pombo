@@ -19,6 +19,8 @@ import { syncManager } from './syncManager.js';
 import { epochKeyManager } from './epochKeyManager.js';
 import { storageFetch } from './storageFetch.js';
 import { storageEndpoints } from './storageEndpoints.js';
+import { ConnectionMonitor } from './connectionMonitor.js';
+import { isOffline } from './utils/network.js';
 import { Logger } from './logger.js';
 import { CONFIG } from './config.js';
 import { headerUI } from './ui/HeaderUI.js';
@@ -100,6 +102,15 @@ class App {
 
             streamrController.onClientReplaced(() => this.resumeAfterClientReplaced());
             streamrController.onNodeStateChange((up) => headerUI.setNetworkDown(!up));
+
+            const connection = new ConnectionMonitor({
+                probe: () => storageEndpoints.reachable(),
+                onChange: (offline) => headerUI.setOffline(offline)
+            });
+            streamrController.onNodeStateChange((up) => connection.setNodeAlive(up));
+            window.addEventListener('online', () => connection.setBrowserOnline(true));
+            window.addEventListener('offline', () => connection.setBrowserOnline(false));
+            if (isOffline()) connection.setBrowserOnline(false);
 
             // Wire wallet flows with app-level callbacks
             walletFlows.init({

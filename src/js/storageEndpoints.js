@@ -208,6 +208,31 @@ class StorageEndpointResolver {
     }
 
     /**
+     * Whether a storage node already resolved this session answers at all.
+     * Any HTTP response counts. Never resolves anything, so it costs no chain
+     * read; null when no node is known yet.
+     * @returns {Promise<boolean|null>}
+     */
+    async reachable() {
+        let latest = null;
+        for (const entry of this.cache.values()) {
+            const url = entry.nodes.flatMap((n) => n.urls).find((u) => !this.isEjected(u))
+                || entry.nodes[0]?.urls[0];
+            if (url && (!latest || entry.at > latest.at)) latest = { at: entry.at, url };
+        }
+        if (!latest) return null;
+        try {
+            await fetch(`${latest.url}/capabilities`, {
+                cache: 'no-store',
+                signal: AbortSignal.timeout(CAPABILITIES_TIMEOUT_MS)
+            });
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
      * Probe an ejected node out of band, at most once per nodeRecoveryProbeMs,
      * and readmit it when it answers `/capabilities` again (a 404 is a live
      * vanilla node). No user read pays for the probe.

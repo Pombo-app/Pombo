@@ -253,7 +253,40 @@ body {
 }
 
 .app-container {
-    height: calc(100vh - 3.5rem - env(safe-area-inset-top, 0px));
+    height: calc(100vh - 3.5rem - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
+}
+
+/* ----- Offline Banner ----- */
+:root {
+    --offline-banner-h: 0px;
+}
+
+body.network-offline {
+    --offline-banner-h: 24px;
+}
+
+.offline-banner {
+    height: var(--offline-banner-h);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: var(--pombo-surface-raised);
+    border-bottom: 1px solid var(--pombo-overlay-6);
+    color: var(--pombo-overlay-70);
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.offline-banner.hidden {
+    display: none;
+}
+
+.offline-banner-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--pombo-danger);
 }
 
 /* ----- Global Sync Indicator ----- */
@@ -427,7 +460,7 @@ body {
 }
 
 .chat-container {
-    height: calc(100vh - 3.5rem - env(safe-area-inset-top, 0px));
+    height: calc(100vh - 3.5rem - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
 }
 
 .messages-area {
@@ -1984,12 +2017,17 @@ body.cannot-write .reply-trigger {
 }
 
 .online-connecting,
+.online-offline,
 body.network-down #online-users-count,
-body.network-down #online-header .online-word {
+body.network-down #online-header .online-word,
+body.network-offline #online-users-count,
+body.network-offline #online-header .online-word,
+body.network-offline #online-header .online-connecting {
     display: none;
 }
 
-body.network-down #online-header .online-connecting {
+body.network-down:not(.network-offline) #online-header .online-connecting,
+body.network-offline #online-header .online-offline {
     display: inline;
 }
 
@@ -2365,7 +2403,7 @@ body.explore-open #explore-channels-list {
     }
     
     .app-container {
-        height: calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px));
+        height: calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
         position: relative;
         overflow: hidden;
     }
@@ -2516,7 +2554,7 @@ body.explore-open #explore-channels-list {
     }
     
     body.chat-open .app-container {
-        height: calc(100dvh - env(safe-area-inset-top, 0px));
+        height: calc(100dvh - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
     }
     
     /* ----- CLOSE BUTTON POSITIONING ----- */
@@ -3041,7 +3079,7 @@ body.explore-open #explore-channels-list {
     }
 
     body.channel-details-open .app-container {
-        height: calc(100dvh - env(safe-area-inset-top, 0px));
+        height: calc(100dvh - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
     }
 
     /* Settings/Contacts modal: minimal bottom padding (pill is fixed, overlaps content) */
@@ -3410,7 +3448,7 @@ body.explore-open #explore-channels-list {
     }
     
     .app-container {
-        height: calc(100dvh - 3rem - env(safe-area-inset-top, 0px));
+        height: calc(100dvh - 3rem - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
     }
     
     /* Hide connect button text */

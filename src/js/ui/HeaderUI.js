@@ -239,6 +239,12 @@ class HeaderUI {
         document.body.classList.toggle('network-down', !!down);
     }
 
+    /** The offline banner and "Offline" in place of the online count. */
+    setOffline(offline) {
+        document.body.classList.toggle('network-offline', !!offline);
+        document.getElementById('offline-banner')?.classList.toggle('hidden', !offline);
+    }
+
     /**
      * Update the persistent global sync indicator in the header.
      * @param {boolean} active - Whether foreground sync is active
