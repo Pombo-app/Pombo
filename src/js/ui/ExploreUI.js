@@ -483,16 +483,24 @@ class ExploreUI {
             this.filterChannels('');
         } catch (error) {
             console.error('Failed to load explore channels:', error);
-            listEl.innerHTML = `
-                <div class="flex flex-col items-center justify-center py-12 text-overlay-40">
-                    <svg class="w-12 h-12 mb-3 text-danger/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
-                    </svg>
-                    <p class="text-sm">Failed to load channels</p>
-                    <p class="text-xs text-overlay-30 mt-1">${escapeHtml(error.message)}</p>
-                </div>
-            `;
+            this._renderLoadError(error.message);
         }
+    }
+
+    _renderLoadError(detail = "Couldn't reach the channel directory") {
+        const listEl = document.getElementById('explore-channels-list');
+        if (!listEl) return;
+        listEl.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-12 text-overlay-40">
+                <svg class="w-12 h-12 mb-3 text-danger/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
+                </svg>
+                <p class="text-sm">Failed to load channels</p>
+                <p class="text-xs text-overlay-30 mt-1">${escapeHtml(detail)}</p>
+                <button id="explore-retry-btn" class="mt-3 px-4 py-2 rounded-xl text-sm bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-70 transition">Try again</button>
+            </div>
+        `;
+        listEl.querySelector('#explore-retry-btn')?.addEventListener('click', () => this.loadChannels());
     }
 
     /**
@@ -566,16 +574,31 @@ class ExploreUI {
         const listEl = document.getElementById('explore-channels-list');
         if (!listEl) return;
 
+        if (channels.length === 0 && this.deps.publicDirectoryFailed?.()) {
+            this._renderLoadError();
+            return;
+        }
         if (channels.length === 0) {
+            const searchInput = document.getElementById('explore-search-input');
+            const narrowed = !!searchInput?.value.trim()
+                || this.browseTypeFilter !== 'public'
+                || !!this.browseCategoryFilter
+                || !!this.browseLanguageFilterValue
+                || this.browseAccessFilter !== 'open';
             listEl.innerHTML = `
                 <div class="flex flex-col items-center justify-center py-12 text-overlay-40">
                     <svg class="w-12 h-12 mb-3 text-overlay-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
                     </svg>
                     <p class="text-sm">No channels found</p>
-                    <p class="text-xs text-overlay-30 mt-1">Try adjusting your filters</p>
+                    ${narrowed ? '<button id="explore-clear-filters-btn" class="mt-3 px-4 py-2 rounded-xl text-sm bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-70 transition">Clear filters</button>' : ''}
                 </div>
             `;
+            listEl.querySelector('#explore-clear-filters-btn')?.addEventListener('click', () => {
+                if (searchInput) searchInput.value = '';
+                this.resetFilters();
+                this.filterChannels('');
+            });
             return;
         }
         
@@ -700,6 +723,15 @@ class ExploreUI {
             </div>
             `;
         }).join('');
+        if (this.deps.publicDirectoryFailed?.()) {
+            listEl.insertAdjacentHTML('afterbegin', `
+                <div class="flex items-center justify-between gap-3 px-3 py-2 mb-2 rounded-xl bg-overlay-3 border border-overlay-6 text-xs text-overlay-50">
+                    <span>Couldn't reach the channel directory</span>
+                    <button id="explore-retry-btn" class="px-3 py-1 rounded-lg bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-70 transition">Try again</button>
+                </div>
+            `);
+            listEl.querySelector('#explore-retry-btn')?.addEventListener('click', () => this.loadChannels());
+        }
 
         // Resolve gate modes/labels for cards that missed the cache
         this._resolveGateAccess(channels);

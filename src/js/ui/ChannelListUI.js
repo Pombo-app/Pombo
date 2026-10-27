@@ -28,6 +28,7 @@ class ChannelListUI {
         this.onChannelSelect = null;
         this.onFinishPendingCreate = null;
         this.onDiscardPendingCreate = null;
+        this.openExploreView = null;
 
         // Tracks which adminStreamIds / DM peers we have *attempted* to
         // resolve. Any row not in these sets renders a spinner placeholder
@@ -45,12 +46,13 @@ class ChannelListUI {
     /**
      * Set dependencies for the module
      */
-    setDependencies({ channelManager, secureStorage, onChannelSelect, onFinishPendingCreate, onDiscardPendingCreate }) {
+    setDependencies({ channelManager, secureStorage, onChannelSelect, onFinishPendingCreate, onDiscardPendingCreate, openExploreView }) {
         this.channelManager = channelManager;
         this.secureStorage = secureStorage;
         this.onChannelSelect = onChannelSelect;
         this.onFinishPendingCreate = onFinishPendingCreate || null;
         this.onDiscardPendingCreate = onDiscardPendingCreate || null;
+        this.openExploreView = openExploreView || null;
 
         // Wire a single global listener for channel-image updates so any
         // visible row gets its avatar refreshed without a full re-render.
@@ -508,8 +510,15 @@ class ChannelListUI {
             : `No ${this.currentFilter} channels`;
 
         const emptyState = document.createElement('div');
-        emptyState.className = 'p-4 text-center text-overlay-25 text-[13px]';
+        emptyState.className = 'p-4 flex flex-col items-center gap-3 text-center text-overlay-25 text-[13px]';
         emptyState.textContent = filterMsg;
+        if (this.currentFilter === 'all' && this.openExploreView) {
+            const explore = document.createElement('button');
+            explore.className = 'px-4 py-2 rounded-xl text-sm bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-70 transition';
+            explore.textContent = 'Explore channels';
+            explore.addEventListener('click', () => this.openExploreView());
+            emptyState.appendChild(explore);
+        }
         this.elements.channelList.replaceChildren(emptyState);
         Logger.debug('ChannelListUI: No channels to render');
     }

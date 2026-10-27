@@ -192,6 +192,7 @@ class UIController {
         // ExploreUI
         exploreUI.setDependencies({
             getPublicChannels: () => channelManager.getPublicChannels(),
+            publicDirectoryFailed: () => channelManager.publicDirectoryFailed === true,
             joinPublicChannel: (streamId, channelInfo) => this.joinPublicChannel(streamId, channelInfo),
             enterPreviewMode: (streamId, channelInfo) => previewModeUI.enterPreviewMode(streamId, channelInfo),
             getNsfwEnabled: () => secureStorage.getNsfwEnabled()
@@ -288,7 +289,8 @@ class UIController {
             secureStorage,
             onChannelSelect: (streamId) => this.selectChannel(streamId),
             onFinishPendingCreate: (basePath) => channelModalsUI.finishInterruptedCreate(basePath),
-            onDiscardPendingCreate: (basePath) => channelModalsUI.discardInterruptedCreate(basePath)
+            onDiscardPendingCreate: (basePath) => channelModalsUI.discardInterruptedCreate(basePath),
+            openExploreView: () => this.openExploreView()
         });
 
         // ChannelModalsUI
@@ -543,7 +545,8 @@ class UIController {
             storageMediaController,
             showNotification: (msg, type) => this.showNotification(msg, type),
             getActiveChannel: () => this.getActiveChannel(),
-            onRetrySend: (msgId) => this.handleRetrySend(msgId)
+            onRetrySend: (msgId) => this.handleRetrySend(msgId),
+            reopenChannel: () => subscriptionManager.reopenActive()
         });
         chatAreaUI.init({
             messagesArea: this.elements.messagesArea,

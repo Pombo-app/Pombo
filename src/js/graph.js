@@ -549,8 +549,9 @@ class GraphAPI {
                 Logger.debug(`Found ${channels.length} public Pombo channels`);
                 return channels;
             } catch (error) {
+                // Thrown, not answered with [], so the failure is never cached as an empty directory.
                 Logger.warn('Failed to get public Pombo channels:', error);
-                return [];
+                throw error;
             }
         });
     }

@@ -27,6 +27,7 @@ import { epochKeyManager } from '../epochKeyManager.js';
  * resolve later — only the *UI* state is released.
  */
 const PAGINATION_WATCHDOG_MS = 15000;
+const LOADING_SLOW_MS = 30000;
 
 class ChatAreaUI {
     constructor() {
@@ -581,6 +582,26 @@ class ChatAreaUI {
      * @param {Array} messages - Array of message objects
      * @param {Function} onRenderComplete - Callback after render (for attaching listeners)
      */
+    /** Loading past LOADING_SLOW_MS: say so, without claiming the channel is empty. */
+    _renderSlowLoading(canRetry) {
+        this.messagesArea.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
+                <span class="text-sm">Taking longer than usual</span>
+                ${canRetry ? '<button id="messages-retry-btn" class="px-4 py-2 rounded-xl text-sm bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-70 transition">Try again</button>' : ''}
+            </div>
+        `;
+        this.messagesArea.querySelector('#messages-retry-btn')?.addEventListener('click', () => {
+            this._loadingSince = null;
+            this.messagesArea.innerHTML = `
+                <div id="messages-loading" class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
+                    <div class="spinner" style="width: 24px; height: 24px;"></div>
+                    <span class="text-sm">Loading messages...</span>
+                </div>
+            `;
+            Promise.resolve(this.deps.reopenChannel?.()).catch((e) => this.deps.Logger?.warn('Reopen failed:', e?.message));
+        });
+    }
+
     renderMessages(messages, onRenderComplete = null) {
         const { channelManager, authManager, getActiveChannel } = this.deps;
         
@@ -717,19 +738,49 @@ class ChatAreaUI {
                         <span class="text-xs text-overlay-25">Requested from the channel, this can take a moment</span>
                     </div>
                 `
-                        : `
+                        : effectiveChannel?.type === 'dm' && !previewChannel
+                            ? `
+                    <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
+                        <span class="text-sm">No messages yet</span>
+                        <button id="dm-say-hello-btn" class="px-4 py-2 rounded-xl text-sm bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-70 transition">Say hello</button>
+                    </div>
+                `
+                            : `
                     <div class="flex items-center justify-center h-full text-overlay-40">
                         No messages yet. Start the conversation!
                     </div>
                 `;
+                    this.messagesArea.querySelector('#dm-say-hello-btn')?.addEventListener('click', () => {
+                        if (!this.messageInput) return;
+                        this.messageInput.textContent = 'Hello 👋';
+                        this.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        this.messageInput.focus();
+                        const range = document.createRange();
+                        range.selectNodeContents(this.messageInput);
+                        range.collapse(false);
+                        const selection = window.getSelection();
+                        selection?.removeAllRanges();
+                        selection?.addRange(range);
+                    });
                 }
             } else {
-                this.messagesArea.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
+                const key = `${effectiveChannel?.streamId}:${channelManager?.switchGeneration}`;
+                if (this._loadingSince?.key !== key) this._loadingSince = { key, at: Date.now() };
+                const left = LOADING_SLOW_MS - (Date.now() - this._loadingSince.at);
+                if (left <= 0) {
+                    this._renderSlowLoading(!previewChannel);
+                } else {
+                    this.messagesArea.innerHTML = `
+                    <div id="messages-loading" class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
                         <div class="spinner" style="width: 24px; height: 24px;"></div>
                         <span class="text-sm">Loading messages...</span>
                     </div>
                 `;
+                    this._loadingTimeoutId = setTimeout(() => {
+                        this._loadingTimeoutId = null;
+                        if (document.getElementById('messages-loading')) this._renderSlowLoading(!previewChannel);
+                    }, left);
+                }
             }
             // Still trigger auto-load — initial history may have been all reactions
             if (!this.isLoadingMore) {

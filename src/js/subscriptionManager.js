@@ -148,6 +148,16 @@ class SubscriptionManager {
         await channelManager.subscribeToChannel(messageStreamId, channel?.password ?? null);
     }
 
+    /** Open the active channel again from scratch, as leaving and coming back would. */
+    async reopenActive() {
+        const messageStreamId = this.activeChannelId;
+        if (!messageStreamId) return;
+        const channel = channelManager.getChannel(messageStreamId);
+        await this.downgradeToBackground(messageStreamId);
+        this.activeChannelId = null;
+        await this.setActiveChannel(messageStreamId, channel?.password ?? null);
+    }
+
     /** A member's keys and messages need a raw sweep the owner does not. */
     _startMemberCatchUp(messageStreamId) {
         try {

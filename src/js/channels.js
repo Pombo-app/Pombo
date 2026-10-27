@@ -3456,8 +3456,10 @@ class ChannelManager {
                 channelsMap.set(ch.streamId, ch);
             }
             Logger.debug(`Found ${graphChannels.length} public channels from The Graph`);
+            this.publicDirectoryFailed = false;
         } catch (error) {
             Logger.warn('Failed to fetch from The Graph:', error.message);
+            this.publicDirectoryFailed = true;
         }
 
         // 2. Add own public channels (in case Graph hasn't indexed them yet)
