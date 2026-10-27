@@ -76,7 +76,7 @@
     <!-- z-40: above the mobile sidebar/chat layers (z-30/35) so the bell dropdown
          paints over them, but below the settings/contacts modals (z-50), which
          must cover the header on mobile. -->
-    <header class="bg-[#09090b] border-b border-overlay-1 h-14 flex items-center justify-between px-5 flex-shrink-0 relative z-40">
+    <header class="bg-surface-1 border-b border-overlay-1 h-14 flex items-center justify-between px-5 flex-shrink-0 relative z-40">
         <!-- Left side: Logo and brand -->
         <div class="flex items-center gap-3">
             <!-- Logo -->
@@ -156,7 +156,7 @@
                     </svg>
                     <span id="notif-bell-badge" class="hidden absolute top-[7px] right-[7px] min-w-[16px] h-4 px-1 bg-[#F6851B] rounded-full text-[9px] font-bold text-primary flex items-center justify-center">0</span>
                 </button>
-                <div id="notif-bell-dropdown" class="hidden absolute top-full right-0 mt-1.5 w-[320px] bg-[#16161b] border border-overlay-10 rounded-xl py-1 shadow-2xl z-50">
+                <div id="notif-bell-dropdown" class="hidden absolute top-full right-0 mt-1.5 w-[320px] bg-surface-raised border border-overlay-10 rounded-xl py-1 shadow-2xl z-50">
                     <div id="notif-invites-section">
                         <div class="px-3.5 py-2 flex items-center justify-between">
                             <span class="text-[10px] font-semibold tracking-widest text-overlay-35">CHANNEL INVITES</span>
@@ -188,7 +188,7 @@
                     </svg>
                 </button>
                 <!-- Dropdown menu -->
-                <div id="desktop-account-dropdown" class="hidden absolute top-full right-0 mt-1.5 min-w-[200px] bg-[#16161b] border border-overlay-10 rounded-xl p-1.5 shadow-2xl z-50" style="transform-origin: top right;">
+                <div id="desktop-account-dropdown" class="hidden absolute top-full right-0 mt-1.5 min-w-[200px] bg-surface-raised border border-overlay-10 rounded-xl p-1.5 shadow-2xl z-50" style="transform-origin: top right;">
                     <div id="desktop-dropdown-address" class="px-3 py-2 text-[11px] text-overlay-40 font-mono border-b border-overlay-6 mb-1"></div>
                     <button id="switch-wallet" class="hidden w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-overlay-60 hover:bg-overlay-6 transition text-left">
                         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -216,7 +216,7 @@
     <!-- App Container - Full Height -->
     <div class="flex app-container">
         <!-- Sidebar - Channel List (Full Height) -->
-        <aside id="sidebar" class="sidebar w-80 lg:w-[380px] bg-[#09090b] flex flex-col flex-shrink-0">
+        <aside id="sidebar" class="sidebar w-80 lg:w-[380px] bg-surface-1 flex flex-col flex-shrink-0">
             <!-- Channel Controls -->
             <div class="px-3 pb-2 space-y-2.5 pt-4 sidebar-top">
                 <!-- Explore mode switch (desktop only, mobile uses pill nav) -->
@@ -363,9 +363,9 @@
 
 
             <!-- Main Chat Area -->
-            <main class="flex-1 flex flex-col bg-[#0f0f12] overflow-hidden">
+            <main class="flex-1 flex flex-col bg-surface-5 overflow-hidden">
             <!-- Chat Header -->
-            <div id="chat-header" class="bg-[#0b0b0e] border-b border-overlay-4 px-2 py-1.5 flex items-center">
+            <div id="chat-header" class="bg-surface-3 border-b border-overlay-4 px-2 py-1.5 flex items-center">
                 <!-- Close button (mobile: left side) -->
                 <button id="close-channel-btn" class="hidden p-2 hover:bg-overlay-10 rounded-xl transition text-overlay-30 hover:text-primary mobile-close-btn" title="Close channel">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -397,7 +397,7 @@
                                 <span class="online-word">Online</span>
                                 <span class="online-connecting">Connecting…</span>
                             </button>
-                            <div id="online-users-list" class="absolute top-full left-0 mt-1 w-56 bg-[#1e1e1e] border border-overlay-10 rounded-xl p-3 z-20 hidden max-h-48 overflow-y-auto">
+                            <div id="online-users-list" class="absolute top-full left-0 mt-1 w-56 bg-surface-10 border border-overlay-10 rounded-xl p-3 z-20 hidden max-h-48 overflow-y-auto">
                                 <div class="text-overlay-30 text-sm text-center">No one online</div>
                             </div>
                         </div>
@@ -522,7 +522,7 @@
             </div>
 
             <!-- Message Input -->
-            <div id="message-input-container" class="bg-[#0b0b0e] border-t border-overlay-4 p-3 pb-4 hidden">
+            <div id="message-input-container" class="bg-surface-3 border-t border-overlay-4 p-3 pb-4 hidden">
                 <div class="relative flex items-center gap-2">
                     <!-- Emoji Picker -->
                     <div id="emoji-picker" class="emoji-picker"></div>
@@ -535,7 +535,7 @@
                             </svg>
                         </button>
                         <!-- Attach Menu -->
-                        <div id="attach-menu" class="hidden absolute bottom-12 left-0 bg-[#16161b] border border-overlay-10 rounded-xl py-1 z-50 min-w-[150px] shadow-xl">
+                        <div id="attach-menu" class="hidden absolute bottom-12 left-0 bg-surface-raised border border-overlay-10 rounded-xl py-1 z-50 min-w-[150px] shadow-xl">
                             <!-- File: opens a transport submenu -->
                             <div class="relative">
                             <button id="attach-file-btn" class="attach-parent w-full text-left px-4 py-2 hover:bg-overlay-8 text-sm flex items-center gap-2 text-primary" aria-haspopup="true" aria-expanded="false">
@@ -547,7 +547,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m8.25 4.5 7.5 7.5-7.5 7.5"/>
                                 </svg>
                             </button>
-                            <div id="attach-file-submenu" class="hidden absolute left-full top-0 ml-1 bg-[#16161b] border border-overlay-10 rounded-xl py-1 shadow-xl min-w-[150px] z-50">
+                            <div id="attach-file-submenu" class="hidden absolute left-full top-0 ml-1 bg-surface-raised border border-overlay-10 rounded-xl py-1 shadow-xl min-w-[150px] z-50">
                                 <button id="send-file-mesh-btn" class="w-full text-left px-4 py-2 hover:bg-overlay-8 text-sm text-primary">P2P</button>
                                 <button id="send-file-storage-btn" class="w-full text-left px-4 py-2 hover:bg-overlay-8 text-sm text-primary">Storage</button>
                             </div>
@@ -564,7 +564,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m8.25 4.5 7.5 7.5-7.5 7.5"/>
                                 </svg>
                             </button>
-                            <div id="attach-video-submenu" class="hidden absolute left-full top-0 ml-1 bg-[#16161b] border border-overlay-10 rounded-xl py-1 shadow-xl min-w-[150px] z-50">
+                            <div id="attach-video-submenu" class="hidden absolute left-full top-0 ml-1 bg-surface-raised border border-overlay-10 rounded-xl py-1 shadow-xl min-w-[150px] z-50">
                                 <button id="send-video-mesh-btn" class="w-full text-left px-4 py-2 hover:bg-overlay-8 text-sm text-primary">P2P</button>
                                 <button id="send-video-storage-btn" class="w-full text-left px-4 py-2 hover:bg-overlay-8 text-sm text-primary">Storage</button>
                             </div>
@@ -619,7 +619,7 @@
 
     <!-- Modal: New Channel -->
     <div id="new-channel-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4 md:p-4">
-        <div class="bg-[#111113] rounded-2xl w-[640px] max-w-[95vw] shadow-2xl border border-overlay-6 overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh]">
+        <div class="bg-surface rounded-2xl w-[640px] max-w-[95vw] shadow-2xl border border-overlay-6 overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh]">
             <!-- Header -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-overlay-5 flex-shrink-0">
                 <button id="cancel-channel-btn" class="modal-close-btn text-overlay-40 hover:text-overlay-80 transition p-1 -ml-1 md:order-2 md:ml-0 md:-mr-1">
@@ -635,7 +635,7 @@
             
             <div class="flex flex-1 min-h-0 overflow-hidden">
                 <!-- Sidebar: Channel Type -->
-                <div class="w-40 bg-[#0a0a0a] border-r border-overlay-5 py-3 flex flex-col flex-shrink-0">
+                <div class="w-40 bg-surface-2 border-r border-overlay-5 py-3 flex flex-col flex-shrink-0">
                     <div class="px-3 mb-2">
                         <span class="text-[10px] font-medium text-overlay-30 uppercase tracking-wider">Type</span>
                     </div>
@@ -1079,7 +1079,7 @@
             </div>
 
             <!-- Footer -->
-            <div class="flex items-center justify-between px-6 py-4 border-t border-overlay-5 bg-[#0a0a0a] flex-shrink-0">
+            <div class="flex items-center justify-between px-6 py-4 border-t border-overlay-5 bg-surface-2 flex-shrink-0">
                 <div class="flex items-center gap-2 text-sm">
                     <span class="text-overlay-40">Est. cost:</span>
                     <span id="cost-public" class="text-overlay-80 font-medium channel-cost-display tooltip" data-tooltip="Gas: loading...">calculating...</span>
@@ -1103,7 +1103,7 @@
     <!-- Modal: Channel Types Info -->
     <!-- Modal: Storage Info -->
     <div id="storage-info-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end md:items-center justify-center z-[60] md:p-4">
-        <div class="bg-[#111113] w-full h-full md:h-auto md:w-[520px] md:max-w-[95vw] md:rounded-2xl shadow-2xl border-t md:border border-overlay-6 overflow-hidden flex flex-col">
+        <div class="bg-surface w-full h-full md:h-auto md:w-[520px] md:max-w-[95vw] md:rounded-2xl shadow-2xl border-t md:border border-overlay-6 overflow-hidden flex flex-col">
             <!-- Header -->
             <div class="flex items-center justify-between px-5 md:px-6 py-4 border-b border-overlay-5 flex-shrink-0">
                 <h3 class="text-base md:text-lg font-medium text-overlay-90">Message Storage</h3>
@@ -1187,7 +1187,7 @@
             </div>
 
             <!-- Footer -->
-            <div class="px-5 md:px-6 py-4 pb-safe border-t border-overlay-5 bg-[#0a0a0a] flex-shrink-0">
+            <div class="px-5 md:px-6 py-4 pb-safe border-t border-overlay-5 bg-surface-2 flex-shrink-0">
                 <button id="close-storage-info-btn-footer" class="w-full px-5 py-2.5 rounded-xl text-sm font-medium bg-overlay-10 text-primary hover:bg-overlay-15 transition">
                     Got it
                 </button>
@@ -1197,7 +1197,7 @@
 
     <!-- Modal: New DM -->
     <div id="new-dm-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
+        <div class="bg-surface rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
             <h3 class="text-base font-medium mb-4 text-primary">New DM</h3>
 
             <div class="space-y-3">
@@ -1239,7 +1239,7 @@
 
     <!-- Modal: Create DM Inbox -->
     <div id="dm-inbox-setup-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4 md:p-4">
-        <div class="bg-[#111113] rounded-2xl w-[420px] max-w-[95vw] shadow-2xl border border-overlay-6 overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh]">
+        <div class="bg-surface rounded-2xl w-[420px] max-w-[95vw] shadow-2xl border border-overlay-6 overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh]">
             <!-- Header -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-overlay-5 flex-shrink-0">
                 <div class="flex items-center gap-3">
@@ -1338,7 +1338,7 @@
             </div>
 
             <!-- Footer -->
-            <div class="flex items-center justify-between px-6 py-4 border-t border-overlay-5 bg-[#0a0a0a] flex-shrink-0">
+            <div class="flex items-center justify-between px-6 py-4 border-t border-overlay-5 bg-surface-2 flex-shrink-0">
                 <div class="flex items-center gap-2 text-sm whitespace-nowrap">
                     <span class="text-overlay-40">Est. cost:</span>
                     <span id="dm-inbox-cost" class="text-overlay-80 font-medium">~0.03 POL</span>
@@ -1356,7 +1356,7 @@
     </div>
 
     <div id="join-channel-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[110]">
-        <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
+        <div class="bg-surface rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-base font-medium text-primary">Join a channel</h3>
                 <button type="button" id="cancel-join-btn" class="w-8 h-8 -mr-1.5 flex items-center justify-center rounded-full text-overlay-50 hover:text-primary hover:bg-overlay-6 transition" title="Close">
@@ -1432,7 +1432,7 @@
 
     <!-- Modal: Join Closed Channel (with name + classification) -->
     <div id="join-closed-channel-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
+        <div class="bg-surface rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
             <h3 class="text-base font-medium mb-4 text-primary">Join Closed Channel</h3>
 
             <div class="space-y-4">
@@ -1486,7 +1486,7 @@
 
     <!-- Modal: Ban member (the two enforcement levels, either or both) -->
     <div id="ban-member-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[60]">
-        <div class="bg-[#111113] rounded-2xl p-5 w-[380px] max-w-full mx-4 border border-overlay-6">
+        <div class="bg-surface rounded-2xl p-5 w-[380px] max-w-full mx-4 border border-overlay-6">
             <h3 class="text-base font-medium mb-4 text-primary">Ban <span id="ban-member-label" class="font-mono text-sm text-overlay-70"></span></h3>
 
             <div class="space-y-2.5">
@@ -1526,7 +1526,7 @@
 
     <!-- Modal: Gate Entry (Gated/Paid channels — requirement, standing, pay/enter) -->
     <div id="gate-entry-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div class="bg-[#111113] rounded-2xl p-5 w-[380px] max-w-full mx-4 border border-overlay-6">
+        <div class="bg-surface rounded-2xl p-5 w-[380px] max-w-full mx-4 border border-overlay-6">
             <h3 id="gate-entry-title" class="text-base font-medium text-center text-primary">Join Gated Channel</h3>
 
             <!-- Access stack: same anatomy as the Explore cards -->
@@ -1558,7 +1558,7 @@
 
     <!-- Modal: Invite Users -->
     <div id="invite-users-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div class="bg-[#111113] rounded-2xl p-5 w-[380px] max-w-full mx-4 border border-overlay-6">
+        <div class="bg-surface rounded-2xl p-5 w-[380px] max-w-full mx-4 border border-overlay-6">
             <h3 class="text-base font-medium mb-4 text-primary">Invite to Channel</h3>
 
             <!-- Tabs -->
@@ -1582,7 +1582,7 @@
                             type="text"
                             id="invite-link-display"
                             readonly
-                            class="flex-1 bg-[#09090b] border border-overlay-8 text-overlay-50 px-2.5 py-2 rounded-xl text-sm font-mono truncate"
+                            class="flex-1 bg-surface-1 border border-overlay-8 text-overlay-50 px-2.5 py-2 rounded-xl text-sm font-mono truncate"
                             value=""
                         />
                         <button id="copy-invite-link-btn" class="bg-white hover:bg-[#f0f0f0] text-black px-4 py-2 rounded-xl text-sm font-medium transition">
@@ -1632,7 +1632,7 @@
     <!-- Modal: Channel Details -->
     <!-- Channel Details Modal - Tabbed Layout -->
     <div id="channel-settings-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50">
-        <div class="bg-[#111113] rounded-2xl w-[640px] max-w-[95vw] mx-4 shadow-2xl border border-overlay-6 overflow-hidden">
+        <div class="bg-surface rounded-2xl w-[640px] max-w-[95vw] mx-4 shadow-2xl border border-overlay-6 overflow-hidden">
             <!-- Header -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-overlay-5">
                 <button id="close-channel-settings-btn" class="modal-close-btn text-overlay-40 hover:text-overlay-80 transition p-1 -ml-1 md:order-2 md:ml-0 md:-mr-1">
@@ -1651,7 +1651,7 @@
                  modal is already full-screen and owns its own height. -->
             <div class="flex min-h-[420px] md:max-h-[75vh]">
                 <!-- Sidebar Tabs -->
-                <div class="w-44 bg-[#0a0a0a] border-r border-overlay-5 py-2 flex flex-col">
+                <div class="w-44 bg-surface-2 border-r border-overlay-5 py-2 flex flex-col">
 
                     <nav class="space-y-1 px-2 flex-1 flex flex-col">
                         <button data-channel-tab="info" class="channel-settings-tab w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-left transition-all text-overlay-60 hover:text-overlay-90 hover:bg-overlay-5">
@@ -1696,7 +1696,7 @@
                                             <div id="channel-image-preview" class="w-[88px] h-[88px] rounded-full overflow-hidden border border-overlay-8 bg-overlay-4 flex items-center justify-center"></div>
                                             <div id="channel-image-controls" class="hidden absolute bottom-0 right-0">
                                                 <input type="file" id="channel-image-input" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden" />
-                                                <button id="channel-image-upload-btn" type="button" class="w-7 h-7 rounded-full bg-[#16161b] border border-overlay-20 shadow-lg flex items-center justify-center text-overlay-60 hover:text-primary hover:border-overlay-40 transition" title="Upload image" aria-label="Upload image">
+                                                <button id="channel-image-upload-btn" type="button" class="w-7 h-7 rounded-full bg-surface-raised border border-overlay-20 shadow-lg flex items-center justify-center text-overlay-60 hover:text-primary hover:border-overlay-40 transition" title="Upload image" aria-label="Upload image">
                                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 7.5m0 0L7.5 12M12 7.5V21"/></svg>
                                                 </button>
                                             </div>
@@ -1841,9 +1841,9 @@
                                         <div class="w-11 h-6 bg-overlay-10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-overlay-60 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#F6851B] peer-disabled:opacity-40 peer-disabled:cursor-not-allowed"></div>
                                     </label>
                                     <!-- Tooltip for disabled state -->
-                                    <div id="channel-notifications-tooltip" class="hidden absolute right-0 top-full mt-2 w-48 p-2 bg-[#16161b] border border-overlay-10 rounded-xl shadow-lg z-10">
+                                    <div id="channel-notifications-tooltip" class="hidden absolute right-0 top-full mt-2 w-48 p-2 bg-surface-raised border border-overlay-10 rounded-xl shadow-lg z-10">
                                         <p class="text-sm text-overlay-70">Enable Push Notifications in Settings first to use this feature.</p>
-                                        <div class="absolute -top-1 right-3 w-2 h-2 bg-[#16161b] border-l border-t border-overlay-10 transform rotate-45"></div>
+                                        <div class="absolute -top-1 right-3 w-2 h-2 bg-surface-raised border-l border-t border-overlay-10 transform rotate-45"></div>
                                     </div>
                                 </div>
                             </div>
@@ -2108,7 +2108,7 @@
 
     <!-- Modal: Push Notifications Technical Info -->
     <div id="push-learn-more-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-        <div class="bg-[#111113] rounded-2xl w-[500px] max-w-full max-h-[85vh] flex flex-col shadow-2xl border border-overlay-10 overflow-hidden">
+        <div class="bg-surface rounded-2xl w-[500px] max-w-full max-h-[85vh] flex flex-col shadow-2xl border border-overlay-10 overflow-hidden">
             <div class="flex items-center justify-between px-6 py-4 border-b border-overlay-5">
                 <div class="flex items-center gap-3">
                     <div class="w-8 h-8 rounded-full bg-[#F6851B]/10 flex items-center justify-center">
@@ -2183,7 +2183,7 @@
 
     <!-- Modal: Delete Channel Confirmation -->
     <div id="delete-channel-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60]">
-        <div class="bg-[#111113] rounded-2xl w-[400px] max-w-[95vw] mx-4 shadow-2xl border border-red-500/20 overflow-hidden">
+        <div class="bg-surface rounded-2xl w-[400px] max-w-[95vw] mx-4 shadow-2xl border border-red-500/20 overflow-hidden">
             <div class="p-6">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
@@ -2216,7 +2216,7 @@
 
     <!-- Modal: confirm a decisive action (the app's own dialog, never the browser's) -->
     <div id="confirm-dialog-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70]">
-        <div class="bg-[#111113] rounded-2xl w-[400px] max-w-[95vw] mx-4 shadow-2xl border border-overlay-8 overflow-hidden">
+        <div class="bg-surface rounded-2xl w-[400px] max-w-[95vw] mx-4 shadow-2xl border border-overlay-8 overflow-hidden">
             <div class="p-6">
                 <h3 id="confirm-dialog-title" class="text-lg font-medium text-overlay-90 mb-3"></h3>
                 <p id="confirm-dialog-message" class="text-sm text-overlay-60 leading-relaxed"></p>
@@ -2233,7 +2233,7 @@
     <!-- Settings Modal - Tabbed Layout -->
     <!-- Wallet Modal -->
     <div id="wallet-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50">
-        <div id="wallet-card" class="bg-[#111113] rounded-2xl w-[380px] max-w-[92vw] mx-4 shadow-2xl border border-overlay-6 overflow-hidden">
+        <div id="wallet-card" class="bg-surface rounded-2xl w-[380px] max-w-[92vw] mx-4 shadow-2xl border border-overlay-6 overflow-hidden">
             <div id="wallet-sheet-handle" class="wallet-sheet-handle" aria-hidden="true"></div>
             <div class="flex items-center justify-between px-5 py-4 border-b border-overlay-5">
                 <h3 class="text-[15px] font-medium text-overlay-90">Wallet</h3>
@@ -2297,7 +2297,7 @@
     </div>
 
     <div id="settings-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50">
-        <div class="bg-[#111113] rounded-2xl w-[704px] max-w-[95vw] mx-4 shadow-2xl border border-overlay-6 overflow-hidden">
+        <div class="bg-surface rounded-2xl w-[704px] max-w-[95vw] mx-4 shadow-2xl border border-overlay-6 overflow-hidden">
             <!-- Header -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-overlay-5">
                 <button id="close-settings-btn" class="modal-close-btn text-overlay-40 hover:text-overlay-80 transition p-1 -ml-1 md:order-2 md:ml-0 md:-mr-1">
@@ -2313,7 +2313,7 @@
             
             <div class="flex min-h-[420px] md:min-h-[519px]">
                 <!-- Sidebar Tabs -->
-                <div class="w-44 bg-[#0a0a0a] border-r border-overlay-5 py-2 flex flex-col">
+                <div class="w-44 bg-surface-2 border-r border-overlay-5 py-2 flex flex-col">
                     <!-- Mobile header: "Settings" on the index, "← Section" inside one (hidden on desktop) -->
                     <div id="settings-mobile-header" class="hidden">
                         <button id="settings-mobile-back" class="settings-mobile-back hidden" aria-label="Back to settings">
@@ -2964,7 +2964,7 @@
 
     <!-- Modal: Contacts -->
     <div id="contacts-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div class="bg-[#111113] rounded-2xl p-5 w-[380px] max-w-full mx-4 max-h-[80vh] flex flex-col border border-overlay-6">
+        <div class="bg-surface rounded-2xl p-5 w-[380px] max-w-full mx-4 max-h-[80vh] flex flex-col border border-overlay-6">
             <div class="flex items-center gap-2 mb-4">
                 <svg class="w-4 h-4 text-overlay-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>
@@ -2979,7 +2979,7 @@
                         type="text"
                         id="add-contact-address"
                         placeholder="0x... or ENS name"
-                        class="flex-1 bg-[#09090b] border border-overlay-8 text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-overlay-15 transition"
+                        class="flex-1 bg-surface-1 border border-overlay-8 text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-overlay-15 transition"
                     />
                     <button id="add-contact-btn" class="bg-white hover:bg-[#f0f0f0] text-black px-3 py-2 rounded-xl text-sm font-medium transition">
                         Add
@@ -2989,7 +2989,7 @@
                     type="text"
                     id="add-contact-nickname"
                     placeholder="Nickname (optional)"
-                    class="w-full mt-2 bg-[#09090b] border border-overlay-8 text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-overlay-15 transition"
+                    class="w-full mt-2 bg-surface-1 border border-overlay-8 text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-overlay-15 transition"
                 />
             </div>
 
@@ -3006,7 +3006,7 @@
 
     <!-- Modal: Add Contact Nickname -->
     <div id="add-contact-nickname-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[60]">
-        <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
+        <div class="bg-surface rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
             <h3 class="text-base font-medium mb-4 text-primary">Add Contact</h3>
 
             <div class="space-y-3">
@@ -3039,7 +3039,7 @@
 
     <!-- Modal: Edit Contact -->
     <div id="edit-contact-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[60]">
-        <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
+        <div class="bg-surface rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
             <h3 class="text-base font-medium mb-4 text-primary">Edit Contact</h3>
 
             <div class="space-y-3">
@@ -3072,7 +3072,7 @@
 
     <!-- Modal: Remove Contact Confirmation -->
     <div id="remove-contact-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[60]">
-        <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
+        <div class="bg-surface rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
             <h3 class="text-base font-medium mb-4 text-primary">Remove Contact</h3>
 
             <div class="space-y-3">
@@ -3092,7 +3092,7 @@
     </div>
 
     <!-- Context Menu (for messages) -->
-    <div id="message-context-menu" class="hidden fixed bg-[#16161b] border border-overlay-10 rounded-xl shadow-xl py-1 z-50 min-w-[180px]">
+    <div id="message-context-menu" class="hidden fixed bg-surface-raised border border-overlay-10 rounded-xl shadow-xl py-1 z-50 min-w-[180px]">
         <button class="context-menu-item w-full text-left px-4 py-2 hover:bg-overlay-8 text-sm flex items-center gap-2" data-action="copy-text">
             <svg class="w-4 h-4 text-overlay-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
             Copy Text
@@ -3195,7 +3195,7 @@
 
     <!-- Modal: Channel Image Confirm -->
     <div id="channel-image-confirm-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-        <div class="bg-[#111113] rounded-2xl p-5 w-[420px] max-w-full mx-4 border border-overlay-6">
+        <div class="bg-surface rounded-2xl p-5 w-[420px] max-w-full mx-4 border border-overlay-6">
             <h3 class="text-base font-medium mb-4 text-primary">Update channel image</h3>
             <div class="bg-overlay-5 rounded-xl p-4 border border-overlay-8 mb-4 space-y-4">
                 <div id="channel-image-crop-stage" class="relative w-full max-w-[280px] aspect-square mx-auto rounded-full overflow-hidden bg-overlay-6 border border-overlay-6 flex items-center justify-center" style="touch-action:none;">
@@ -3230,7 +3230,7 @@
 
     <!-- Modal: File Confirm -->
     <div id="file-confirm-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div class="bg-[#111113] rounded-2xl p-5 w-[360px] max-w-full mx-4 border border-overlay-6">
+        <div class="bg-surface rounded-2xl p-5 w-[360px] max-w-full mx-4 border border-overlay-6">
             <h3 class="text-base font-medium mb-4 text-primary">Confirm Send</h3>
             <div class="bg-overlay-5 rounded-xl p-4 border border-overlay-8 mb-4">
                 <div class="flex items-center gap-3">
@@ -3263,7 +3263,7 @@
     <!-- Template: Progress Modal -->
     <template id="modal-progress">
         <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-            <div class="bg-[#111113] rounded-2xl w-[300px] overflow-hidden shadow-2xl border border-overlay-6" data-modal-content>
+            <div class="bg-surface rounded-2xl w-[300px] overflow-hidden shadow-2xl border border-overlay-6" data-modal-content>
                 <div class="px-5 pt-5 pb-2">
                     <h3 class="text-[14px] font-medium text-primary" data-bind="title">Processing...</h3>
                     <p class="text-[11px] text-overlay-30 mt-0.5" data-bind="subtitle">Please wait</p>
@@ -3285,7 +3285,7 @@
     <!-- Template: Secure Input Modal -->
     <template id="modal-secure-input">
         <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-            <div class="bg-[#111113] rounded-2xl w-[340px] overflow-hidden shadow-2xl border border-overlay-6" data-modal-content>
+            <div class="bg-surface rounded-2xl w-[340px] overflow-hidden shadow-2xl border border-overlay-6" data-modal-content>
                 <div class="px-5 pt-5 pb-3">
                     <div class="flex items-center justify-between">
                         <h3 class="text-[15px] font-medium text-primary" data-bind="title">Input</h3>
@@ -3325,7 +3325,7 @@
     <!-- Template: Create Wallet Modal -->
     <template id="modal-create-wallet">
         <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 animate-fadeIn">
-            <div class="bg-[#111113] rounded-2xl w-[340px] overflow-hidden shadow-2xl border border-overlay-6 animate-slideUp" data-modal-content>
+            <div class="bg-surface rounded-2xl w-[340px] overflow-hidden shadow-2xl border border-overlay-6 animate-slideUp" data-modal-content>
                 <div class="px-5 pt-5 pb-3">
                     <div class="flex items-center justify-between">
                         <h3 class="text-[15px] font-medium text-primary">Connect Account</h3>
@@ -3354,7 +3354,7 @@
                     <!-- Import Private Key -->
                     <button data-action="import" class="w-full bg-white hover:bg-[#f0f0f0] rounded-xl p-3.5 text-left transition-all">
                         <div class="flex items-center gap-3">
-                            <div class="w-9 h-9 rounded-xl bg-[#09090b] flex items-center justify-center">
+                            <div class="w-9 h-9 rounded-xl bg-surface-1 flex items-center justify-center">
                                 <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
                                 </svg>
@@ -3383,7 +3383,7 @@
     <!-- Template: Invite Dialog -->
     <template id="modal-invite">
         <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 animate-fadeIn">
-            <div class="bg-[#111113] rounded-2xl w-[360px] overflow-hidden shadow-2xl border border-overlay-6 animate-slideUp" data-modal-content>
+            <div class="bg-surface rounded-2xl w-[360px] overflow-hidden shadow-2xl border border-overlay-6 animate-slideUp" data-modal-content>
                 <!-- Header -->
                 <div class="px-5 pt-5 pb-3">
                     <div class="flex items-center justify-between">
@@ -3430,7 +3430,7 @@
 
     <!-- Install App Modal (opened via pombo.cc landing page → #install) -->
     <div id="install-app-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-        <div class="bg-[#111113] rounded-2xl p-6 pb-7 w-[380px] max-w-full mx-4 border border-overlay-6">
+        <div class="bg-surface rounded-2xl p-6 pb-7 w-[380px] max-w-full mx-4 border border-overlay-6">
             <div class="flex items-center justify-between mb-6">
                 <div class="flex items-center gap-3">
                     <img src="favicon/favicon.svg" alt="Pombo" class="w-10 h-10">

@@ -218,7 +218,7 @@ class ExploreUI {
             </div>`;
 
         return `
-            <div class="explore-view flex flex-col h-full bg-[#0f0f12]">
+            <div class="explore-view flex flex-col h-full bg-surface-5">
                 <!-- Filters Section -->
                 <div class="px-4 pt-3 pb-3 space-y-3">
                     <!-- Access filters left, search + language icons right
@@ -262,7 +262,7 @@ class ExploreUI {
                                     <path stroke-linecap="round" d="M3 12h18M12 3c2.4 2.4 3.8 5.7 3.8 9s-1.4 6.6-3.8 9c-2.4-2.4-3.8-5.7-3.8-9s1.4-6.6 3.8-9z"/>
                                 </svg>
                             </button>
-                            <div id="explore-language-dropdown" class="hidden absolute top-full right-0 mt-1.5 w-44 max-h-72 overflow-y-auto bg-[#16161b] border border-overlay-10 rounded-xl p-1.5 shadow-2xl z-30">
+                            <div id="explore-language-dropdown" class="hidden absolute top-full right-0 mt-1.5 w-44 max-h-72 overflow-y-auto bg-surface-raised border border-overlay-10 rounded-xl p-1.5 shadow-2xl z-30">
                                 ${languageMenuItems}
                             </div>
                         </div>

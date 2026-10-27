@@ -479,7 +479,7 @@ class ChannelListUI {
                     <span class="text-[12px] text-overlay-40 flex-shrink-0">· creation interrupted</span>
                 </div>
                 <div class="flex items-center gap-2 mt-2">
-                    <button type="button" data-pending-action="finish" class="bg-overlay-90 hover:bg-white text-[#0a0a0a] px-3 py-1 rounded-md text-[11px] font-medium transition">Finish</button>
+                    <button type="button" data-pending-action="finish" class="bg-overlay-90 hover:bg-white text-surface-2 px-3 py-1 rounded-md text-[11px] font-medium transition">Finish</button>
                     <button type="button" data-pending-action="discard" class="bg-overlay-10 hover:bg-overlay-20 text-overlay-70 px-3 py-1 rounded-md text-[11px] font-medium transition">Discard</button>
                 </div>
             </div>`).join('');

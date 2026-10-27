@@ -79,6 +79,39 @@
     --pombo-bg-desktop: #09090B;
     --pombo-surface: #111113;
     --pombo-surface-raised: #16161B;
+    --pombo-surface-2: #0A0A0A;
+    --pombo-surface-3: #0B0B0E;
+    --pombo-surface-4: #0E0E10;
+    --pombo-surface-5: #0F0F12;
+    --pombo-surface-8: #18181B;
+    --pombo-surface-9: #1A1A1A;
+    --pombo-surface-10: #1E1E1E;
+    --pombo-overlay-1: rgba(255, 255, 255, 0.01);
+    --pombo-overlay-2: rgba(255, 255, 255, 0.02);
+    --pombo-overlay-3: rgba(255, 255, 255, 0.03);
+    --pombo-overlay-4: rgba(255, 255, 255, 0.04);
+    --pombo-overlay-5: rgba(255, 255, 255, 0.05);
+    --pombo-overlay-6: rgba(255, 255, 255, 0.06);
+    --pombo-overlay-8: rgba(255, 255, 255, 0.08);
+    --pombo-overlay-10: rgba(255, 255, 255, 0.1);
+    --pombo-overlay-12: rgba(255, 255, 255, 0.12);
+    --pombo-overlay-14: rgba(255, 255, 255, 0.14);
+    --pombo-overlay-15: rgba(255, 255, 255, 0.15);
+    --pombo-overlay-20: rgba(255, 255, 255, 0.2);
+    --pombo-overlay-25: rgba(255, 255, 255, 0.25);
+    --pombo-overlay-30: rgba(255, 255, 255, 0.3);
+    --pombo-overlay-35: rgba(255, 255, 255, 0.35);
+    --pombo-overlay-40: rgba(255, 255, 255, 0.4);
+    --pombo-overlay-45: rgba(255, 255, 255, 0.45);
+    --pombo-overlay-50: rgba(255, 255, 255, 0.5);
+    --pombo-overlay-55: rgba(255, 255, 255, 0.55);
+    --pombo-overlay-60: rgba(255, 255, 255, 0.6);
+    --pombo-overlay-70: rgba(255, 255, 255, 0.7);
+    --pombo-overlay-75: rgba(255, 255, 255, 0.75);
+    --pombo-overlay-80: rgba(255, 255, 255, 0.8);
+    --pombo-overlay-85: rgba(255, 255, 255, 0.85);
+    --pombo-overlay-87: rgba(255, 255, 255, 0.87);
+    --pombo-overlay-90: rgba(255, 255, 255, 0.9);
     --pombo-scrim: rgba(0, 0, 0, 0.8);
     --pombo-bubble-own: #272A2E;
     --pombo-bubble-own-text: #F0F0F0;
@@ -95,7 +128,7 @@
 /* ----- Contenteditable message input placeholder ----- */
 #message-input:empty::before {
     content: attr(data-placeholder);
-    color: rgba(255, 255, 255, 0.25);
+    color: var(--pombo-overlay-25);
     pointer-events: none;
     display: block; /* keeps caret visible at the start */
 }
@@ -106,7 +139,7 @@
 .storage-slider {
     -webkit-appearance: none;
     appearance: none;
-    background: linear-gradient(to right, #F6851B 0%, #F6851B var(--slider-progress, 49.3%), rgba(255,255,255,0.1) var(--slider-progress, 49.3%), rgba(255,255,255,0.1) 100%);
+    background: linear-gradient(to right, #F6851B 0%, #F6851B var(--slider-progress, 49.3%), var(--pombo-overlay-10) var(--slider-progress, 49.3%), var(--pombo-overlay-10) 100%);
 }
 
 .storage-slider::-webkit-slider-thumb {
@@ -151,12 +184,12 @@
 .centered-storage-slider {
     background: linear-gradient(
         to right,
-        rgba(255,255,255,0.1) 0%,
-        rgba(255,255,255,0.1) var(--slider-fill-start, 50%),
+        var(--pombo-overlay-10) 0%,
+        var(--pombo-overlay-10) var(--slider-fill-start, 50%),
         #F6851B var(--slider-fill-start, 50%),
         #F6851B var(--slider-fill-end, 50%),
-        rgba(255,255,255,0.1) var(--slider-fill-end, 50%),
-        rgba(255,255,255,0.1) 100%
+        var(--pombo-overlay-10) var(--slider-fill-end, 50%),
+        var(--pombo-overlay-10) 100%
     );
 }
 
@@ -200,21 +233,21 @@
 
 /* ----- Base Layout ----- */
 html {
-    background-color: #000000;
+    background-color: var(--pombo-bg);
     color-scheme: dark;
 }
 
 /* PWA standalone mode - force true black */
 @media (display-mode: standalone) {
     html, body {
-        background-color: #000000 !important;
+        background-color: var(--pombo-bg) !important;
     }
 }
 
 body {
     font-family: 'Inter', sans-serif;
-    background-color: #000000;
-    color: rgba(255, 255, 255, 0.87);
+    background-color: var(--pombo-bg);
+    color: var(--pombo-overlay-87);
     margin: 0;
     padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px) 0;
 }
@@ -281,8 +314,8 @@ body {
    .global-sync-spinner but neutral so it works in any slot size. */
 .thumb-spinner {
     border-radius: 999px;
-    border: 2px solid rgba(255, 255, 255, 0.08);
-    border-top-color: rgba(255, 255, 255, 0.55);
+    border: 2px solid var(--pombo-overlay-8);
+    border-top-color: var(--pombo-overlay-55);
     border-right-color: rgba(255, 255, 255, 0.32);
     animation: pombo-spin 0.8s linear infinite;
     flex-shrink: 0;
@@ -399,7 +432,7 @@ body {
 
 .messages-area {
     height: calc(100% - 120px);
-    background-color: #0f0f12;
+    background-color: var(--pombo-surface-5);
     /* Safety net: any oversized child must never trigger horizontal scroll. */
     overflow-x: hidden;
 }
@@ -567,7 +600,7 @@ body {
 }
 
 .other-message.msg-group-single .message-bubble {
-    background-color: #1e1e1e;
+    background-color: var(--pombo-surface-10);
     color: #d1d5db;
     border-radius: 1rem 1rem 1rem 0;
 }
@@ -580,7 +613,7 @@ body {
 }
 
 .other-message.msg-group-first .message-bubble {
-    background-color: #1e1e1e;
+    background-color: var(--pombo-surface-10);
     color: #d1d5db;
     border-radius: 1rem 1rem 1rem 0.25rem;
 }
@@ -593,7 +626,7 @@ body {
 }
 
 .other-message.msg-group-middle .message-bubble {
-    background-color: #1e1e1e;
+    background-color: var(--pombo-surface-10);
     color: #d1d5db;
     border-radius: 0.25rem 1rem 1rem 0.25rem;
 }
@@ -606,7 +639,7 @@ body {
 }
 
 .other-message.msg-group-last .message-bubble {
-    background-color: #1e1e1e;
+    background-color: var(--pombo-surface-10);
     color: #d1d5db;
     border-radius: 0.25rem 1rem 1rem 0;
 }
@@ -817,7 +850,7 @@ body {
     margin-top: 8px;
     border-radius: 12px;
     overflow: hidden;
-    background: #09090b;
+    background: var(--pombo-bg-desktop);
 }
 
 .youtube-embed iframe {
@@ -950,7 +983,7 @@ body {
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--pombo-overlay-12);
     border-radius: 3px;
 }
 
@@ -1005,8 +1038,8 @@ body {
 }
 
 .reaction-badge {
-    background-color: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.8);
+    background-color: var(--pombo-overlay-8);
+    color: var(--pombo-overlay-80);
     padding: 3px 8px;
     border-radius: 12px;
     font-size: 0.75rem;
@@ -1025,7 +1058,7 @@ body {
 }
 
 .reaction-badge:hover {
-    background-color: rgba(255, 255, 255, 0.12);
+    background-color: var(--pombo-overlay-12);
 }
 
 .reaction-badge.user-reacted {
@@ -1038,7 +1071,7 @@ body {
     opacity: 0;
     transition: opacity 0.15s;
     cursor: pointer;
-    color: rgba(255, 255, 255, 0.2);
+    color: var(--pombo-overlay-20);
     user-select: none;
     position: absolute;
     display: flex;
@@ -1092,28 +1125,28 @@ body.cannot-write .reply-trigger {
 
 .react-trigger:hover,
 .reply-trigger:hover {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--pombo-overlay-50);
 }
 
 /* ----- Reply Preview ----- */
 .reply-preview {
-    background: rgba(255, 255, 255, 0.05);
-    border-left: 2px solid rgba(255, 255, 255, 0.15);
+    background: var(--pombo-overlay-5);
+    border-left: 2px solid var(--pombo-overlay-15);
     padding: 4px 8px;
     margin-bottom: 6px;
     border-radius: 6px;
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--pombo-overlay-50);
     cursor: pointer;
     max-width: 280px;
 }
 
 .reply-preview:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--pombo-overlay-8);
 }
 
 .reply-preview-name {
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--pombo-overlay-60);
     font-weight: 500;
     font-size: 0.75rem;
 }
@@ -1150,10 +1183,10 @@ body.cannot-write .reply-trigger {
     align-items: center;
     gap: 0.625rem;
     padding: 0.5rem 0.75rem 0.5rem 0.875rem;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--pombo-overlay-6);
     backdrop-filter: blur(20px) saturate(160%);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--pombo-overlay-8);
     border-radius: 1rem;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
     cursor: pointer;
@@ -1191,7 +1224,7 @@ body.cannot-write .reply-trigger {
 
 .pinned-banner-text {
     font-size: 0.8125rem;
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--pombo-overlay-75);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1206,7 +1239,7 @@ body.cannot-write .reply-trigger {
 
 .pinned-banner-count {
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--pombo-overlay-40);
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
 }
@@ -1219,13 +1252,13 @@ body.cannot-write .reply-trigger {
     flex-shrink: 0;
     padding: 0.375rem;
     border-radius: 0.375rem;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--pombo-overlay-40);
     transition: background 0.15s ease, color 0.15s ease;
 }
 
 .pinned-banner-close:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.85);
+    background: var(--pombo-overlay-10);
+    color: var(--pombo-overlay-85);
 }
 
 /* When banner is visible, push messages content down so the first row
@@ -1295,12 +1328,12 @@ body.cannot-write .reply-trigger {
     flex-shrink: 0;
     padding: 0.25rem;
     border-radius: 0.375rem;
-    color: rgba(255, 255, 255, 0.35);
+    color: var(--pombo-overlay-35);
     transition: color 0.15s ease;
 }
 
 .subscription-banner-dismiss:hover {
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--pombo-overlay-80);
 }
 
 /* The strip sits in flex flow above the messages area, so the floating
@@ -1334,9 +1367,9 @@ body.cannot-write .reply-trigger {
 
 /* ----- Reply Bar ----- */
 .reply-bar {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--pombo-overlay-3);
     padding: 8px 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-top: 1px solid var(--pombo-overlay-6);
     display: none;
     align-items: center;
     justify-content: space-between;
@@ -1357,18 +1390,18 @@ body.cannot-write .reply-trigger {
 
 .reply-bar-label {
     font-size: 0.7rem;
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--pombo-overlay-30);
 }
 
 .reply-bar-name {
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--pombo-overlay-50);
     font-weight: 500;
 }
 
 .reply-bar-text {
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--pombo-overlay-60);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1376,15 +1409,15 @@ body.cannot-write .reply-trigger {
 
 .reply-bar-close {
     cursor: pointer;
-    color: rgba(255, 255, 255, 0.25);
+    color: var(--pombo-overlay-25);
     padding: 4px;
     border-radius: 6px;
     transition: all 0.15s;
 }
 
 .reply-bar-close:hover {
-    color: rgba(255, 255, 255, 0.6);
-    background: rgba(255, 255, 255, 0.08);
+    color: var(--pombo-overlay-60);
+    background: var(--pombo-overlay-8);
 }
 
 /* ----- Message Highlight ----- */
@@ -1397,7 +1430,7 @@ body.cannot-write .reply-trigger {
         background: transparent;
     }
     30% {
-        background: rgba(255, 255, 255, 0.1);
+        background: var(--pombo-overlay-10);
     }
 }
 
@@ -1409,8 +1442,8 @@ body.cannot-write .reply-trigger {
 }
 
 .date-pill {
-    background-color: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.4);
+    background-color: var(--pombo-overlay-6);
+    color: var(--pombo-overlay-40);
     font-size: 0.75rem;
     padding: 4px 12px;
     border-radius: 12px;
@@ -1419,8 +1452,8 @@ body.cannot-write .reply-trigger {
 /* ----- Reaction Picker ----- */
 .reaction-picker {
     position: fixed;
-    background-color: #16161b;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background-color: var(--pombo-surface-raised);
+    border: 1px solid var(--pombo-overlay-8);
     border-radius: 0.5rem;
     padding: 0.5rem;
     z-index: 100;
@@ -1439,7 +1472,7 @@ body.cannot-write .reply-trigger {
 }
 
 .reaction-picker span:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: var(--pombo-overlay-10);
 }
 
 /* ----- Emoji Picker ----- */
@@ -1447,8 +1480,8 @@ body.cannot-write .reply-trigger {
     position: absolute;
     bottom: 50px;
     left: 10px;
-    background-color: #16161b;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background-color: var(--pombo-surface-raised);
+    border: 1px solid var(--pombo-overlay-8);
     border-radius: 0.75rem;
     padding: 0.5rem;
     z-index: 10;
@@ -1466,7 +1499,7 @@ body.cannot-write .reply-trigger {
 }
 
 .emoji-picker span:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: var(--pombo-overlay-10);
     border-radius: 4px;
 }
 
@@ -1490,8 +1523,8 @@ body.cannot-write .reply-trigger {
     padding: 1.25rem 1rem 0.5rem;
     font-size: 0.875rem;
     line-height: 1.25rem;
-    color: rgba(255, 255, 255, 0.3);
-    background: linear-gradient(to top, #0f0f12 45%, rgba(15, 15, 18, 0));
+    color: var(--pombo-overlay-30);
+    background: linear-gradient(to top, var(--pombo-surface-5) 45%, rgba(15, 15, 18, 0));
 }
 
 .typing-row.hidden {
@@ -1501,7 +1534,7 @@ body.cannot-write .reply-trigger {
 .typing-dot {
     width: 8px;
     height: 8px;
-    background-color: rgba(255, 255, 255, 0.4);
+    background-color: var(--pombo-overlay-40);
     border-radius: 50%;
     display: inline-block;
     margin: 0 2px;
@@ -1585,14 +1618,14 @@ body.cannot-write .reply-trigger {
     position: relative;
     padding: 0.875rem 1rem;
     border-radius: 0.75rem;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--pombo-overlay-90);
     font-size: 0.8125rem;
     display: flex;
     align-items: center;
     gap: 0.75rem;
     animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    background-color: #16161b;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background-color: var(--pombo-surface-raised);
+    border: 1px solid var(--pombo-overlay-8);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
     overflow: hidden;
     pointer-events: auto;
@@ -1636,7 +1669,7 @@ body.cannot-write .reply-trigger {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--pombo-overlay-30);
     cursor: pointer;
     border-radius: 4px;
     transition: all 0.15s;
@@ -1648,8 +1681,8 @@ body.cannot-write .reply-trigger {
 }
 
 .toast-close:hover {
-    color: rgba(255, 255, 255, 0.7);
-    background: rgba(255, 255, 255, 0.1);
+    color: var(--pombo-overlay-70);
+    background: var(--pombo-overlay-10);
 }
 
 .toast-progress {
@@ -1657,7 +1690,7 @@ body.cannot-write .reply-trigger {
     bottom: 0;
     left: 0;
     height: 2px;
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--pombo-overlay-15);
     animation: toastProgress var(--toast-duration, 3000ms) linear forwards;
 }
 
@@ -1741,7 +1774,7 @@ body.cannot-write .reply-trigger {
 
 .toast-progress-ring .ring-track {
     fill: none;
-    stroke: rgba(255, 255, 255, 0.08);
+    stroke: var(--pombo-overlay-8);
     stroke-width: 3;
 }
 
@@ -1757,7 +1790,7 @@ body.cannot-write .reply-trigger {
 
 .toast-progress-ring .ring-label {
     font-size: 10px;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--pombo-overlay-45);
     text-align: center;
     white-space: nowrap;
     line-height: 1.2;
@@ -1891,7 +1924,7 @@ body.cannot-write .reply-trigger {
 .spinner {
     width: 48px;
     height: 48px;
-    border: 4px solid rgba(255, 255, 255, 0.08);
+    border: 4px solid var(--pombo-overlay-8);
     border-top-color: #F6851B;
     border-radius: 50%;
     animation: spin 1s linear infinite;
@@ -1913,7 +1946,7 @@ body.cannot-write .reply-trigger {
 }
 
 .loading-text {
-    color: rgba(255, 255, 255, 0.87);
+    color: var(--pombo-overlay-87);
     font-size: 0.9rem;
 }
 
@@ -1928,7 +1961,7 @@ body.cannot-write .reply-trigger {
 }
 
 ::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: var(--pombo-overlay-10);
     border-radius: 2px;
 }
 
@@ -1946,7 +1979,7 @@ body.cannot-write .reply-trigger {
 }
 
 #online-users-list::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: var(--pombo-overlay-10);
     border-radius: 2px;
 }
 
@@ -1999,8 +2032,8 @@ body.network-down .network-dot {
     bottom: calc(100% + 6px);
     left: 50%;
     transform: translateX(-50%);
-    background-color: #16161b;
-    color: rgba(255, 255, 255, 0.6);
+    background-color: var(--pombo-surface-raised);
+    color: var(--pombo-overlay-60);
     font-size: 0.7rem;
     padding: 4px 8px;
     border-radius: 6px;
@@ -2130,7 +2163,7 @@ body.network-down .network-dot {
 .channel-preview-line {
     font-size: 0.75rem;        /* text-xs */
     line-height: 1.25;
-    color: rgba(255, 255, 255, 0.50);
+    color: var(--pombo-overlay-50);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2142,7 +2175,7 @@ body.network-down .network-dot {
 }
 .channel-preview-line .preview-mute {
     /* lighter media tags ([image] / [video] / "reacted with") */
-    color: rgba(255, 255, 255, 0.40);
+    color: var(--pombo-overlay-40);
     font-style: normal;
 }
 
@@ -2196,12 +2229,12 @@ body.network-down .network-dot {
 
 .explore-category-rail::before {
     left: 0;
-    background: linear-gradient(to right, #0f0f12 0%, rgba(15, 15, 18, 0) 100%);
+    background: linear-gradient(to right, var(--pombo-surface-5) 0%, rgba(15, 15, 18, 0) 100%);
 }
 
 .explore-category-rail::after {
     right: 0;
-    background: linear-gradient(to left, #0f0f12 0%, rgba(15, 15, 18, 0) 100%);
+    background: linear-gradient(to left, var(--pombo-surface-5) 0%, rgba(15, 15, 18, 0) 100%);
 }
 
 .explore-category-rail[data-overflow="true"][data-scroll-start="false"]::before,
@@ -2246,9 +2279,9 @@ body.network-down .network-dot {
     min-width: 2rem;
     min-height: 1.625rem;
     padding: 0 0.5rem;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--pombo-overlay-8);
     border-radius: 0.5rem;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--pombo-overlay-4);
     flex-shrink: 0;
     align-self: start;
     justify-self: end;
@@ -2305,7 +2338,7 @@ body.explore-open #explore-channels-list {
     }
     /* Force true black on mobile for Samsung/Android nav bar */
     html {
-        background-color: #000000 !important;
+        background-color: var(--pombo-bg) !important;
     }
     
     /* Modal close buttons: show back arrow on mobile, hide X */
@@ -2342,7 +2375,7 @@ body.explore-open #explore-channels-list {
         padding-left: 0.5rem;
         padding-right: 0.75rem;
         height: 3.5rem;
-        background-color: #000000 !important;
+        background-color: var(--pombo-bg) !important;
         backdrop-filter: none;
     }
     
@@ -2385,12 +2418,12 @@ body.explore-open #explore-channels-list {
         border-right: none;
         transform: translateX(0);
         transition: transform 0.3s ease;
-        background-color: #000000 !important;
+        background-color: var(--pombo-bg) !important;
     }
 
     /* Border override for mobile - more visible */
     .border-overlay-1 {
-        border-color: rgb(255 255 255 / 0.08) !important;
+        border-color: var(--pombo-overlay-8) !important;
     }
     
     /* Hide sidebar when chat is open */
@@ -2404,7 +2437,7 @@ body.explore-open #explore-channels-list {
         inset: 0;
         z-index: 20;
         transform: translateX(100%);
-        background-color: #000000;
+        background-color: var(--pombo-bg);
     }
     
     /* Show chat when active */
@@ -2416,25 +2449,25 @@ body.explore-open #explore-channels-list {
     /* ----- UNIFIED DARK BACKGROUND ON MOBILE ----- */
     /* Match all backgrounds to true black for OLED screens */
     .messages-area {
-        background-color: #000000 !important;
+        background-color: var(--pombo-bg) !important;
     }
 
     #chat-header {
-        background-color: #000000 !important;
+        background-color: var(--pombo-bg) !important;
     }
 
     #message-input-container {
-        background-color: #000000 !important;
+        background-color: var(--pombo-bg) !important;
     }
 
     /* Chat main area */
     #chat-area main {
-        background-color: #000000 !important;
+        background-color: var(--pombo-bg) !important;
     }
 
     /* Explore view */
     .explore-view {
-        background-color: #000000 !important;
+        background-color: var(--pombo-bg) !important;
             min-height: 0;
     }
 
@@ -2452,20 +2485,20 @@ body.explore-open #explore-channels-list {
     #channel-settings-modal > div,
     #contacts-modal > div,
     #storage-info-modal > div {
-        background-color: #000000 !important;
+        background-color: var(--pombo-bg) !important;
     }
 
     /* Modal header bars (contacts header hidden on mobile, channel-settings visible) */
     #new-channel-modal > div > .flex.border-b,
     #channel-settings-modal > div > .flex.border-b {
-        background-color: #000000 !important;
+        background-color: var(--pombo-bg) !important;
     }
 
     /* Modal tab strips / sidebars — bg set in horizontal tabs rule below */
 
     /* Modal footers and sidebars with #0a0a0a background */
     .bg-\[\#0a0a0a\] {
-        background-color: #000000 !important;
+        background-color: var(--pombo-bg) !important;
     }
 
     /* Note: .bg-[#111113] NOT overridden - account modals (Unlock, Create, Import, etc.) keep #111113 */
@@ -2588,10 +2621,10 @@ body.explore-open #explore-channels-list {
         display: flex;
         align-items: center;
         gap: 0.25rem;
-        background: rgba(255, 255, 255, 0.06);
+        background: var(--pombo-overlay-6);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 1px solid var(--pombo-overlay-8);
         border-radius: 2rem;
         padding: 0.35rem 0.5rem;
     }
@@ -2605,7 +2638,7 @@ body.explore-open #explore-channels-list {
         border-radius: 1.5rem;
         font-size: 0.625rem;
         font-weight: 500;
-        color: rgba(255, 255, 255, 0.8);
+        color: var(--pombo-overlay-80);
         transition: all 0.2s ease;
         cursor: pointer;
         background: none;
@@ -2634,8 +2667,8 @@ body.explore-open #explore-channels-list {
         width: 2.375rem;
         height: 2.375rem;
         border-radius: 9999px;
-        background: rgba(255, 255, 255, 0.08);
-        border: 1.5px solid rgba(255, 255, 255, 0.12);
+        background: var(--pombo-overlay-8);
+        border: 1.5px solid var(--pombo-overlay-12);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -2661,7 +2694,7 @@ body.explore-open #explore-channels-list {
 
     /* ----- ACCOUNTS SCREEN (mirrors Android ProfileTab, px = dp) ----- */
     #accounts-modal {
-        background: #000000;
+        background: var(--pombo-bg);
     }
 
     .accounts-screen {
@@ -2696,7 +2729,7 @@ body.explore-open #explore-channels-list {
 
     .accounts-username {
         font-size: 13px;
-        color: rgba(255, 255, 255, 0.4);
+        color: var(--pombo-overlay-40);
         margin-bottom: 2px;
     }
 
@@ -2706,7 +2739,7 @@ body.explore-open #explore-channels-list {
 
     .accounts-address {
         font-size: 12px;
-        color: rgba(255, 255, 255, 0.4);
+        color: var(--pombo-overlay-40);
         word-break: break-all;
         text-align: center;
     }
@@ -2724,13 +2757,13 @@ body.explore-open #explore-channels-list {
         font-weight: 600;
         letter-spacing: 0.15em;
         text-transform: uppercase;
-        color: rgba(255, 255, 255, 0.3);
+        color: var(--pombo-overlay-30);
         padding-bottom: 6px;
     }
 
     .accounts-card {
-        background: #000000;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: var(--pombo-bg);
+        border: 1px solid var(--pombo-overlay-8);
         border-radius: 12px;
         overflow: hidden;
     }
@@ -2759,7 +2792,7 @@ body.explore-open #explore-channels-list {
     }
 
     .accounts-row + .accounts-row {
-        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        border-top: 1px solid var(--pombo-overlay-8);
     }
 
     .accounts-row > svg {
@@ -2823,8 +2856,8 @@ body.explore-open #explore-channels-list {
     .accounts-about-card {
         width: 100%;
         max-width: 420px;
-        background: #111113;
-        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: var(--pombo-surface);
+        border: 1px solid var(--pombo-overlay-6);
         border-radius: 16px;
         padding: 20px;
     }
@@ -2843,7 +2876,7 @@ body.explore-open #explore-channels-list {
     }
 
     .accounts-about-close {
-        color: rgba(255, 255, 255, 0.4);
+        color: var(--pombo-overlay-40);
         display: inline-flex;
     }
 
@@ -2859,16 +2892,16 @@ body.explore-open #explore-channels-list {
 
     .accounts-about-link {
         font-size: 13px;
-        color: rgba(255, 255, 255, 0.4);
+        color: var(--pombo-overlay-40);
     }
 
     /* Channel filter tabs - lighter on mobile */
     .channel-filter-tab {
-        color: rgba(255, 255, 255, 0.75) !important;
+        color: var(--pombo-overlay-75) !important;
     }
 
     .channel-filter-tab:hover {
-        color: rgba(255, 255, 255, 0.9) !important;
+        color: var(--pombo-overlay-90) !important;
     }
 
     /* Keep active tab orange (override Tailwind text-[#F6851B]) */
@@ -2877,7 +2910,7 @@ body.explore-open #explore-channels-list {
     }
 
     #channel-list .channel-item {
-        background-color: rgba(255, 255, 255, 0.05);
+        background-color: var(--pombo-overlay-5);
         border-color: rgba(255, 255, 255, 0.085);
     }
 
@@ -3072,7 +3105,7 @@ body.explore-open #explore-channels-list {
     /* Modal headers - same dark color as main header */
     #new-channel-modal > div > .flex.border-b,
     #channel-settings-modal > div > .flex.border-b {
-        border-color: rgba(255, 255, 255, 0.06) !important;
+        border-color: var(--pombo-overlay-6) !important;
     }
 
     /* Settings modal content area - full height flex */
@@ -3110,13 +3143,13 @@ body.explore-open #explore-channels-list {
     #settings-modal .w-44 {
         width: 100% !important;
         border-right: none !important;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        border-bottom: 1px solid var(--pombo-overlay-6);
         flex-direction: row !important;
         overflow: hidden;
         padding: 0 !important;
         flex-shrink: 0;
         min-height: auto;
-        background: #000000 !important;
+        background: var(--pombo-bg) !important;
     }
 
     /* Hide "Type" label on mobile modals */
@@ -3179,7 +3212,7 @@ body.explore-open #explore-channels-list {
     #channel-panel-info:not(.hidden) ~ #channel-panel-storage:not(.hidden) {
         margin-top: 1.5rem;
         padding-top: 1.5rem;
-        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        border-top: 1px solid var(--pombo-overlay-5);
     }
 
     /* Sub-panel slide animation */
@@ -3195,8 +3228,8 @@ body.explore-open #explore-channels-list {
         width: 100%;
         min-height: 3rem;
         padding: 0 1rem;
-        border-top: 1px solid rgba(255, 255, 255, 0.06);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        border-top: 1px solid var(--pombo-overlay-6);
+        border-bottom: 1px solid var(--pombo-overlay-6);
     }
 
     .settings-mobile-back {
@@ -3207,7 +3240,7 @@ body.explore-open #explore-channels-list {
         align-items: center;
         justify-content: center;
         border-radius: 9999px;
-        color: rgba(255, 255, 255, 0.7);
+        color: var(--pombo-overlay-70);
     }
 
     .settings-mobile-back.hidden {
@@ -3215,13 +3248,13 @@ body.explore-open #explore-channels-list {
     }
 
     .settings-mobile-back:active {
-        background: rgba(255, 255, 255, 0.12);
+        background: var(--pombo-overlay-12);
     }
 
     .settings-mobile-title {
         font-size: 1rem;
         font-weight: 500;
-        color: rgba(255, 255, 255, 0.9);
+        color: var(--pombo-overlay-90);
     }
 
     /* Section list */
@@ -3239,12 +3272,12 @@ body.explore-open #explore-channels-list {
         padding: 0.875rem 0.75rem;
         border-radius: 0.75rem;
         font-size: 0.9375rem;
-        color: rgba(255, 255, 255, 0.85);
+        color: var(--pombo-overlay-85);
         text-align: left;
     }
 
     .settings-index-row svg {
-        color: rgba(255, 255, 255, 0.45);
+        color: var(--pombo-overlay-45);
         flex-shrink: 0;
     }
 
@@ -3253,25 +3286,25 @@ body.explore-open #explore-channels-list {
         margin-left: auto;
         width: 0.5rem;
         height: 0.5rem;
-        border-top: 1.5px solid rgba(255, 255, 255, 0.3);
-        border-right: 1.5px solid rgba(255, 255, 255, 0.3);
+        border-top: 1.5px solid var(--pombo-overlay-30);
+        border-right: 1.5px solid var(--pombo-overlay-30);
         transform: rotate(45deg);
     }
 
     .settings-index-row:active {
-        background: rgba(255, 255, 255, 0.06);
+        background: var(--pombo-overlay-6);
     }
 
     .settings-index-divider {
         height: 1px;
         margin: 0.375rem 0.75rem;
-        background: rgba(255, 255, 255, 0.06);
+        background: var(--pombo-overlay-6);
     }
 
     /* Device Sync rides inside Account on mobile, before Backup & Restore */
     #settings-panel-devicesync.settings-panel-follows {
         padding-top: 1.5rem;
-        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        border-top: 1px solid var(--pombo-overlay-5);
     }
 
     #new-channel-modal .w-40 nav button {
@@ -3472,7 +3505,7 @@ body.explore-open #explore-channels-list {
     align-items: center;
     gap: 3px;
     padding: 3px;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--pombo-overlay-3);
     border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: 0.75rem;
 }
@@ -3487,8 +3520,8 @@ body.explore-open #explore-channels-list {
     padding: 0.4rem 0.5rem;
     border-radius: 0.6rem;
     font-size: 0.875rem;
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.8);
+    background: var(--pombo-overlay-8);
+    color: var(--pombo-overlay-80);
     transition: color 160ms ease-out, background-color 160ms ease-out,
                 box-shadow 160ms ease-out;
 }
@@ -3499,8 +3532,8 @@ body.explore-open #explore-channels-list {
 }
 
 .explore-mode-btn:disabled {
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(255, 255, 255, 0.3);
+    background: var(--pombo-overlay-3);
+    color: var(--pombo-overlay-30);
     cursor: default;
 }
 
@@ -3509,7 +3542,7 @@ body.explore-open #browse-channels-btn {
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3),
                 inset 0 0 10px rgba(246, 133, 27, 0.045),
                 0 0 8px rgba(246, 133, 27, 0.035);
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--pombo-overlay-45);
     text-shadow: 0 0 7px rgba(246, 133, 27, 0.14);
     pointer-events: none;
 }
@@ -3535,7 +3568,7 @@ body.explore-open #browse-channels-btn svg {
     min-width: 0;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.8125rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--pombo-overlay-60);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -3548,19 +3581,19 @@ body.explore-open #browse-channels-btn svg {
     align-items: center;
     justify-content: center;
     border-radius: 9999px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--pombo-overlay-50);
     transition: background-color 0.15s, color 0.15s;
 }
 
 .wallet-address-btn:hover {
-    color: rgba(255, 255, 255, 0.8);
-    background: rgba(255, 255, 255, 0.05);
+    color: var(--pombo-overlay-80);
+    background: var(--pombo-overlay-5);
 }
 
 .wallet-address-btn:active,
 .wallet-address-btn[aria-expanded="true"] {
     color: #F6851B;
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--pombo-overlay-12);
 }
 
 .wallet-qr {
@@ -3603,7 +3636,7 @@ body.explore-open #browse-channels-btn svg {
         height: 0.25rem;
         margin: 0.5rem auto 0;
         border-radius: 9999px;
-        background: rgba(255, 255, 255, 0.2);
+        background: var(--pombo-overlay-20);
     }
 }
 
@@ -3644,7 +3677,7 @@ body.explore-open #browse-channels-btn svg {
 }
 
 .wallet-row:hover {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--pombo-overlay-3);
 }
 
 .wallet-row-token {
@@ -3656,7 +3689,7 @@ body.explore-open #browse-channels-btn svg {
 .wallet-row-symbol {
     font-size: 0.875rem;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--pombo-overlay-90);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -3665,33 +3698,33 @@ body.explore-open #browse-channels-btn svg {
 .wallet-row-address {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.6875rem;
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--pombo-overlay-30);
     margin-top: 1px;
 }
 
 .wallet-row-value {
     font-size: 0.875rem;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--pombo-overlay-90);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
 .wallet-row-pending {
     font-size: 0.875rem;
-    color: rgba(255, 255, 255, 0.25);
+    color: var(--pombo-overlay-25);
     letter-spacing: 0.1em;
 }
 
 .wallet-row-error {
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.35);
+    color: var(--pombo-overlay-35);
 }
 
 .wallet-empty {
     padding: 1.25rem 1rem;
     text-align: center;
     font-size: 0.8125rem;
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--pombo-overlay-30);
 }
 
 .wallet-row-end {
@@ -3701,15 +3734,15 @@ body.explore-open #browse-channels-btn svg {
 }
 
 .wallet-row-remove {
-    color: rgba(255, 255, 255, 0.25);
+    color: var(--pombo-overlay-25);
     padding: 0.25rem;
     border-radius: 0.375rem;
     transition: color 0.15s ease, background 0.15s ease;
 }
 
 .wallet-row-remove:hover {
-    color: rgba(255, 255, 255, 0.8);
-    background: rgba(255, 255, 255, 0.08);
+    color: var(--pombo-overlay-80);
+    background: var(--pombo-overlay-8);
 }
 
 .wallet-add {
@@ -3730,12 +3763,12 @@ body.explore-open #browse-channels-btn svg {
     width: 100%;
     padding: 0.5rem 0.25rem;
     font-size: 0.8125rem;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--pombo-overlay-40);
     transition: color 0.15s ease;
 }
 
 .wallet-add-open:hover {
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--pombo-overlay-75);
 }
 
 .wallet-add-row {
@@ -3747,8 +3780,8 @@ body.explore-open #browse-channels-btn svg {
 .wallet-add-input {
     flex: 1 1 auto;
     min-width: 0;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--pombo-overlay-5);
+    border: 1px solid var(--pombo-overlay-10);
     border-radius: 0.625rem;
     padding: 0.5rem 0.75rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -3759,7 +3792,7 @@ body.explore-open #browse-channels-btn svg {
 
 .wallet-add-input:focus {
     outline: none;
-    border-color: rgba(255, 255, 255, 0.3);
+    border-color: var(--pombo-overlay-30);
 }
 
 .wallet-add-confirm {
@@ -3785,12 +3818,12 @@ body.explore-open #browse-channels-btn svg {
 
 .wallet-add-cancel {
     flex-shrink: 0;
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--pombo-overlay-30);
     padding: 0.375rem;
 }
 
 .wallet-add-cancel:hover {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--pombo-overlay-70);
 }
 
 .wallet-add-error {
@@ -3831,7 +3864,7 @@ body.guest-mode #pill-wallet-btn {
 }
 
 .transfers-ring-track {
-    stroke: rgba(255, 255, 255, 0.1);
+    stroke: var(--pombo-overlay-10);
 }
 
 .transfers-ring-progress {

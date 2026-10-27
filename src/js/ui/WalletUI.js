@@ -558,7 +558,7 @@ class WalletUI {
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50';
             modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl w-[320px] overflow-hidden shadow-2xl border border-overlay-6">
+                <div class="bg-surface rounded-2xl w-[320px] overflow-hidden shadow-2xl border border-overlay-6">
                     <div class="px-5 pt-5 pb-4">
                         <div class="flex items-center justify-between">
                             <h3 class="text-[15px] font-medium text-primary">Fund Account</h3>

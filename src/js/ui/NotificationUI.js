@@ -271,7 +271,7 @@ class NotificationUI {
                     <div class="text-[13px] font-medium text-overlay-90">${escapeHtml(message)}</div>
                     ${subtitle ? `<div class="text-[11px] text-overlay-50 mt-0.5">${escapeHtml(subtitle)}</div>` : ''}
                     <div class="mt-2.5 flex gap-2">
-                        <button class="confirm-btn bg-overlay-90 hover:bg-white text-[#0a0a0a] px-3 py-1 rounded-md text-[11px] font-medium transition">
+                        <button class="confirm-btn bg-overlay-90 hover:bg-white text-surface-2 px-3 py-1 rounded-md text-[11px] font-medium transition">
                             ${escapeHtml(confirmLabel)}
                         </button>
                         <button class="cancel-btn bg-overlay-10 hover:bg-overlay-20 text-overlay-70 px-3 py-1 rounded-md text-[11px] font-medium transition">

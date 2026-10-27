@@ -283,7 +283,7 @@ class NotificationBellUI {
                 <div class="text-[13px] font-medium text-overlay-90">${escapeHtml(sanitizeText(invite.channel?.name || 'Channel'))}</div>
                 <div class="text-[11px] text-overlay-40">From: ${escapeHtml((invite.from || '').slice(0, 6))}…${escapeHtml((invite.from || '').slice(-4))}</div>
                 <div class="mt-1.5 mb-1 flex gap-2">
-                    <button class="notif-invite-accept bg-overlay-90 hover:bg-white text-[#0a0a0a] px-3 py-1 rounded-md text-[11px] font-medium transition">Accept</button>
+                    <button class="notif-invite-accept bg-overlay-90 hover:bg-white text-surface-2 px-3 py-1 rounded-md text-[11px] font-medium transition">Accept</button>
                     ${isDismissed ? '' : '<button class="notif-invite-dismiss bg-overlay-10 hover:bg-overlay-20 text-overlay-70 px-3 py-1 rounded-md text-[11px] font-medium transition">Dismiss</button>'}
                 </div>
             </div>

@@ -227,7 +227,7 @@ class WalletFlows {
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50 animate-fadeIn';
             modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl w-[360px] max-w-[calc(100%-2rem)] overflow-hidden shadow-2xl border border-overlay-6 animate-slideUp">
+                <div class="bg-surface rounded-2xl w-[360px] max-w-[calc(100%-2rem)] overflow-hidden shadow-2xl border border-overlay-6 animate-slideUp">
                     <!-- Header -->
                     <div class="px-5 pt-5 pb-3">
                         <div class="flex items-center justify-between">
@@ -306,7 +306,7 @@ class WalletFlows {
                     </form>
                     
                     <!-- Footer -->
-                    <div class="border-t border-overlay-6 px-5 py-3 bg-[#09090b]">
+                    <div class="border-t border-overlay-6 px-5 py-3 bg-surface-1">
                         <div class="flex items-center justify-center gap-3 text-[12px]">
                             <button id="create-new-btn" class="text-overlay-30 hover:text-primary transition">New account</button>
                             <span class="text-overlay-15">·</span>
@@ -734,7 +734,7 @@ class WalletFlows {
             modal.className = 'fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4';
             modal.innerHTML = `
                 <style>#avatar-grid .avatar-option svg{width:100%;height:100%;display:block}</style>
-                <div class="bg-[#111113] rounded-2xl shadow-2xl border border-overlay-6 flex flex-col overflow-hidden" style="width:100%;max-width:420px;max-height:calc(100vh - 1.5rem)">
+                <div class="bg-surface rounded-2xl shadow-2xl border border-overlay-6 flex flex-col overflow-hidden" style="width:100%;max-width:420px;max-height:calc(100vh - 1.5rem)">
                     <!-- Step 1: Choose Avatar -->
                     <div id="step-avatar" class="flex flex-col min-h-0 h-full">
                         <!-- Header (fixed) -->
@@ -1150,7 +1150,7 @@ class WalletFlows {
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4';
             modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl w-[420px] max-w-[95vw] shadow-2xl border border-overlay-6 overflow-hidden">
+                <div class="bg-surface rounded-2xl w-[420px] max-w-[95vw] shadow-2xl border border-overlay-6 overflow-hidden">
                     <!-- Step 1: Import Private Key -->
                     <div id="step-1">
                         <!-- Header -->
@@ -1561,7 +1561,7 @@ class WalletFlows {
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50 animate-fadeIn';
             modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl w-[360px] max-w-[calc(100%-2rem)] overflow-hidden shadow-2xl border border-overlay-6 animate-slideUp">
+                <div class="bg-surface rounded-2xl w-[360px] max-w-[calc(100%-2rem)] overflow-hidden shadow-2xl border border-overlay-6 animate-slideUp">
                     <!-- Header -->
                     <div class="px-5 pt-5 pb-3">
                         <div class="flex items-center justify-between">

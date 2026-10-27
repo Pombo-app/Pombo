@@ -211,7 +211,7 @@ class NotificationManager {
                 <div class="text-[11px] text-overlay-50 mb-0.5">From: ${escapeHtml(this.formatAddress(invite.from))}</div>
                 <div class="text-[12px] text-overlay-80 font-medium">${escapeHtml(sanitizeText(invite.channel.name))}</div>
                 <div class="mt-2.5 flex gap-2">
-                    <button class="accept-btn bg-overlay-90 hover:bg-white text-[#0a0a0a] px-3 py-1 rounded-md text-[11px] font-medium transition">
+                    <button class="accept-btn bg-overlay-90 hover:bg-white text-surface-2 px-3 py-1 rounded-md text-[11px] font-medium transition">
                         Accept
                     </button>
                     <button class="dismiss-btn bg-overlay-10 hover:bg-overlay-20 text-overlay-70 px-3 py-1 rounded-md text-[11px] font-medium transition">

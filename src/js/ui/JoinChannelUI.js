@@ -225,7 +225,7 @@ class JoinChannelUI {
             const safeTitle = this._escapeHtml(title);
             const safeMessage = this._escapeHtml(message);
             modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
+                <div class="bg-surface rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
                     <h3 class="text-[15px] font-medium mb-2 text-primary">${safeTitle}</h3>
                     <p class="text-[12px] text-overlay-50 mb-4">${safeMessage}</p>
                     <div class="relative mb-4">
@@ -309,7 +309,7 @@ class JoinChannelUI {
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50';
             modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl p-5 border border-overlay-6">
+                <div class="bg-surface rounded-2xl p-5 border border-overlay-6">
                     <h3 class="text-[15px] font-medium mb-4 text-primary">Invite QR Code</h3>
                     <div id="qr-container" class="bg-white p-3 rounded-lg flex items-center justify-center"></div>
                     <button class="mt-4 w-full bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-50 text-[13px] font-medium px-4 py-2.5 rounded-xl transition">Close</button>

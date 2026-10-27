@@ -1432,7 +1432,7 @@ class ChannelSettingsUI {
         modal.id = 'leave-channel-modal';
         modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-[60]';
         modal.innerHTML = `
-            <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
+            <div class="bg-surface rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
                 <h3 class="text-base font-medium mb-4 text-primary">${isDM ? 'Leave Conversation' : 'Leave Channel'}</h3>
                 <div class="space-y-3">
                     <p class="text-sm text-overlay-50">
@@ -1748,7 +1748,7 @@ class ChannelSettingsUI {
 
         const dropdown = document.createElement('div');
         dropdown.id = 'member-dropdown-menu';
-        dropdown.className = 'fixed bg-[#111113] border border-overlay-10 rounded-xl shadow-2xl py-1 z-[9999] min-w-[200px] overflow-hidden';
+        dropdown.className = 'fixed bg-surface border border-overlay-10 rounded-xl shadow-2xl py-1 z-[9999] min-w-[200px] overflow-hidden';
         dropdown.innerHTML = `
             <div class="px-3 py-2 border-b border-overlay-5">
                 <div class="text-xs text-overlay-40">Member</div>
@@ -1943,7 +1943,7 @@ class ChannelSettingsUI {
         modal.id = 'remove-member-modal';
         modal.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70]';
         modal.innerHTML = `
-            <div class="bg-[#111113] rounded-2xl w-[380px] max-w-[95vw] mx-4 shadow-2xl border border-overlay-6 overflow-hidden">
+            <div class="bg-surface rounded-2xl w-[380px] max-w-[95vw] mx-4 shadow-2xl border border-overlay-6 overflow-hidden">
                 <div class="p-6">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-lg">👤</div>

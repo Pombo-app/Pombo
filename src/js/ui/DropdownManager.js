@@ -130,7 +130,7 @@ class DropdownManager {
 
         const dropdown = document.createElement('div');
         dropdown.id = menuId;
-        dropdown.className = 'fixed bg-[#16161b] border border-overlay-10 rounded-xl shadow-xl py-1 z-[9999] min-w-[180px] overflow-hidden';
+        dropdown.className = 'fixed bg-surface-raised border border-overlay-10 rounded-xl shadow-xl py-1 z-[9999] min-w-[180px] overflow-hidden';
         dropdown.innerHTML = items.map((item) => this._renderItem(item)).join('');
 
         document.body.appendChild(dropdown);

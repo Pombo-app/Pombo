@@ -128,7 +128,7 @@ class OnlineUsersUI {
                 // Create dropdown and append to body for proper positioning
                 const dropdown = document.createElement('div');
                 dropdown.id = 'user-dropdown-menu';
-                dropdown.className = 'fixed bg-[#16161b] border border-overlay-10 rounded-xl shadow-xl py-1 z-[9999] min-w-[160px]';
+                dropdown.className = 'fixed bg-surface-raised border border-overlay-10 rounded-xl shadow-xl py-1 z-[9999] min-w-[160px]';
                 
                 const safeAddress = escapeAttr(address);
                 

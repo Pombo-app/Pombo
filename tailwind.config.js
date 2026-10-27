@@ -25,6 +25,14 @@ module.exports = {
         'surface': {
           DEFAULT: '#111113',
           raised: '#16161B',
+          1: '#09090B',
+          2: '#0A0A0A',
+          3: '#0B0B0E',
+          4: '#0E0E10',
+          5: '#0F0F12',
+          8: '#18181B',
+          9: '#1A1A1A',
+          10: '#1E1E1E',
         },
         // White at N % opacity
         'overlay': {
