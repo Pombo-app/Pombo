@@ -76,13 +76,13 @@ class SettingsUI {
         modal.innerHTML = `
             <div class="bg-[#111113] rounded-2xl w-[300px] overflow-hidden shadow-2xl border border-white/[0.06]">
                 <div class="px-5 pt-5 pb-2">
-                    <h3 class="text-[14px] font-medium text-white">${_escapeHtml(title)}</h3>
+                    <h3 class="text-[14px] font-medium text-primary">${_escapeHtml(title)}</h3>
                     <p class="text-[11px] text-white/30 mt-0.5">${_escapeHtml(subtitle)}</p>
                 </div>
                 <div class="px-5 pb-5 pt-3">
                     <div class="flex items-center justify-between mb-1.5">
                         <span class="text-[10px] text-white/30">Progress</span>
-                        <span class="text-[10px] font-medium text-white" id="progress-label">0%</span>
+                        <span class="text-[10px] font-medium text-primary" id="progress-label">0%</span>
                     </div>
                     <div class="h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
                         <div id="progress-bar" class="h-full bg-white transition-all duration-300 ease-out" style="width: 0%"></div>
@@ -892,7 +892,7 @@ class SettingsUI {
                         ensHint.className = 'text-xs text-blue-400 mt-2 flex items-center gap-1';
                         this.elements.settingsUsername.parentNode.appendChild(ensHint);
                     }
-                    ensHint.innerHTML = '<svg class="inline-block" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#4ade80" stroke-width="2" fill="none"/><path d="M7.5 12.5l3 3 6-6.5" stroke="#4ade80" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> ENS Verified';
+                    ensHint.innerHTML = '<svg class="inline-block" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" style="stroke:var(--pombo-success)" stroke-width="2" fill="none"/><path d="M7.5 12.5l3 3 6-6.5" style="stroke:var(--pombo-success)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> ENS Verified';
                     ensHint.classList.remove('hidden');
                     // Hide the default hint
                     const defaultHint = this.elements.settingsUsername.parentNode.querySelector('p.text-white\\/30');
@@ -1143,7 +1143,7 @@ class SettingsUI {
         this.elements.settingsTabs?.forEach(tab => {
             const isActive = tab.dataset.settingsTab === tabName;
             tab.classList.toggle('bg-white/10', isActive);
-            tab.classList.toggle('text-white', isActive);
+            tab.classList.toggle('text-primary', isActive);
             tab.classList.toggle('text-white/60', !isActive);
         });
 
@@ -1214,7 +1214,7 @@ class SettingsUI {
         const ok = this.graphAPI.lastQueryOk;
         const dot = ok === null ? 'bg-white/20' : (ok ? 'bg-green-500' : 'bg-red-500');
         const label = ok === null ? 'Not checked' : (ok ? 'OK' : 'Not responding');
-        const labelColor = ok === null ? '' : (ok ? 'text-green-400' : 'text-red-400');
+        const labelColor = ok === null ? '' : (ok ? 'text-success' : 'text-danger');
         const key = this.graphAPI.isUsingDefaultKey()
             ? '<span class="align-middle text-white/30 ml-2">Using default key (rate limited)</span>'
             : '<span class="align-middle text-white/30 ml-2">Using your own key</span>';
@@ -1388,8 +1388,8 @@ class SettingsUI {
                 <div class="bg-[#111113] rounded-2xl w-[360px] overflow-hidden shadow-2xl border border-white/[0.06]">
                     <div class="px-5 pt-5 pb-3">
                         <div class="flex items-center justify-between">
-                            <h3 class="text-[15px] font-medium text-white">${safeTitle}</h3>
-                            <button id="close-modal" class="text-white/30 hover:text-white transition p-1 -mr-1">
+                            <h3 class="text-[15px] font-medium text-primary">${safeTitle}</h3>
+                            <button id="close-modal" class="text-white/30 hover:text-primary transition p-1 -mr-1">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
                                 </svg>
@@ -1400,9 +1400,9 @@ class SettingsUI {
                     <div class="px-5 pb-4 space-y-3">
                         <div class="relative">
                             <input type="password" id="password-input" placeholder="Password"
-                                class="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-2.5 text-[13px] text-white placeholder-white/25 focus:outline-none focus:border-white/[0.15] transition"
+                                class="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-2.5 text-[13px] text-primary placeholder-white/25 focus:outline-none focus:border-white/[0.15] transition"
                                 autocomplete="off">
-                            <button id="toggle-visibility" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white transition">
+                            <button id="toggle-visibility" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-primary transition">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
@@ -1412,14 +1412,14 @@ class SettingsUI {
                         ${requireConfirm ? `
                         <div class="relative">
                             <input type="password" id="password-confirm" placeholder="Confirm password"
-                                class="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-2.5 text-[13px] text-white placeholder-white/25 focus:outline-none focus:border-white/[0.15] transition"
+                                class="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-2.5 text-[13px] text-primary placeholder-white/25 focus:outline-none focus:border-white/[0.15] transition"
                                 autocomplete="off">
                         </div>
                         ` : ''}
                         <p id="password-error" class="text-[11px] text-red-500 hidden"></p>
                     </div>
                     <div class="px-5 pb-5 flex gap-2">
-                        <button id="pw-cancel" class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] text-white text-[13px] font-medium py-2.5 rounded-xl transition border border-white/[0.08]">
+                        <button id="pw-cancel" class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] text-primary text-[13px] font-medium py-2.5 rounded-xl transition border border-white/[0.08]">
                             Cancel
                         </button>
                         <button id="pw-confirm" class="flex-1 bg-white hover:bg-[#f0f0f0] text-black text-[13px] font-medium py-2.5 rounded-lg transition">
@@ -1666,11 +1666,11 @@ class SettingsUI {
             const host = (url || '').replace(/^https:\/\//, '');
             const health = row.on && url ? rpcHealth.verdict(url) : null;
             const healthLine = health && health.ok === false
-                ? `<div class="text-[11px] text-red-400/80">${fallback ? 'failing' : 'excluded'}: ${_escapeHtml(describeVerdict(health))} at ${new Date(health.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>`
+                ? `<div class="text-[11px] text-danger/80">${fallback ? 'failing' : 'excluded'}: ${_escapeHtml(describeVerdict(health))} at ${new Date(health.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>`
                 : '';
 
             const remove = isCustom
-                ? `<button class="rpc-row-remove shrink-0 text-white/30 hover:text-red-400/90 px-1 rounded transition" title="Remove">
+                ? `<button class="rpc-row-remove shrink-0 text-white/30 hover:text-danger/90 px-1 rounded transition" title="Remove">
                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
                    </button>`
                 : '';
@@ -1680,7 +1680,7 @@ class SettingsUI {
                     <input type="checkbox" class="rpc-row-check w-3.5 h-3.5 accent-white rounded shrink-0" ${row.on ? 'checked' : ''} />
                     <div class="min-w-0 flex-1">
                         <div class="flex items-baseline gap-2">
-                            <span class="rpc-row-name text-sm ${row.on ? 'text-white' : 'text-white/50'}">${_escapeHtml(name)}</span>
+                            <span class="rpc-row-name text-sm ${row.on ? 'text-primary' : 'text-white/50'}">${_escapeHtml(name)}</span>
                             <span class="text-[11px] text-white/25 truncate">${_escapeHtml(host)}</span>
                         </div>
                         ${healthLine}
@@ -1704,7 +1704,7 @@ class SettingsUI {
         row.classList.toggle('border-white/15', on);
         row.classList.toggle('border-white/5', !on);
         const label = row.querySelector('.rpc-row-name');
-        label?.classList.toggle('text-white', on);
+        label?.classList.toggle('text-primary', on);
         label?.classList.toggle('text-white/50', !on);
     }
 
@@ -1715,7 +1715,7 @@ class SettingsUI {
             return '<span class="text-yellow-400/80 animate-pulse">testing</span>';
         }
         if (probe.state === 'ok') {
-            return `<span class="text-green-400">${probe.ms} ms</span>`;
+            return `<span class="text-success">${probe.ms} ms</span>`;
         }
         if (probe.state === 'wrongchain') {
             return '<span class="text-yellow-400">not Polygon</span>';
@@ -1726,7 +1726,7 @@ class SettingsUI {
         if (probe.state === 'refused') {
             return '<span class="text-yellow-400">refused</span>';
         }
-        return '<span class="text-red-400">no answer</span>';
+        return '<span class="text-danger">no answer</span>';
     }
 
     /** Say why an action was turned down, where the status already is. */
@@ -1759,15 +1759,15 @@ class SettingsUI {
 
         let html;
         if (this.rpcNotice) {
-            html = dot('bg-red-500', this.rpcNotice, 'text-red-400');
+            html = dot('bg-red-500', this.rpcNotice, 'text-danger');
         } else if (this.rpcTesting) {
             html = dot('bg-yellow-400 animate-pulse', 'Testing...', 'text-yellow-400');
         } else if (tested.length === 0) {
             html = dot('bg-white/20', 'Not tested', '');
         } else if (working.length === 0) {
-            html = dot('bg-red-500', 'Not connected', 'text-red-400');
+            html = dot('bg-red-500', 'Not connected', 'text-danger');
         } else {
-            html = dot('bg-green-500', 'Connected', 'text-green-400');
+            html = dot('bg-green-500', 'Connected', 'text-success');
         }
         const count = selected.length && !this.rpcNotice && !this.rpcTesting
             ? `<span class="align-middle text-white/30 ml-2">${working.length}/${selected.length}</span>`
@@ -2116,7 +2116,7 @@ class SettingsUI {
                             <div class="text-xs text-white/50">${label}</div>
                             <code class="text-xs text-white/70 font-mono truncate block">${safeAddr}</code>
                         </div>
-                        <button data-storage-remove="${_escapeAttr(String(addr))}" class="inbox-storage-remove-btn shrink-0 text-white/40 hover:text-red-400/90 px-2 py-1 rounded transition" title="Remove">
+                        <button data-storage-remove="${_escapeAttr(String(addr))}" class="inbox-storage-remove-btn shrink-0 text-white/40 hover:text-danger/90 px-2 py-1 rounded transition" title="Remove">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
                         </button>
                     </div>
@@ -2124,7 +2124,7 @@ class SettingsUI {
             }).join('');
         } catch (err) {
             this.Logger?.error('Failed to fetch inbox storage info:', err);
-            list.innerHTML = '<div class="text-sm text-red-400/80 px-1">Failed to load storage info</div>';
+            list.innerHTML = '<div class="text-sm text-danger/80 px-1">Failed to load storage info</div>';
         }
     }
 
@@ -2150,7 +2150,7 @@ class SettingsUI {
         this._repairPrimaryAction = mode;
 
         if (mode === 'create') {
-            button.className = 'flex-1 px-5 py-2.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-white border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 inline-flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[#F6851B]/10';
+            button.className = 'flex-1 px-5 py-2.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-primary border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 inline-flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[#F6851B]/10';
             icon.setAttribute('class', 'w-4 h-4');
             icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>';
             label.textContent = 'Create DM Inbox';
@@ -2196,7 +2196,7 @@ class SettingsUI {
             },
             healthy: {
                 icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
-                iconBg: 'bg-green-500/10 text-green-400',
+                iconBg: 'bg-green-500/10 text-success',
                 border: 'border-green-500/10',
                 title: 'Inbox healthy',
                 detail: 'All checks passed'
@@ -2210,7 +2210,7 @@ class SettingsUI {
             },
             error: {
                 icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
-                iconBg: 'bg-red-500/10 text-red-400',
+                iconBg: 'bg-red-500/10 text-danger',
                 border: 'border-red-500/10',
                 title: 'Error',
                 detail: detail || 'Something went wrong'
@@ -2224,7 +2224,7 @@ class SettingsUI {
             },
             repaired: {
                 icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
-                iconBg: 'bg-green-500/10 text-green-400',
+                iconBg: 'bg-green-500/10 text-success',
                 border: 'border-green-500/10',
                 title: 'Repaired',
                 detail: detail || 'All issues fixed'

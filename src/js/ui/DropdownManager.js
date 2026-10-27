@@ -162,8 +162,8 @@ class DropdownManager {
         }
 
         const toneClasses = item.tone === 'danger'
-            ? 'hover:bg-red-500/10 text-white/50 hover:text-red-400'
-            : 'hover:bg-white/5 text-white/70 hover:text-white';
+            ? 'hover:bg-red-500/10 text-white/50 hover:text-danger'
+            : 'hover:bg-white/5 text-white/70 hover:text-primary';
 
         return `
             <button class="dropdown-action w-full text-left px-4 py-2 text-sm transition flex items-center gap-2 ${toneClasses}" data-action="${item.action}">

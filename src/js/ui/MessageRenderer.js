@@ -157,7 +157,7 @@ class MessageRenderer {
      */
     renderImageContent(msg) {
         if (msg?.transport === 'chunked' && msg?.verified?.valid === false) {
-            return `<div class="text-red-400 text-sm">Image failed verification</div>`;
+            return `<div class="text-danger text-sm">Image failed verification</div>`;
         }
 
         let imageData = this.deps.getImage?.(msg.imageId);
@@ -171,7 +171,7 @@ class MessageRenderer {
         if (imageData) {
             const mediaId = this.deps.registerMedia?.(imageData, 'image');
             if (!mediaId) {
-                return `<div class="text-red-400 text-sm">Invalid image data</div>`;
+                return `<div class="text-danger text-sm">Invalid image data</div>`;
             }
             
             return `
@@ -180,7 +180,7 @@ class MessageRenderer {
                          class="max-w-full max-h-60 rounded-lg cursor-pointer object-contain lightbox-trigger" 
                          data-media-id="${mediaId}"
                          alt="Image"/>
-                    <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white p-1 rounded transition opacity-0 group-hover:opacity-100 lightbox-trigger"
+                    <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-primary p-1 rounded transition opacity-0 group-hover:opacity-100 lightbox-trigger"
                             data-media-id="${mediaId}"
                             title="Maximize">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -320,11 +320,11 @@ class MessageRenderer {
         if (fileUrl) {
             action = this.deps.isSaved?.(fileId) ? `
             <div title="Saved" class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] flex items-center justify-center">
-                ${this.iconCheck('w-5 h-5 text-green-400/70')}
+                ${this.iconCheck('w-5 h-5 text-success/70')}
             </div>` : `
             <a href="${fileUrl}" download="${attrFileName}" title="Save file"
                class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] hover:bg-white/[0.14] flex items-center justify-center transition">
-                ${this.iconFloppy('w-5 h-5 text-green-400/70')}
+                ${this.iconFloppy('w-5 h-5 text-success/70')}
             </a>`;
         } else if (active) {
             action = `
@@ -343,7 +343,7 @@ class MessageRenderer {
         // The name stays a link once the file is here (the floppy is the obvious
         // target; the title link costs nothing)
         const title = fileUrl
-            ? `<a href="${fileUrl}" download="${attrFileName}" class="text-[12px] text-white/80 hover:text-white truncate block" title="${attrFileName}">${safeFileName}</a>`
+            ? `<a href="${fileUrl}" download="${attrFileName}" class="text-[12px] text-white/80 hover:text-primary truncate block" title="${attrFileName}">${safeFileName}</a>`
             : `<div class="text-[12px] text-white/80 truncate" title="${attrFileName}">${safeFileName}</div>`;
 
         return `
@@ -356,7 +356,7 @@ class MessageRenderer {
                             <span data-progress-text="${safeFileId}">${detail}</span>
                             ${seedingStats}
                         </div>
-                        ${(fileUrl && isSeeding) ? `<div class="text-[10px] text-green-400/60 mt-0.5">seeding...</div>` : ''}
+                        ${(fileUrl && isSeeding) ? `<div class="text-[10px] text-success/60 mt-0.5">seeding...</div>` : ''}
                     </div>
                     ${action}
                 </div>
@@ -493,11 +493,11 @@ class MessageRenderer {
         if (fileUrl) {
             action = this.deps.isStorageSaved?.(tid) ? `
             <div title="Saved" class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] flex items-center justify-center">
-                ${this.iconCheck('w-5 h-5 text-green-400/70')}
+                ${this.iconCheck('w-5 h-5 text-success/70')}
             </div>` : `
             <a href="${fileUrl}" download="${attrFileName}" title="Save file"
                class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] hover:bg-white/[0.14] flex items-center justify-center transition">
-                ${this.iconFloppy('w-5 h-5 text-green-400/70')}
+                ${this.iconFloppy('w-5 h-5 text-success/70')}
             </a>`;
         } else if (uploadState) {
             action = `
@@ -529,7 +529,7 @@ class MessageRenderer {
         }
 
         const title = fileUrl
-            ? `<a href="${fileUrl}" download="${attrFileName}" class="text-[12px] text-white/80 hover:text-white truncate block" title="${attrFileName}">${safeFileName}</a>`
+            ? `<a href="${fileUrl}" download="${attrFileName}" class="text-[12px] text-white/80 hover:text-primary truncate block" title="${attrFileName}">${safeFileName}</a>`
             : `<div class="text-[12px] text-white/80 truncate" title="${attrFileName}">${safeFileName}</div>`;
 
         return `
@@ -607,7 +607,7 @@ class MessageRenderer {
                                    playsinline>
                                 <source src="${videoUrl}" type="${safeFileType}">
                             </video>
-                            <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white p-1 rounded transition lightbox-trigger"
+                            <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-primary p-1 rounded transition lightbox-trigger"
                                     data-media-id="${videoMediaId}"
                                     title="Fullscreen">
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -615,7 +615,7 @@ class MessageRenderer {
                                 </svg>
                             </button>
                             ${isSeeding ? `
-                            <div class="absolute bottom-1 left-1 bg-green-600/80 text-white text-[10px] px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                            <div class="absolute bottom-1 left-1 bg-green-600/80 text-primary text-[10px] px-1.5 py-0.5 rounded-full flex items-center gap-1">
                                 <svg class="w-2.5 h-2.5 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
                                     <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
                                 </svg>
@@ -638,17 +638,17 @@ class MessageRenderer {
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/>
                             </svg>
                             <div class="flex-1 min-w-0">
-                                <div class="text-sm text-white truncate">${safeFileName}</div>
+                                <div class="text-sm text-primary truncate">${safeFileName}</div>
                                 <div class="text-[10px] text-yellow-500/80">Format not playable · ${this.formatFileSize(metadata.fileSize)}</div>
                             </div>
-                            <a href="${videoUrl}" download="${safeFileName}" class="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded text-xs flex-shrink-0 transition">
+                            <a href="${videoUrl}" download="${safeFileName}" class="bg-blue-600 hover:bg-blue-500 text-primary px-2.5 py-1 rounded text-xs flex-shrink-0 transition">
                                 Save
                             </a>
                         </div>
                         ${isSeeding ? `
                         <div class="flex items-center gap-1 mt-1 px-0.5">
                             <div class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                            <span class="text-[10px] text-green-400">Seeding</span>
+                            <span class="text-[10px] text-success">Seeding</span>
                         </div>
                         ` : ''}
                     </div>
@@ -704,7 +704,7 @@ class MessageRenderer {
                             data-file-id="${safeFileId}" ${btnDisabled}>
                         <div class="play-btn-container transform group-hover:scale-105 transition-transform">
                             <div class="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30">
-                                <svg class="w-5 h-5 text-white ml-0.5 download-play-icon ${playIconClass}" fill="currentColor" viewBox="0 0 24 24">
+                                <svg class="w-5 h-5 text-primary ml-0.5 download-play-icon ${playIconClass}" fill="currentColor" viewBox="0 0 24 24">
                                     <path d="M8 5v14l11-7z"/>
                                 </svg>
                                 <div class="download-loading-icon ${loadingIconClass}">
@@ -714,13 +714,13 @@ class MessageRenderer {
                         </div>
                     </button>
                     <div data-progress-overlay="${safeFileId}" class="${overlayClass} absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
-                        <div class="text-white text-sm font-medium" data-progress-percent="${safeFileId}">${dlPercent}%</div>
+                        <div class="text-primary text-sm font-medium" data-progress-percent="${safeFileId}">${dlPercent}%</div>
                         <div class="w-2/3 bg-white/10 rounded-full h-1.5 mt-1.5">
                             <div data-progress-fill="${safeFileId}" class="bg-blue-500 h-1.5 rounded-full transition-all duration-300" style="width: ${dlPercent}%"></div>
                         </div>
                         <div class="text-[10px] text-white/30 mt-1" data-progress-text="${safeFileId}">${dlActive ? `${dlReceivedMB} / ${dlTotalMB} MB` : 'Starting...'}</div>
                     </div>
-                    <div class="absolute top-1.5 left-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1">
+                    <div class="absolute top-1.5 left-1.5 bg-black/60 text-primary text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1">
                         <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.553 1.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/>
                         </svg>
@@ -849,7 +849,7 @@ class MessageRenderer {
         const sendStateHtml = sendState === ' message-pending'
             ? '<span class="message-status text-xs text-white/40">sending…</span>'
             : sendState === ' message-failed'
-                ? `<span class="message-status message-status--failed text-xs text-red-400" title="${escapeAttr(msg.failError || '')}">${msg.undelivered ? 'Not delivered' : 'Not sent'}</span><button type="button" class="message-retry text-xs text-red-400" data-msg-id="${escapeAttr(msgId)}">Retry</button>`
+                ? `<span class="message-status message-status--failed text-xs text-danger" title="${escapeAttr(msg.failError || '')}">${msg.undelivered ? 'Not delivered' : 'Not sent'}</span><button type="button" class="message-retry text-xs text-danger" data-msg-id="${escapeAttr(msgId)}">Retry</button>`
                 : '';
 
         return `
@@ -865,7 +865,7 @@ class MessageRenderer {
                         <span class="message-time text-xs text-white/40">${time}</span>
                         ${sendStateHtml}
                     </div>
-                    ${msg.verified && !msg.verified.valid && msg.signature ? '<div class="text-xs text-red-400 mt-1">⚠️ Invalid signature</div>' : ''}
+                    ${msg.verified && !msg.verified.valid && msg.signature ? '<div class="text-xs text-danger mt-1">⚠️ Invalid signature</div>' : ''}
                     <span class="reply-trigger reply-btn" data-msg-id="${escapeAttr(msgId)}" title="Reply"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17l-5-5 5-5"/><path d="M4 12h11a4 4 0 0 1 4 4v4"/></svg></span>
                     <span class="react-trigger react-btn" data-msg-id="${escapeAttr(msgId)}" title="React"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></span>
                 </div>

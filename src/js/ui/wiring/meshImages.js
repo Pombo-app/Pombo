@@ -29,7 +29,7 @@ export function attachMeshImages(ui) {
                      class="max-w-full max-h-60 rounded-lg cursor-pointer object-contain lightbox-trigger" 
                      data-media-id="${mediaId}"
                      alt="Image"/>
-                <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white p-1 rounded transition opacity-0 group-hover:opacity-100 lightbox-trigger"
+                <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-primary p-1 rounded transition opacity-0 group-hover:opacity-100 lightbox-trigger"
                         data-media-id="${mediaId}"
                         title="Maximize">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

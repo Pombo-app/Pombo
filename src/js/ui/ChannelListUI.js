@@ -662,7 +662,7 @@ class ChannelListUI {
      */
     _renderChannelItem(channelViewModel) {
         const countClass = channelViewModel.hasUnread 
-            ? 'text-white bg-[#F6851B]/20 font-medium' 
+            ? 'text-primary bg-[#F6851B]/20 font-medium' 
             : 'text-white/30 bg-white/[0.04]';
 
         const activeClass = channelViewModel.isActive 
@@ -956,11 +956,11 @@ class ChannelListUI {
         if (count > 0) {
             badge.textContent = count >= 30 ? '+30' : count;
             badge.classList.remove('hidden', 'text-white/30', 'bg-white/[0.04]');
-            badge.classList.add('text-white', 'bg-[#F6851B]/20', 'font-medium');
+            badge.classList.add('text-primary', 'bg-[#F6851B]/20', 'font-medium');
         } else {
             badge.textContent = '0';
             badge.classList.add('hidden');
-            badge.classList.remove('text-white', 'bg-[#F6851B]/20', 'font-medium');
+            badge.classList.remove('text-primary', 'bg-[#F6851B]/20', 'font-medium');
             badge.classList.add('text-white/30', 'bg-white/[0.04]');
         }
     }

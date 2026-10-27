@@ -8,7 +8,7 @@ import { getAvatarHtml } from './AvatarGenerator.js';
 import { sanitizeText } from './sanitizer.js';
 import { identityManager } from '../identity.js';
 
-const ENS_BADGE_SVG = `<svg class="inline-block" style="vertical-align: -1px" width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="#4ade80" stroke-width="2" fill="none"/><path d="M7.5 12.5l3 3 6-6.5" stroke="#4ade80" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+const ENS_BADGE_SVG = `<svg class="inline-block" style="vertical-align: -1px" width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" style="stroke:var(--pombo-success)" stroke-width="2" fill="none"/><path d="M7.5 12.5l3 3 6-6.5" style="stroke:var(--pombo-success)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
 
 class OnlineUsersUI {
     constructor() {
@@ -140,7 +140,7 @@ class OnlineUsersUI {
                     <button class="user-action w-full text-left px-3 py-2 hover:bg-white/[0.08] text-sm text-white/60" data-action="add-contact" data-address="${safeAddress}">
                         ➕ Add to Contacts
                     </button>
-                    <button class="user-action w-full text-left px-3 py-2 hover:bg-white/[0.08] text-sm text-red-400" data-action="start-dm" data-address="${safeAddress}">
+                    <button class="user-action w-full text-left px-3 py-2 hover:bg-white/[0.08] text-sm text-danger" data-action="start-dm" data-address="${safeAddress}">
                         💬 Start DM
                     </button>
                     ` : ''}

@@ -86,7 +86,7 @@
             </span>
             <!-- Pombo name -->
             <div class="header-brand-name flex flex-col">
-                <span class="text-[17px] font-extrabold text-white tracking-tight leading-tight">Pombo</span>
+                <span class="text-[17px] font-bold text-primary tracking-tight leading-tight">Pombo</span>
             </div>
         </div>
         <!-- Right side: Wallet controls -->
@@ -94,19 +94,19 @@
             <!-- Guest label (shown alongside Connect button when in guest mode) -->
             <div id="wallet-info" class="text-sm text-white/40 cursor-pointer hover:text-white/80 transition font-mono hidden" title="Click to copy address">Not Connected</div>
             <!-- Connect button (shown when not connected or guest) -->
-            <button id="connect-wallet" class="bg-[#F6851B] hover:bg-[#e5780f] text-white h-9 px-3.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-1.5">
+            <button id="connect-wallet" class="bg-[#F6851B] hover:bg-[#e5780f] text-primary h-9 px-3.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-1.5">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/>
                 </svg>
                 Create Account
             </button>
-            <button id="header-join-id-btn" class="hidden px-4 py-1.5 bg-white/[0.05] hover:bg-white/[0.08] text-white border border-white/[0.08] text-sm font-medium rounded-xl transition-all duration-200 items-center" title="Join by ID">
+            <button id="header-join-id-btn" class="hidden px-4 py-1.5 bg-white/[0.05] hover:bg-white/[0.08] text-primary border border-white/[0.08] text-sm font-medium rounded-xl transition-all duration-200 items-center" title="Join by ID">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5l-3.9 19.5m-2.1-19.5l-3.9 19.5"/>
                 </svg>
             </button>
             <!-- Create Channel button (shown in explore view for authenticated users) -->
-            <button id="header-create-channel-btn" class="hidden px-4 py-1.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-white border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 items-center gap-1.5 hover:shadow-lg hover:shadow-[#F6851B]/10" title="Create Channel">
+            <button id="header-create-channel-btn" class="hidden px-4 py-1.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-primary border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 items-center gap-1.5 hover:shadow-lg hover:shadow-[#F6851B]/10" title="Create Channel">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.5v15m7.5-7.5h-15"/>
                 </svg>
@@ -133,7 +133,7 @@
                     <svg class="w-6 h-6 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7.5L7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5"/>
                     </svg>
-                    <span id="transfers-badge" class="hidden absolute top-[7px] right-[7px] min-w-[16px] h-4 px-1 bg-[#F6851B] rounded-full text-[9px] font-bold text-white flex items-center justify-center">0</span>
+                    <span id="transfers-badge" class="hidden absolute top-[7px] right-[7px] min-w-[16px] h-4 px-1 bg-[#F6851B] rounded-full text-[9px] font-bold text-primary flex items-center justify-center">0</span>
                 </button>
             </div>
             <!-- Wallet: the token balances of this account. Sits beside the
@@ -154,7 +154,7 @@
                     <svg class="w-6 h-6 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"/>
                     </svg>
-                    <span id="notif-bell-badge" class="hidden absolute top-[7px] right-[7px] min-w-[16px] h-4 px-1 bg-[#F6851B] rounded-full text-[9px] font-bold text-white flex items-center justify-center">0</span>
+                    <span id="notif-bell-badge" class="hidden absolute top-[7px] right-[7px] min-w-[16px] h-4 px-1 bg-[#F6851B] rounded-full text-[9px] font-bold text-primary flex items-center justify-center">0</span>
                 </button>
                 <div id="notif-bell-dropdown" class="hidden absolute top-full right-0 mt-1.5 w-[320px] bg-[#16161b] border border-white/[0.1] rounded-xl py-1 shadow-2xl z-50">
                     <div id="notif-invites-section">
@@ -180,7 +180,7 @@
             </div>
             <!-- Desktop: Unified account dropdown (hidden on mobile) -->
             <div id="desktop-account-wrapper" class="hidden md:relative">
-                <button id="desktop-account-btn" class="bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-white/70 hover:text-white px-3 py-0 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2">
+                <button id="desktop-account-btn" class="bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-white/70 hover:text-primary px-3 py-0 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2">
                     <div id="desktop-account-avatar" class="rounded-full overflow-hidden flex-shrink-0" style="width:38px;height:38px"></div>
                     <span id="desktop-account-name" class="max-w-[140px] truncate font-mono text-[14px]">Not Connected</span>
                     <svg class="w-3 h-3 text-white/30 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -202,7 +202,7 @@
                         </svg>
                         <span class="sync-btn-text">Sync Devices</span>
                     </button>
-                    <button id="disconnect-wallet" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-red-400 hover:bg-white/[0.06] transition text-left">
+                    <button id="disconnect-wallet" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-danger hover:bg-white/[0.06] transition text-left">
                         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"/>
                         </svg>
@@ -256,7 +256,7 @@
 
             <!-- DM Inbox Setup Button (hidden by default, shown for non-guests without inbox) -->
             <div id="dm-inbox-setup" class="hidden flex justify-center px-4 pt-3 pb-32 md:pb-3">
-                <button id="open-dm-btn" class="px-5 py-2.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-white border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 inline-flex items-center gap-2 hover:shadow-lg hover:shadow-[#F6851B]/10">
+                <button id="open-dm-btn" class="px-5 py-2.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-primary border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 inline-flex items-center gap-2 hover:shadow-lg hover:shadow-[#F6851B]/10">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                     </svg>
@@ -266,7 +266,7 @@
 
             <!-- New DM Button (hidden by default, shown when inbox is ready) -->
             <div id="dm-new-btn-wrap" class="hidden flex justify-center px-4 pt-3 pb-32 md:pb-3">
-                <button id="new-dm-btn" class="px-5 py-2.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-white border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 inline-flex items-center gap-2 hover:shadow-lg hover:shadow-[#F6851B]/10">
+                <button id="new-dm-btn" class="px-5 py-2.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-primary border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 inline-flex items-center gap-2 hover:shadow-lg hover:shadow-[#F6851B]/10">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.5v15m7.5-7.5h-15"/>
                     </svg>
@@ -290,13 +290,13 @@
 
             <!-- Desktop Sidebar Footer (hidden on mobile, replaced by pill) -->
             <div id="sidebar-footer-desktop" class="p-3 border-t border-white/[0.06] space-y-0.5">
-                <button id="contacts-btn-desktop" class="w-full px-3 py-2.5 rounded-xl text-sm text-white/40 hover:text-white hover:bg-white/[0.06] transition-all duration-200 flex items-center gap-2.5">
+                <button id="contacts-btn-desktop" class="w-full px-3 py-2.5 rounded-xl text-sm text-white/40 hover:text-primary hover:bg-white/[0.06] transition-all duration-200 flex items-center gap-2.5">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"></path>
                     </svg>
                     Contacts
                 </button>
-                <button id="settings-btn-desktop" class="w-full px-3 py-2.5 rounded-xl text-sm text-white/40 hover:text-white hover:bg-white/[0.06] transition-all duration-200 flex items-center gap-2.5">
+                <button id="settings-btn-desktop" class="w-full px-3 py-2.5 rounded-xl text-sm text-white/40 hover:text-primary hover:bg-white/[0.06] transition-all duration-200 flex items-center gap-2.5">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"></path>
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
@@ -309,7 +309,7 @@
 
         <!-- Mobile: Floating Connect button (shown for guests) -->
         <div id="sidebar-connect-float" class="hidden">
-            <button id="sidebar-connect-btn" class="bg-[#F6851B] hover:bg-[#e5780f] text-white px-5 py-2.5 rounded-2xl text-sm font-semibold transition-all duration-200 flex items-center gap-2 shadow-lg shadow-[#F6851B]/25">
+            <button id="sidebar-connect-btn" class="bg-[#F6851B] hover:bg-[#e5780f] text-primary px-5 py-2.5 rounded-2xl text-sm font-semibold transition-all duration-200 flex items-center gap-2 shadow-lg shadow-[#F6851B]/25">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/>
                 </svg>
@@ -367,7 +367,7 @@
             <!-- Chat Header -->
             <div id="chat-header" class="bg-[#0b0b0e] border-b border-white/[0.04] px-2 py-1.5 flex items-center">
                 <!-- Close button (mobile: left side) -->
-                <button id="close-channel-btn" class="hidden p-2 hover:bg-white/10 rounded-xl transition text-white/30 hover:text-white mobile-close-btn" title="Close channel">
+                <button id="close-channel-btn" class="hidden p-2 hover:bg-white/10 rounded-xl transition text-white/30 hover:text-primary mobile-close-btn" title="Close channel">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.75 19.5L8.25 12l7.5-7.5"/>
                     </svg>
@@ -410,20 +410,20 @@
                          view: mobile has its own in the global header
                          (#header-create-channel-btn). components.css owns the
                          visibility rules, so no Tailwind display class here. -->
-                    <button id="explore-join-id-btn" class="px-4 py-2 bg-white/[0.05] hover:bg-white/[0.08] text-white border border-white/[0.08] text-sm font-medium rounded-xl transition-all duration-200 items-center gap-1.5" title="Join by ID">
+                    <button id="explore-join-id-btn" class="px-4 py-2 bg-white/[0.05] hover:bg-white/[0.08] text-primary border border-white/[0.08] text-sm font-medium rounded-xl transition-all duration-200 items-center gap-1.5" title="Join by ID">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5l-3.9 19.5m-2.1-19.5l-3.9 19.5"/>
                         </svg>
                         <span>Join</span>
                     </button>
-                    <button id="new-channel-btn" class="px-4 py-2 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-white border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 items-center gap-1.5 hover:shadow-lg hover:shadow-[#F6851B]/10" title="Create Channel">
+                    <button id="new-channel-btn" class="px-4 py-2 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-primary border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 items-center gap-1.5 hover:shadow-lg hover:shadow-[#F6851B]/10" title="Create Channel">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.5v15m7.5-7.5h-15"/>
                         </svg>
                         <span>Create</span>
                     </button>
                     <!-- Join button (shown in preview mode) -->
-                    <button id="join-channel-btn" class="hidden px-4 py-2 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-white border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-1.5 hover:shadow-lg hover:shadow-[#F6851B]/10" title="Add to My Channels">
+                    <button id="join-channel-btn" class="hidden px-4 py-2 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-primary border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-1.5 hover:shadow-lg hover:shadow-[#F6851B]/10" title="Add to My Channels">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.5v15m7.5-7.5h-15"/>
                         </svg>
@@ -435,13 +435,13 @@
                         </svg>
                     </button>
                     <!-- Channel menu button (mobile: kebab menu on right side) -->
-                    <button id="channel-menu-btn-mobile" class="hidden p-2 hover:bg-white/10 rounded-xl transition text-white/30 hover:text-white mobile-channel-menu-btn" title="Channel options">
+                    <button id="channel-menu-btn-mobile" class="hidden p-2 hover:bg-white/10 rounded-xl transition text-white/30 hover:text-primary mobile-channel-menu-btn" title="Channel options">
                         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
                         </svg>
                     </button>
                     <!-- Close button (desktop: right side) -->
-                    <button id="close-channel-btn-desktop" class="hidden p-2 hover:bg-white/10 rounded-xl transition text-white/30 hover:text-white desktop-close-btn" title="Close channel">
+                    <button id="close-channel-btn-desktop" class="hidden p-2 hover:bg-white/10 rounded-xl transition text-white/30 hover:text-primary desktop-close-btn" title="Close channel">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                         </svg>
@@ -529,7 +529,7 @@
                     
                     <!-- Attach Button -->
                     <div class="relative input-btn-wrapper">
-                        <button id="attach-btn" class="input-button text-white/30 hover:text-white transition" title="Attach">
+                        <button id="attach-btn" class="input-button text-white/30 hover:text-primary transition" title="Attach">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/>
                             </svg>
@@ -538,7 +538,7 @@
                         <div id="attach-menu" class="hidden absolute bottom-12 left-0 bg-[#16161b] border border-white/10 rounded-xl py-1 z-50 min-w-[150px] shadow-xl">
                             <!-- File: opens a transport submenu -->
                             <div class="relative">
-                            <button id="attach-file-btn" class="attach-parent w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm flex items-center gap-2 text-white" aria-haspopup="true" aria-expanded="false">
+                            <button id="attach-file-btn" class="attach-parent w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm flex items-center gap-2 text-primary" aria-haspopup="true" aria-expanded="false">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5A3.375 3.375 0 0 0 10.125 2.25H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
                                 </svg>
@@ -548,14 +548,14 @@
                                 </svg>
                             </button>
                             <div id="attach-file-submenu" class="hidden absolute left-full top-0 ml-1 bg-[#16161b] border border-white/10 rounded-xl py-1 shadow-xl min-w-[150px] z-50">
-                                <button id="send-file-mesh-btn" class="w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm text-white">P2P</button>
-                                <button id="send-file-storage-btn" class="w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm text-white">Storage</button>
+                                <button id="send-file-mesh-btn" class="w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm text-primary">P2P</button>
+                                <button id="send-file-storage-btn" class="w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm text-primary">Storage</button>
                             </div>
                             </div>
 
                             <!-- Video: same transport choice -->
                             <div class="relative">
-                            <button id="attach-video-btn" class="attach-parent w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm flex items-center gap-2 text-white" aria-haspopup="true" aria-expanded="false">
+                            <button id="attach-video-btn" class="attach-parent w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm flex items-center gap-2 text-primary" aria-haspopup="true" aria-expanded="false">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/>
                                 </svg>
@@ -565,13 +565,13 @@
                                 </svg>
                             </button>
                             <div id="attach-video-submenu" class="hidden absolute left-full top-0 ml-1 bg-[#16161b] border border-white/10 rounded-xl py-1 shadow-xl min-w-[150px] z-50">
-                                <button id="send-video-mesh-btn" class="w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm text-white">P2P</button>
-                                <button id="send-video-storage-btn" class="w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm text-white">Storage</button>
+                                <button id="send-video-mesh-btn" class="w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm text-primary">P2P</button>
+                                <button id="send-video-storage-btn" class="w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm text-primary">Storage</button>
                             </div>
                             </div>
 
                             <!-- Image: stored on the channel stream, no transport choice -->
-                            <button id="send-image-btn" class="w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm flex items-center gap-2 text-white">
+                            <button id="send-image-btn" class="w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm flex items-center gap-2 text-primary">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>
                                 </svg>
@@ -581,7 +581,7 @@
                     </div>
                     
                     <!-- Emoji Button -->
-                    <button id="emoji-btn" class="input-button text-white/30 hover:text-white transition input-btn-wrapper" title="Emoji">
+                    <button id="emoji-btn" class="input-button text-white/30 hover:text-primary transition input-btn-wrapper" title="Emoji">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
@@ -602,7 +602,7 @@
                         data-placeholder="Type a message..."
                         spellcheck="true"
                         autocapitalize="sentences"
-                        class="flex-1 bg-white/[0.05] text-white px-4 py-3 rounded-2xl focus:outline-none focus:ring-1 focus:ring-white/10 border border-white/[0.08] text-sm transition-all duration-200 overflow-y-auto min-h-[44px] max-h-[120px] leading-5 break-words whitespace-pre-wrap"
+                        class="flex-1 bg-white/[0.05] text-primary px-4 py-3 rounded-2xl focus:outline-none focus:ring-1 focus:ring-white/10 border border-white/[0.08] text-sm transition-all duration-200 overflow-y-auto min-h-[44px] max-h-[120px] leading-5 break-words whitespace-pre-wrap"
                     ></div>
                     
                     <!-- Send Button: transparent, dark-orange arrow icon -->
@@ -640,7 +640,7 @@
                         <span class="text-[10px] font-medium text-white/30 uppercase tracking-wider">Type</span>
                     </div>
                     <nav class="space-y-1 px-2 flex-1">
-                        <button type="button" data-tab="public" class="channel-tab w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-left transition-all bg-white/10 text-white">
+                        <button type="button" data-tab="public" class="channel-tab w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-left transition-all bg-white/10 text-primary">
                             <svg class="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                             <span>Open</span>
                         </button>
@@ -729,7 +729,7 @@
                                 type="text"
                                 id="channel-name-input"
                                 placeholder="e.g. World News"
-                                class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
+                                class="w-full bg-white/5 border border-white/10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
                             />
                         </div>
 
@@ -748,9 +748,9 @@
                                     data-form-type="other"
                                     spellcheck="false"
                                     style="-webkit-text-security: disc;"
-                                    class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 pr-10 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
+                                    class="w-full bg-white/5 border border-white/10 text-primary px-4 py-3 pr-10 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
                                 />
-                                <button type="button" id="channel-password-toggle" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white transition">
+                                <button type="button" id="channel-password-toggle" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-primary transition">
                                     <svg class="w-4 h-4" id="channel-pw-eye-open" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -781,7 +781,7 @@
                                         data-form-type="other"
                                         spellcheck="false"
                                         style="-webkit-text-security: disc;"
-                                        class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
+                                        class="w-full bg-white/5 border border-white/10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
                                     />
                                 </div>
                             </div>
@@ -795,7 +795,7 @@
                                     id="channel-members-input"
                                     placeholder="0x1234...&#10;0x5678...&#10;0xabcd..."
                                     rows="3"
-                                    class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition resize-none font-mono placeholder:text-white/20"
+                                    class="w-full bg-white/5 border border-white/10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition resize-none font-mono placeholder:text-white/20"
                                 ></textarea>
                             </div>
                         </div>
@@ -805,7 +805,7 @@
                             <div>
                                 <label class="block text-xs font-medium text-white/80 uppercase tracking-wider mb-2">Asset Type</label>
                                 <div class="flex gap-2">
-                                    <button type="button" data-gate-asset="token" class="gate-asset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/10 text-white border border-white/10">
+                                    <button type="button" data-gate-asset="token" class="gate-asset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/10 text-primary border border-white/10">
                                         Token
                                     </button>
                                     <button type="button" data-gate-asset="nft" class="gate-asset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/5 text-white/50 border border-white/5 hover:bg-white/10 hover:text-white/70">
@@ -816,7 +816,7 @@
                             <div>
                                 <label class="block text-xs font-medium text-white/80 uppercase tracking-wider mb-2">Token</label>
                                 <div id="gate-token-presets" class="flex gap-2">
-                                    <button type="button" data-token-preset="pol" class="gate-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/10 text-white border border-white/10">
+                                    <button type="button" data-token-preset="pol" class="gate-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/10 text-primary border border-white/10">
                                         POL
                                     </button>
                                     <button type="button" data-token-preset="usdc" class="gate-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/5 text-white/50 border border-white/5 hover:bg-white/10 hover:text-white/70">
@@ -834,7 +834,7 @@
                                     id="gate-token-input"
                                     placeholder="0x…"
                                     spellcheck="false"
-                                    class="hidden w-full mt-2 bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition font-mono placeholder:text-white/20"
+                                    class="hidden w-full mt-2 bg-white/5 border border-white/10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition font-mono placeholder:text-white/20"
                                 />
                                 <p class="text-xs text-white/30 mt-2" id="gate-token-hint">Gates on the member's native POL balance.</p>
                             </div>
@@ -845,7 +845,7 @@
                                     id="gate-min-balance-input"
                                     placeholder="e.g. 100"
                                     inputmode="decimal"
-                                    class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
+                                    class="w-full bg-white/5 border border-white/10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
                                 />
                                 <p class="text-xs text-white/30 mt-2">Balance a member must hold to read and write.</p>
                             </div>
@@ -859,7 +859,7 @@
                                     <button type="button" data-token-preset="pol" class="paid-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/5 text-white/50 border border-white/5 hover:bg-white/10 hover:text-white/70">
                                         POL
                                     </button>
-                                    <button type="button" data-token-preset="usdc" class="paid-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/10 text-white border border-white/10">
+                                    <button type="button" data-token-preset="usdc" class="paid-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/10 text-primary border border-white/10">
                                         USDC
                                     </button>
                                     <button type="button" data-token-preset="data" class="paid-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/5 text-white/50 border border-white/5 hover:bg-white/10 hover:text-white/70">
@@ -874,7 +874,7 @@
                                     id="paid-token-input"
                                     placeholder="0x… (e.g. USDC)"
                                     spellcheck="false"
-                                    class="hidden w-full mt-2 bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition font-mono placeholder:text-white/20"
+                                    class="hidden w-full mt-2 bg-white/5 border border-white/10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition font-mono placeholder:text-white/20"
                                 />
                                 <p class="text-xs text-white/30 mt-2" id="paid-token-hint">Subscribers pay in USDC.</p>
                             </div>
@@ -886,7 +886,7 @@
                                         id="paid-price-input"
                                         placeholder="e.g. 5"
                                         inputmode="decimal"
-                                        class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
+                                        class="w-full bg-white/5 border border-white/10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
                                     />
                                 </div>
                                 <div class="flex-1">
@@ -896,7 +896,7 @@
                                         id="paid-duration-input"
                                         value="30"
                                         min="1"
-                                        class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
+                                        class="w-full bg-white/5 border border-white/10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
                                     />
                                 </div>
                             </div>
@@ -908,7 +908,7 @@
                             <div class="flex gap-2">
                                 <label class="flex-1 cursor-pointer">
                                     <input type="radio" name="author-visibility" id="gate-wire-identity-sealed" class="peer sr-only" checked>
-                                    <span class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/5 text-white/50 border border-white/5 peer-checked:bg-white/10 peer-checked:text-white peer-checked:border-white/10">
+                                    <span class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/5 text-white/50 border border-white/5 peer-checked:bg-white/10 peer-checked:text-primary peer-checked:border-white/10">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
                                         Sealed
                                     </span>
@@ -936,13 +936,13 @@
                                     placeholder="What's this channel about?"
                                     rows="2"
                                     maxlength="200"
-                                    class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition resize-none placeholder:text-white/20"
+                                    class="w-full bg-white/5 border border-white/10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition resize-none placeholder:text-white/20"
                                 ></textarea>
                             </div>
                             <div class="flex gap-3">
                                 <div class="flex-1">
                                     <label class="block text-xs font-medium text-white/40 uppercase tracking-wider mb-2">Language</label>
-                                    <select id="channel-language-input" class="w-full bg-white/[0.05] border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition cursor-pointer">
+                                    <select id="channel-language-input" class="w-full bg-white/[0.05] border border-white/10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition cursor-pointer">
                                         <option value="en">English</option>
                                         <option value="pt">Português</option>
                                         <option value="es">Español</option>
@@ -959,7 +959,7 @@
                                 </div>
                                 <div class="flex-1">
                                     <label class="block text-xs font-medium text-white/40 uppercase tracking-wider mb-2">Category</label>
-                                    <select id="channel-category-input" class="w-full bg-white/[0.05] border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition cursor-pointer">
+                                    <select id="channel-category-input" class="w-full bg-white/[0.05] border border-white/10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition cursor-pointer">
                                         <option value="politics">Politics</option>
                                         <option value="news">News</option>
                                         <option value="tech">Tech & AI</option>
@@ -1008,7 +1008,7 @@
                         <div id="storage-section" class="space-y-3">
                             <label class="block text-xs font-medium text-white/80 uppercase tracking-wider">Storage Provider</label>
                             <div class="flex gap-2">
-                                <button type="button" data-storage="streamr" class="storage-provider-tab flex-1 px-3 py-2.5 rounded-lg text-xs font-medium transition bg-white/10 text-white border border-white/10">
+                                <button type="button" data-storage="streamr" class="storage-provider-tab flex-1 px-3 py-2.5 rounded-lg text-xs font-medium transition bg-white/10 text-primary border border-white/10">
                                     <div class="flex items-center gap-2 justify-center">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
                                         <span>Pombo</span>
@@ -1033,8 +1033,8 @@
                             <!-- Custom Address Input (hidden by default) -->
                             <div id="custom-address-section" class="hidden mt-3">
                                 <label for="custom-storage-address" class="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">Storage Cluster</label>
-                                <input type="text" id="custom-storage-address" placeholder="0x..." spellcheck="false" autocomplete="off" class="w-full px-3 py-2 text-xs font-mono bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/20 focus:outline-none focus:border-white/20 transition">
-                                <p id="custom-storage-address-error" class="hidden text-[11px] text-red-400 mt-1.5"></p>
+                                <input type="text" id="custom-storage-address" placeholder="0x..." spellcheck="false" autocomplete="off" class="w-full px-3 py-2 text-xs font-mono bg-white/5 border border-white/10 rounded-lg text-primary placeholder-white/20 focus:outline-none focus:border-white/20 transition">
+                                <p id="custom-storage-address-error" class="hidden text-[11px] text-danger mt-1.5"></p>
                             </div>
 
                             <!-- Storage Days slider -->
@@ -1064,7 +1064,7 @@
                             <div class="border-t border-white/5 mb-5"></div>
                             <label class="block text-xs font-medium text-white/80 uppercase tracking-wider mb-2">Classification</label>
                             <div class="flex gap-2">
-                                <button type="button" data-classification="personal" class="classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/10 text-white border border-white/10">
+                                <button type="button" data-classification="personal" class="classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/10 text-primary border border-white/10">
                                     Personal
                                 </button>
                                 <button type="button" data-classification="community" class="classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/5 text-white/50 border border-white/5 hover:bg-white/10 hover:text-white/70">
@@ -1127,7 +1127,7 @@
                         <div class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
                             <svg class="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
                         </div>
-                        <h4 class="text-sm font-medium text-white">Pombo Storage</h4>
+                        <h4 class="text-sm font-medium text-primary">Pombo Storage</h4>
                     </div>
                     <p class="text-sm text-white/40 leading-relaxed">
                         Official Pombo storage cluster with configurable retention. Messages are stored with a configurable Time-To-Live (TTL) from 1 to 365 days. After expiration, messages are automatically purged.
@@ -1159,7 +1159,7 @@
                         <div class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
                             <svg class="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
                         </div>
-                        <h4 class="text-sm font-medium text-white">Custom Storage Provider</h4>
+                        <h4 class="text-sm font-medium text-primary">Custom Storage Provider</h4>
                     </div>
                     <p class="text-sm text-white/40 leading-relaxed">
                         Bring your own Streamr-compatible storage node or cluster. Provide the node's on-chain address and Pombo will register your stream against it. TTL behavior depends on your node's configuration. Use this to self-host history, route to a private cluster, or experiment with third-party storage providers.
@@ -1188,7 +1188,7 @@
 
             <!-- Footer -->
             <div class="px-5 md:px-6 py-4 pb-safe border-t border-white/5 bg-[#0a0a0a] flex-shrink-0">
-                <button id="close-storage-info-btn-footer" class="w-full px-5 py-2.5 rounded-xl text-sm font-medium bg-white/10 text-white hover:bg-white/15 transition">
+                <button id="close-storage-info-btn-footer" class="w-full px-5 py-2.5 rounded-xl text-sm font-medium bg-white/10 text-primary hover:bg-white/15 transition">
                     Got it
                 </button>
             </div>
@@ -1198,7 +1198,7 @@
     <!-- Modal: New DM -->
     <div id="new-dm-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
         <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-white/[0.06]">
-            <h3 class="text-base font-medium mb-4 text-white">New DM</h3>
+            <h3 class="text-base font-medium mb-4 text-primary">New DM</h3>
 
             <div class="space-y-3">
                 <div>
@@ -1208,7 +1208,7 @@
                         id="dm-address-input"
                         placeholder="0x... or name.eth"
                         autocomplete="off"
-                        class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
+                        class="w-full bg-white/[0.05] border border-white/[0.08] text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
                     />
                 </div>
 
@@ -1220,7 +1220,7 @@
                         placeholder="e.g. Alice"
                         autocomplete="off"
                         maxlength="30"
-                        class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
+                        class="w-full bg-white/[0.05] border border-white/[0.08] text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
                     />
                     <p class="text-sm text-white/25 mt-1">Stored locally, only visible to you</p>
                 </div>
@@ -1284,7 +1284,7 @@
                     <div id="dm-storage-section" class="space-y-3">
                         <label class="block text-xs font-medium text-white/80 uppercase tracking-wider">Storage Provider</label>
                         <div class="flex gap-2">
-                            <button type="button" data-dm-storage="streamr" class="dm-storage-provider-tab flex-1 px-3 py-2.5 rounded-lg text-xs font-medium transition bg-white/10 text-white border border-white/10">
+                            <button type="button" data-dm-storage="streamr" class="dm-storage-provider-tab flex-1 px-3 py-2.5 rounded-lg text-xs font-medium transition bg-white/10 text-primary border border-white/10">
                                 <div class="flex items-center gap-2 justify-center">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
                                     <span>Pombo</span>
@@ -1309,8 +1309,8 @@
                         <!-- Custom Address Input (hidden by default) -->
                         <div id="dm-custom-address-section" class="hidden mt-3">
                             <label for="dm-custom-storage-address" class="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">Storage Provider</label>
-                            <input type="text" id="dm-custom-storage-address" placeholder="0x… custom storage provider address" spellcheck="false" autocomplete="off" class="w-full px-3 py-2 text-xs font-mono bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/20 focus:outline-none focus:border-white/20 transition">
-                            <p id="dm-custom-storage-address-error" class="hidden text-[11px] text-red-400 mt-1.5"></p>
+                            <input type="text" id="dm-custom-storage-address" placeholder="0x… custom storage provider address" spellcheck="false" autocomplete="off" class="w-full px-3 py-2 text-xs font-mono bg-white/5 border border-white/10 rounded-lg text-primary placeholder-white/20 focus:outline-none focus:border-white/20 transition">
+                            <p id="dm-custom-storage-address-error" class="hidden text-[11px] text-danger mt-1.5"></p>
                         </div>
 
                         <!-- Storage Days slider -->
@@ -1358,8 +1358,8 @@
     <div id="join-channel-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[110]">
         <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-white/[0.06]">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-base font-medium text-white">Join a channel</h3>
-                <button type="button" id="cancel-join-btn" class="w-8 h-8 -mr-1.5 flex items-center justify-center rounded-full text-white/50 hover:text-white hover:bg-white/[0.06] transition" title="Close">
+                <h3 class="text-base font-medium text-primary">Join a channel</h3>
+                <button type="button" id="cancel-join-btn" class="w-8 h-8 -mr-1.5 flex items-center justify-center rounded-full text-white/50 hover:text-primary hover:bg-white/[0.06] transition" title="Close">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
@@ -1375,7 +1375,7 @@
                         placeholder="0x…/name-1"
                         autocomplete="off"
                         spellcheck="false"
-                        class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2.5 rounded-xl text-sm placeholder-white/25 focus:outline-none focus:border-white/[0.15] transition"
+                        class="w-full bg-white/[0.05] border border-white/[0.08] text-primary px-3 py-2.5 rounded-xl text-sm placeholder-white/25 focus:outline-none focus:border-white/[0.15] transition"
                     />
                 </div>
 
@@ -1392,9 +1392,9 @@
                             data-form-type="other"
                             spellcheck="false"
                             style="-webkit-text-security: disc;"
-                            class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
+                            class="w-full bg-white/[0.05] border border-white/[0.08] text-primary px-3 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
                         />
-                        <button type="button" id="join-password-toggle" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white transition">
+                        <button type="button" id="join-password-toggle" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-primary transition">
                             <svg class="w-4 h-4" id="join-pw-eye-open" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -1413,7 +1413,7 @@
                         id="join-local-name-input"
                         placeholder="e.g. Notícias"
                         autocomplete="off"
-                        class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2.5 rounded-xl text-sm placeholder-white/25 focus:outline-none focus:border-white/[0.15] transition"
+                        class="w-full bg-white/[0.05] border border-white/[0.08] text-primary px-3 py-2.5 rounded-xl text-sm placeholder-white/25 focus:outline-none focus:border-white/[0.15] transition"
                     />
                     <p class="text-xs text-white/25 mt-1.5">Stored locally only. Channels with a public name keep it.</p>
                 </div>
@@ -1424,7 +1424,7 @@
                 </div>
             </div>
 
-            <button id="join-btn" disabled class="w-full mt-5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 border border-[#F6851B]/30 text-white text-sm font-medium px-3 py-2.5 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#F6851B]/15">
+            <button id="join-btn" disabled class="w-full mt-5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 border border-[#F6851B]/30 text-primary text-sm font-medium px-3 py-2.5 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#F6851B]/15">
                 Join
             </button>
         </div>
@@ -1433,7 +1433,7 @@
     <!-- Modal: Join Closed Channel (with name + classification) -->
     <div id="join-closed-channel-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
         <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-white/[0.06]">
-            <h3 class="text-base font-medium mb-4 text-white">Join Closed Channel</h3>
+            <h3 class="text-base font-medium mb-4 text-primary">Join Closed Channel</h3>
 
             <div class="space-y-4">
                 <div>
@@ -1443,7 +1443,7 @@
                         id="join-closed-stream-id-input"
                         placeholder="0x.../channel_abc123"
                         autocomplete="off"
-                        class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
+                        class="w-full bg-white/[0.05] border border-white/[0.08] text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
                     />
                 </div>
 
@@ -1454,7 +1454,7 @@
                         id="join-closed-name-input"
                         placeholder="Give this channel a name..."
                         autocomplete="off"
-                        class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
+                        class="w-full bg-white/[0.05] border border-white/[0.08] text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
                     />
                     <p class="text-xs text-white/25 mt-1">This name is stored locally only</p>
                 </div>
@@ -1462,7 +1462,7 @@
                 <div id="join-classification-section">
                     <label class="block text-sm text-white/30 mb-2 uppercase tracking-wide">Classification</label>
                     <div class="flex gap-2">
-                        <button type="button" data-join-classification="personal" class="join-classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/10 text-white border border-white/10">
+                        <button type="button" data-join-classification="personal" class="join-classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/10 text-primary border border-white/10">
                             Personal
                         </button>
                         <button type="button" data-join-classification="community" class="join-classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-white/5 text-white/50 border border-white/5 hover:bg-white/10 hover:text-white/70">
@@ -1487,7 +1487,7 @@
     <!-- Modal: Ban member (the two enforcement levels, either or both) -->
     <div id="ban-member-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[60]">
         <div class="bg-[#111113] rounded-2xl p-5 w-[380px] max-w-full mx-4 border border-white/[0.06]">
-            <h3 class="text-base font-medium mb-4 text-white">Ban <span id="ban-member-label" class="font-mono text-sm text-white/70"></span></h3>
+            <h3 class="text-base font-medium mb-4 text-primary">Ban <span id="ban-member-label" class="font-mono text-sm text-white/70"></span></h3>
 
             <div class="space-y-2.5">
                 <label id="ban-level-client-row" class="flex gap-3 p-3 bg-white/[0.04] rounded-xl cursor-pointer">
@@ -1517,7 +1517,7 @@
                 <button id="cancel-ban-member-btn" class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 text-sm font-medium px-3 py-2.5 rounded-xl transition">
                     Cancel
                 </button>
-                <button id="confirm-ban-member-btn" class="flex-1 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-400 text-sm font-medium px-3 py-2.5 rounded-xl transition">
+                <button id="confirm-ban-member-btn" class="flex-1 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-danger text-sm font-medium px-3 py-2.5 rounded-xl transition">
                     Ban
                 </button>
             </div>
@@ -1527,12 +1527,12 @@
     <!-- Modal: Gate Entry (Gated/Paid channels — requirement, standing, pay/enter) -->
     <div id="gate-entry-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
         <div class="bg-[#111113] rounded-2xl p-5 w-[380px] max-w-full mx-4 border border-white/[0.06]">
-            <h3 id="gate-entry-title" class="text-base font-medium text-center text-white">Join Gated Channel</h3>
+            <h3 id="gate-entry-title" class="text-base font-medium text-center text-primary">Join Gated Channel</h3>
 
             <!-- Access stack: same anatomy as the Explore cards -->
             <div id="gate-entry-stack" class="hidden mt-5 text-center">
                 <p id="gate-entry-verb" class="text-[10px] uppercase tracking-[0.2em] text-white/40"></p>
-                <p id="gate-entry-value" class="text-xl font-semibold text-white mt-1"></p>
+                <p id="gate-entry-value" class="text-xl font-semibold text-primary mt-1"></p>
                 <p id="gate-entry-qualifier" class="text-xs text-white/40 mt-1"></p>
             </div>
             <p id="gate-entry-condition" class="mt-5 text-sm text-white/70 text-center leading-relaxed">Loading…</p>
@@ -1559,14 +1559,14 @@
     <!-- Modal: Invite Users -->
     <div id="invite-users-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
         <div class="bg-[#111113] rounded-2xl p-5 w-[380px] max-w-full mx-4 border border-white/[0.06]">
-            <h3 class="text-base font-medium mb-4 text-white">Invite to Channel</h3>
+            <h3 class="text-base font-medium mb-4 text-primary">Invite to Channel</h3>
 
             <!-- Tabs -->
             <div class="flex bg-white/[0.05] rounded-xl p-1 gap-1 mb-4">
                 <button type="button" data-invite-tab="link" class="invite-tab flex-1 text-sm py-2 px-3 rounded-lg transition bg-white text-black font-medium">
                     Share Link
                 </button>
-                <button type="button" data-invite-tab="address" class="invite-tab flex-1 text-sm py-2 px-3 rounded-lg transition text-white/50 hover:text-white hover:bg-white/[0.06]">
+                <button type="button" data-invite-tab="address" class="invite-tab flex-1 text-sm py-2 px-3 rounded-lg transition text-white/50 hover:text-primary hover:bg-white/[0.06]">
                     Send to Address
                 </button>
             </div>
@@ -1612,7 +1612,7 @@
                         placeholder="0x... or name.eth"
                         autocomplete="off"
                         spellcheck="false"
-                        class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
+                        class="w-full bg-white/[0.05] border border-white/[0.08] text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
                     />
                 </div>
 
@@ -1675,7 +1675,7 @@
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z"/></svg>
                             <span>Moderation</span>
                         </button>
-                        <button id="danger-tab-btn" data-channel-tab="danger" class="hidden channel-settings-tab w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-left transition-all text-white/60 hover:text-red-400 hover:bg-red-500/5">
+                        <button id="danger-tab-btn" data-channel-tab="danger" class="hidden channel-settings-tab w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-left transition-all text-white/60 hover:text-danger hover:bg-red-500/5">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
                             <span>Delete</span>
                         </button>
@@ -1696,7 +1696,7 @@
                                             <div id="channel-image-preview" class="w-[88px] h-[88px] rounded-full overflow-hidden border border-white/[0.08] bg-white/[0.04] flex items-center justify-center"></div>
                                             <div id="channel-image-controls" class="hidden absolute bottom-0 right-0">
                                                 <input type="file" id="channel-image-input" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden" />
-                                                <button id="channel-image-upload-btn" type="button" class="w-7 h-7 rounded-full bg-[#16161b] border border-white/20 shadow-lg flex items-center justify-center text-white/60 hover:text-white hover:border-white/40 transition" title="Upload image" aria-label="Upload image">
+                                                <button id="channel-image-upload-btn" type="button" class="w-7 h-7 rounded-full bg-[#16161b] border border-white/20 shadow-lg flex items-center justify-center text-white/60 hover:text-primary hover:border-white/40 transition" title="Upload image" aria-label="Upload image">
                                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 7.5m0 0L7.5 12M12 7.5V21"/></svg>
                                                 </button>
                                             </div>
@@ -1712,7 +1712,7 @@
                                         </div>
                                         <!-- Edit input (hidden by default) -->
                                         <div id="channel-name-edit-container" class="hidden mt-2">
-                                            <input type="text" id="channel-settings-name-input" class="w-full bg-white/5 border border-white/10 text-white px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-white/30 transition" placeholder="Enter name">
+                                            <input type="text" id="channel-settings-name-input" class="w-full bg-white/5 border border-white/10 text-primary px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-white/30 transition" placeholder="Enter name">
                                         </div>
                                         <!-- What the channel is: access, announcements, identity on the wire -->
                                         <div id="channel-settings-type" class="mt-2"></div>
@@ -1722,7 +1722,7 @@
                             <!-- Channel Description -->
                             <div id="channel-description-section" class="hidden">
                                 <div id="channel-description-display" class="text-sm text-white/70 bg-white/5 px-3 py-2.5 rounded-lg leading-relaxed"></div>
-                                <textarea id="channel-settings-description-input" rows="3" class="hidden w-full bg-white/5 border border-white/10 text-white px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-white/30 transition resize-none" placeholder="Enter description"></textarea>
+                                <textarea id="channel-settings-description-input" rows="3" class="hidden w-full bg-white/5 border border-white/10 text-primary px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-white/30 transition resize-none" placeholder="Enter description"></textarea>
                             </div>
                             <!-- Edit actions (shown in edit mode, below the description field) -->
                             <div id="channel-edit-actions" class="hidden">
@@ -1735,7 +1735,7 @@
                                 </div>
                                 <div class="flex items-center justify-end gap-2">
                                     <button id="save-channel-name-btn" class="p-2 bg-[#F6851B] hover:bg-[#F6851B]/80 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed" title="Save">
-                                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                     </button>
                                     <button id="cancel-channel-name-btn" class="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed" title="Cancel">
                                         <svg class="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -1767,7 +1767,7 @@
                             <div>
                                 <div class="flex items-center justify-between mb-3">
                                     <label class="text-sm font-medium text-white/40 uppercase tracking-wider">Current Members</label>
-                                    <button id="refresh-members-btn" class="text-sm text-white/60 hover:text-white transition">
+                                    <button id="refresh-members-btn" class="text-sm text-white/60 hover:text-primary transition">
                                         ↻ Refresh
                                     </button>
                                 </div>
@@ -1787,9 +1787,9 @@
                                             type="text"
                                             id="add-member-input"
                                             placeholder="0x... address"
-                                            class="flex-1 bg-white/5 border border-white/10 text-white px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
+                                            class="flex-1 bg-white/5 border border-white/10 text-primary px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
                                         />
-                                        <button id="add-member-btn" class="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-4 py-2.5 rounded-xl text-sm transition">
+                                        <button id="add-member-btn" class="bg-white/10 hover:bg-white/20 text-primary border border-white/20 px-4 py-2.5 rounded-xl text-sm transition">
                                             Add
                                         </button>
                                     </div>
@@ -1805,9 +1805,9 @@
                                                 id="batch-members-input"
                                                 placeholder="Paste addresses (one per line)&#10;0x...&#10;0x...&#10;0x..."
                                                 rows="4"
-                                                class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm font-mono focus:outline-none focus:border-white/30 transition placeholder:text-white/20 resize-none"
+                                                class="w-full bg-white/5 border border-white/10 text-primary px-4 py-3 rounded-xl text-sm font-mono focus:outline-none focus:border-white/30 transition placeholder:text-white/20 resize-none"
                                             ></textarea>
-                                            <button id="batch-add-members-btn" class="w-full bg-white/10 hover:bg-white/20 text-white border border-white/20 px-4 py-2.5 rounded-xl text-sm transition">
+                                            <button id="batch-add-members-btn" class="w-full bg-white/10 hover:bg-white/20 text-primary border border-white/20 px-4 py-2.5 rounded-xl text-sm transition">
                                                 Add All Addresses
                                             </button>
                                         </div>
@@ -1923,7 +1923,7 @@
                                     <p class="text-xs text-white/25">The provider will use the channel's retention period.</p>
                                     <div class="flex items-center gap-2 justify-end">
                                         <button id="channel-storage-add-cancel" class="text-white/60 hover:text-white/90 px-3 py-1.5 rounded-lg text-xs transition">Cancel</button>
-                                        <button id="channel-storage-add-confirm" class="bg-[#F6851B] hover:bg-[#F6851B]/90 text-white px-3 py-1.5 rounded-lg text-xs transition">Add</button>
+                                        <button id="channel-storage-add-confirm" class="bg-[#F6851B] hover:bg-[#F6851B]/90 text-primary px-3 py-1.5 rounded-lg text-xs transition">Add</button>
                                     </div>
                                 </div>
                             </div>
@@ -1981,7 +1981,7 @@
                                     <div id="permissions-section" class="hidden">
                                         <div class="flex items-center justify-between mb-3">
                                             <label class="text-sm font-medium text-white/40 uppercase tracking-wider">Stream Grantees</label>
-                                            <button id="refresh-permissions-btn" class="text-sm text-white/60 hover:text-white transition">
+                                            <button id="refresh-permissions-btn" class="text-sm text-white/60 hover:text-primary transition">
                                                 ↻ Refresh
                                             </button>
                                         </div>
@@ -2049,7 +2049,7 @@
                         <div id="delete-channel-section" class="space-y-4">
                             <div class="p-4 bg-red-500/5 rounded-xl border border-red-500/10">
                                 <h4 class="text-sm font-medium text-white/90 mb-1 flex items-center gap-2">
-                                    <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                                    <svg class="w-4 h-4 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
                                     Delete Channel
                                 </h4>
                                 <div class="p-3 bg-amber-500/5 rounded-xl border border-amber-500/10 mb-4">
@@ -2058,7 +2058,7 @@
                                         <span>Deleting this channel requires on-chain transactions and gas fees. It cannot be reversed.</span>
                                     </p>
                                 </div>
-                                <button id="delete-channel-btn" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-4 py-2.5 rounded-xl text-sm transition">
+                                <button id="delete-channel-btn" class="w-full bg-red-500/10 hover:bg-red-500/20 text-danger border border-red-500/20 px-4 py-2.5 rounded-xl text-sm transition">
                                     Delete Channel Forever
                                 </button>
                             </div>
@@ -2092,12 +2092,12 @@
                                 </span>
                                 <svg class="w-4 h-4 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
                             </button>
-                            <button data-mobile-nav="danger" class="channel-mobile-nav-item w-full flex items-center justify-between px-4 py-4 text-sm text-red-400/90 bg-red-500/[0.06] hover:bg-red-500/[0.10] transition rounded-xl border border-red-500/20">
+                            <button data-mobile-nav="danger" class="channel-mobile-nav-item w-full flex items-center justify-between px-4 py-4 text-sm text-danger/90 bg-red-500/[0.06] hover:bg-red-500/[0.10] transition rounded-xl border border-red-500/20">
                                 <span class="flex items-center gap-3">
-                                    <svg class="w-[18px] h-[18px] text-red-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                                    <svg class="w-[18px] h-[18px] text-danger/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
                                     <span>Delete Channel</span>
                                 </span>
-                                <svg class="w-4 h-4 text-red-400/35" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+                                <svg class="w-4 h-4 text-danger/35" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
                             </button>
                         </div>
                     </div>
@@ -2187,7 +2187,7 @@
             <div class="p-6">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
-                        <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                        <svg class="w-5 h-5 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
                     </div>
                     <h3 class="text-lg font-medium text-white/90">Delete Channel</h3>
                 </div>
@@ -2198,16 +2198,16 @@
                 <p class="text-sm text-white/50 mb-3">
                     This will permanently delete the channel from Streamr. All participants will lose access.
                 </p>
-                <p class="text-xs text-red-400/80 bg-red-500/5 rounded-lg px-3 py-2 flex items-center gap-1.5">
+                <p class="text-xs text-danger/80 bg-red-500/5 rounded-lg px-3 py-2 flex items-center gap-1.5">
                     <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
                     This action cannot be undone.
                 </p>
             </div>
             <div class="flex border-t border-white/5">
-                <button id="cancel-delete-btn" class="flex-1 px-4 py-3 text-sm text-white/60 hover:text-white hover:bg-white/5 transition">
+                <button id="cancel-delete-btn" class="flex-1 px-4 py-3 text-sm text-white/60 hover:text-primary hover:bg-white/5 transition">
                     Cancel
                 </button>
-                <button id="confirm-delete-btn" class="flex-1 px-4 py-3 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 border-l border-white/5 transition">
+                <button id="confirm-delete-btn" class="flex-1 px-4 py-3 text-sm text-danger hover:text-red-300 hover:bg-red-500/10 border-l border-white/5 transition">
                     Delete Forever
                 </button>
             </div>
@@ -2223,8 +2223,8 @@
                 <p id="confirm-dialog-detail" class="hidden text-xs text-white/40 mt-2"></p>
             </div>
             <div class="flex border-t border-white/5">
-                <button id="confirm-dialog-cancel" class="flex-1 px-4 py-3 text-sm text-white/60 hover:text-white hover:bg-white/5 transition">Cancel</button>
-                <button id="confirm-dialog-ok" class="flex-1 px-4 py-3 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 border-l border-white/5 transition">Confirm</button>
+                <button id="confirm-dialog-cancel" class="flex-1 px-4 py-3 text-sm text-white/60 hover:text-primary hover:bg-white/5 transition">Cancel</button>
+                <button id="confirm-dialog-ok" class="flex-1 px-4 py-3 text-sm text-danger hover:text-red-300 hover:bg-red-500/10 border-l border-white/5 transition">Confirm</button>
             </div>
         </div>
     </div>
@@ -2286,7 +2286,7 @@
                 <p id="wallet-add-error" class="wallet-add-error hidden"></p>
             </div>
             <div class="px-5 pb-5 pt-2 border-t border-white/5">
-                <button id="wallet-fund-btn" class="w-full mt-3 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-white border border-[#F6851B]/30 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[#F6851B]/10">
+                <button id="wallet-fund-btn" class="w-full mt-3 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-primary border border-[#F6851B]/30 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[#F6851B]/10">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3"/>
                     </svg>
@@ -2425,7 +2425,7 @@
                                         autocomplete="off"
                                         autocapitalize="off"
                                         spellcheck="false"
-                                        class="w-full bg-white/5 border border-white/10 text-white px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
+                                        class="w-full bg-white/5 border border-white/10 text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
                                     />
                                     <p class="text-xs text-white/30 mt-2">Visible to other users</p>
                                 </div>
@@ -2458,7 +2458,7 @@
                                 <p class="text-xs text-white/40 mb-4">Export data to restore on another device</p>
                                 
                                 <div class="grid grid-cols-2 gap-3">
-                                    <button id="export-all-data-btn" class="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-4 py-3 rounded-xl text-sm transition flex items-center justify-center gap-2">
+                                    <button id="export-all-data-btn" class="bg-white/10 hover:bg-white/20 text-primary border border-white/20 px-4 py-3 rounded-xl text-sm transition flex items-center justify-center gap-2">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
                                         Export
                                     </button>
@@ -2593,10 +2593,10 @@
                                         data-lpignore="true"
                                         data-1p-ignore="true"
                                         data-form-type="other"
-                                        class="w-full px-3 py-2 text-xs font-mono bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/20 focus:outline-none focus:border-white/20 transition"
+                                        class="w-full px-3 py-2 text-xs font-mono bg-white/5 border border-white/10 rounded-lg text-primary placeholder-white/20 focus:outline-none focus:border-white/20 transition"
                                     />
                                     <p class="text-xs text-white/25 mt-2">
-                                        Get yours at <a href="https://thegraph.com/studio/apikeys/" target="_blank" class="text-white/60 hover:text-white transition">thegraph.com/studio</a>
+                                        Get yours at <a href="https://thegraph.com/studio/apikeys/" target="_blank" class="text-white/60 hover:text-primary transition">thegraph.com/studio</a>
                                     </p>
                                 </div>
                             </div>
@@ -2629,13 +2629,13 @@
                                         </button>
                                         <div id="rpc-add-form" class="hidden mt-3 p-3 bg-white/[0.03] border border-white/5 rounded-xl">
                                             <input id="rpc-add-url" type="url" placeholder="https://your-rpc-endpoint.com" spellcheck="false" autocomplete="off" class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 font-mono focus:outline-none focus:border-white/30" />
-                                            <p id="rpc-add-error" class="hidden text-[11px] text-red-400 mt-2"></p>
+                                            <p id="rpc-add-error" class="hidden text-[11px] text-danger mt-2"></p>
                                             <p class="text-xs text-white/25 mt-2">Any Polygon JSON-RPC endpoint.</p>
                                         </div>
                                     </div>
 
                                     <div class="flex justify-end mt-4">
-                                        <button id="test-rpc-btn" class="text-xs text-white/60 hover:text-white transition px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10">
+                                        <button id="test-rpc-btn" class="text-xs text-white/60 hover:text-primary transition px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10">
                                             Test all
                                         </button>
                                     </div>
@@ -2692,7 +2692,7 @@
                             <!-- Export Private Key -->
                             <div class="p-4 bg-red-500/5 rounded-xl border border-red-500/10">
                                 <h4 class="text-sm font-medium text-white/90 mb-1 flex items-center gap-2">
-                                    <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/></svg>
+                                    <svg class="w-4 h-4 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/></svg>
                                     Private Key
                                 </h4>
                                 <p class="text-xs text-white/40 mb-4">Anyone with this key has full control of your account</p>
@@ -2707,9 +2707,9 @@
                                         data-lpignore="true"
                                         data-1p-ignore="true"
                                         data-form-type="other"
-                                        class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/20 transition placeholder:text-white/20"
+                                        class="w-full bg-white/5 border border-white/10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/20 transition placeholder:text-white/20"
                                     />
-                                    <button id="unlock-private-key-btn" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-4 py-2.5 rounded-xl text-sm transition">
+                                    <button id="unlock-private-key-btn" class="w-full bg-red-500/10 hover:bg-red-500/20 text-danger border border-red-500/20 px-4 py-2.5 rounded-xl text-sm transition">
                                         Unlock Key
                                     </button>
                                 </div>
@@ -2726,7 +2726,7 @@
                                             <svg class="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                                         </button>
                                     </div>
-                                    <button id="copy-private-key-btn" class="w-full bg-red-600/90 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl text-sm transition relative overflow-hidden">
+                                    <button id="copy-private-key-btn" class="w-full bg-red-600/90 hover:bg-red-600 text-primary px-4 py-2.5 rounded-xl text-sm transition relative overflow-hidden">
                                         <span id="copy-key-text" class="relative z-10">Hold to Copy (2s)</span>
                                         <div id="copy-key-progress" class="absolute inset-0 bg-red-400 opacity-40 transform -translate-x-full transition-transform duration-[2000ms]"></div>
                                     </button>
@@ -2743,7 +2743,7 @@
                             <!-- Delete Account -->
                             <div class="p-4 bg-red-500/5 rounded-xl border border-red-500/10">
                                 <h4 class="text-sm font-medium text-white/90 mb-1 flex items-center gap-2">
-                                    <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                                    <svg class="w-4 h-4 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
                                     Delete Account
                                 </h4>
                                 <p class="text-xs text-white/40 mb-4">Permanently delete this account and all its data</p>
@@ -2758,9 +2758,9 @@
                                         data-lpignore="true"
                                         data-1p-ignore="true"
                                         data-form-type="other"
-                                        class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/20 transition placeholder:text-white/20"
+                                        class="w-full bg-white/5 border border-white/10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/20 transition placeholder:text-white/20"
                                     />
-                                    <button id="verify-delete-account-btn" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-4 py-2.5 rounded-xl text-sm transition">
+                                    <button id="verify-delete-account-btn" class="w-full bg-red-500/10 hover:bg-red-500/20 text-danger border border-red-500/20 px-4 py-2.5 rounded-xl text-sm transition">
                                         Verify Password
                                     </button>
                                 </div>
@@ -2771,7 +2771,7 @@
                                             <strong>Warning:</strong> This will permanently delete your keystore and all associated data (channels, messages, contacts). This action cannot be undone.
                                         </p>
                                     </div>
-                                    <button id="delete-account-btn" class="w-full bg-red-600/90 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl text-sm transition relative overflow-hidden">
+                                    <button id="delete-account-btn" class="w-full bg-red-600/90 hover:bg-red-600 text-primary px-4 py-2.5 rounded-xl text-sm transition relative overflow-hidden">
                                         <span id="delete-account-text" class="relative z-10">Hold to Delete (2s)</span>
                                         <div id="delete-account-progress" class="absolute inset-0 bg-red-400 opacity-40 transform -translate-x-full transition-transform duration-[2000ms]"></div>
                                     </button>
@@ -2788,7 +2788,7 @@
                         <div class="space-y-6">
                             <div>
                                 <h4 class="text-sm font-medium text-white/90 mb-1 flex items-center gap-2">
-                                    <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                                    <svg class="w-4 h-4 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
                                     Blocked Users
                                 </h4>
                                 <p class="text-xs text-white/40 mb-4">Blocked users cannot send you DMs.</p>
@@ -2876,7 +2876,7 @@
                                         </div>
                                         <div class="flex items-center gap-2 justify-end">
                                             <button id="inbox-storage-add-cancel" class="text-white/60 hover:text-white/90 px-3 py-1.5 rounded-lg text-xs transition">Cancel</button>
-                                            <button id="inbox-storage-add-confirm" class="bg-[#F6851B] hover:bg-[#F6851B]/90 text-white px-3 py-1.5 rounded-lg text-xs transition">Add</button>
+                                            <button id="inbox-storage-add-confirm" class="bg-[#F6851B] hover:bg-[#F6851B]/90 text-primary px-3 py-1.5 rounded-lg text-xs transition">Add</button>
                                         </div>
                                     </div>
                                 </div>
@@ -2969,7 +2969,7 @@
                 <svg class="w-4 h-4 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>
                 </svg>
-                <h3 class="text-base font-medium text-white">Contacts</h3>
+                <h3 class="text-base font-medium text-primary">Contacts</h3>
             </div>
             
             <!-- Add new contact -->
@@ -2979,7 +2979,7 @@
                         type="text"
                         id="add-contact-address"
                         placeholder="0x... or ENS name"
-                        class="flex-1 bg-[#09090b] border border-white/[0.08] text-white px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
+                        class="flex-1 bg-[#09090b] border border-white/[0.08] text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
                     />
                     <button id="add-contact-btn" class="bg-white hover:bg-[#f0f0f0] text-black px-3 py-2 rounded-xl text-sm font-medium transition">
                         Add
@@ -2989,7 +2989,7 @@
                     type="text"
                     id="add-contact-nickname"
                     placeholder="Nickname (optional)"
-                    class="w-full mt-2 bg-[#09090b] border border-white/[0.08] text-white px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
+                    class="w-full mt-2 bg-[#09090b] border border-white/[0.08] text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
                 />
             </div>
 
@@ -3007,7 +3007,7 @@
     <!-- Modal: Add Contact Nickname -->
     <div id="add-contact-nickname-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[60]">
         <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-white/[0.06]">
-            <h3 class="text-base font-medium mb-4 text-white">Add Contact</h3>
+            <h3 class="text-base font-medium mb-4 text-primary">Add Contact</h3>
 
             <div class="space-y-3">
                 <div>
@@ -3021,7 +3021,7 @@
                         type="text"
                         id="add-contact-modal-nickname"
                         placeholder="Enter a nickname"
-                        class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
+                        class="w-full bg-white/[0.05] border border-white/[0.08] text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
                     />
                 </div>
             </div>
@@ -3040,7 +3040,7 @@
     <!-- Modal: Edit Contact -->
     <div id="edit-contact-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[60]">
         <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-white/[0.06]">
-            <h3 class="text-base font-medium mb-4 text-white">Edit Contact</h3>
+            <h3 class="text-base font-medium mb-4 text-primary">Edit Contact</h3>
 
             <div class="space-y-3">
                 <div>
@@ -3054,7 +3054,7 @@
                         type="text"
                         id="edit-contact-modal-nickname"
                         placeholder="Update nickname"
-                        class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
+                        class="w-full bg-white/[0.05] border border-white/[0.08] text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-white/[0.15] transition"
                     />
                 </div>
             </div>
@@ -3073,7 +3073,7 @@
     <!-- Modal: Remove Contact Confirmation -->
     <div id="remove-contact-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[60]">
         <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-white/[0.06]">
-            <h3 class="text-base font-medium mb-4 text-white">Remove Contact</h3>
+            <h3 class="text-base font-medium mb-4 text-primary">Remove Contact</h3>
 
             <div class="space-y-3">
                 <p class="text-sm text-white/50">Are you sure you want to remove this contact?</p>
@@ -3084,7 +3084,7 @@
                 <button id="cancel-remove-contact-btn" class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 text-sm font-medium px-3 py-2.5 rounded-xl transition">
                     Cancel
                 </button>
-                <button id="confirm-remove-contact-btn" class="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 text-sm font-medium px-3 py-2.5 rounded-lg transition">
+                <button id="confirm-remove-contact-btn" class="flex-1 bg-red-500/20 hover:bg-red-500/30 text-danger border border-red-500/30 text-sm font-medium px-3 py-2.5 rounded-lg transition">
                     Remove
                 </button>
             </div>
@@ -3110,7 +3110,7 @@
             <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z"/></svg>
             Add to Contacts
         </button>
-        <button id="context-menu-remove-contact-btn" class="context-menu-item w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm text-red-400 flex items-center gap-2" data-action="remove-contact">
+        <button id="context-menu-remove-contact-btn" class="context-menu-item w-full text-left px-4 py-2 hover:bg-white/[0.08] text-sm text-danger flex items-center gap-2" data-action="remove-contact">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M22 10.5h-6m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z"/></svg>
             Remove from Contacts
         </button>
@@ -3119,7 +3119,7 @@
             <svg class="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Edit Message
         </button>
-        <button id="context-menu-delete-btn" class="context-menu-item w-full text-left px-4 py-2 hover:bg-red-500/10 text-sm text-red-400 flex items-center gap-2 hidden" data-action="delete-message">
+        <button id="context-menu-delete-btn" class="context-menu-item w-full text-left px-4 py-2 hover:bg-red-500/10 text-sm text-danger flex items-center gap-2 hidden" data-action="delete-message">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
             Delete Message
         </button>
@@ -3136,20 +3136,20 @@
             <svg class="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
             Unhide Message
         </button>
-        <button id="context-menu-erase-btn" class="context-menu-item w-full text-left px-4 py-2 hover:bg-red-500/10 text-sm text-red-400 flex items-center gap-2 hidden" data-action="erase-message">
+        <button id="context-menu-erase-btn" class="context-menu-item w-full text-left px-4 py-2 hover:bg-red-500/10 text-sm text-danger flex items-center gap-2 hidden" data-action="erase-message">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M10 11v6m4-6v6M5 7l1 12a2 2 0 002 2h8a2 2 0 002-2l1-12M9 7V4h6v3"/></svg>
             Erase from storage
         </button>
-        <button id="context-menu-admin-delete-btn" class="context-menu-item w-full text-left px-4 py-2 hover:bg-red-500/10 text-sm text-red-400 flex items-center gap-2 hidden" data-action="admin-delete-message">
+        <button id="context-menu-admin-delete-btn" class="context-menu-item w-full text-left px-4 py-2 hover:bg-red-500/10 text-sm text-danger flex items-center gap-2 hidden" data-action="admin-delete-message">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
             Hide Message
         </button>
-        <button id="context-menu-ban-btn" class="context-menu-item w-full text-left px-4 py-2 hover:bg-red-500/10 text-sm text-red-400 flex items-center gap-2 hidden" data-action="ban-user">
+        <button id="context-menu-ban-btn" class="context-menu-item w-full text-left px-4 py-2 hover:bg-red-500/10 text-sm text-danger flex items-center gap-2 hidden" data-action="ban-user">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
             Ban User
         </button>
         <hr class="border-white/[0.06] my-1 hidden" id="context-menu-block-divider">
-        <button class="context-menu-item w-full text-left px-4 py-2 hover:bg-red-500/10 text-sm text-red-400 flex items-center gap-2 hidden" data-action="block-user" id="context-menu-block-btn">
+        <button class="context-menu-item w-full text-left px-4 py-2 hover:bg-red-500/10 text-sm text-danger flex items-center gap-2 hidden" data-action="block-user" id="context-menu-block-btn">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
             Block User
         </button>
@@ -3180,7 +3180,7 @@
     <!-- Modal: Media Lightbox -->
     <div id="media-lightbox-modal" class="hidden fixed inset-0 bg-black/95 flex items-center justify-center z-[70]">
         <!-- Close button -->
-        <button id="lightbox-close-btn" class="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full bg-white/10 hover:bg-white/20 transition z-10">
+        <button id="lightbox-close-btn" class="absolute top-4 right-4 text-white/70 hover:text-primary p-2 rounded-full bg-white/10 hover:bg-white/20 transition z-10">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -3196,14 +3196,14 @@
     <!-- Modal: Channel Image Confirm -->
     <div id="channel-image-confirm-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
         <div class="bg-[#111113] rounded-2xl p-5 w-[420px] max-w-full mx-4 border border-white/[0.06]">
-            <h3 class="text-base font-medium mb-4 text-white">Update channel image</h3>
+            <h3 class="text-base font-medium mb-4 text-primary">Update channel image</h3>
             <div class="bg-white/[0.05] rounded-xl p-4 border border-white/[0.08] mb-4 space-y-4">
                 <div id="channel-image-crop-stage" class="relative w-full max-w-[280px] aspect-square mx-auto rounded-full overflow-hidden bg-white/[0.06] border border-white/[0.06] flex items-center justify-center" style="touch-action:none;">
                     <canvas id="channel-image-confirm-preview" width="280" height="280" class="block w-full h-full"></canvas>
                 </div>
                 <div class="flex items-center justify-between gap-3">
                     <p class="text-[11px] text-white/50 leading-relaxed flex-1 min-w-0">Drag to choose the framing and use zoom to control how tightly the image is cropped. Upload stays square at 512×512.</p>
-                    <button type="button" id="channel-image-crop-reset-btn" class="shrink-0 bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 hover:text-white px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition">
+                    <button type="button" id="channel-image-crop-reset-btn" class="shrink-0 bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 hover:text-primary px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition">
                         Reset
                     </button>
                 </div>
@@ -3218,7 +3218,7 @@
                 <span>Encrypt with channel password</span>
             </label>
             <div class="flex gap-3">
-                <button id="cancel-channel-image-btn" class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 hover:text-white px-4 py-2 rounded-xl text-sm font-medium transition">
+                <button id="cancel-channel-image-btn" class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 hover:text-primary px-4 py-2 rounded-xl text-sm font-medium transition">
                     Cancel
                 </button>
                 <button id="confirm-channel-image-btn" class="flex-1 bg-white hover:bg-[#f0f0f0] text-black px-4 py-2 rounded-xl text-sm font-medium transition">
@@ -3231,7 +3231,7 @@
     <!-- Modal: File Confirm -->
     <div id="file-confirm-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
         <div class="bg-[#111113] rounded-2xl p-5 w-[360px] max-w-full mx-4 border border-white/[0.06]">
-            <h3 class="text-base font-medium mb-4 text-white">Confirm Send</h3>
+            <h3 class="text-base font-medium mb-4 text-primary">Confirm Send</h3>
             <div class="bg-white/[0.05] rounded-xl p-4 border border-white/[0.08] mb-4">
                 <div class="flex items-center gap-3">
                     <div id="file-preview-icon" class="w-12 h-12 rounded-xl bg-white/[0.06] flex items-center justify-center">
@@ -3240,13 +3240,13 @@
                         </svg>
                     </div>
                     <div class="flex-1 min-w-0">
-                        <p id="confirm-file-name" class="text-sm text-white truncate">filename.jpg</p>
+                        <p id="confirm-file-name" class="text-sm text-primary truncate">filename.jpg</p>
                         <p id="confirm-file-size" class="text-xs text-white/30">2.5 MB</p>
                     </div>
                 </div>
             </div>
             <div class="flex gap-3">
-                <button id="cancel-file-btn" class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 hover:text-white px-4 py-2 rounded-xl text-sm font-medium transition">
+                <button id="cancel-file-btn" class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 hover:text-primary px-4 py-2 rounded-xl text-sm font-medium transition">
                     Cancel
                 </button>
                 <button id="confirm-file-btn" class="flex-1 bg-white hover:bg-[#f0f0f0] text-black px-4 py-2 rounded-xl text-sm font-medium transition">
@@ -3265,13 +3265,13 @@
         <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
             <div class="bg-[#111113] rounded-2xl w-[300px] overflow-hidden shadow-2xl border border-white/[0.06]" data-modal-content>
                 <div class="px-5 pt-5 pb-2">
-                    <h3 class="text-[14px] font-medium text-white" data-bind="title">Processing...</h3>
+                    <h3 class="text-[14px] font-medium text-primary" data-bind="title">Processing...</h3>
                     <p class="text-[11px] text-white/30 mt-0.5" data-bind="subtitle">Please wait</p>
                 </div>
                 <div class="px-5 pb-5 pt-3">
                     <div class="flex items-center justify-between mb-1.5">
                         <span class="text-[10px] text-white/30">Progress</span>
-                        <span class="text-[10px] font-medium text-white" data-progress-label>0%</span>
+                        <span class="text-[10px] font-medium text-primary" data-progress-label>0%</span>
                     </div>
                     <div class="h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
                         <div data-progress-bar class="h-full bg-white transition-all duration-300 ease-out" style="width: 0%"></div>
@@ -3288,8 +3288,8 @@
             <div class="bg-[#111113] rounded-2xl w-[340px] overflow-hidden shadow-2xl border border-white/[0.06]" data-modal-content>
                 <div class="px-5 pt-5 pb-3">
                     <div class="flex items-center justify-between">
-                        <h3 class="text-[15px] font-medium text-white" data-bind="title">Input</h3>
-                        <button data-close-modal class="text-white/30 hover:text-white transition p-1 -mr-1">
+                        <h3 class="text-[15px] font-medium text-primary" data-bind="title">Input</h3>
+                        <button data-close-modal class="text-white/30 hover:text-primary transition p-1 -mr-1">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
                             </svg>
@@ -3300,9 +3300,9 @@
                 <div class="px-5 pb-4">
                     <div class="relative">
                         <input type="password" data-secure-input 
-                            class="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-2.5 text-[13px] text-white placeholder-white/25 focus:outline-none focus:border-white/[0.15] transition"
+                            class="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-2.5 text-[13px] text-primary placeholder-white/25 focus:outline-none focus:border-white/[0.15] transition"
                             autocomplete="off" spellcheck="false">
-                        <button data-toggle-visibility class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white transition">
+                        <button data-toggle-visibility class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-primary transition">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -3311,7 +3311,7 @@
                     </div>
                 </div>
                 <div class="px-5 pb-5 flex gap-2">
-                    <button data-cancel class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] text-white text-[13px] font-medium py-2.5 rounded-xl transition border border-white/[0.08]">
+                    <button data-cancel class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] text-primary text-[13px] font-medium py-2.5 rounded-xl transition border border-white/[0.08]">
                         Cancel
                     </button>
                     <button data-confirm class="flex-1 bg-white hover:bg-[#f0f0f0] text-black text-[13px] font-medium py-2.5 rounded-lg transition">
@@ -3328,8 +3328,8 @@
             <div class="bg-[#111113] rounded-2xl w-[340px] overflow-hidden shadow-2xl border border-white/[0.06] animate-slideUp" data-modal-content>
                 <div class="px-5 pt-5 pb-3">
                     <div class="flex items-center justify-between">
-                        <h3 class="text-[15px] font-medium text-white">Connect Account</h3>
-                        <button data-close-modal class="text-white/30 hover:text-white transition p-1 -mr-1">
+                        <h3 class="text-[15px] font-medium text-primary">Connect Account</h3>
+                        <button data-close-modal class="text-white/30 hover:text-primary transition p-1 -mr-1">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
                             </svg>
@@ -3341,12 +3341,12 @@
                     <button data-action="create" class="w-full bg-[#F6851B] hover:bg-[#e5780f] rounded-xl p-3.5 text-left transition-all shadow-lg shadow-[#F6851B]/20 hover:shadow-[#F6851B]/30">
                         <div class="flex items-center gap-3">
                             <div class="w-9 h-9 rounded-xl bg-black/20 flex items-center justify-center">
-                                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.5v15m7.5-7.5h-15"/>
                                 </svg>
                             </div>
                             <div>
-                                <p class="text-[14px] font-medium text-white">Create New Account</p>
+                                <p class="text-[14px] font-medium text-primary">Create New Account</p>
                                 <p class="text-[13px] text-white/80">Generate a new private key</p>
                             </div>
                         </div>
@@ -3355,7 +3355,7 @@
                     <button data-action="import" class="w-full bg-white hover:bg-[#f0f0f0] rounded-xl p-3.5 text-left transition-all">
                         <div class="flex items-center gap-3">
                             <div class="w-9 h-9 rounded-xl bg-[#09090b] flex items-center justify-center">
-                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
                                 </svg>
                             </div>
@@ -3387,8 +3387,8 @@
                 <!-- Header -->
                 <div class="px-5 pt-5 pb-3">
                     <div class="flex items-center justify-between">
-                        <h3 class="text-[15px] font-medium text-white">Channel Invite</h3>
-                        <button data-close-modal class="text-white/30 hover:text-white transition p-1 -mr-1">
+                        <h3 class="text-[15px] font-medium text-primary">Channel Invite</h3>
+                        <button data-close-modal class="text-white/30 hover:text-primary transition p-1 -mr-1">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
                             </svg>
@@ -3406,7 +3406,7 @@
                                 </svg>
                             </div>
                             <div class="flex-1 min-w-0">
-                                <div class="text-[14px] font-medium text-white truncate" data-bind="channelName"></div>
+                                <div class="text-[14px] font-medium text-primary truncate" data-bind="channelName"></div>
                                 <div class="text-[12px] text-white/30" data-bind="channelType">Public Channel</div>
                             </div>
                         </div>
@@ -3435,7 +3435,7 @@
                 <div class="flex items-center gap-3">
                     <img src="favicon/favicon.svg" alt="Pombo" class="w-10 h-10">
                     <div>
-                        <h3 class="text-base font-semibold text-white">Install Pombo</h3>
+                        <h3 class="text-base font-semibold text-primary">Install Pombo</h3>
                         <p class="text-xs text-white/40">Works on any device</p>
                     </div>
                 </div>
@@ -3445,13 +3445,13 @@
             </div>
 
             <!-- Native install prompt (Android/Desktop Chrome) -->
-            <button id="install-native-btn" class="hidden w-full bg-[#F6851B] hover:bg-[#e5780f] text-white text-sm font-semibold px-4 py-3 rounded-xl transition shadow-lg shadow-[#F6851B]/20 mb-3 flex items-center justify-center gap-2">
+            <button id="install-native-btn" class="hidden w-full bg-[#F6851B] hover:bg-[#e5780f] text-primary text-sm font-semibold px-4 py-3 rounded-xl transition shadow-lg shadow-[#F6851B]/20 mb-3 flex items-center justify-center gap-2">
                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Install Now
             </button>
 
             <!-- Installed but running in a browser tab → offer to launch PWA -->
-            <button id="install-open-btn" class="hidden w-full bg-[#F6851B] hover:bg-[#e5780f] text-white text-sm font-semibold px-4 py-3 rounded-xl transition shadow-lg shadow-[#F6851B]/20 mb-3 flex items-center justify-center gap-2">
+            <button id="install-open-btn" class="hidden w-full bg-[#F6851B] hover:bg-[#e5780f] text-primary text-sm font-semibold px-4 py-3 rounded-xl transition shadow-lg shadow-[#F6851B]/20 mb-3 flex items-center justify-center gap-2">
                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                 Open Pombo
             </button>
@@ -3500,7 +3500,7 @@
 
                 <!-- Already installed -->
                 <div id="install-done" class="hidden text-center py-2">
-                    <svg class="w-10 h-10 text-green-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <svg class="w-10 h-10 text-success mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     <p class="text-sm text-white/70 font-medium">You're using the installed app</p>
                 </div>
 

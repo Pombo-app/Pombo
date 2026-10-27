@@ -177,7 +177,7 @@ class ContactsUI {
                     <div class="flex items-center gap-3 flex-1 min-w-0">
                         <div class="flex-shrink-0" style="width:36px;height:36px;border-radius:9999px;overflow:hidden;">${avatarHtml}</div>
                         <div class="flex-1 min-w-0">
-                            <span class="text-[13px] font-medium text-white truncate block">${escapeHtml(displayName)}</span>
+                            <span class="text-[13px] font-medium text-primary truncate block">${escapeHtml(displayName)}</span>
                             <div class="text-[10px] text-white/30 font-mono truncate mt-0.5">${escapeHtml(contact.address)}</div>
                         </div>
                     </div>

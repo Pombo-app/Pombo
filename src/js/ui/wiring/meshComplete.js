@@ -46,7 +46,7 @@ export function attachMeshComplete(ui) {
                                     <source src="${url}" type="${safeFileType}">
                                     Your browser does not support this video format.
                                 </video>
-                                <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white p-1 rounded transition lightbox-trigger"
+                                <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-primary p-1 rounded transition lightbox-trigger"
                                         data-media-id="${mediaId}"
                                         title="Fullscreen">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -54,7 +54,7 @@ export function attachMeshComplete(ui) {
                                     </svg>
                                 </button>
                                 ${isSeeding ? `
-                                <div class="absolute bottom-1 left-1 bg-green-600/90 text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <div class="absolute bottom-1 left-1 bg-green-600/90 text-primary text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
                                     <svg class="w-3 h-3 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
                                         <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
                                     </svg>
@@ -92,7 +92,7 @@ export function attachMeshComplete(ui) {
                                                 </svg>
                                                 <span class="text-sm text-white/70">Format not supported</span>
                                             </div>
-                                            <a href="${url}" download="${safeFileName}" class="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center px-3 py-2 rounded-lg text-sm transition">
+                                            <a href="${url}" download="${safeFileName}" class="block w-full bg-blue-600 hover:bg-blue-700 text-primary text-center px-3 py-2 rounded-lg text-sm transition">
                                                 Download ${safeFileName}
                                             </a>
                                         </div>
@@ -112,21 +112,21 @@ export function attachMeshComplete(ui) {
                                     <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/>
                                     </svg>
-                                    <span class="font-medium text-sm truncate text-white">${safeFileName}</span>
+                                    <span class="font-medium text-sm truncate text-primary">${safeFileName}</span>
                                 </div>
                                 <div class="text-xs text-yellow-500 mb-2">
                                     ⚠️ Format not supported in browser (${safeFileType.split('/')[1]?.toUpperCase() || 'video'})
                                 </div>
                                 <div class="flex items-center justify-between">
                                     <span class="text-xs text-white/30">${messageRenderer.formatFileSize(metadata.fileSize)}</span>
-                                    <a href="${url}" download="${safeFileName}" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm transition">
+                                    <a href="${url}" download="${safeFileName}" class="bg-blue-600 hover:bg-blue-700 text-primary px-3 py-1.5 rounded-lg text-sm transition">
                                         Download
                                     </a>
                                 </div>
                                 ${isSeeding ? `
                                 <div class="flex items-center gap-2 mt-2">
                                     <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                    <span class="text-xs text-green-400">Seeding...</span>
+                                    <span class="text-xs text-success">Seeding...</span>
                                 </div>
                                 ` : ''}
                             </div>

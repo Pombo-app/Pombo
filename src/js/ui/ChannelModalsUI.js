@@ -214,7 +214,7 @@ class ChannelModalsUI {
         document.querySelectorAll('.channel-tab').forEach(tab => {
             const isActive = tab.dataset.tab === tabType;
             tab.classList.toggle('bg-white/10', isActive);
-            tab.classList.toggle('text-white', isActive);
+            tab.classList.toggle('text-primary', isActive);
             tab.classList.toggle('text-white/60', !isActive);
             tab.classList.toggle('hover:text-white/90', !isActive);
             tab.classList.toggle('hover:bg-white/5', !isActive);
@@ -273,7 +273,7 @@ class ChannelModalsUI {
         document.querySelectorAll('.gate-asset-tab').forEach(tab => {
             const isActive = tab.dataset.gateAsset === asset;
             tab.classList.toggle('bg-white/10', isActive);
-            tab.classList.toggle('text-white', isActive);
+            tab.classList.toggle('text-primary', isActive);
             tab.classList.toggle('border-white/10', isActive);
             tab.classList.toggle('bg-white/5', !isActive);
             tab.classList.toggle('text-white/50', !isActive);
@@ -314,7 +314,7 @@ class ChannelModalsUI {
         document.querySelectorAll(isGate ? '.gate-token-preset-tab' : '.paid-token-preset-tab').forEach(tab => {
             const isActive = tab.dataset.tokenPreset === key;
             tab.classList.toggle('bg-white/10', isActive);
-            tab.classList.toggle('text-white', isActive);
+            tab.classList.toggle('text-primary', isActive);
             tab.classList.toggle('border-white/10', isActive);
             tab.classList.toggle('bg-white/5', !isActive);
             tab.classList.toggle('text-white/50', !isActive);
@@ -412,7 +412,7 @@ class ChannelModalsUI {
         document.querySelectorAll('.classification-tab').forEach(tab => {
             const isActive = tab.dataset.classification === classification;
             tab.classList.toggle('bg-white/10', isActive);
-            tab.classList.toggle('text-white', isActive);
+            tab.classList.toggle('text-primary', isActive);
             tab.classList.toggle('border-white/10', isActive);
             tab.classList.toggle('bg-white/5', !isActive);
             tab.classList.toggle('text-white/50', !isActive);
@@ -430,7 +430,7 @@ class ChannelModalsUI {
         document.querySelectorAll('.join-classification-tab').forEach(tab => {
             const isActive = tab.dataset.joinClassification === classification;
             tab.classList.toggle('bg-white/10', isActive);
-            tab.classList.toggle('text-white', isActive);
+            tab.classList.toggle('text-primary', isActive);
             tab.classList.toggle('border-white/10', isActive);
             tab.classList.toggle('bg-white/5', !isActive);
             tab.classList.toggle('text-white/50', !isActive);
@@ -489,9 +489,9 @@ class ChannelModalsUI {
         document.querySelectorAll('.storage-provider-tab').forEach(tab => {
             if (tab.dataset.storage === provider) {
                 tab.classList.remove('bg-white/5', 'text-white/50', 'border-white/5');
-                tab.classList.add('bg-white/10', 'text-white', 'border-white/10');
+                tab.classList.add('bg-white/10', 'text-primary', 'border-white/10');
             } else {
-                tab.classList.remove('bg-white/10', 'text-white', 'border-white/10');
+                tab.classList.remove('bg-white/10', 'text-primary', 'border-white/10');
                 tab.classList.add('bg-white/5', 'text-white/50', 'border-white/5');
             }
         });
@@ -518,7 +518,7 @@ class ChannelModalsUI {
         if (!target) return;
         const addr = '0xae340e799e8151f6a4999d245e466197aa217667';
         target.textContent = addr;
-        target.classList.remove('text-red-400');
+        target.classList.remove('text-danger');
         target.classList.add('text-white/50');
     }
 
@@ -954,7 +954,7 @@ class ChannelModalsUI {
             statusEl.textContent = text;
             statusEl.className = 'mt-4 text-sm text-center ' + (
                 tone === 'ok' ? 'text-emerald-400/90'
-                    : tone === 'bad' ? 'text-red-400/80'
+                    : tone === 'bad' ? 'text-danger/80'
                         : 'text-white/50');
         };
 

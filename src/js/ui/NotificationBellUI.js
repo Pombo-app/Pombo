@@ -331,10 +331,10 @@ class NotificationBellUI {
                         <div class="text-[12px] text-white/90 truncate">${escapeHtml(sanitizeText(transfer.metadata.fileName || fileId))}</div>
                         <div class="text-[10px] text-white/40 truncate">${stats}</div>
                     </div>
-                    <button class="notif-pause-dl flex-shrink-0 text-white/45 hover:text-white transition" title="${p.paused ? 'Resume download' : 'Pause download'}">
+                    <button class="notif-pause-dl flex-shrink-0 text-white/45 hover:text-primary transition" title="${p.paused ? 'Resume download' : 'Pause download'}">
                         ${pauseIcon}
                     </button>
-                    <button class="notif-cancel-dl flex-shrink-0 text-white/45 hover:text-white transition" title="Cancel download">
+                    <button class="notif-cancel-dl flex-shrink-0 text-white/45 hover:text-primary transition" title="Cancel download">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 18 6M6 6l12 12"/></svg>
                     </button>
                 </div>
@@ -374,10 +374,10 @@ class NotificationBellUI {
                             <div class="text-[12px] text-white/90 truncate">${escapeHtml(sanitizeText(transfer.metadata.fileName || tid))}</div>
                             <div class="text-[10px] text-white/40 truncate">${stats}</div>
                         </div>
-                        <button class="notif-pause-storage-dl flex-shrink-0 text-white/45 hover:text-white transition" title="${showPaused ? 'Resume download' : 'Pause download'}">
+                        <button class="notif-pause-storage-dl flex-shrink-0 text-white/45 hover:text-primary transition" title="${showPaused ? 'Resume download' : 'Pause download'}">
                             ${this.pauseIconSvg(showPaused)}
                         </button>
-                        <button class="notif-cancel-storage-dl flex-shrink-0 text-white/45 hover:text-white transition" title="Cancel download">
+                        <button class="notif-cancel-storage-dl flex-shrink-0 text-white/45 hover:text-primary transition" title="Cancel download">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
@@ -396,14 +396,14 @@ class NotificationBellUI {
                 .filter(Boolean).join(' · ');
             rows.push(`
                 <div class="px-3.5 py-1.5 flex items-center gap-2 hover:bg-white/[0.04] cursor-pointer transition" data-transfer-seed="${escapeHtml(fileId)}" data-stream-id="${escapeHtml(info.streamId || '')}" title="Open channel">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 text-green-400/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 text-success/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19.5v-15m0 0-6 6m6-6 6 6"/>
                     </svg>
                     <div class="min-w-0 flex-1">
                         <div class="text-[12px] text-white/90 truncate">${escapeHtml(sanitizeText(info.metadata.fileName || fileId))}</div>
                         <div class="text-[10px] text-white/40 truncate">${stats}</div>
                     </div>
-                    <button class="notif-stop-seed flex-shrink-0 text-white/45 hover:text-white transition" title="Stop seeding">
+                    <button class="notif-stop-seed flex-shrink-0 text-white/45 hover:text-primary transition" title="Stop seeding">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 18 6M6 6l12 12"/></svg>
                     </button>
                 </div>
@@ -425,10 +425,10 @@ class NotificationBellUI {
                         <div class="text-[10px] text-white/40 truncate">${this.formatBytes(record.metadata?.fileSize || 0)} · Inactive</div>
                     </div>
                     ${channel ? `
-                    <button class="notif-reseed flex-shrink-0 text-white/45 hover:text-white transition" title="Reseed">
+                    <button class="notif-reseed flex-shrink-0 text-white/45 hover:text-primary transition" title="Reseed">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"/></svg>
                     </button>` : ''}
-                    <button class="notif-delete-seed flex-shrink-0 text-white/45 hover:text-red-400/90 transition" title="Delete file">
+                    <button class="notif-delete-seed flex-shrink-0 text-white/45 hover:text-danger/90 transition" title="Delete file">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 18 6M6 6l12 12"/></svg>
                     </button>
                 </div>

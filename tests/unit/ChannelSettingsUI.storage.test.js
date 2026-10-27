@@ -243,7 +243,7 @@ describe('mobile notification chip', () => {
 
     it('subscribed: white label, accent bell', () => {
         const { chip, label, bell } = render(true);
-        expect(chip.className).toContain('text-white');
+        expect(chip.className).toContain('text-primary');
         expect(chip.className).not.toContain('text-[#F6851B] ');
         // An SVG's className is not a string; the attribute is.
         expect(bell.getAttribute('class')).toContain('text-[#F6851B]');

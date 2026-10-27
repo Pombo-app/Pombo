@@ -329,7 +329,7 @@ class ChannelSettingsUI {
             this._renderStorageList(channel, info, canManage);
         } catch (err) {
             Logger.error('Failed to fetch storage info:', err);
-            list.innerHTML = '<div class="text-sm text-red-400/80 px-1">Failed to load storage info</div>';
+            list.innerHTML = '<div class="text-sm text-danger/80 px-1">Failed to load storage info</div>';
             this.elements.channelStorageRetentionReadonly && (this.elements.channelStorageRetentionReadonly.textContent = '-');
         }
 
@@ -405,7 +405,7 @@ class ChannelSettingsUI {
                 ? '<span class="text-[10px] text-amber-400/80 ml-1.5" title="This node is missing from some of the channel streams. Adding it again heals it, and only the streams that lack it are charged.">partial</span>'
                 : '';
             const removeBtn = canManage
-                ? `<button data-storage-remove="${escapeAttr(addr)}" class="storage-remove-btn shrink-0 text-white/40 hover:text-red-400/90 px-2 py-1 rounded transition" title="Remove">
+                ? `<button data-storage-remove="${escapeAttr(addr)}" class="storage-remove-btn shrink-0 text-white/40 hover:text-danger/90 px-2 py-1 rounded transition" title="Remove">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
                    </button>`
                 : '';
@@ -615,7 +615,7 @@ class ChannelSettingsUI {
             const onChain = chainBanned.includes(lower);
             const onClient = clientBanned.includes(lower);
             const tags = [
-                onChain ? '<span class="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">Protocol</span>' : '',
+                onChain ? '<span class="text-[10px] bg-red-500/20 text-danger px-2 py-0.5 rounded-full">Protocol</span>' : '',
                 onClient ? '<span class="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">Client</span>' : ''
             ].join(' ');
             return `
@@ -750,7 +750,7 @@ class ChannelSettingsUI {
         document.querySelectorAll('.channel-settings-tab').forEach(tab => {
             const isActive = tab.dataset.channelTab === tabName;
             tab.classList.toggle('bg-white/10', isActive);
-            tab.classList.toggle('text-white', isActive);
+            tab.classList.toggle('text-primary', isActive);
             tab.classList.toggle('text-white/60', !isActive && tab.dataset.channelTab !== 'danger');
         });
 
@@ -876,7 +876,7 @@ class ChannelSettingsUI {
         if (!chip) return;
         const bell = chip.querySelector('svg');
         if (isSubscribed) {
-            chip.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition border border-[#F6851B]/30 bg-[#F6851B]/10 text-white';
+            chip.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition border border-[#F6851B]/30 bg-[#F6851B]/10 text-primary';
             if (bell) bell.classList.add('text-[#F6851B]');
             if (label) label.textContent = 'Notifications On';
         } else {
@@ -1423,7 +1423,7 @@ class ChannelSettingsUI {
             : '<p class="text-xs text-white/30 mt-1">You can rejoin later with the invite link.</p>';
         
         const blockButton = isDM ? `
-            <button id="block-leave-btn" class="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 text-sm font-medium px-3 py-2.5 rounded-xl transition">
+            <button id="block-leave-btn" class="flex-1 bg-red-500/20 hover:bg-red-500/30 text-danger border border-red-500/30 text-sm font-medium px-3 py-2.5 rounded-xl transition">
                 Block
             </button>
         ` : '';
@@ -1433,7 +1433,7 @@ class ChannelSettingsUI {
         modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-[60]';
         modal.innerHTML = `
             <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-white/[0.06]">
-                <h3 class="text-base font-medium mb-4 text-white">${isDM ? 'Leave Conversation' : 'Leave Channel'}</h3>
+                <h3 class="text-base font-medium mb-4 text-primary">${isDM ? 'Leave Conversation' : 'Leave Channel'}</h3>
                 <div class="space-y-3">
                     <p class="text-sm text-white/50">
                         Are you sure you want to leave <span class="text-white/80 font-medium">"${channelLabel}"</span>?
@@ -1444,7 +1444,7 @@ class ChannelSettingsUI {
                     <button id="cancel-leave-btn" class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 text-sm font-medium px-3 py-2.5 rounded-xl transition">
                         Cancel
                     </button>
-                    <button id="confirm-leave-btn" class="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 text-sm font-medium px-3 py-2.5 rounded-xl transition">
+                    <button id="confirm-leave-btn" class="flex-1 bg-red-500/20 hover:bg-red-500/30 text-danger border border-red-500/30 text-sm font-medium px-3 py-2.5 rounded-xl transition">
                         Leave
                     </button>
                     ${blockButton}
@@ -1530,7 +1530,7 @@ class ChannelSettingsUI {
             const members = await this.deps.channelManager.getChannelMembers(currentChannel.streamId);
             this.renderMembersList(members, currentChannel);
         } catch (error) {
-            this.elements.membersList.innerHTML = `<div class="text-center text-red-400/80 py-4 text-sm">Failed to load: ${escapeHtml(sanitizeText(error.message))}</div>`;
+            this.elements.membersList.innerHTML = `<div class="text-center text-danger/80 py-4 text-sm">Failed to load: ${escapeHtml(sanitizeText(error.message))}</div>`;
         }
     }
 
@@ -1656,7 +1656,7 @@ class ChannelSettingsUI {
             const paidUntil = typeof member === 'object' ? (member.paidUntil || 0) : 0;
             if (paidUntil > 0 && !memberIsOwner) {
                 const expired = paidUntil * 1000 <= Date.now();
-                badgeHtml += `<span class="text-xs ${expired ? 'text-red-400/80' : 'text-white/40'}">${expired ? 'expired' : 'until'} ${new Date(paidUntil * 1000).toLocaleDateString()}</span>`;
+                badgeHtml += `<span class="text-xs ${expired ? 'text-danger/80' : 'text-white/40'}">${expired ? 'expired' : 'until'} ${new Date(paidUntil * 1000).toLocaleDateString()}</span>`;
             }
             if (isMe) {
                 badgeHtml += '<span class="text-xs text-white/60 ml-1">(you)</span>';
@@ -1756,7 +1756,7 @@ class ChannelSettingsUI {
             </div>
             ${toggleGrantBtn}
             ${removeBtn}
-            <button class="member-action w-full text-left px-4 py-2.5 hover:bg-red-500/10 text-sm text-red-400 transition flex items-center gap-2" data-action="ban">
+            <button class="member-action w-full text-left px-4 py-2.5 hover:bg-red-500/10 text-sm text-danger transition flex items-center gap-2" data-action="ban">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
                 <span>Ban</span>
             </button>
@@ -1957,10 +1957,10 @@ class ChannelSettingsUI {
                     </p>
                 </div>
                 <div class="flex border-t border-white/5">
-                    <button id="cancel-remove-member-btn" class="flex-1 px-4 py-3 text-sm text-white/60 hover:text-white hover:bg-white/5 transition">
+                    <button id="cancel-remove-member-btn" class="flex-1 px-4 py-3 text-sm text-white/60 hover:text-primary hover:bg-white/5 transition">
                         Cancel
                     </button>
-                    <button id="confirm-remove-member-btn" class="flex-1 px-4 py-3 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 border-l border-white/5 transition" data-address="${escapeAttr(address)}">
+                    <button id="confirm-remove-member-btn" class="flex-1 px-4 py-3 text-sm text-danger hover:text-red-300 hover:bg-red-500/10 border-l border-white/5 transition" data-address="${escapeAttr(address)}">
                         Remove
                     </button>
                 </div>
@@ -2148,7 +2148,7 @@ class ChannelSettingsUI {
             this.elements.permissionsList.innerHTML = formatted + legend;
             
         } catch (error) {
-            this.elements.permissionsList.innerHTML = `<div class="text-red-400/80 text-sm">Error: ${escapeHtml(sanitizeText(error.message))}</div>`;
+            this.elements.permissionsList.innerHTML = `<div class="text-danger/80 text-sm">Error: ${escapeHtml(sanitizeText(error.message))}</div>`;
         }
     }
 
@@ -2297,7 +2297,7 @@ class ChannelSettingsUI {
         const row = document.createElement('div');
         row.id = 'channel-settings-paid-left';
         row.className = 'flex items-center gap-3';
-        const tone = msLeft <= 0 ? 'text-red-400/80' : (msLeft < WARNING_MS ? 'text-yellow-400/80' : 'text-white/70');
+        const tone = msLeft <= 0 ? 'text-danger/80' : (msLeft < WARNING_MS ? 'text-yellow-400/80' : 'text-white/70');
         const when = new Date(until * 1000)
             .toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
         row.innerHTML = `<span class="text-xs text-white/35 flex-shrink-0">Subscription</span>`
@@ -2801,10 +2801,10 @@ class ChannelSettingsUI {
         const setStatus = (text, kind = 'info') => {
             if (!statusEl) return;
             statusEl.textContent = text;
-            statusEl.classList.remove('hidden', 'text-red-400', 'text-green-400', 'text-white/40');
+            statusEl.classList.remove('hidden', 'text-danger', 'text-success', 'text-white/40');
             statusEl.classList.add(
-                kind === 'error' ? 'text-red-400'
-                    : kind === 'success' ? 'text-green-400'
+                kind === 'error' ? 'text-danger'
+                    : kind === 'success' ? 'text-success'
                         : 'text-white/40'
             );
         };

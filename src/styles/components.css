@@ -64,6 +64,34 @@
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/* ----- Design tokens ----- */
+/* Mirrors tailwind.config.js colors and Android PomboColors. */
+:root {
+    --pombo-text-primary: #E4E4E7;
+    --pombo-accent: #F6851B;
+    --pombo-accent-hover: #E5780F;
+    --pombo-accent-dim: #AC5D13;
+    --pombo-danger: #EF4444;
+    --pombo-success: #22C55E;
+    --pombo-warning: #FBBF24;
+    --pombo-info: #60A5FA;
+    --pombo-bg: #000000;
+    --pombo-bg-desktop: #09090B;
+    --pombo-surface: #111113;
+    --pombo-surface-raised: #16161B;
+    --pombo-scrim: rgba(0, 0, 0, 0.8);
+    --pombo-bubble-own: #272A2E;
+    --pombo-bubble-own-text: #F0F0F0;
+    --pombo-bubble-other: #1E1E1E;
+    --pombo-bubble-other-text: #D1D5DB;
+    --pombo-radius-xs: 4px;
+    --pombo-radius-sm: 6px;
+    --pombo-radius-md: 8px;
+    --pombo-radius-lg: 12px;
+    --pombo-radius-xl: 16px;
+    --pombo-radius-2xl: 20px;
+}
+
 /* ----- Contenteditable message input placeholder ----- */
 #message-input:empty::before {
     content: attr(data-placeholder);
@@ -1231,7 +1259,7 @@ body.cannot-write .reply-trigger {
 }
 
 .subscription-banner--expired {
-    color: #f87171;
+    color: var(--pombo-danger);
     background: rgba(248, 113, 113, 0.08);
     border-color: rgba(248, 113, 113, 0.18);
 }
@@ -1252,7 +1280,7 @@ body.cannot-write .reply-trigger {
     padding: 0.25rem 0.75rem;
     font-size: 0.75rem;
     font-weight: 600;
-    color: #fff;
+    color: var(--pombo-text-primary);
     background: rgba(246, 133, 27, 0.2);
     border: 1px solid rgba(246, 133, 27, 0.35);
     border-radius: 0.625rem;
@@ -1491,7 +1519,7 @@ body.cannot-write .reply-trigger {
 /* ----- Input Buttons ----- */
 .input-button {
     background-color: transparent;
-    color: white;
+    color: var(--pombo-text-primary);
     width: 2.25rem;
     height: 2.25rem;
     display: flex;
@@ -1514,7 +1542,7 @@ body.cannot-write .reply-trigger {
 /* ----- Send Button ----- */
 #send-message-btn {
     background-color: transparent;
-    color: #FF5C00;
+    color: var(--pombo-accent);
     width: 2.25rem;
     height: 2.25rem;
     border-radius: 9999px;
@@ -1530,7 +1558,7 @@ body.cannot-write .reply-trigger {
 }
 
 #send-message-btn:hover {
-    color: #FF7A33;
+    color: var(--pombo-accent-hover);
     background-color: rgba(255, 92, 0, 0.08);
 }
 
@@ -1635,19 +1663,19 @@ body.cannot-write .reply-trigger {
 
 /* Toast variants */
 .toast.success .toast-icon {
-    color: #4ade80;
+    color: var(--pombo-success);
 }
 
 .toast.success .toast-progress {
-    background: #4ade80;
+    background: var(--pombo-success);
 }
 
 .toast.error .toast-icon {
-    color: #f87171;
+    color: var(--pombo-danger);
 }
 
 .toast.error .toast-progress {
-    background: #f87171;
+    background: var(--pombo-danger);
 }
 
 .toast.info .toast-icon {
@@ -1683,11 +1711,11 @@ body.cannot-write .reply-trigger {
 }
 
 .toast.loading .toast-icon {
-    color: #ff5c00;
+    color: var(--pombo-accent);
 }
 
 .toast.loading .toast-progress {
-    background: linear-gradient(90deg, transparent, #ff5c00, transparent);
+    background: linear-gradient(90deg, transparent, var(--pombo-accent), transparent);
     width: 100% !important;
     animation: toastLoadingProgress 1.5s ease-in-out infinite;
 }
@@ -1719,7 +1747,7 @@ body.cannot-write .reply-trigger {
 
 .toast-progress-ring .ring-fill {
     fill: none;
-    stroke: #ff5c00;
+    stroke: var(--pombo-accent);
     stroke-width: 3;
     stroke-linecap: round;
     stroke-dasharray: 100;
@@ -1805,15 +1833,15 @@ body.cannot-write .reply-trigger {
     }
     
     .toast.toast-minimized.success {
-        border-left-color: #4ade80;
+        border-left-color: var(--pombo-success);
     }
     
     .toast.toast-minimized.error {
-        border-left-color: #f87171;
+        border-left-color: var(--pombo-danger);
     }
     
     .toast.toast-minimized.loading {
-        border-left-color: #ff5c00;
+        border-left-color: var(--pombo-accent);
     }
     
     .toast.toast-minimized.invite {
@@ -3467,7 +3495,7 @@ body.explore-open #explore-channels-list {
 
 .explore-mode-btn:not(:disabled):hover {
     background: rgba(255, 255, 255, 0.13);
-    color: #ffffff;
+    color: var(--pombo-text-primary);
 }
 
 .explore-mode-btn:disabled {
@@ -3725,7 +3753,7 @@ body.explore-open #browse-channels-btn svg {
     padding: 0.5rem 0.75rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.75rem;
-    color: #fff;
+    color: var(--pombo-text-primary);
     transition: border-color 0.15s ease;
 }
 
@@ -3740,7 +3768,7 @@ body.explore-open #browse-channels-btn svg {
     border-radius: 0.625rem;
     font-size: 0.8125rem;
     font-weight: 500;
-    color: #fff;
+    color: var(--pombo-text-primary);
     background: rgba(246, 133, 27, 0.15);
     border: 1px solid rgba(246, 133, 27, 0.3);
     transition: background 0.15s ease;
@@ -3768,7 +3796,7 @@ body.explore-open #browse-channels-btn svg {
 .wallet-add-error {
     margin-top: 0.5rem;
     font-size: 0.75rem;
-    color: #f87171;
+    color: var(--pombo-danger);
 }
 
 /* A guest is a throwaway identity, not an account with funds. */

@@ -248,7 +248,7 @@ class ExploreUI {
                                     data-lpignore="true"
                                     data-1p-ignore="true"
                                     data-form-type="other"
-                                    class="flex-1 min-w-0 bg-transparent text-white text-sm focus:outline-none placeholder:text-white/30"
+                                    class="flex-1 min-w-0 bg-transparent text-primary text-sm focus:outline-none placeholder:text-white/30"
                                 />
                                 <button type="button" id="explore-search-close-btn" aria-label="Close search" class="flex-shrink-0 text-white/40 hover:text-white/70 transition">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 6l12 12M18 6L6 18"/></svg>
@@ -422,7 +422,7 @@ class ExploreUI {
         btn?.classList.toggle('text-white/50', !active);
         document.querySelectorAll('.explore-language-option').forEach(opt => {
             const picked = opt.dataset.language === this.browseLanguageFilterValue;
-            opt.classList.toggle('text-white', picked);
+            opt.classList.toggle('text-primary', picked);
             opt.classList.toggle('bg-white/[0.06]', picked);
             opt.classList.toggle('text-white/70', !picked);
         });
@@ -485,7 +485,7 @@ class ExploreUI {
             console.error('Failed to load explore channels:', error);
             listEl.innerHTML = `
                 <div class="flex flex-col items-center justify-center py-12 text-white/40">
-                    <svg class="w-12 h-12 mb-3 text-red-400/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-12 h-12 mb-3 text-danger/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
                     </svg>
                     <p class="text-sm">Failed to load channels</p>

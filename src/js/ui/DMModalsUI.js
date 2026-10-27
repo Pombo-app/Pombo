@@ -141,7 +141,7 @@ class DMModalsUI {
         tabs.forEach(tab => {
             const isActive = tab.dataset.dmStorage === provider;
             tab.classList.toggle('bg-white/10', isActive);
-            tab.classList.toggle('text-white', isActive);
+            tab.classList.toggle('text-primary', isActive);
             tab.classList.toggle('border-white/10', isActive);
             tab.classList.toggle('bg-white/5', !isActive);
             tab.classList.toggle('text-white/50', !isActive);
@@ -166,7 +166,7 @@ class DMModalsUI {
         const target = document.getElementById('dm-streamr-address-value');
         if (!target) return;
         target.textContent = '0xae340e799e8151f6a4999d245e466197aa217667';
-        target.classList.remove('text-red-400');
+        target.classList.remove('text-danger');
         target.classList.add('text-white/50');
     }
 

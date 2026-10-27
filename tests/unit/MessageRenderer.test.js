@@ -526,7 +526,7 @@ describe('MessageRenderer', () => {
             expect(failed).toContain(' message-failed"');
             expect(failed).toContain('Not sent');
             expect(failed).toContain('title="No epoch key"');
-            expect(failed).toContain('class="message-retry text-xs text-red-400" data-msg-id="msg-state"');
+            expect(failed).toContain('class="message-retry text-xs text-danger" data-msg-id="msg-state"');
             expect(failed).not.toContain('sending…');
 
             const sent = messageRenderer.buildMessageHTML(base, true, '12:00', { html: '' }, 'Alice');
@@ -540,7 +540,7 @@ describe('MessageRenderer', () => {
             );
             expect(undelivered).toContain(' message-failed"');
             expect(undelivered).toContain('>Not delivered</span>');
-            expect(undelivered).toContain('class="message-retry text-xs text-red-400" data-msg-id="msg-state"');
+            expect(undelivered).toContain('class="message-retry text-xs text-danger" data-msg-id="msg-state"');
 
             const delivered = messageRenderer.buildMessageHTML({ ...base, delivered: true }, true, '12:00', { html: '' }, 'Alice');
             expect(delivered).toContain(' message-delivered"');
@@ -821,7 +821,7 @@ describe('MessageRenderer', () => {
 
             const result = messageRenderer.renderVideoContent(pdf());
 
-            expect(result).toContain('text-green-400/70');
+            expect(result).toContain('text-success/70');
             expect(result).toContain('seeding...');
         });
 
@@ -832,7 +832,7 @@ describe('MessageRenderer', () => {
 
             const result = messageRenderer.renderVideoContent(pdf());
 
-            expect(result).not.toContain('text-green-400/70');
+            expect(result).not.toContain('text-success/70');
             expect(result).not.toContain('seeding...');
         });
 
