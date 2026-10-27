@@ -450,14 +450,10 @@ class UIController {
             dangerTabBtn: document.getElementById('danger-tab-btn'),
             deleteChannelSection: document.getElementById('delete-channel-section'),
             deleteChannelBtn: document.getElementById('delete-channel-btn'),
+            deleteChannelText: document.getElementById('delete-channel-text'),
+            deleteChannelProgress: document.getElementById('delete-channel-progress'),
             channelSettingsTabs: document.querySelectorAll('.channel-settings-tab'),
             channelSettingsPanels: document.querySelectorAll('.channel-settings-panel'),
-
-            // Delete channel confirmation modal
-            deleteChannelModal: document.getElementById('delete-channel-modal'),
-            deleteChannelName: document.getElementById('delete-channel-name'),
-            cancelDeleteBtn: document.getElementById('cancel-delete-btn'),
-            confirmDeleteBtn: document.getElementById('confirm-delete-btn'),
 
             // Join/Browse channels
             browseChannelsBtn: document.getElementById('browse-channels-btn'),
@@ -837,7 +833,6 @@ class UIController {
         // Close any open modals first (using ModalManager)
         modalManager.hide('channel-settings-modal');
         modalManager.hide('invite-users-modal');
-        modalManager.hide('delete-channel-modal');
         this.hideLeaveChannelModal();
         
         // Reset channel name and info

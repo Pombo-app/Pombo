@@ -1336,24 +1336,6 @@ class ChannelSettingsUI {
     }
 
     /**
-     * Show delete channel confirmation modal
-     */
-    showDeleteModal() {
-        const currentChannel = this.deps.channelManager.getCurrentChannel();
-        if (!currentChannel) return;
-
-        this.elements.deleteChannelName.textContent = currentChannel.name;
-        modalManager.show('delete-channel-modal');
-    }
-
-    /**
-     * Hide delete channel confirmation modal
-     */
-    hideDeleteModal() {
-        modalManager.hide('delete-channel-modal');
-    }
-
-    /**
      * Handle delete channel confirmation
      */
     async handleDelete() {
@@ -1367,7 +1349,6 @@ class ChannelSettingsUI {
 
         try {
             showLoading('Deleting channel...');
-            this.hideDeleteModal();
             this.hide();
 
             // Remove from subscription manager tracking first

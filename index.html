@@ -2058,8 +2058,9 @@
                                         <span>Deleting this channel requires on-chain transactions and gas fees. It cannot be reversed.</span>
                                     </p>
                                 </div>
-                                <button id="delete-channel-btn" class="w-full bg-red-500/10 hover:bg-red-500/20 text-danger border border-red-500/20 px-4 py-2.5 rounded-xl text-sm transition">
-                                    Delete Channel Forever
+                                <button id="delete-channel-btn" class="w-full bg-red-600/90 hover:bg-red-600 text-primary px-4 py-2.5 rounded-xl text-sm transition relative overflow-hidden select-none">
+                                    <span id="delete-channel-text" class="relative z-10">Hold to Delete (2s)</span>
+                                    <div id="delete-channel-progress" class="absolute inset-0 bg-red-400 opacity-40 transform -translate-x-full transition-transform duration-[2000ms]"></div>
                                 </button>
                             </div>
                         </div>
@@ -2177,39 +2178,6 @@
                         The relay is fully open-source. Anyone can run their own instance for additional trust guarantees.
                     </p>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal: Delete Channel Confirmation -->
-    <div id="delete-channel-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60]">
-        <div class="bg-surface rounded-2xl w-[400px] max-w-[95vw] mx-4 shadow-2xl border border-red-500/20 overflow-hidden">
-            <div class="p-6">
-                <div class="flex items-center gap-3 mb-4">
-                    <div class="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
-                        <svg class="w-5 h-5 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
-                    </div>
-                    <h3 class="text-lg font-medium text-overlay-90">Delete Channel</h3>
-                </div>
-                <div class="bg-overlay-5 rounded-xl p-3 mb-4">
-                    <div class="text-xs text-overlay-40 mb-1">Channel</div>
-                    <div id="delete-channel-name" class="text-sm font-medium text-overlay-80"></div>
-                </div>
-                <p class="text-sm text-overlay-50 mb-3">
-                    This will permanently delete the channel from Streamr. All participants will lose access.
-                </p>
-                <p class="text-xs text-danger/80 bg-red-500/5 rounded-lg px-3 py-2 flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
-                    This action cannot be undone.
-                </p>
-            </div>
-            <div class="flex border-t border-overlay-5">
-                <button id="cancel-delete-btn" class="flex-1 px-4 py-3 text-sm text-overlay-60 hover:text-primary hover:bg-overlay-5 transition">
-                    Cancel
-                </button>
-                <button id="confirm-delete-btn" class="flex-1 px-4 py-3 text-sm text-danger hover:text-red-300 hover:bg-red-500/10 border-l border-overlay-5 transition">
-                    Delete Forever
-                </button>
             </div>
         </div>
     </div>

@@ -3,6 +3,7 @@
  */
 
 import { channelSettingsUI } from '../ChannelSettingsUI.js';
+import { holdToConfirm } from '../holdToConfirm.js';
 
 /**
  * @param {Object} ui - the UI controller singleton
@@ -74,33 +75,11 @@ export function attachChannelSettings(ui) {
     }
 
 
-    // Delete channel button
     if (ui.elements.deleteChannelBtn) {
-        ui.elements.deleteChannelBtn.addEventListener('click', () => {
-            channelSettingsUI.showDeleteModal();
-        });
-    }
-
-    // Cancel delete button
-    if (ui.elements.cancelDeleteBtn) {
-        ui.elements.cancelDeleteBtn.addEventListener('click', () => {
-            channelSettingsUI.hideDeleteModal();
-        });
-    }
-
-    // Confirm delete button
-    if (ui.elements.confirmDeleteBtn) {
-        ui.elements.confirmDeleteBtn.addEventListener('click', () => {
-            channelSettingsUI.handleDelete();
-        });
-    }
-
-    // Click outside delete modal to close
-    if (ui.elements.deleteChannelModal) {
-        ui.elements.deleteChannelModal.addEventListener('click', (e) => {
-            if (e.target === ui.elements.deleteChannelModal) {
-                channelSettingsUI.hideDeleteModal();
-            }
+        holdToConfirm(ui.elements.deleteChannelBtn, {
+            label: ui.elements.deleteChannelText,
+            progress: ui.elements.deleteChannelProgress,
+            onConfirm: () => channelSettingsUI.handleDelete()
         });
     }
 }

@@ -1,5 +1,6 @@
 import { escapeHtml as _escapeHtml, escapeAttr as _escapeAttr } from './utils.js';
 import { getAvatarHtml, downgradeEnsAvatars } from './AvatarGenerator.js';
+import { holdToConfirm } from './holdToConfirm.js';
 import {
     CONFIG,
     loadRpcSelection,
@@ -132,7 +133,6 @@ class SettingsUI {
         const lockBtn = document.getElementById('lock-private-key-btn');
 
         let unlockedPrivateKey = null;
-        let holdTimer = null;
         let isKeyVisible = false;
 
         // Unlock private key
@@ -185,49 +185,24 @@ class SettingsUI {
             });
         }
 
-        // Long press to copy (2 seconds)
         if (copyKeyBtn) {
-            const startHold = () => {
-                if (!unlockedPrivateKey) return;
-                
-                copyKeyProgress?.classList.remove('-translate-x-full');
-                copyKeyProgress?.classList.add('translate-x-0');
-                if (copyKeyText) copyKeyText.textContent = 'Keep holding...';
-
-                holdTimer = setTimeout(async () => {
+            const { idleText } = holdToConfirm(copyKeyBtn, {
+                label: copyKeyText,
+                progress: copyKeyProgress,
+                canStart: () => !!unlockedPrivateKey,
+                onConfirm: async () => {
                     try {
                         await navigator.clipboard.writeText(unlockedPrivateKey);
                         this.showNotification('Private key copied!', 'success');
                         if (copyKeyText) copyKeyText.textContent = 'Copied!';
-                        
                         setTimeout(() => {
-                            if (copyKeyText) copyKeyText.textContent = 'Hold to Copy Private Key (2s)';
+                            if (copyKeyText) copyKeyText.textContent = idleText;
                         }, 2000);
                     } catch (e) {
                         this.showNotification('Failed to copy', 'error');
                     }
-                    resetProgress();
-                }, 2000);
-            };
-
-            const resetProgress = () => {
-                if (holdTimer) {
-                    clearTimeout(holdTimer);
-                    holdTimer = null;
                 }
-                copyKeyProgress?.classList.remove('translate-x-0');
-                copyKeyProgress?.classList.add('-translate-x-full');
-                if (copyKeyText && copyKeyText.textContent === 'Keep holding...') {
-                    copyKeyText.textContent = 'Hold to Copy Private Key (2s)';
-                }
-            };
-
-            copyKeyBtn.addEventListener('mousedown', startHold);
-            copyKeyBtn.addEventListener('touchstart', startHold);
-            copyKeyBtn.addEventListener('mouseup', resetProgress);
-            copyKeyBtn.addEventListener('mouseleave', resetProgress);
-            copyKeyBtn.addEventListener('touchend', resetProgress);
-            copyKeyBtn.addEventListener('touchcancel', resetProgress);
+            });
         }
 
         // Lock (reset to step 1)
@@ -388,7 +363,6 @@ class SettingsUI {
         const cancelBtn = document.getElementById('cancel-delete-account-btn');
 
         let isPasswordVerified = false;
-        let holdTimer = null;
 
         // Verify password
         if (verifyBtn) {
@@ -429,16 +403,12 @@ class SettingsUI {
             });
         }
 
-        // Long press to delete (2 seconds)
         if (deleteBtn) {
-            const startHold = () => {
-                if (!isPasswordVerified) return;
-                
-                deleteProgress?.classList.remove('-translate-x-full');
-                deleteProgress?.classList.add('translate-x-0');
-                if (deleteText) deleteText.textContent = 'Keep holding...';
-
-                holdTimer = setTimeout(async () => {
+            holdToConfirm(deleteBtn, {
+                label: deleteText,
+                progress: deleteProgress,
+                canStart: () => isPasswordVerified,
+                onConfirm: async () => {
                     try {
                         const currentAddress = this.authManager.getAddress();
                         if (!currentAddress) {
@@ -492,28 +462,8 @@ class SettingsUI {
                         this.Logger?.error('Failed to delete account:', e);
                         this.showNotification('Failed to delete: ' + e.message, 'error');
                     }
-                    resetProgress();
-                }, 2000);
-            };
-
-            const resetProgress = () => {
-                if (holdTimer) {
-                    clearTimeout(holdTimer);
-                    holdTimer = null;
                 }
-                deleteProgress?.classList.remove('translate-x-0');
-                deleteProgress?.classList.add('-translate-x-full');
-                if (deleteText && deleteText.textContent === 'Keep holding...') {
-                    deleteText.textContent = 'Hold to Delete (2s)';
-                }
-            };
-
-            deleteBtn.addEventListener('mousedown', startHold);
-            deleteBtn.addEventListener('touchstart', startHold);
-            deleteBtn.addEventListener('mouseup', resetProgress);
-            deleteBtn.addEventListener('mouseleave', resetProgress);
-            deleteBtn.addEventListener('touchend', resetProgress);
-            deleteBtn.addEventListener('touchcancel', resetProgress);
+            });
         }
     }
 
