@@ -53,12 +53,12 @@ class JoinChannelUI {
         this.joinClassification = classification;
         document.querySelectorAll('.join-id-classification-tab').forEach(tab => {
             const isActive = tab.dataset.joinIdClassification === classification;
-            tab.classList.toggle('bg-white/10', isActive);
+            tab.classList.toggle('bg-overlay-10', isActive);
             tab.classList.toggle('text-primary', isActive);
-            tab.classList.toggle('border-white/10', isActive);
-            tab.classList.toggle('bg-white/5', !isActive);
-            tab.classList.toggle('text-white/50', !isActive);
-            tab.classList.toggle('border-white/5', !isActive);
+            tab.classList.toggle('border-overlay-10', isActive);
+            tab.classList.toggle('bg-overlay-5', !isActive);
+            tab.classList.toggle('text-overlay-50', !isActive);
+            tab.classList.toggle('border-overlay-5', !isActive);
         });
     }
 
@@ -225,15 +225,15 @@ class JoinChannelUI {
             const safeTitle = this._escapeHtml(title);
             const safeMessage = this._escapeHtml(message);
             modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-white/[0.06]">
+                <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
                     <h3 class="text-[15px] font-medium mb-2 text-primary">${safeTitle}</h3>
-                    <p class="text-[12px] text-white/50 mb-4">${safeMessage}</p>
+                    <p class="text-[12px] text-overlay-50 mb-4">${safeMessage}</p>
                     <div class="relative mb-4">
                         <input type="password" id="browse-password-input" placeholder="Enter password..." 
-                            class="w-full bg-white/[0.05] border border-white/[0.08] text-primary px-3 py-2.5 pr-10 rounded-xl text-[13px] focus:outline-none focus:border-white/[0.15] transition"
+                            class="w-full bg-overlay-5 border border-overlay-8 text-primary px-3 py-2.5 pr-10 rounded-xl text-[13px] focus:outline-none focus:border-overlay-15 transition"
                             autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-form-type="other" spellcheck="false"
                             style="-webkit-text-security: disc; text-security: disc;">
-                        <button type="button" id="browse-pw-toggle" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-primary transition">
+                        <button type="button" id="browse-pw-toggle" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-overlay-25 hover:text-primary transition">
                             <svg class="w-4 h-4" id="browse-pw-eye-open" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -244,7 +244,7 @@ class JoinChannelUI {
                         </button>
                     </div>
                     <div class="flex gap-2">
-                        <button id="cancel-pw-btn" class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 text-[13px] font-medium py-2.5 rounded-xl transition">
+                        <button id="cancel-pw-btn" class="flex-1 bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-50 text-[13px] font-medium py-2.5 rounded-xl transition">
                             Cancel
                         </button>
                         <button id="confirm-pw-btn" class="flex-1 bg-white hover:bg-[#f0f0f0] text-black text-[13px] font-medium py-2.5 rounded-lg transition">
@@ -309,10 +309,10 @@ class JoinChannelUI {
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50';
             modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl p-5 border border-white/[0.06]">
+                <div class="bg-[#111113] rounded-2xl p-5 border border-overlay-6">
                     <h3 class="text-[15px] font-medium mb-4 text-primary">Invite QR Code</h3>
                     <div id="qr-container" class="bg-white p-3 rounded-lg flex items-center justify-center"></div>
-                    <button class="mt-4 w-full bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 text-[13px] font-medium px-4 py-2.5 rounded-xl transition">Close</button>
+                    <button class="mt-4 w-full bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-50 text-[13px] font-medium px-4 py-2.5 rounded-xl transition">Close</button>
                 </div>
             `;
             

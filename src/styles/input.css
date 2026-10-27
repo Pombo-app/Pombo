@@ -23,7 +23,7 @@ select option {
 }
 
 /* Exposure tab hover styles */
-.exposure-tab.border-white\/10:hover {
+.exposure-tab.border-overlay-10:hover {
     border-color: rgba(255, 255, 255, 0.2);
     color: rgba(255, 255, 255, 0.7);
 }

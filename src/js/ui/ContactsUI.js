@@ -162,7 +162,7 @@ class ContactsUI {
         
         if (contacts.length === 0) {
             this.elements.contactsList.innerHTML = `
-                <div class="text-center text-white/25 py-8 text-[13px]">No contacts yet</div>
+                <div class="text-center text-overlay-25 py-8 text-[13px]">No contacts yet</div>
             `;
             return;
         }
@@ -173,16 +173,16 @@ class ContactsUI {
             const displayName = sanitizeText(contact.nickname) || formatAddress(contact.address);
 
             return `
-                <div class="flex items-center justify-between p-3 bg-white/[0.05] border border-white/[0.08] rounded-xl">
+                <div class="flex items-center justify-between p-3 bg-overlay-5 border border-overlay-8 rounded-xl">
                     <div class="flex items-center gap-3 flex-1 min-w-0">
                         <div class="flex-shrink-0" style="width:36px;height:36px;border-radius:9999px;overflow:hidden;">${avatarHtml}</div>
                         <div class="flex-1 min-w-0">
                             <span class="text-[13px] font-medium text-primary truncate block">${escapeHtml(displayName)}</span>
-                            <div class="text-[10px] text-white/30 font-mono truncate mt-0.5">${escapeHtml(contact.address)}</div>
+                            <div class="text-[10px] text-overlay-30 font-mono truncate mt-0.5">${escapeHtml(contact.address)}</div>
                         </div>
                     </div>
                     <button 
-                        class="contact-menu-btn ml-2 text-white/25 hover:text-white/70 hover:bg-white/5 p-1.5 rounded-lg transition"
+                        class="contact-menu-btn ml-2 text-overlay-25 hover:text-overlay-70 hover:bg-overlay-5 p-1.5 rounded-lg transition"
                         data-address="${escapeAttr(contact.address)}"
                         title="Contact options"
                     >

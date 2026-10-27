@@ -405,7 +405,7 @@ class ChatAreaUI {
             ? 'flex h-full items-center justify-center cursor-pointer group'
             : 'flex justify-center py-3 cursor-pointer group';
         banner.innerHTML = `
-            <div class="flex items-center gap-2 text-white/30 text-sm group-hover:text-white/60 transition-colors">
+            <div class="flex items-center gap-2 text-overlay-30 text-sm group-hover:text-overlay-60 transition-colors">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
@@ -674,26 +674,26 @@ class ChatAreaUI {
                     const { title, detail } = this._historyErrorText(
                         historyError, !!previewChannel, subscriptionBannerUI.hasAccess(effectiveChannel?.streamId));
                     this.messagesArea.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                    <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
                         <span class="text-sm">${title}</span>
-                        <span class="text-xs text-white/25">${detail}</span>
+                        <span class="text-xs text-overlay-25">${detail}</span>
                     </div>
                 `;
                 } else if (banned) {
                     this.messagesArea.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
-                        <svg class="w-6 h-6 text-white/25" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
+                        <svg class="w-6 h-6 text-overlay-25" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M1 21h12v2H1zM5.245 8.07l2.83-2.827 14.14 14.142-2.828 2.828zM12.317 1l5.657 5.656-2.83 2.83-5.654-5.66zM3.825 9.485l5.657 5.657-2.828 2.828-5.657-5.657z"/>
                         </svg>
                         <span class="text-sm">You no longer have access to this channel</span>
-                        <span class="text-xs text-white/25">A moderator removed you</span>
+                        <span class="text-xs text-overlay-25">A moderator removed you</span>
                     </div>
                 `;
                 } else if (expired || unsubscribed) {
                     this.messagesArea.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                    <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
                         <span class="text-sm">${expired ? 'Your subscription has expired' : 'No active subscription'}</span>
-                        <span class="text-xs text-white/25">${expired
+                        <span class="text-xs text-overlay-25">${expired
         ? 'Messages stay locked until you renew'
         : 'Messages stay locked until you subscribe'}</span>
                         <button id="empty-state-renew-btn" class="subscription-banner-renew">${expired ? 'Renew subscription' : 'Subscribe'}</button>
@@ -703,29 +703,29 @@ class ChatAreaUI {
                         ?.addEventListener('click', () => subscriptionBannerUI.renewCurrent());
                 } else if (effectiveChannel?.historyReadFailed) {
                     this.messagesArea.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                    <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
                         <span class="text-sm">Channel history could not be loaded</span>
-                        <span class="text-xs text-white/25">Check your connection and reopen the channel</span>
+                        <span class="text-xs text-overlay-25">Check your connection and reopen the channel</span>
                     </div>
                 `;
                 } else {
                     this.messagesArea.innerHTML = waitingForKeys
                         ? `
-                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                    <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
                         <div class="spinner" style="width: 24px; height: 24px;"></div>
                         <span class="text-sm">Waiting for channel keys…</span>
-                        <span class="text-xs text-white/25">Requested from the channel, this can take a moment</span>
+                        <span class="text-xs text-overlay-25">Requested from the channel, this can take a moment</span>
                     </div>
                 `
                         : `
-                    <div class="flex items-center justify-center h-full text-white/40">
+                    <div class="flex items-center justify-center h-full text-overlay-40">
                         No messages yet. Start the conversation!
                     </div>
                 `;
                 }
             } else {
                 this.messagesArea.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                    <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
                         <div class="spinner" style="width: 24px; height: 24px;"></div>
                         <span class="text-sm">Loading messages...</span>
                     </div>
@@ -747,7 +747,7 @@ class ChatAreaUI {
             && effectiveChannel?.historyRetrying !== true) {
             historyStartIndicator = `
                 <div class="flex justify-center py-4">
-                    <div class="text-white/[0.12] text-xs">
+                    <div class="text-overlay-12 text-xs">
                         — beginning of conversation —
                     </div>
                 </div>
@@ -764,7 +764,7 @@ class ChatAreaUI {
                 effectiveChannel.historyError, !!previewChannel, subscriptionBannerUI.hasAccess(effectiveChannel.streamId));
             historyErrorBanner = `
                 <div id="history-error-banner" class="flex flex-col items-center gap-1 py-3 px-4 text-center">
-                    <span class="text-sm text-white/40">${escapeHtml(title)}</span>
+                    <span class="text-sm text-overlay-40">${escapeHtml(title)}</span>
                 </div>
             `;
         }
@@ -772,7 +772,7 @@ class ChatAreaUI {
         if (effectiveChannel?.overridesOwed) {
             overridesBanner = `
                 <div id="overrides-owed-banner" class="flex flex-col items-center gap-1 py-3 px-4 text-center">
-                    <span class="text-sm text-white/40">${effectiveChannel.historyReadFailed
+                    <span class="text-sm text-overlay-40">${effectiveChannel.historyReadFailed
         ? 'Edits and deletions could not be loaded. Reopen the channel'
         : 'Loading edits and deletions…'}</span>
                 </div>
@@ -1503,12 +1503,12 @@ class ChatAreaUI {
         
         if (hasUnread) {
             countEl.textContent = unreadCount >= 30 ? '+30' : unreadCount;
-            countEl.classList.remove('hidden', 'text-white/30', 'bg-white/[0.04]');
+            countEl.classList.remove('hidden', 'text-overlay-30', 'bg-overlay-4');
             countEl.classList.add('text-primary', 'bg-[#F6851B]/20');
         } else {
             countEl.classList.add('hidden');
             countEl.classList.remove('text-primary', 'bg-[#F6851B]/20');
-            countEl.classList.add('text-white/30', 'bg-white/[0.04]');
+            countEl.classList.add('text-overlay-30', 'bg-overlay-4');
         }
     }
 
@@ -1575,8 +1575,8 @@ class ChatAreaUI {
         if (!msg.signature && msg.verified && msg.verified.valid === false) {
             return {
                 html: '',
-                textColor: 'text-white/30',
-                bgColor: 'bg-white/10',
+                textColor: 'text-overlay-30',
+                bgColor: 'bg-overlay-10',
                 border: ''
             };
         }
@@ -1624,7 +1624,7 @@ class ChatAreaUI {
     showEmptyState(message = 'Select a channel to start chatting') {
         if (this.messagesArea) {
             this.messagesArea.innerHTML = `
-                <div class="flex items-center justify-center h-full text-white/40">
+                <div class="flex items-center justify-center h-full text-overlay-40">
                     ${escapeHtml(message)}
                 </div>
             `;

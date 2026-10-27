@@ -558,11 +558,11 @@ class WalletUI {
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50';
             modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl w-[320px] overflow-hidden shadow-2xl border border-white/[0.06]">
+                <div class="bg-[#111113] rounded-2xl w-[320px] overflow-hidden shadow-2xl border border-overlay-6">
                     <div class="px-5 pt-5 pb-4">
                         <div class="flex items-center justify-between">
                             <h3 class="text-[15px] font-medium text-primary">Fund Account</h3>
-                            <button id="close-fund-modal" class="text-white/30 hover:text-primary transition p-1 -mr-1">
+                            <button id="close-fund-modal" class="text-overlay-30 hover:text-primary transition p-1 -mr-1">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
                                 </svg>
@@ -571,8 +571,8 @@ class WalletUI {
                     </div>
                     <div class="px-5 pb-5">
                         <input id="fund-amount-input" type="number" step="0.01" min="0" placeholder="0.5"
-                            class="w-full bg-white/5 border border-white/10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20">
-                        <p class="text-xs text-white/30 mt-2">Amount in POL to send to this account</p>
+                            class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition placeholder:text-overlay-20">
+                        <p class="text-xs text-overlay-30 mt-2">Amount in POL to send to this account</p>
                         <button id="confirm-fund-btn" class="w-full mt-4 bg-[#F6851B] hover:bg-[#e5780f] text-primary px-4 py-2.5 rounded-xl text-sm font-medium transition">
                             Send
                         </button>

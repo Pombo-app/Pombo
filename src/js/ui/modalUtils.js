@@ -220,7 +220,7 @@ export const PASSWORD_ICONS = {
  */
 export function updatePasswordIndicator(element, isValid, text) {
     const icon = isValid ? PASSWORD_ICONS.check : PASSWORD_ICONS.empty;
-    element.className = `flex items-center gap-2 ${isValid ? 'text-emerald-400' : 'text-white/30'}`;
+    element.className = `flex items-center gap-2 ${isValid ? 'text-emerald-400' : 'text-overlay-30'}`;
     element.innerHTML = `${icon} ${text}`;
 }
 
@@ -231,19 +231,19 @@ export function updatePasswordIndicator(element, isValid, text) {
 export function getPasswordStrengthHtml() {
     return `
         <div id="password-strength" class="mt-3 space-y-1.5 text-xs">
-            <div id="check-length" class="flex items-center gap-2 text-white/30">
+            <div id="check-length" class="flex items-center gap-2 text-overlay-30">
                 ${PASSWORD_ICONS.empty}
                 At least 12 characters
             </div>
-            <div id="check-upper" class="flex items-center gap-2 text-white/30">
+            <div id="check-upper" class="flex items-center gap-2 text-overlay-30">
                 ${PASSWORD_ICONS.empty}
                 Uppercase letter
             </div>
-            <div id="check-lower" class="flex items-center gap-2 text-white/30">
+            <div id="check-lower" class="flex items-center gap-2 text-overlay-30">
                 ${PASSWORD_ICONS.empty}
                 Lowercase letter
             </div>
-            <div id="check-number" class="flex items-center gap-2 text-white/30">
+            <div id="check-number" class="flex items-center gap-2 text-overlay-30">
                 ${PASSWORD_ICONS.empty}
                 Number
             </div>

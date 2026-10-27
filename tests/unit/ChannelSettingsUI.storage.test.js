@@ -252,7 +252,7 @@ describe('mobile notification chip', () => {
 
     it('unsubscribed: the muted chip keeps a muted bell', () => {
         const { chip, label, bell } = render(false);
-        expect(chip.className).toContain('text-white/40');
+        expect(chip.className).toContain('text-overlay-40');
         expect(bell.getAttribute('class')).not.toContain('text-[#F6851B]');
         expect(label.textContent).toBe('Notifications Off');
     });

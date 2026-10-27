@@ -130,7 +130,7 @@ class DropdownManager {
 
         const dropdown = document.createElement('div');
         dropdown.id = menuId;
-        dropdown.className = 'fixed bg-[#16161b] border border-white/10 rounded-xl shadow-xl py-1 z-[9999] min-w-[180px] overflow-hidden';
+        dropdown.className = 'fixed bg-[#16161b] border border-overlay-10 rounded-xl shadow-xl py-1 z-[9999] min-w-[180px] overflow-hidden';
         dropdown.innerHTML = items.map((item) => this._renderItem(item)).join('');
 
         document.body.appendChild(dropdown);
@@ -158,12 +158,12 @@ class DropdownManager {
      */
     _renderItem(item) {
         if (item.separator) {
-            return '<div class="my-1 border-t border-white/5"></div>';
+            return '<div class="my-1 border-t border-overlay-5"></div>';
         }
 
         const toneClasses = item.tone === 'danger'
-            ? 'hover:bg-red-500/10 text-white/50 hover:text-danger'
-            : 'hover:bg-white/5 text-white/70 hover:text-primary';
+            ? 'hover:bg-red-500/10 text-overlay-50 hover:text-danger'
+            : 'hover:bg-overlay-5 text-overlay-70 hover:text-primary';
 
         return `
             <button class="dropdown-action w-full text-left px-4 py-2 text-sm transition flex items-center gap-2 ${toneClasses}" data-action="${item.action}">

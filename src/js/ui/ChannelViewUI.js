@@ -247,7 +247,7 @@ class ChannelViewUI {
         
         // Remove selection highlight
         document.querySelectorAll('.channel-item').forEach(item => {
-            item.classList.remove('bg-white/[0.06]');
+            item.classList.remove('bg-overlay-6');
         });
     }
 
@@ -366,7 +366,7 @@ class ChannelViewUI {
      */
     _resetOnlineUsers() {
         if (this.elements.onlineUsersList) {
-            this.elements.onlineUsersList.innerHTML = '<div class="text-white/30 text-sm text-center">No one online</div>';
+            this.elements.onlineUsersList.innerHTML = '<div class="text-overlay-30 text-sm text-center">No one online</div>';
         }
         if (this.elements.onlineUsersCount) {
             this.elements.onlineUsersCount.textContent = '0';

@@ -199,10 +199,10 @@ class MessageRenderer {
             const channel = this.deps.getCurrentChannel?.();
             const channelId = channel?.streamId || '';
             return `
-                <div data-image-id="${escapeAttr(msg.imageId)}" data-channel-id="${escapeAttr(channelId)}" class="bg-white/[0.05] rounded-xl p-4 max-w-xs">
+                <div data-image-id="${escapeAttr(msg.imageId)}" data-channel-id="${escapeAttr(channelId)}" class="bg-overlay-5 rounded-xl p-4 max-w-xs">
                     <div class="flex items-center gap-2">
-                        <div class="animate-spin w-4 h-4 border-2 border-white/20 border-t-white rounded-full"></div>
-                        <span class="text-white/40 text-sm">Loading image...</span>
+                        <div class="animate-spin w-4 h-4 border-2 border-overlay-20 border-t-white rounded-full"></div>
+                        <span class="text-overlay-40 text-sm">Loading image...</span>
                     </div>
                 </div>
             `;
@@ -247,7 +247,7 @@ class MessageRenderer {
      * now, so this is what tells the two transports apart at a glance.
      */
     transportBadge(label) {
-        return `<span class="inline-block text-[9px] uppercase tracking-wider px-1.5 py-px mr-1.5 rounded bg-white/[0.08] text-white/40 align-middle">${label}</span>`;
+        return `<span class="inline-block text-[9px] uppercase tracking-wider px-1.5 py-px mr-1.5 rounded bg-overlay-8 text-overlay-40 align-middle">${label}</span>`;
     }
 
     /**
@@ -319,23 +319,23 @@ class MessageRenderer {
         let action = '';
         if (fileUrl) {
             action = this.deps.isSaved?.(fileId) ? `
-            <div title="Saved" class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] flex items-center justify-center">
+            <div title="Saved" class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-6 flex items-center justify-center">
                 ${this.iconCheck('w-5 h-5 text-success/70')}
             </div>` : `
             <a href="${fileUrl}" download="${attrFileName}" title="Save file"
-               class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] hover:bg-white/[0.14] flex items-center justify-center transition">
+               class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-6 hover:bg-overlay-14 flex items-center justify-center transition">
                 ${this.iconFloppy('w-5 h-5 text-success/70')}
             </a>`;
         } else if (active) {
             action = `
-            <div class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.04] flex items-center justify-center">
-                ${this.iconArrowDown('w-5 h-5 text-white/25 animate-pulse')}
+            <div class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-4 flex items-center justify-center">
+                ${this.iconArrowDown('w-5 h-5 text-overlay-25 animate-pulse')}
             </div>`;
         } else if (canDownload) {
             action = `
-            <button class="download-file-btn file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition"
+            <button class="download-file-btn file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-6 hover:bg-overlay-12 flex items-center justify-center transition"
                     data-file-id="${safeFileId}" title="Download">
-                <span class="download-play-icon">${this.iconArrowDown('w-5 h-5 text-white/60')}</span>
+                <span class="download-play-icon">${this.iconArrowDown('w-5 h-5 text-overlay-60')}</span>
                 <div class="download-loading-icon hidden"></div>
             </button>`;
         }
@@ -343,15 +343,15 @@ class MessageRenderer {
         // The name stays a link once the file is here (the floppy is the obvious
         // target; the title link costs nothing)
         const title = fileUrl
-            ? `<a href="${fileUrl}" download="${attrFileName}" class="text-[12px] text-white/80 hover:text-primary truncate block" title="${attrFileName}">${safeFileName}</a>`
-            : `<div class="text-[12px] text-white/80 truncate" title="${attrFileName}">${safeFileName}</div>`;
+            ? `<a href="${fileUrl}" download="${attrFileName}" class="text-[12px] text-overlay-80 hover:text-primary truncate block" title="${attrFileName}">${safeFileName}</a>`
+            : `<div class="text-[12px] text-overlay-80 truncate" title="${attrFileName}">${safeFileName}</div>`;
 
         return `
-            <div data-file-id="${safeFileId}" class="rounded-xl bg-white/[0.05] overflow-hidden" style="width: 300px; max-width: 100%;">
+            <div data-file-id="${safeFileId}" class="rounded-xl bg-overlay-5 overflow-hidden" style="width: 300px; max-width: 100%;">
                 <div class="flex items-center gap-2.5 px-3 py-2.5">
                     <div class="min-w-0 flex-1">
                         ${title}
-                        <div class="text-[10px] text-white/35 mt-0.5 flex items-center whitespace-nowrap">
+                        <div class="text-[10px] text-overlay-35 mt-0.5 flex items-center whitespace-nowrap">
                             ${this.transportBadge('mesh')}
                             <span data-progress-text="${safeFileId}">${detail}</span>
                             ${seedingStats}
@@ -360,7 +360,7 @@ class MessageRenderer {
                     </div>
                     ${action}
                 </div>
-                <div class="h-1.5 bg-white/[0.06] ${active ? '' : 'hidden'}" data-progress-overlay="${safeFileId}">
+                <div class="h-1.5 bg-overlay-6 ${active ? '' : 'hidden'}" data-progress-overlay="${safeFileId}">
                     <div class="h-full bg-blue-500 rounded-r-full transition-all duration-300"
                          data-progress-fill="${safeFileId}" style="width: ${percent}%"></div>
                 </div>
@@ -492,28 +492,28 @@ class MessageRenderer {
         let action = '';
         if (fileUrl) {
             action = this.deps.isStorageSaved?.(tid) ? `
-            <div title="Saved" class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] flex items-center justify-center">
+            <div title="Saved" class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-6 flex items-center justify-center">
                 ${this.iconCheck('w-5 h-5 text-success/70')}
             </div>` : `
             <a href="${fileUrl}" download="${attrFileName}" title="Save file"
-               class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] hover:bg-white/[0.14] flex items-center justify-center transition">
+               class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-6 hover:bg-overlay-14 flex items-center justify-center transition">
                 ${this.iconFloppy('w-5 h-5 text-success/70')}
             </a>`;
         } else if (uploadState) {
             action = `
-            <div class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.04] flex items-center justify-center">
-                ${this.iconArrowUp('w-5 h-5 text-white/25 animate-pulse')}
+            <div class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-4 flex items-center justify-center">
+                ${this.iconArrowUp('w-5 h-5 text-overlay-25 animate-pulse')}
             </div>`;
         } else if (active) {
             action = `
-            <div class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.04] flex items-center justify-center">
-                ${this.iconArrowDown('w-5 h-5 text-white/25 animate-pulse')}
+            <div class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-4 flex items-center justify-center">
+                ${this.iconArrowDown('w-5 h-5 text-overlay-25 animate-pulse')}
             </div>`;
         } else if (canDownload) {
             action = `
-            <button class="storage-download-btn file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition"
+            <button class="storage-download-btn file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-6 hover:bg-overlay-12 flex items-center justify-center transition"
                     data-file-id="${safeTid}" data-msg-id="${escapeAttr(msg.id || '')}" title="Download from storage">
-                <span class="download-play-icon">${this.iconArrowDown('w-5 h-5 text-white/60')}</span>
+                <span class="download-play-icon">${this.iconArrowDown('w-5 h-5 text-overlay-60')}</span>
                 <div class="download-loading-icon hidden"></div>
             </button>`;
         }
@@ -529,11 +529,11 @@ class MessageRenderer {
         }
 
         const title = fileUrl
-            ? `<a href="${fileUrl}" download="${attrFileName}" class="text-[12px] text-white/80 hover:text-primary truncate block" title="${attrFileName}">${safeFileName}</a>`
-            : `<div class="text-[12px] text-white/80 truncate" title="${attrFileName}">${safeFileName}</div>`;
+            ? `<a href="${fileUrl}" download="${attrFileName}" class="text-[12px] text-overlay-80 hover:text-primary truncate block" title="${attrFileName}">${safeFileName}</a>`
+            : `<div class="text-[12px] text-overlay-80 truncate" title="${attrFileName}">${safeFileName}</div>`;
 
         return `
-            <div data-file-id="${safeTid}" class="rounded-xl bg-white/[0.05] overflow-hidden" style="width: 300px; max-width: 100%;">
+            <div data-file-id="${safeTid}" class="rounded-xl bg-overlay-5 overflow-hidden" style="width: 300px; max-width: 100%;">
                 ${playerHtml}
                 <div class="flex items-center gap-2.5 px-3 py-2.5">
                     <div class="min-w-0 flex-1">
@@ -541,10 +541,10 @@ class MessageRenderer {
                         <div class="mt-0.5 flex items-start whitespace-nowrap">
                             ${this.transportBadge('storage')}
                             <div class="min-w-0 flex-1">
-                                <div class="text-[10px] ${active ? 'text-white/55' : 'text-white/35'} overflow-hidden text-ellipsis">
+                                <div class="text-[10px] ${active ? 'text-overlay-55' : 'text-overlay-35'} overflow-hidden text-ellipsis">
                                     <span data-progress-text="${safeTid}">${detail.line1}</span>
                                 </div>
-                                <div class="text-[10px] ${active ? 'text-white/45' : 'text-white/30'} overflow-hidden text-ellipsis">
+                                <div class="text-[10px] ${active ? 'text-overlay-45' : 'text-overlay-30'} overflow-hidden text-ellipsis">
                                     <span data-progress-eta="${safeTid}">${detail.line2}</span>
                                 </div>
                             </div>
@@ -553,7 +553,7 @@ class MessageRenderer {
                     </div>
                     ${action}
                 </div>
-                <div class="h-1.5 bg-white/[0.06] ${active ? '' : 'hidden'}" data-progress-overlay="${safeTid}">
+                <div class="h-1.5 bg-overlay-6 ${active ? '' : 'hidden'}" data-progress-overlay="${safeTid}">
                     <div class="h-full rounded-r-full transition-all duration-300"
                          style="width: ${percent}%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"
                          data-progress-fill="${safeTid}"></div>
@@ -623,9 +623,9 @@ class MessageRenderer {
                             </div>
                             ` : ''}
                         </div>
-                        <div class="flex items-center gap-2 mt-1 px-0.5 text-[11px] text-white/40">
+                        <div class="flex items-center gap-2 mt-1 px-0.5 text-[11px] text-overlay-40">
                             <span class="truncate flex-1">${safeFileName}</span>
-                            <span class="text-white/25">${this.formatFileSize(metadata.fileSize)}</span>
+                            <span class="text-overlay-25">${this.formatFileSize(metadata.fileSize)}</span>
                             <a href="${videoUrl}" download="${safeFileName}" class="text-blue-400 hover:text-blue-300">Save</a>
                         </div>
                     </div>
@@ -633,7 +633,7 @@ class MessageRenderer {
             } else {
                 return `
                     <div data-file-id="${safeFileId}" class="video-container">
-                        <div class="flex items-center gap-2 bg-white/[0.05] rounded-xl p-2">
+                        <div class="flex items-center gap-2 bg-overlay-5 rounded-xl p-2">
                             <svg class="w-8 h-8 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/>
                             </svg>
@@ -664,15 +664,15 @@ class MessageRenderer {
         const canDownload = Array.isArray(metadata.pieceHashes) && metadata.pieceHashes.length > 0;
         if (!canDownload) {
             return `
-                <div data-file-id="${safeFileId}" class="flex items-center gap-2.5 rounded-xl border border-dashed border-white/10 bg-white/[0.03] px-3 py-2.5" style="max-width: 220px;">
-                    <div class="flex-shrink-0 w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center">
-                        <svg class="w-4 h-4 text-white/25" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div data-file-id="${safeFileId}" class="flex items-center gap-2.5 rounded-xl border border-dashed border-overlay-10 bg-overlay-3 px-3 py-2.5" style="max-width: 220px;">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-lg bg-overlay-4 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-overlay-25" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/>
                         </svg>
                     </div>
                     <div class="min-w-0 flex-1">
-                        <div class="text-[12px] text-white/50 truncate" title="${escapeAttr(sanitizeText(metadata.fileName))}">${safeFileName}</div>
-                        <div class="text-[10px] text-white/25 mt-0.5">
+                        <div class="text-[12px] text-overlay-50 truncate" title="${escapeAttr(sanitizeText(metadata.fileName))}">${safeFileName}</div>
+                        <div class="text-[10px] text-overlay-25 mt-0.5">
                             Video &middot; ${this.formatFileSize(metadata.fileSize)} &middot; not on this device
                         </div>
                     </div>
@@ -693,7 +693,7 @@ class MessageRenderer {
 
         return `
             <div data-file-id="${safeFileId}" class="video-container">
-                <div class="relative rounded-xl overflow-hidden bg-white/[0.05] cursor-pointer group"
+                <div class="relative rounded-xl overflow-hidden bg-overlay-5 cursor-pointer group"
                      style="aspect-ratio: 16/9; width: 220px;">
                     <div class="absolute inset-0 flex items-center justify-center">
                         <svg class="w-10 h-10 text-purple-500/20" fill="currentColor" viewBox="0 0 24 24">
@@ -703,7 +703,7 @@ class MessageRenderer {
                     <button class="download-file-btn absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-all ${btnCursorClass}" 
                             data-file-id="${safeFileId}" ${btnDisabled}>
                         <div class="play-btn-container transform group-hover:scale-105 transition-transform">
-                            <div class="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30">
+                            <div class="w-12 h-12 rounded-full bg-overlay-20 backdrop-blur-sm flex items-center justify-center border border-overlay-30">
                                 <svg class="w-5 h-5 text-primary ml-0.5 download-play-icon ${playIconClass}" fill="currentColor" viewBox="0 0 24 24">
                                     <path d="M8 5v14l11-7z"/>
                                 </svg>
@@ -715,10 +715,10 @@ class MessageRenderer {
                     </button>
                     <div data-progress-overlay="${safeFileId}" class="${overlayClass} absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
                         <div class="text-primary text-sm font-medium" data-progress-percent="${safeFileId}">${dlPercent}%</div>
-                        <div class="w-2/3 bg-white/10 rounded-full h-1.5 mt-1.5">
+                        <div class="w-2/3 bg-overlay-10 rounded-full h-1.5 mt-1.5">
                             <div data-progress-fill="${safeFileId}" class="bg-blue-500 h-1.5 rounded-full transition-all duration-300" style="width: ${dlPercent}%"></div>
                         </div>
-                        <div class="text-[10px] text-white/30 mt-1" data-progress-text="${safeFileId}">${dlActive ? `${dlReceivedMB} / ${dlTotalMB} MB` : 'Starting...'}</div>
+                        <div class="text-[10px] text-overlay-30 mt-1" data-progress-text="${safeFileId}">${dlActive ? `${dlReceivedMB} / ${dlTotalMB} MB` : 'Starting...'}</div>
                     </div>
                     <div class="absolute top-1.5 left-1.5 bg-black/60 text-primary text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1">
                         <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
@@ -726,9 +726,9 @@ class MessageRenderer {
                         </svg>
                         ${this.formatFileSize(metadata.fileSize)}
                     </div>
-                    <div class="absolute top-1.5 right-1.5 bg-black/60 text-white/30 text-[10px] px-1.5 py-0.5 rounded" data-seeder-count="${safeFileId}"></div>
+                    <div class="absolute top-1.5 right-1.5 bg-black/60 text-overlay-30 text-[10px] px-1.5 py-0.5 rounded" data-seeder-count="${safeFileId}"></div>
                 </div>
-                <div class="mt-1 px-0.5 text-[11px] text-white/40 truncate" title="${escapeHtml(sanitizeText(metadata.fileName))}">
+                <div class="mt-1 px-0.5 text-[11px] text-overlay-40 truncate" title="${escapeHtml(sanitizeText(metadata.fileName))}">
                     ${escapeHtml(sanitizeText(metadata.fileName))}
                 </div>
             </div>
@@ -832,7 +832,7 @@ class MessageRenderer {
         // A moderator's view of a hidden message: dimmed, labelled, still
         // reachable by the context menu for Unhide and Erase.
         const erasingHtml = msg._erasing && !msg._erased
-            ? '<span class="message-erasing inline-block animate-spin w-2.5 h-2.5 ml-1.5 align-middle border border-white/25 border-t-white/70 rounded-full" aria-label="Erasing from storage"></span>'
+            ? '<span class="message-erasing inline-block animate-spin w-2.5 h-2.5 ml-1.5 align-middle border border-overlay-25 border-t-overlay-70 rounded-full" aria-label="Erasing from storage"></span>'
             : '';
         const moderationHtml = msg._hidden
             ? `<div class="message-moderation text-[11px] text-amber-400/80 mb-1">${msg._erased ? 'Hidden · erased from storage' : 'Hidden by moderation'}${erasingHtml}</div>`
@@ -847,7 +847,7 @@ class MessageRenderer {
             : msg.delivered ? ' message-delivered'
             : '';
         const sendStateHtml = sendState === ' message-pending'
-            ? '<span class="message-status text-xs text-white/40">sending…</span>'
+            ? '<span class="message-status text-xs text-overlay-40">sending…</span>'
             : sendState === ' message-failed'
                 ? `<span class="message-status message-status--failed text-xs text-danger" title="${escapeAttr(msg.failError || '')}">${msg.undelivered ? 'Not delivered' : 'Not sent'}</span><button type="button" class="message-retry text-xs text-danger" data-msg-id="${escapeAttr(msgId)}">Retry</button>`
                 : '';
@@ -861,8 +861,8 @@ class MessageRenderer {
                     <div class="message-content">${contentHtml}</div>
                     <div class="message-footer">
                         ${reactionsHtml}
-                        ${msg._edited ? '<span class="message-edited text-xs text-white/25">(edited)</span>' : ''}
-                        <span class="message-time text-xs text-white/40">${time}</span>
+                        ${msg._edited ? '<span class="message-edited text-xs text-overlay-25">(edited)</span>' : ''}
+                        <span class="message-time text-xs text-overlay-40">${time}</span>
                         ${sendStateHtml}
                     </div>
                     ${msg.verified && !msg.verified.valid && msg.signature ? '<div class="text-xs text-danger mt-1">⚠️ Invalid signature</div>' : ''}

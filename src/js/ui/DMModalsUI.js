@@ -140,12 +140,12 @@ class DMModalsUI {
         const tabs = document.querySelectorAll('.dm-storage-provider-tab');
         tabs.forEach(tab => {
             const isActive = tab.dataset.dmStorage === provider;
-            tab.classList.toggle('bg-white/10', isActive);
+            tab.classList.toggle('bg-overlay-10', isActive);
             tab.classList.toggle('text-primary', isActive);
-            tab.classList.toggle('border-white/10', isActive);
-            tab.classList.toggle('bg-white/5', !isActive);
-            tab.classList.toggle('text-white/50', !isActive);
-            tab.classList.toggle('border-white/5', !isActive);
+            tab.classList.toggle('border-overlay-10', isActive);
+            tab.classList.toggle('bg-overlay-5', !isActive);
+            tab.classList.toggle('text-overlay-50', !isActive);
+            tab.classList.toggle('border-overlay-5', !isActive);
         });
 
         const streamrAddressDisplay = document.getElementById('dm-streamr-address-display');
@@ -167,7 +167,7 @@ class DMModalsUI {
         if (!target) return;
         target.textContent = '0xae340e799e8151f6a4999d245e466197aa217667';
         target.classList.remove('text-danger');
-        target.classList.add('text-white/50');
+        target.classList.add('text-overlay-50');
     }
 
     showCustomAddressError(message) {

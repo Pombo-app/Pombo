@@ -127,7 +127,7 @@ describe('modalUtils', () => {
         it('should set invalid state correctly', () => {
             updatePasswordIndicator(element, false, 'Test requirement');
             
-            expect(element.className).toContain('text-white/30');
+            expect(element.className).toContain('text-overlay-30');
             expect(element.innerHTML).toContain('Test requirement');
             // Check for circle element (browser may normalize self-closing tags)
             expect(element.innerHTML).toContain('circle');
@@ -135,7 +135,7 @@ describe('modalUtils', () => {
 
         it('should toggle between states', () => {
             updatePasswordIndicator(element, false, 'Toggle test');
-            expect(element.className).toContain('text-white/30');
+            expect(element.className).toContain('text-overlay-30');
             
             updatePasswordIndicator(element, true, 'Toggle test');
             expect(element.className).toContain('text-emerald-400');

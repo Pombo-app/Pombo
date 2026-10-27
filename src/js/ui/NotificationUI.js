@@ -268,13 +268,13 @@ class NotificationUI {
             toast.innerHTML = `
                 ${TOAST_ICONS[variant] || TOAST_ICONS.warning}
                 <div class="toast-content">
-                    <div class="text-[13px] font-medium text-white/90">${escapeHtml(message)}</div>
-                    ${subtitle ? `<div class="text-[11px] text-white/50 mt-0.5">${escapeHtml(subtitle)}</div>` : ''}
+                    <div class="text-[13px] font-medium text-overlay-90">${escapeHtml(message)}</div>
+                    ${subtitle ? `<div class="text-[11px] text-overlay-50 mt-0.5">${escapeHtml(subtitle)}</div>` : ''}
                     <div class="mt-2.5 flex gap-2">
-                        <button class="confirm-btn bg-white/90 hover:bg-white text-[#0a0a0a] px-3 py-1 rounded-md text-[11px] font-medium transition">
+                        <button class="confirm-btn bg-overlay-90 hover:bg-white text-[#0a0a0a] px-3 py-1 rounded-md text-[11px] font-medium transition">
                             ${escapeHtml(confirmLabel)}
                         </button>
-                        <button class="cancel-btn bg-white/10 hover:bg-white/20 text-white/70 px-3 py-1 rounded-md text-[11px] font-medium transition">
+                        <button class="cancel-btn bg-overlay-10 hover:bg-overlay-20 text-overlay-70 px-3 py-1 rounded-md text-[11px] font-medium transition">
                             ${escapeHtml(cancelLabel)}
                         </button>
                     </div>
@@ -351,7 +351,7 @@ class NotificationUI {
             ${LOADING_ICONS[options.icon] || LOADING_ICONS.chat}
             <div class="toast-content">
                 <span class="toast-message">${escapeHtml(message)}</span>
-                ${subtitle ? `<span class="text-[11px] text-white/40 block mt-0.5">${escapeHtml(subtitle)}</span>` : ''}
+                ${subtitle ? `<span class="text-[11px] text-overlay-40 block mt-0.5">${escapeHtml(subtitle)}</span>` : ''}
             </div>
             ${ringHtml}
             <div class="toast-progress"></div>
@@ -455,7 +455,7 @@ class NotificationUI {
         if (token != null) indicator.dataset.loadToken = String(token);
         indicator.className = 'flex justify-center py-3';
         indicator.innerHTML = `
-            <div class="flex items-center gap-2 text-white/30 text-sm">
+            <div class="flex items-center gap-2 text-overlay-30 text-sm">
                 <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>

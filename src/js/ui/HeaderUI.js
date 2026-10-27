@@ -360,7 +360,7 @@ class HeaderUI {
         const sizePx = 38;
         const sizeStyle = 'width:38px;height:38px';
         const radiusCls = 'rounded-full';
-        const spinnerHtml = `<div class="${radiusCls} flex items-center justify-center bg-white/[0.04]" style="${sizeStyle}"><div class="thumb-spinner" style="width:18px;height:18px"></div></div>`;
+        const spinnerHtml = `<div class="${radiusCls} flex items-center justify-center bg-overlay-4" style="${sizeStyle}"><div class="thumb-spinner" style="width:18px;height:18px"></div></div>`;
         const avatarHtml = (seed, ensUrl) => `<div class="${radiusCls} overflow-hidden" style="${sizeStyle}">${getAvatarHtml(seed, sizePx, 0.5, ensUrl)}</div>`;
         const fallbackHtml = (seed) => avatarHtml(seed, null);
         const imgHtml = (url) => `<img class="${radiusCls} object-cover" alt="" src="${escapeAttr(url)}" style="${sizeStyle}" />`;
@@ -458,7 +458,7 @@ class HeaderUI {
      */
     getChannelTypeLabel(type, readOnly = false, showLabel = false) {
         // Megaphone icon for read-only/announcements indicator (header only)
-        const roIcon = readOnly && !showLabel ? '<svg class="w-3 h-3 md:w-4 md:h-4 ml-1 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>' : '';
+        const roIcon = readOnly && !showLabel ? '<svg class="w-3 h-3 md:w-4 md:h-4 ml-1 text-overlay-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>' : '';
 
         if (showLabel) {
             // Vertical layout for Channel Details modal: [icon][label] per line

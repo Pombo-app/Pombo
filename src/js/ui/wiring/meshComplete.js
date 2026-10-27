@@ -62,7 +62,7 @@ export function attachMeshComplete(ui) {
                                 </div>
                                 ` : ''}
                             </div>
-                            <div class="flex items-center justify-between mt-1 text-xs text-white/40">
+                            <div class="flex items-center justify-between mt-1 text-xs text-overlay-40">
                                 <span class="truncate flex-1">${safeFileName}</span>
                                 <div class="flex items-center gap-2 ml-2">
                                     <span>${messageRenderer.formatFileSize(metadata.fileSize)}</span>
@@ -85,12 +85,12 @@ export function attachMeshComplete(ui) {
                                 const parent = videoEl.closest('[data-file-id]');
                                 if (parent) {
                                     parent.innerHTML = `
-                                        <div class="bg-white/[0.06] rounded-lg p-3">
+                                        <div class="bg-overlay-6 rounded-lg p-3">
                                             <div class="flex items-center gap-2 mb-2">
                                                 <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                                                 </svg>
-                                                <span class="text-sm text-white/70">Format not supported</span>
+                                                <span class="text-sm text-overlay-70">Format not supported</span>
                                             </div>
                                             <a href="${url}" download="${safeFileName}" class="block w-full bg-blue-600 hover:bg-blue-700 text-primary text-center px-3 py-2 rounded-lg text-sm transition">
                                                 Download ${safeFileName}
@@ -107,7 +107,7 @@ export function attachMeshComplete(ui) {
                     // Format not playable - show download button
                     container.outerHTML = `
                         <div data-file-id="${_escapeAttr(fileId)}" class="max-w-xs">
-                            <div class="bg-white/[0.06] rounded-lg p-3">
+                            <div class="bg-overlay-6 rounded-lg p-3">
                                 <div class="flex items-center gap-2 mb-2">
                                     <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/>
@@ -118,7 +118,7 @@ export function attachMeshComplete(ui) {
                                     ⚠️ Format not supported in browser (${safeFileType.split('/')[1]?.toUpperCase() || 'video'})
                                 </div>
                                 <div class="flex items-center justify-between">
-                                    <span class="text-xs text-white/30">${messageRenderer.formatFileSize(metadata.fileSize)}</span>
+                                    <span class="text-xs text-overlay-30">${messageRenderer.formatFileSize(metadata.fileSize)}</span>
                                     <a href="${url}" download="${safeFileName}" class="bg-blue-600 hover:bg-blue-700 text-primary px-3 py-1.5 rounded-lg text-sm transition">
                                         Download
                                     </a>

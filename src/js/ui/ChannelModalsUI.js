@@ -213,11 +213,11 @@ class ChannelModalsUI {
     switchChannelTab(tabType) {
         document.querySelectorAll('.channel-tab').forEach(tab => {
             const isActive = tab.dataset.tab === tabType;
-            tab.classList.toggle('bg-white/10', isActive);
+            tab.classList.toggle('bg-overlay-10', isActive);
             tab.classList.toggle('text-primary', isActive);
-            tab.classList.toggle('text-white/60', !isActive);
-            tab.classList.toggle('hover:text-white/90', !isActive);
-            tab.classList.toggle('hover:bg-white/5', !isActive);
+            tab.classList.toggle('text-overlay-60', !isActive);
+            tab.classList.toggle('hover:text-overlay-90', !isActive);
+            tab.classList.toggle('hover:bg-overlay-5', !isActive);
         });
         
         document.querySelectorAll('.channel-tab-content').forEach(content => {
@@ -272,14 +272,14 @@ class ChannelModalsUI {
     switchGateAssetTab(asset) {
         document.querySelectorAll('.gate-asset-tab').forEach(tab => {
             const isActive = tab.dataset.gateAsset === asset;
-            tab.classList.toggle('bg-white/10', isActive);
+            tab.classList.toggle('bg-overlay-10', isActive);
             tab.classList.toggle('text-primary', isActive);
-            tab.classList.toggle('border-white/10', isActive);
-            tab.classList.toggle('bg-white/5', !isActive);
-            tab.classList.toggle('text-white/50', !isActive);
-            tab.classList.toggle('border-white/5', !isActive);
-            tab.classList.toggle('hover:bg-white/10', !isActive);
-            tab.classList.toggle('hover:text-white/70', !isActive);
+            tab.classList.toggle('border-overlay-10', isActive);
+            tab.classList.toggle('bg-overlay-5', !isActive);
+            tab.classList.toggle('text-overlay-50', !isActive);
+            tab.classList.toggle('border-overlay-5', !isActive);
+            tab.classList.toggle('hover:bg-overlay-10', !isActive);
+            tab.classList.toggle('hover:text-overlay-70', !isActive);
         });
         // NFT gates require holding at least one — no balance threshold on-chain
         document.getElementById('gate-min-balance-field')?.classList.toggle('hidden', asset === 'nft');
@@ -313,14 +313,14 @@ class ChannelModalsUI {
         const preset = CONFIG.gate.tokenPresets[isGate ? 'gate' : 'pay'][key] || null;
         document.querySelectorAll(isGate ? '.gate-token-preset-tab' : '.paid-token-preset-tab').forEach(tab => {
             const isActive = tab.dataset.tokenPreset === key;
-            tab.classList.toggle('bg-white/10', isActive);
+            tab.classList.toggle('bg-overlay-10', isActive);
             tab.classList.toggle('text-primary', isActive);
-            tab.classList.toggle('border-white/10', isActive);
-            tab.classList.toggle('bg-white/5', !isActive);
-            tab.classList.toggle('text-white/50', !isActive);
-            tab.classList.toggle('border-white/5', !isActive);
-            tab.classList.toggle('hover:bg-white/10', !isActive);
-            tab.classList.toggle('hover:text-white/70', !isActive);
+            tab.classList.toggle('border-overlay-10', isActive);
+            tab.classList.toggle('bg-overlay-5', !isActive);
+            tab.classList.toggle('text-overlay-50', !isActive);
+            tab.classList.toggle('border-overlay-5', !isActive);
+            tab.classList.toggle('hover:bg-overlay-10', !isActive);
+            tab.classList.toggle('hover:text-overlay-70', !isActive);
         });
         const input = document.getElementById(isGate ? 'gate-token-input' : 'paid-token-input');
         if (input) {
@@ -366,19 +366,19 @@ class ChannelModalsUI {
         const knob = toggle.querySelector('span');
         
         if (visible) {
-            toggle.classList.remove('bg-white/10');
+            toggle.classList.remove('bg-overlay-10');
             toggle.classList.add('bg-[#F6851B]');
             if (knob) {
-                knob.classList.remove('left-0.5', 'bg-white/30');
+                knob.classList.remove('left-0.5', 'bg-overlay-30');
                 knob.classList.add('left-4', 'bg-white');
             }
             this.elements.visibleFields?.classList.remove('hidden');
         } else {
             toggle.classList.remove('bg-[#F6851B]');
-            toggle.classList.add('bg-white/10');
+            toggle.classList.add('bg-overlay-10');
             if (knob) {
                 knob.classList.remove('left-4', 'bg-white');
-                knob.classList.add('left-0.5', 'bg-white/30');
+                knob.classList.add('left-0.5', 'bg-overlay-30');
             }
             this.elements.visibleFields?.classList.add('hidden');
         }
@@ -411,14 +411,14 @@ class ChannelModalsUI {
     switchClassificationTab(classification) {
         document.querySelectorAll('.classification-tab').forEach(tab => {
             const isActive = tab.dataset.classification === classification;
-            tab.classList.toggle('bg-white/10', isActive);
+            tab.classList.toggle('bg-overlay-10', isActive);
             tab.classList.toggle('text-primary', isActive);
-            tab.classList.toggle('border-white/10', isActive);
-            tab.classList.toggle('bg-white/5', !isActive);
-            tab.classList.toggle('text-white/50', !isActive);
-            tab.classList.toggle('border-white/5', !isActive);
-            tab.classList.toggle('hover:bg-white/10', !isActive);
-            tab.classList.toggle('hover:text-white/70', !isActive);
+            tab.classList.toggle('border-overlay-10', isActive);
+            tab.classList.toggle('bg-overlay-5', !isActive);
+            tab.classList.toggle('text-overlay-50', !isActive);
+            tab.classList.toggle('border-overlay-5', !isActive);
+            tab.classList.toggle('hover:bg-overlay-10', !isActive);
+            tab.classList.toggle('hover:text-overlay-70', !isActive);
         });
         this.currentClassification = classification;
     }
@@ -429,14 +429,14 @@ class ChannelModalsUI {
     switchJoinClassificationTab(classification) {
         document.querySelectorAll('.join-classification-tab').forEach(tab => {
             const isActive = tab.dataset.joinClassification === classification;
-            tab.classList.toggle('bg-white/10', isActive);
+            tab.classList.toggle('bg-overlay-10', isActive);
             tab.classList.toggle('text-primary', isActive);
-            tab.classList.toggle('border-white/10', isActive);
-            tab.classList.toggle('bg-white/5', !isActive);
-            tab.classList.toggle('text-white/50', !isActive);
-            tab.classList.toggle('border-white/5', !isActive);
-            tab.classList.toggle('hover:bg-white/10', !isActive);
-            tab.classList.toggle('hover:text-white/70', !isActive);
+            tab.classList.toggle('border-overlay-10', isActive);
+            tab.classList.toggle('bg-overlay-5', !isActive);
+            tab.classList.toggle('text-overlay-50', !isActive);
+            tab.classList.toggle('border-overlay-5', !isActive);
+            tab.classList.toggle('hover:bg-overlay-10', !isActive);
+            tab.classList.toggle('hover:text-overlay-70', !isActive);
         });
         this.joinClassification = classification;
     }
@@ -462,18 +462,18 @@ class ChannelModalsUI {
         const knob = toggle.querySelector('span');
         
         if (enabled) {
-            toggle.classList.remove('bg-white/10');
+            toggle.classList.remove('bg-overlay-10');
             toggle.classList.add('bg-[#F6851B]');
             if (knob) {
-                knob.classList.remove('left-0.5', 'bg-white/30');
+                knob.classList.remove('left-0.5', 'bg-overlay-30');
                 knob.classList.add('left-4', 'bg-white');
             }
         } else {
             toggle.classList.remove('bg-[#F6851B]');
-            toggle.classList.add('bg-white/10');
+            toggle.classList.add('bg-overlay-10');
             if (knob) {
                 knob.classList.remove('left-4', 'bg-white');
-                knob.classList.add('left-0.5', 'bg-white/30');
+                knob.classList.add('left-0.5', 'bg-overlay-30');
             }
         }
         
@@ -488,11 +488,11 @@ class ChannelModalsUI {
 
         document.querySelectorAll('.storage-provider-tab').forEach(tab => {
             if (tab.dataset.storage === provider) {
-                tab.classList.remove('bg-white/5', 'text-white/50', 'border-white/5');
-                tab.classList.add('bg-white/10', 'text-primary', 'border-white/10');
+                tab.classList.remove('bg-overlay-5', 'text-overlay-50', 'border-overlay-5');
+                tab.classList.add('bg-overlay-10', 'text-primary', 'border-overlay-10');
             } else {
-                tab.classList.remove('bg-white/10', 'text-primary', 'border-white/10');
-                tab.classList.add('bg-white/5', 'text-white/50', 'border-white/5');
+                tab.classList.remove('bg-overlay-10', 'text-primary', 'border-overlay-10');
+                tab.classList.add('bg-overlay-5', 'text-overlay-50', 'border-overlay-5');
             }
         });
 
@@ -519,7 +519,7 @@ class ChannelModalsUI {
         const addr = '0xae340e799e8151f6a4999d245e466197aa217667';
         target.textContent = addr;
         target.classList.remove('text-danger');
-        target.classList.add('text-white/50');
+        target.classList.add('text-overlay-50');
     }
 
     /**
@@ -940,7 +940,7 @@ class ChannelModalsUI {
                 verbEl.textContent = verb;
                 verbEl.className = paid
                     ? 'text-[10px] uppercase tracking-[0.2em] text-[#F6851B]/70'
-                    : 'text-[10px] uppercase tracking-[0.2em] text-white/40';
+                    : 'text-[10px] uppercase tracking-[0.2em] text-overlay-40';
             }
             if (valueEl) valueEl.textContent = value;
             if (qualifierEl) qualifierEl.textContent = qualifier;
@@ -955,7 +955,7 @@ class ChannelModalsUI {
             statusEl.className = 'mt-4 text-sm text-center ' + (
                 tone === 'ok' ? 'text-emerald-400/90'
                     : tone === 'bad' ? 'text-danger/80'
-                        : 'text-white/50');
+                        : 'text-overlay-50');
         };
 
         if (conditionEl) {

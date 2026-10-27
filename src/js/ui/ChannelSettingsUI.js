@@ -18,7 +18,7 @@ import { getAvatarHtml } from './AvatarGenerator.js';
 import { formatRemaining } from './SubscriptionBannerUI.js';
 
 const CHIP_CLASS = 'inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs '
-    + 'text-white/55 bg-white/5 border border-white/[0.08]';
+    + 'text-overlay-55 bg-overlay-5 border border-overlay-8';
 /** Must track the w-[88px] of #channel-image-preview. */
 const AVATAR_PX = 88;
 
@@ -306,7 +306,7 @@ class ChannelSettingsUI {
         if (!list) return;
 
         // Loading state
-        list.innerHTML = '<div class="text-sm text-white/40 px-1">Loading…</div>';
+        list.innerHTML = '<div class="text-sm text-overlay-40 px-1">Loading…</div>';
         this.elements.channelStorageRetentionReadonly && (this.elements.channelStorageRetentionReadonly.textContent = 'Loading…');
         this.elements.channelStorageNoStorage?.classList.add('hidden');
 
@@ -389,7 +389,7 @@ class ChannelSettingsUI {
 
         // Nodes
         if (!enabled || nodes.length === 0) {
-            list.innerHTML = '<div class="text-sm text-white/40 px-1">No storage provider</div>';
+            list.innerHTML = '<div class="text-sm text-overlay-40 px-1">No storage provider</div>';
             return;
         }
 
@@ -405,15 +405,15 @@ class ChannelSettingsUI {
                 ? '<span class="text-[10px] text-amber-400/80 ml-1.5" title="This node is missing from some of the channel streams. Adding it again heals it, and only the streams that lack it are charged.">partial</span>'
                 : '';
             const removeBtn = canManage
-                ? `<button data-storage-remove="${escapeAttr(addr)}" class="storage-remove-btn shrink-0 text-white/40 hover:text-danger/90 px-2 py-1 rounded transition" title="Remove">
+                ? `<button data-storage-remove="${escapeAttr(addr)}" class="storage-remove-btn shrink-0 text-overlay-40 hover:text-danger/90 px-2 py-1 rounded transition" title="Remove">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
                    </button>`
                 : '';
             return `
-                <div class="flex items-center justify-between gap-3 px-3 py-2 bg-white/[0.03] border border-white/5 rounded-xl">
+                <div class="flex items-center justify-between gap-3 px-3 py-2 bg-overlay-3 border border-overlay-5 rounded-xl">
                     <div class="min-w-0 flex-1">
-                        <div class="text-xs text-white/50">${escapeHtml(label)}${divergentBadge}</div>
-                        <code class="text-xs text-white/70 font-mono truncate block">${escapeHtml(addr)}</code>
+                        <div class="text-xs text-overlay-50">${escapeHtml(label)}${divergentBadge}</div>
+                        <code class="text-xs text-overlay-70 font-mono truncate block">${escapeHtml(addr)}</code>
                     </div>
                     ${removeBtn}
                 </div>
@@ -602,7 +602,7 @@ class ChannelSettingsUI {
         if (counter) counter.textContent = String(all.length);
 
         if (all.length === 0) {
-            list.innerHTML = '<div class="text-center text-white/30 py-6 text-sm">No banned members</div>';
+            list.innerHTML = '<div class="text-center text-overlay-30 py-6 text-sm">No banned members</div>';
             return;
         }
 
@@ -619,17 +619,17 @@ class ChannelSettingsUI {
                 onClient ? '<span class="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">Client</span>' : ''
             ].join(' ');
             return `
-                <div class="flex items-center justify-between gap-3 px-3 py-2.5 bg-white/[0.03] border border-white/5 rounded-xl">
+                <div class="flex items-center justify-between gap-3 px-3 py-2.5 bg-overlay-3 border border-overlay-5 rounded-xl">
                     <div class="flex items-center gap-2 min-w-0 flex-1">
                         <div class="flex-shrink-0" style="width:32px;height:32px;border-radius:9999px;overflow:hidden;">
                             ${avatarHtml}
                         </div>
                         <div class="min-w-0">
-                            <div class="${isAddress ? 'font-mono text-[13px] text-white/55 break-all' : 'text-sm text-white/80 truncate'}">${escapeHtml(sanitizeText(label))}</div>
+                            <div class="${isAddress ? 'font-mono text-[13px] text-overlay-55 break-all' : 'text-sm text-overlay-80 truncate'}">${escapeHtml(sanitizeText(label))}</div>
                             <div class="flex items-center gap-1 mt-1">${tags}</div>
                         </div>
                     </div>
-                    <button data-unban-address="${escapeAttr(lower)}" data-on-chain="${onChain}" class="banned-unban-btn shrink-0 bg-white/10 hover:bg-white/20 text-white/80 border border-white/10 px-3 py-1.5 rounded-lg text-xs transition">
+                    <button data-unban-address="${escapeAttr(lower)}" data-on-chain="${onChain}" class="banned-unban-btn shrink-0 bg-overlay-10 hover:bg-overlay-20 text-overlay-80 border border-overlay-10 px-3 py-1.5 rounded-lg text-xs transition">
                         Unban
                     </button>
                 </div>
@@ -749,9 +749,9 @@ class ChannelSettingsUI {
         // Update tab buttons
         document.querySelectorAll('.channel-settings-tab').forEach(tab => {
             const isActive = tab.dataset.channelTab === tabName;
-            tab.classList.toggle('bg-white/10', isActive);
+            tab.classList.toggle('bg-overlay-10', isActive);
             tab.classList.toggle('text-primary', isActive);
-            tab.classList.toggle('text-white/60', !isActive && tab.dataset.channelTab !== 'danger');
+            tab.classList.toggle('text-overlay-60', !isActive && tab.dataset.channelTab !== 'danger');
         });
 
         // Instant switch panels
@@ -880,7 +880,7 @@ class ChannelSettingsUI {
             if (bell) bell.classList.add('text-[#F6851B]');
             if (label) label.textContent = 'Notifications On';
         } else {
-            chip.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition border border-white/10 bg-white/5 text-white/40';
+            chip.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition border border-overlay-10 bg-overlay-5 text-overlay-40';
             if (bell) bell.classList.remove('text-[#F6851B]');
             if (label) label.textContent = 'Notifications Off';
         }
@@ -1052,7 +1052,7 @@ class ChannelSettingsUI {
                 status.className = 'text-xs text-green-500';
             } else {
                 status.textContent = 'Push notifications disabled';
-                status.className = 'text-xs text-white/40';
+                status.className = 'text-xs text-overlay-40';
             }
         }
         
@@ -1330,7 +1330,7 @@ class ChannelSettingsUI {
             showNotification('Push notifications disabled', 'info');
             if (status) {
                 status.textContent = 'Push notifications disabled';
-                status.className = 'text-xs text-white/40';
+                status.className = 'text-xs text-overlay-40';
             }
         }
     }
@@ -1419,8 +1419,8 @@ class ChannelSettingsUI {
         const channelLabel = escapeHtml(currentChannel.name || currentChannel.peerAddress || 'this channel');
         
         const hint = isDM
-            ? '<p class="text-xs text-white/30 mt-1">New messages will reopen the conversation.</p>'
-            : '<p class="text-xs text-white/30 mt-1">You can rejoin later with the invite link.</p>';
+            ? '<p class="text-xs text-overlay-30 mt-1">New messages will reopen the conversation.</p>'
+            : '<p class="text-xs text-overlay-30 mt-1">You can rejoin later with the invite link.</p>';
         
         const blockButton = isDM ? `
             <button id="block-leave-btn" class="flex-1 bg-red-500/20 hover:bg-red-500/30 text-danger border border-red-500/30 text-sm font-medium px-3 py-2.5 rounded-xl transition">
@@ -1432,16 +1432,16 @@ class ChannelSettingsUI {
         modal.id = 'leave-channel-modal';
         modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-[60]';
         modal.innerHTML = `
-            <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-white/[0.06]">
+            <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
                 <h3 class="text-base font-medium mb-4 text-primary">${isDM ? 'Leave Conversation' : 'Leave Channel'}</h3>
                 <div class="space-y-3">
-                    <p class="text-sm text-white/50">
-                        Are you sure you want to leave <span class="text-white/80 font-medium">"${channelLabel}"</span>?
+                    <p class="text-sm text-overlay-50">
+                        Are you sure you want to leave <span class="text-overlay-80 font-medium">"${channelLabel}"</span>?
                     </p>
                     ${hint}
                 </div>
                 <div class="flex gap-2 mt-5">
-                    <button id="cancel-leave-btn" class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 text-sm font-medium px-3 py-2.5 rounded-xl transition">
+                    <button id="cancel-leave-btn" class="flex-1 bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-50 text-sm font-medium px-3 py-2.5 rounded-xl transition">
                         Cancel
                     </button>
                     <button id="confirm-leave-btn" class="flex-1 bg-red-500/20 hover:bg-red-500/30 text-danger border border-red-500/30 text-sm font-medium px-3 py-2.5 rounded-xl transition">
@@ -1524,7 +1524,7 @@ class ChannelSettingsUI {
             return;
         }
 
-        this.elements.membersList.innerHTML = '<div class="text-center text-white/30 py-4 text-sm">Loading...</div>';
+        this.elements.membersList.innerHTML = '<div class="text-center text-overlay-30 py-4 text-sm">Loading...</div>';
 
         try {
             const members = await this.deps.channelManager.getChannelMembers(currentChannel.streamId);
@@ -1623,7 +1623,7 @@ class ChannelSettingsUI {
         this._lastMembersChannel = channel;
 
         if (!members || members.length === 0) {
-            this.elements.membersList.innerHTML = '<div class="text-center text-white/30 py-4 text-sm">No members found</div>';
+            this.elements.membersList.innerHTML = '<div class="text-center text-overlay-30 py-4 text-sm">No members found</div>';
             return;
         }
 
@@ -1656,10 +1656,10 @@ class ChannelSettingsUI {
             const paidUntil = typeof member === 'object' ? (member.paidUntil || 0) : 0;
             if (paidUntil > 0 && !memberIsOwner) {
                 const expired = paidUntil * 1000 <= Date.now();
-                badgeHtml += `<span class="text-xs ${expired ? 'text-danger/80' : 'text-white/40'}">${expired ? 'expired' : 'until'} ${new Date(paidUntil * 1000).toLocaleDateString()}</span>`;
+                badgeHtml += `<span class="text-xs ${expired ? 'text-danger/80' : 'text-overlay-40'}">${expired ? 'expired' : 'until'} ${new Date(paidUntil * 1000).toLocaleDateString()}</span>`;
             }
             if (isMe) {
-                badgeHtml += '<span class="text-xs text-white/60 ml-1">(you)</span>';
+                badgeHtml += '<span class="text-xs text-overlay-60 ml-1">(you)</span>';
             }
 
             // Owner can manage anyone except self
@@ -1667,7 +1667,7 @@ class ChannelSettingsUI {
             const memberIsAdmin = !memberIsOwner && !isCreator && canGrant;
             const canManage = !isMe && (isOwner || (currentUserCanGrant && !memberIsOwner && !isCreator && !memberIsAdmin));
             const menuBtn = canManage 
-                ? `<button class="member-menu-btn text-white/30 hover:text-white/60 p-1.5 rounded-lg hover:bg-white/5 transition" 
+                ? `<button class="member-menu-btn text-overlay-30 hover:text-overlay-60 p-1.5 rounded-lg hover:bg-overlay-5 transition" 
                           data-address="${escapeAttr(address)}" data-can-grant="${canGrant}" data-current-is-owner="${isOwner}" title="Manage member">
                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
@@ -1682,11 +1682,11 @@ class ChannelSettingsUI {
                 address, 32, 0.5, identityManager.getCachedENSAvatar?.(normalizedAddr) || null);
             const { label, isAddress } = this._memberLabel(address, channel);
             const nameHtml = isAddress
-                ? `<span class="font-mono text-[13px] text-white/55 break-all">${escapeHtml(label)}</span>`
-                : `<span class="text-xs text-white/85 truncate">${escapeHtml(sanitizeText(label))}</span>`;
+                ? `<span class="font-mono text-[13px] text-overlay-55 break-all">${escapeHtml(label)}</span>`
+                : `<span class="text-xs text-overlay-85 truncate">${escapeHtml(sanitizeText(label))}</span>`;
 
             return `
-                <div class="flex items-center justify-between p-2.5 bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition group">
+                <div class="flex items-center justify-between p-2.5 bg-overlay-5 rounded-xl border border-overlay-5 hover:border-overlay-10 transition group">
                     <div class="flex items-center gap-2 min-w-0 flex-1">
                         <div class="flex-shrink-0" style="width:32px;height:32px;border-radius:9999px;overflow:hidden;">
                             ${avatarHtml}
@@ -1725,14 +1725,14 @@ class ChannelSettingsUI {
         
         // Only owner can toggle admin permissions
         const toggleGrantBtn = currentUserIsOwner ? `
-            <button class="member-action w-full text-left px-4 py-2.5 hover:bg-white/5 text-sm transition flex items-center justify-between gap-3" data-action="toggle-grant">
-                <span class="flex items-center gap-2 min-w-0 ${canGrant ? 'text-purple-400' : 'text-white/70'}">
+            <button class="member-action w-full text-left px-4 py-2.5 hover:bg-overlay-5 text-sm transition flex items-center justify-between gap-3" data-action="toggle-grant">
+                <span class="flex items-center gap-2 min-w-0 ${canGrant ? 'text-purple-400' : 'text-overlay-70'}">
                     <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/></svg>
                     <span class="truncate">Moderator</span>
                 </span>
-                <span class="text-xs flex-shrink-0 ${canGrant ? 'text-purple-400' : 'text-white/30'}">${canGrant ? 'ON' : 'OFF'}</span>
+                <span class="text-xs flex-shrink-0 ${canGrant ? 'text-purple-400' : 'text-overlay-30'}">${canGrant ? 'ON' : 'OFF'}</span>
             </button>
-            <div class="my-1 border-t border-white/5"></div>
+            <div class="my-1 border-t border-overlay-5"></div>
         ` : '';
 
         // Remove takes them off the allowlist without the ban mark, so adding
@@ -1740,7 +1740,7 @@ class ChannelSettingsUI {
         // elsewhere membership is the asset or the subscription, and Ban is
         // the only cut.
         const removeBtn = this._gateModeIsNone ? `
-            <button class="member-action w-full text-left px-4 py-2.5 hover:bg-white/5 text-sm text-white/50 transition flex items-center gap-2" data-action="remove">
+            <button class="member-action w-full text-left px-4 py-2.5 hover:bg-overlay-5 text-sm text-overlay-50 transition flex items-center gap-2" data-action="remove">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M22 10.5h-6m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z"/></svg>
                 <span>Remove from channel</span>
             </button>
@@ -1748,11 +1748,11 @@ class ChannelSettingsUI {
 
         const dropdown = document.createElement('div');
         dropdown.id = 'member-dropdown-menu';
-        dropdown.className = 'fixed bg-[#111113] border border-white/10 rounded-xl shadow-2xl py-1 z-[9999] min-w-[200px] overflow-hidden';
+        dropdown.className = 'fixed bg-[#111113] border border-overlay-10 rounded-xl shadow-2xl py-1 z-[9999] min-w-[200px] overflow-hidden';
         dropdown.innerHTML = `
-            <div class="px-3 py-2 border-b border-white/5">
-                <div class="text-xs text-white/40">Member</div>
-                <div class="text-sm text-white/80 font-mono">${escapeHtml(shortAddr)}</div>
+            <div class="px-3 py-2 border-b border-overlay-5">
+                <div class="text-xs text-overlay-40">Member</div>
+                <div class="text-sm text-overlay-80 font-mono">${escapeHtml(shortAddr)}</div>
             </div>
             ${toggleGrantBtn}
             ${removeBtn}
@@ -1943,24 +1943,24 @@ class ChannelSettingsUI {
         modal.id = 'remove-member-modal';
         modal.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70]';
         modal.innerHTML = `
-            <div class="bg-[#111113] rounded-2xl w-[380px] max-w-[95vw] mx-4 shadow-2xl border border-white/[0.06] overflow-hidden">
+            <div class="bg-[#111113] rounded-2xl w-[380px] max-w-[95vw] mx-4 shadow-2xl border border-overlay-6 overflow-hidden">
                 <div class="p-6">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-lg">👤</div>
-                        <h3 class="text-lg font-medium text-white/90">Remove Member</h3>
+                        <h3 class="text-lg font-medium text-overlay-90">Remove Member</h3>
                     </div>
-                    <p class="text-sm text-white/50 mb-2">
-                        Remove <span class="text-white/80 font-mono">${escapeHtml(shortAddr)}</span> from this channel?
+                    <p class="text-sm text-overlay-50 mb-2">
+                        Remove <span class="text-overlay-80 font-mono">${escapeHtml(shortAddr)}</span> from this channel?
                     </p>
-                    <p class="text-xs text-white/30 bg-white/5 rounded-lg px-3 py-2">
+                    <p class="text-xs text-overlay-30 bg-overlay-5 rounded-lg px-3 py-2">
                         They come off the allowlist and stop receiving channel keys. No ban mark, so you can add them back later. One transaction.
                     </p>
                 </div>
-                <div class="flex border-t border-white/5">
-                    <button id="cancel-remove-member-btn" class="flex-1 px-4 py-3 text-sm text-white/60 hover:text-primary hover:bg-white/5 transition">
+                <div class="flex border-t border-overlay-5">
+                    <button id="cancel-remove-member-btn" class="flex-1 px-4 py-3 text-sm text-overlay-60 hover:text-primary hover:bg-overlay-5 transition">
                         Cancel
                     </button>
-                    <button id="confirm-remove-member-btn" class="flex-1 px-4 py-3 text-sm text-danger hover:text-red-300 hover:bg-red-500/10 border-l border-white/5 transition" data-address="${escapeAttr(address)}">
+                    <button id="confirm-remove-member-btn" class="flex-1 px-4 py-3 text-sm text-danger hover:text-red-300 hover:bg-red-500/10 border-l border-overlay-5 transition" data-address="${escapeAttr(address)}">
                         Remove
                     </button>
                 </div>
@@ -2033,7 +2033,7 @@ class ChannelSettingsUI {
         // gated channel that is the clone and the storage node, never the
         // members — their access is proven per-message against the contract,
         // and the Members panel is where the contract's own roles are shown.
-        this.elements.permissionsList.innerHTML = '<div class="text-white/30">Loading...</div>';
+        this.elements.permissionsList.innerHTML = '<div class="text-overlay-30">Loading...</div>';
 
         try {
             // Use The Graph API for permissions (same source as members list)
@@ -2056,8 +2056,8 @@ class ChannelSettingsUI {
                 // Show owner
                 if (owner) {
                     const shortOwner = `${owner.slice(0, 8)}...${owner.slice(-4)}`;
-                    html += `<div class="flex justify-between items-center py-1.5 px-2.5 bg-white/5 rounded-lg">
-                        <span class="font-mono text-white/60">${escapeHtml(shortOwner)}</span>
+                    html += `<div class="flex justify-between items-center py-1.5 px-2.5 bg-overlay-5 rounded-lg">
+                        <span class="font-mono text-overlay-60">${escapeHtml(shortOwner)}</span>
                         <span class="text-xs text-yellow-400/80">Owner</span>
                     </div>`;
                 }
@@ -2065,17 +2065,17 @@ class ChannelSettingsUI {
                 // Show local members
                 for (const member of localMembers) {
                     const shortMember = `${member.slice(0, 8)}...${member.slice(-4)}`;
-                    html += `<div class="flex justify-between items-center py-1.5 px-2.5 bg-white/5 rounded-lg">
-                        <span class="font-mono text-white/60">${escapeHtml(shortMember)}</span>
-                        <span class="text-white/40 flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></span>
+                    html += `<div class="flex justify-between items-center py-1.5 px-2.5 bg-overlay-5 rounded-lg">
+                        <span class="font-mono text-overlay-60">${escapeHtml(shortMember)}</span>
+                        <span class="text-overlay-40 flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></span>
                     </div>`;
                 }
                 
                 if (!html) {
-                    html = '<div class="text-white/30">Owner only (private)</div>';
+                    html = '<div class="text-overlay-30">Owner only (private)</div>';
                 }
                 
-                const note = `<div class="text-white/20 mt-2 pt-2 border-t border-white/5 text-[10px] flex items-center gap-1">
+                const note = `<div class="text-overlay-20 mt-2 pt-2 border-t border-overlay-5 text-[10px] flex items-center gap-1">
                     <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>
                     Showing local cache. Check Stream Explorer for on-chain permissions.
                 </div>`;
@@ -2111,8 +2111,8 @@ class ChannelSettingsUI {
                     isOwner = ownerAddress && userAddr.toLowerCase() === ownerAddress;
                     // Owner marker: the same crown the Android grantee table
                     // draws. This used to be a phone glyph, which said nothing.
-                    const crown = '<span class="text-white/40"><svg class="w-3 h-3 inline" fill="currentColor" viewBox="0 0 24 24"><path d="M3.4 18.7 2.4 8.2l4.8 4.8L12 5.8l4.8 7.2 4.8-4.8-1 10.5z"/></svg></span>';
-                    who = `<span class="font-mono text-white/60">${escapeHtml(short)}${isOwner ? ` ${crown}` : ''}</span>`;
+                    const crown = '<span class="text-overlay-40"><svg class="w-3 h-3 inline" fill="currentColor" viewBox="0 0 24 24"><path d="M3.4 18.7 2.4 8.2l4.8 4.8L12 5.8l4.8 7.2 4.8-4.8-1 10.5z"/></svg></span>';
+                    who = `<span class="font-mono text-overlay-60">${escapeHtml(short)}${isOwner ? ` ${crown}` : ''}</span>`;
                 }
                 
                 // Build permissions array from The Graph fields
@@ -2130,14 +2130,14 @@ class ChannelSettingsUI {
                 
                 const permsStr = permList.join(' ');
                 
-                return `<div class="flex justify-between items-center py-1.5 px-2.5 bg-white/5 rounded-lg">
+                return `<div class="flex justify-between items-center py-1.5 px-2.5 bg-overlay-5 rounded-lg">
                     <span>${who}</span>
-                    <span class="text-white/40">${permsStr}</span>
+                    <span class="text-overlay-40">${permsStr}</span>
                 </div>`;
             }).join('');
             
             // Add legend
-            const legend = `<div class="text-white/20 mt-2 pt-2 border-t border-white/5 text-[10px] flex items-center gap-2 flex-wrap">
+            const legend = `<div class="text-overlay-20 mt-2 pt-2 border-t border-overlay-5 text-[10px] flex items-center gap-2 flex-wrap">
                 <span class="flex items-center gap-0.5"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>sub</span>
                 <span class="flex items-center gap-0.5"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>pub</span>
                 <span class="flex items-center gap-0.5"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>edit</span>
@@ -2297,10 +2297,10 @@ class ChannelSettingsUI {
         const row = document.createElement('div');
         row.id = 'channel-settings-paid-left';
         row.className = 'flex items-center gap-3';
-        const tone = msLeft <= 0 ? 'text-danger/80' : (msLeft < WARNING_MS ? 'text-yellow-400/80' : 'text-white/70');
+        const tone = msLeft <= 0 ? 'text-danger/80' : (msLeft < WARNING_MS ? 'text-yellow-400/80' : 'text-overlay-70');
         const when = new Date(until * 1000)
             .toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
-        row.innerHTML = `<span class="text-xs text-white/35 flex-shrink-0">Subscription</span>`
+        row.innerHTML = `<span class="text-xs text-overlay-35 flex-shrink-0">Subscription</span>`
             + `<span class="flex-1 min-w-0 text-xs text-right ${tone}">${escapeHtml(when)}</span>`
             + `<span class="w-3.5 flex-shrink-0"></span>`;
         container.appendChild(row);
@@ -2801,11 +2801,11 @@ class ChannelSettingsUI {
         const setStatus = (text, kind = 'info') => {
             if (!statusEl) return;
             statusEl.textContent = text;
-            statusEl.classList.remove('hidden', 'text-danger', 'text-success', 'text-white/40');
+            statusEl.classList.remove('hidden', 'text-danger', 'text-success', 'text-overlay-40');
             statusEl.classList.add(
                 kind === 'error' ? 'text-danger'
                     : kind === 'success' ? 'text-success'
-                        : 'text-white/40'
+                        : 'text-overlay-40'
             );
         };
 

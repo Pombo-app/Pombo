@@ -732,7 +732,7 @@ class UIController {
             const countEl = document.querySelector(`[data-channel-count="${CSS.escape(streamId)}"]`);
             if (countEl && activity.unreadCount > 0) {
                 countEl.textContent = activity.unreadCount >= 30 ? '+30' : activity.unreadCount;
-                countEl.classList.remove('hidden', 'text-white/30', 'bg-white/[0.04]');
+                countEl.classList.remove('hidden', 'text-overlay-30', 'bg-overlay-4');
                 countEl.classList.add('text-primary', 'bg-[#F6851B]/20');
             }
         });
@@ -858,7 +858,7 @@ class UIController {
         
         // Reset online users list
         if (this.elements.onlineUsersList) {
-            this.elements.onlineUsersList.innerHTML = '<div class="text-white/30 text-sm text-center">No one online</div>';
+            this.elements.onlineUsersList.innerHTML = '<div class="text-overlay-30 text-sm text-center">No one online</div>';
         }
         if (this.elements.onlineUsersCount) {
             this.elements.onlineUsersCount.textContent = '0';
@@ -896,7 +896,7 @@ class UIController {
             this.openChatView();
             await this.showExploreView();
             document.querySelectorAll('.channel-item').forEach(item => {
-                item.classList.remove('bg-white/[0.06]');
+                item.classList.remove('bg-overlay-6');
             });
             headerUI.setActivePillTab?.('explore');
 
@@ -972,7 +972,7 @@ class UIController {
         
         // Remove selection highlight from channel list
         document.querySelectorAll('.channel-item').forEach(item => {
-            item.classList.remove('bg-white/[0.06]');
+            item.classList.remove('bg-overlay-6');
         });
         
         // Push to browser history (replace if current entry is an orphaned modal state)
@@ -1317,7 +1317,7 @@ class UIController {
             const loading = btn.querySelector('.download-loading-icon');
             if (loading) {
                 loading.classList.remove('hidden');
-                loading.innerHTML = '<div class="w-4 h-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin"></div>';
+                loading.innerHTML = '<div class="w-4 h-4 border-2 border-overlay-60 border-t-transparent rounded-full animate-spin"></div>';
             }
             btn.disabled = true;
         }
@@ -1525,8 +1525,8 @@ class UIController {
             tab.classList.toggle('border-[#F6851B]', isActive);
             tab.classList.toggle('border-transparent', !isActive);
             tab.classList.toggle('text-[#F6851B]', isActive);
-            tab.classList.toggle('text-white/40', !isActive);
-            tab.classList.toggle('hover:text-white/60', !isActive);
+            tab.classList.toggle('text-overlay-40', !isActive);
+            tab.classList.toggle('hover:text-overlay-60', !isActive);
         });
         
         this.currentChannelFilter = filter;
