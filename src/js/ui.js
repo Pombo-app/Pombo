@@ -244,7 +244,8 @@ class UIController {
             Logger,
             channelManager,
             chatAreaUI,
-            getActiveChannel: () => this.getActiveChannel()
+            getActiveChannel: () => this.getActiveChannel(),
+            getAccount: () => (authManager.isGuest ? null : authManager.getAddress())
         });
 
         subscriptionBannerUI.setDependencies({

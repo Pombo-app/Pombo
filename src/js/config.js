@@ -421,6 +421,7 @@ export const CONFIG = {
         syncMode: (addr) => `pombo_sync_mode_${addr.toLowerCase()}`,
         syncAppliedTs: (addr) => `pombo_sync_applied_ts_${addr.toLowerCase()}`,
         syncConfirmed: (addr) => `pombo_sync_confirmed_${addr.toLowerCase()}`,
+        pinsHidden: (addr) => `pombo_pins_hidden_${addr.toLowerCase()}`,
 
         // Per-stream keys
         channelAccess: (streamId) => `pombo_channel_access_${streamId}`

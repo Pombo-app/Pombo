@@ -1295,11 +1295,8 @@ body.cannot-write #context-menu-reply-btn {
     color: var(--pombo-overlay-85);
 }
 
-/* When banner is visible, push messages content down so the first row
-   isn't hidden behind the floating pill. Pill height ~52px + top offset
-   10px + small gap. */
 .messages-wrapper:has(.pinned-banner:not(.hidden)) #messages-area {
-    padding-top: calc(1rem + 62px);
+    padding-top: calc(1rem + var(--pinned-banner-space, 62px));
 }
 
 /* ----- Paid-subscription banner (N-F) -----
