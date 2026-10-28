@@ -1,10 +1,10 @@
 /**
  * MessageContextMenuUI
  *
- * Owns the right-click context menu for messages (#message-context-menu).
- * Handles visibility logic per-message (own vs other, DM vs channel,
- * admin vs non-admin) and dispatches actions:
- *   - copy-text / copy-address
+ * Owns the message context menu (#message-context-menu): right-click on
+ * desktop, long press on touch. Handles visibility logic per-message (own vs
+ * other, DM vs channel, admin vs non-admin) and dispatches actions:
+ *   - copy-text / copy-address / reply
  *   - send-dm / add-contact / remove-contact / block-user
  *   - edit-message / delete-message            (own messages)
  *   - admin-delete-message / ban-user          (admin-only, non-DM)
@@ -58,78 +58,60 @@ class MessageContextMenuUI {
             });
             // Right-click on messages opens the menu (desktop)
             document.addEventListener('contextmenu', (e) => this.handleMessageRightClick(e));
-            // Mobile: double-tap on a message opens the menu 
-            // Native long-press contextmenu is suppressed below when triggered by touch.
             this._wireTouchHandlers();
             this._wired = true;
         }
     }
 
     /**
-     * Wire touch-based handlers for mobile:
-     *   - Double-tap on a message bubble opens the context menu.
-     *   - Native long-press contextmenu (Android Chrome fires `contextmenu`
-     *     after a long touch) is suppressed so only double-tap triggers it.
+     * Touch: a long press on a message opens the menu at the finger. The
+     * browser's own long-press `contextmenu` is swallowed, so the menu opens
+     * once, on our timer.
      * @private
      */
     _wireTouchHandlers() {
-        const DOUBLE_TAP_MS = 350;
-        const TAP_MOVE_TOLERANCE = 10; // px
+        const LONG_PRESS_MS = 500;
+        const MOVE_TOLERANCE = 10; // px
         const LONGPRESS_SUPPRESS_MS = 1000;
 
-        let lastTapTime = 0;
-        let lastTapTarget = null;
-        let touchStartX = 0;
-        let touchStartY = 0;
-        let touchStartTime = 0;
-        let touchMoved = false;
+        let timer = null;
+        let startX = 0;
+        let startY = 0;
+        let fired = false;
+        const cancel = () => { clearTimeout(timer); timer = null; };
 
         document.addEventListener('touchstart', (e) => {
-            if (e.touches.length !== 1) {
-                touchMoved = true;
-                return;
-            }
+            cancel();
+            fired = false;
+            if (e.touches.length !== 1) return;
             const messageDiv = e.target.closest?.('.message-entry');
             if (!messageDiv || !this.elements.messagesArea?.contains(messageDiv)) return;
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-            touchStartTime = Date.now();
-            touchMoved = false;
-            this._lastTouchOnMessage = touchStartTime;
+            if (e.target.closest?.('.reply-trigger, .react-trigger, .reaction-badge, a, button, img, video')) return;
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            this._lastTouchOnMessage = Date.now();
+            timer = setTimeout(() => {
+                timer = null;
+                fired = true;
+                this._openMenuForMessage(messageDiv, startX, startY);
+            }, LONG_PRESS_MS);
         }, { passive: true });
 
         document.addEventListener('touchmove', (e) => {
-            if (touchMoved || !e.touches[0]) return;
-            const dx = e.touches[0].clientX - touchStartX;
-            const dy = e.touches[0].clientY - touchStartY;
-            if (Math.hypot(dx, dy) > TAP_MOVE_TOLERANCE) touchMoved = true;
+            if (!timer || !e.touches[0]) return;
+            const dx = e.touches[0].clientX - startX;
+            const dy = e.touches[0].clientY - startY;
+            if (Math.hypot(dx, dy) > MOVE_TOLERANCE) cancel();
         }, { passive: true });
 
+        document.addEventListener('touchcancel', cancel);
         document.addEventListener('touchend', (e) => {
-            if (touchMoved) return;
-            const messageDiv = e.target.closest?.('.message-entry');
-            if (!messageDiv || !this.elements.messagesArea?.contains(messageDiv)) return;
-
-            // Ignore taps on inner action controls.
-            if (e.target.closest?.('.reply-trigger, .react-trigger, .reaction-badge, a, button, img, video')) {
-                return;
-            }
-
-            const now = Date.now();
-            if (lastTapTarget === messageDiv && (now - lastTapTime) < DOUBLE_TAP_MS) {
-                e.preventDefault();
-                const t = e.changedTouches?.[0];
-                this._openMenuForMessage(messageDiv, t?.clientX ?? 0, t?.clientY ?? 0);
-                lastTapTime = 0;
-                lastTapTarget = null;
-                this._lastTouchOnMessage = now;
-            } else {
-                lastTapTime = now;
-                lastTapTarget = messageDiv;
-            }
+            cancel();
+            // The click that follows would close the menu that just opened.
+            if (fired) e.preventDefault();
+            fired = false;
         });
 
-        // Track the suppression window for native long-press contextmenu.
         this._isWithinTouchWindow = () => {
             return this._lastTouchOnMessage
                 && (Date.now() - this._lastTouchOnMessage) < LONGPRESS_SUPPRESS_MS;
@@ -150,8 +132,7 @@ class MessageContextMenuUI {
 
         e.preventDefault();
 
-        // Suppress mobile long-press: if this `contextmenu` was triggered by a
-        // recent touch, do not open the menu — only double-tap should.
+        // A touch long-press already opened the menu on its own timer.
         if (this._isWithinTouchWindow?.()) {
             return;
         }
@@ -404,6 +385,12 @@ class MessageContextMenuUI {
 
             case 'block-user':
                 this.handleBlockUser(address);
+                break;
+
+            case 'reply':
+                if (target.msgId && chatAreaUI) {
+                    chatAreaUI.startReply(target.msgId);
+                }
                 break;
 
             case 'edit-message':

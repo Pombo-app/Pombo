@@ -1121,7 +1121,8 @@ body.network-offline {
 
 /* Replying is writing, so it follows the composer. Reactions do not: they
    ride the -5, where a member of a read-only channel takes part. */
-body.cannot-write .reply-trigger {
+body.cannot-write .reply-trigger,
+body.cannot-write #context-menu-reply-btn {
     display: none;
 }
 
@@ -3495,6 +3496,13 @@ body.explore-open #explore-channels-list {
    TOUCH DEVICE OPTIMIZATIONS
    =========================================== */
 @media (hover: none) and (pointer: coarse) {
+    /* A long press on a bubble opens our menu, not the browser's. */
+    .message-bubble {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+
     /* Larger touch targets */
     .input-button {
         width: 2.75rem;
