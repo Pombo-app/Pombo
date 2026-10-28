@@ -1,12 +1,10 @@
 /**
  * Mesh wiring tests.
  *
- * Both handlers build HTML from network-provided metadata, so they reach for
- * the attribute escaper. With that escaper out of scope the handler throws
- * before it touches the DOM, and the failure is silent in both places: the
- * file still arrives and still saves, but the bubble stays frozen on the
- * progress bar until something else re-renders it, and the image placeholder
- * never offers its Retry.
+ * A handler that throws before it touches the DOM fails silently: the file
+ * still arrives, but the bubble stays frozen on the progress bar until
+ * something else re-renders it, and the image placeholder never offers its
+ * Retry.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -46,10 +44,12 @@ vi.mock('../../src/js/ui/MessageRenderer.js', () => ({
     messageRenderer: {
         formatFileSize: (n) => `${n} B`,
         renderFileBubble: () => '<div data-file-id="f1" class="rebuilt">seeding...</div>',
+        renderVideoContent: () => '<div data-file-id="f1" class="video-tile"><video></video></div>',
     },
 }));
 
 const { attachMeshComplete } = await import('../../src/js/ui/wiring/meshComplete.js');
+const { mediaHandler } = await import('../../src/js/ui/MediaHandler.js');
 const { attachMeshImages } = await import('../../src/js/ui/wiring/meshImages.js');
 
 const metadata = (over = {}) => ({
@@ -64,6 +64,7 @@ describe('mesh completion wiring', () => {
     beforeEach(() => {
         state.seeding = true;
         state.playable = false;
+        mediaHandler.autoSaveOnce.mockClear();
         document.body.innerHTML = '<div data-file-id="f1" class="downloading">99%</div>';
         attachMeshComplete({});
     });
@@ -76,28 +77,17 @@ describe('mesh completion wiring', () => {
         expect(el.textContent).toContain('seeding');
     });
 
-    it('replaces the bubble with a player when a playable video finishes', () => {
-        state.playable = true;
+    it('saves a finished plain file', () => {
+        state.onFileComplete('f1', metadata(), 'blob:file', new Blob());
+
+        expect(mediaHandler.autoSaveOnce).toHaveBeenCalledWith('f1', 'blob:file', 'holiday "photos".bin');
+    });
+
+    it('swaps in the video tile without saving the video', () => {
         state.onFileComplete('f1', metadata({ fileType: 'video/mp4' }), 'blob:v', new Blob());
 
         expect(document.querySelector('video')).not.toBeNull();
-        expect(document.body.innerHTML).toContain('Seeding');
-    });
-
-    it('escapes quotes in the file name instead of breaking out of the attribute', () => {
-        state.playable = true;
-        state.onFileComplete('f1', metadata({ fileType: 'video/mp4' }), 'blob:v', new Blob());
-
-        expect(document.querySelector('a[download]').getAttribute('download'))
-            .toBe('holiday "photos".bin');
-    });
-
-    it('offers a download button when the video format is not playable', () => {
-        state.playable = false;
-        state.onFileComplete('f1', metadata({ fileType: 'video/x-matroska' }), 'blob:v', new Blob());
-
-        expect(document.body.innerHTML).toContain('Format not supported');
-        expect(document.querySelector('a[download]')).not.toBeNull();
+        expect(mediaHandler.autoSaveOnce).not.toHaveBeenCalled();
     });
 });
 

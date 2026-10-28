@@ -206,6 +206,25 @@ class ChatAreaUI {
         this._wireAdminStateHandler();
         this._wireRetryHandler();
         this._wireAuthorBadgeHandler();
+        this._wireVideoPlay();
+    }
+
+    /**
+     * Play on a video not yet here starts its download (the button carries
+     * the transfer's download class) and asks for playback once it lands.
+     * Capture phase: the download handler stops propagation.
+     * @private
+     */
+    _wireVideoPlay() {
+        if (!this.messagesArea || this._videoWiredArea === this.messagesArea) return;
+        this.messagesArea.addEventListener('click', (e) => {
+            const btn = e.target.closest?.('[data-video-play]');
+            if (!btn || btn.disabled) return;
+            messageRenderer.videoAutoplay.add(btn.dataset.fileId);
+            btn.querySelector('.download-play-icon')?.classList.add('hidden');
+            btn.querySelector('.download-loading-icon')?.classList.remove('hidden');
+        }, true);
+        this._videoWiredArea = this.messagesArea;
     }
 
     /**

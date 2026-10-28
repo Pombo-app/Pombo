@@ -961,12 +961,12 @@ describe('MessageRenderer', () => {
                 }
             });
 
-            expect(result).toContain('not on this device');
+            expect(result).toContain('Not on this device');
             expect(result).toContain('holiday.mp4');
             expect(result).toContain('data-file-id="file-lean-1"');
             // Must not offer an action that could only fail
             expect(result).not.toContain('download-file-btn');
-            expect(result).not.toContain('data-progress-overlay');
+            expect(result).not.toContain('data-video-play');
         });
 
         // Non-video types go to the file bubble in every state, including this one —
@@ -1083,20 +1083,12 @@ describe('MessageRenderer', () => {
             };
             
             const result = messageRenderer.renderVideoContent(msg);
-            // Progress overlay should be visible (no 'hidden' class)
-            expect(result).not.toMatch(/data-progress-overlay="file-dl-1"[^>]*class="hidden/);
-            // Should show percentage
-            expect(result).toContain('45%');
-            // Progress bar should reflect percentage
+            expect(result).toMatch(/video-tile-bar"[^>]*data-progress-overlay="file-dl-1"/);
             expect(result).toContain('width: 45%');
-            // Download button should be disabled
             expect(result).toContain('disabled');
-            expect(result).toContain('cursor-not-allowed');
-            // Play icon hidden, loading icon visible
             expect(result).toMatch(/download-play-icon[^"]*hidden/);
             expect(result).not.toMatch(/download-loading-icon[^"]*hidden/);
-            // Should show MB progress
-            expect(result).toContain('/ 10.0 MB');
+            expect(result).toContain('4.50 MB of 10.00 MB');
         });
 
         it('should show idle state when not downloading and no URL', () => {
@@ -1120,10 +1112,10 @@ describe('MessageRenderer', () => {
             };
             
             const result = messageRenderer.renderVideoContent(msg);
-            // Progress overlay should be hidden
-            expect(result).toMatch(/data-progress-overlay="file-idle-1"[^>]*class="hidden/);
-            // Button should NOT be disabled
+            expect(result).toMatch(/video-tile-bar hidden"[^>]*data-progress-overlay="file-idle-1"/);
             expect(result).not.toContain('disabled');
+            // The size waits on the poster until play is pressed
+            expect(result).toContain('>1.95 MB</span>');
             // Play icon visible
             expect(result).not.toMatch(/download-play-icon[^"]*hidden/);
             // Loading icon hidden
@@ -1151,8 +1143,38 @@ describe('MessageRenderer', () => {
             
             const result = messageRenderer.renderVideoContent(msg);
             // Should render normal idle state (backward compatible)
-            expect(result).toMatch(/data-progress-overlay="file-compat-1"[^>]*class="hidden/);
+            expect(result).toMatch(/video-tile-bar hidden"[^>]*data-progress-overlay="file-compat-1"/);
             expect(result).not.toContain('disabled');
+        });
+
+        it('should autoplay only the render that follows a play press', () => {
+            messageRenderer.setDependencies({
+                getFileUrl: () => 'blob:v',
+                getCurrentAddress: () => '0x123',
+                isVideoPlayable: () => true
+            });
+            const msg = { type: 'file_announce', metadata: { fileId: 'file-ap-1', fileName: 'a.mp4', fileType: 'video/mp4', fileSize: 10 } };
+
+            messageRenderer.videoAutoplay.add('file-ap-1');
+            expect(messageRenderer.renderVideoContent(msg)).toContain(' autoplay');
+            expect(messageRenderer.renderVideoContent(msg)).not.toContain(' autoplay');
+        });
+
+        it('should keep Save but no player for a format the browser cannot play', () => {
+            messageRenderer.setDependencies({
+                getFileUrl: () => 'blob:v',
+                getCurrentAddress: () => '0x123',
+                isVideoPlayable: () => false
+            });
+
+            const result = messageRenderer.renderVideoContent({
+                type: 'file_announce',
+                metadata: { fileId: 'file-mkv-1', fileName: 'a.mkv', fileType: 'video/x-matroska', fileSize: 10 }
+            });
+
+            expect(result).not.toContain('<video');
+            expect(result).toContain("can't play here");
+            expect(result).toContain('download="a.mkv"');
         });
     });
 });

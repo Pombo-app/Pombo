@@ -1429,6 +1429,9 @@ class StorageMediaController {
             storedChunks: null,
             encSalt: sealer.encSalt
         };
+        if (draftMetadata.fileType.startsWith('video/')) {
+            this.completedFiles.set(tid, { url: URL.createObjectURL(file), blob: file, metadata: draftMetadata });
+        }
         const localMessage = {
             type: 'storage_file_announce',
             v: 1,

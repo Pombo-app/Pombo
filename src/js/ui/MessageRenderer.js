@@ -11,6 +11,8 @@ import { sanitizeMessageHtml, sanitizeText } from './sanitizer.js';
 class MessageRenderer {
     constructor() {
         this.deps = {};
+        // Video ids whose play started a download: they start playing once re-rendered with the bytes.
+        this.videoAutoplay = new Set();
     }
 
     /**
@@ -488,7 +490,32 @@ class MessageRenderer {
         // = download running. Saving is automatic once the bytes are here —
         // the floppy is only a fallback for the rare case that didn't happen;
         // once it has, a plain checkmark confirms it.
-        const canDownload = !fileUrl && !active && !msg.pending && Number.isFinite(metadata.totalChunks);
+        // Our own DM file lives in the peer's inbox, which this account cannot
+        // read: another device of ours has no way to fetch it.
+        const isOwn = !!msg.sender && msg.sender.toLowerCase() === this.deps.getCurrentAddress?.()?.toLowerCase();
+        const unreachable = !fileUrl && !msg.pending && isOwn && this.deps.getCurrentChannel?.()?.type === 'dm';
+        const canDownload = !fileUrl && !active && !msg.pending && Number.isFinite(metadata.totalChunks) && !unreachable;
+
+        if ((metadata.fileType || '').startsWith('video/')) {
+            const status = uploadState
+                ? (this.formatStorageUploadDetail(uploadState).line1 || 'Uploading…')
+                : downloadProgress ? this.formatStorageDownloadDetail(downloadProgress).line1
+                : unreachable ? 'Not on this device' : '';
+            return this.renderVideoTile({
+                id: tid,
+                metadata,
+                url: fileUrl,
+                playable: this.deps.isVideoPlayable?.(metadata.fileType) !== false,
+                downloadClass: 'storage-download-btn',
+                msgId: msg.id || null,
+                canDownload,
+                active,
+                percent,
+                status
+            });
+        }
+        if (unreachable) detail = { line1: `${totalSize} &middot; not on this device`, line2: '' };
+
         let action = '';
         if (fileUrl) {
             action = this.deps.isStorageSaved?.(tid) ? `
@@ -579,12 +606,7 @@ class MessageRenderer {
         const isSeeding = this.deps.isSeeding?.(metadata.fileId);
         const isDownloading = this.deps.isDownloading?.(metadata.fileId);
         const downloadProgress = isDownloading ? this.deps.getDownloadProgress?.(metadata.fileId) : null;
-        
-        const safeFileId = escapeAttr(metadata.fileId);
-        // Defense-in-depth: sanitize network-provided metadata
-        const safeFileName = escapeHtml(sanitizeText(metadata.fileName));
-        const safeFileType = escapeHtml(sanitizeText(metadata.fileType));
-        
+
         // Non-video files get their own bubble in every state: the player shell and the
         // 16:9 download panel below are both meaningless for a PDF or an archive, and a
         // file row has space for the transfer statistics a video thumbnail does not.
@@ -592,144 +614,72 @@ class MessageRenderer {
             return this.renderFileBubble(msg, { isDownloading, downloadProgress });
         }
 
-        if (videoUrl) {
-            const isPlayable = this.deps.isVideoPlayable?.(metadata.fileType);
-            const videoMediaId = this.deps.registerMedia?.(videoUrl, 'video');
-            
-            if (isPlayable && videoMediaId) {
-                return `
-                    <div data-file-id="${safeFileId}" class="video-container">
-                        <div class="relative rounded-lg overflow-hidden bg-black">
-                            <video src="${videoUrl}" 
-                                   class="w-full max-h-56 cursor-pointer video-player-${safeFileId}" 
-                                   controls
-                                   preload="metadata"
-                                   playsinline>
-                                <source src="${videoUrl}" type="${safeFileType}">
-                            </video>
-                            <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-primary p-1 rounded transition lightbox-trigger"
-                                    data-media-id="${videoMediaId}"
-                                    title="Fullscreen">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
-                                </svg>
-                            </button>
-                            ${isSeeding ? `
-                            <div class="absolute bottom-1 left-1 bg-green-600/80 text-primary text-[10px] px-1.5 py-0.5 rounded-full flex items-center gap-1">
-                                <svg class="w-2.5 h-2.5 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
-                                </svg>
-                                Seeding
-                            </div>
-                            ` : ''}
-                        </div>
-                        <div class="flex items-center gap-2 mt-1 px-0.5 text-[11px] text-overlay-40">
-                            <span class="truncate flex-1">${safeFileName}</span>
-                            <span class="text-overlay-25">${this.formatFileSize(metadata.fileSize)}</span>
-                            <a href="${videoUrl}" download="${safeFileName}" class="text-blue-400 hover:text-blue-300">Save</a>
-                        </div>
-                    </div>
-                `;
-            } else {
-                return `
-                    <div data-file-id="${safeFileId}" class="video-container">
-                        <div class="flex items-center gap-2 bg-overlay-5 rounded-xl p-2">
-                            <svg class="w-8 h-8 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/>
-                            </svg>
-                            <div class="flex-1 min-w-0">
-                                <div class="text-sm text-primary truncate">${safeFileName}</div>
-                                <div class="text-[10px] text-yellow-500/80">Format not playable · ${this.formatFileSize(metadata.fileSize)}</div>
-                            </div>
-                            <a href="${videoUrl}" download="${safeFileName}" class="bg-blue-600 hover:bg-blue-500 text-primary px-2.5 py-1 rounded text-xs flex-shrink-0 transition">
-                                Save
-                            </a>
-                        </div>
-                        ${isSeeding ? `
-                        <div class="flex items-center gap-1 mt-1 px-0.5">
-                            <div class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                            <span class="text-[10px] text-success">Seeding</span>
-                        </div>
-                        ` : ''}
-                    </div>
-                `;
-            }
-        }
-        
-        // No local copy, and no piece hashes to fetch one. This is a lean record
-        // restored from our own sync: it carries naming only, deliberately, so the
-        // manifest's hashes never ride the sync payload. Nothing here is actionable,
-        // so it gets its own muted treatment rather than a download panel whose
-        // button could only ever fail.
         const canDownload = Array.isArray(metadata.pieceHashes) && metadata.pieceHashes.length > 0;
-        if (!canDownload) {
-            return `
-                <div data-file-id="${safeFileId}" class="flex items-center gap-2.5 rounded-xl border border-dashed border-overlay-10 bg-overlay-3 px-3 py-2.5" style="max-width: 220px;">
-                    <div class="flex-shrink-0 w-8 h-8 rounded-lg bg-overlay-4 flex items-center justify-center">
-                        <svg class="w-4 h-4 text-overlay-25" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/>
-                        </svg>
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <div class="text-[12px] text-overlay-50 truncate" title="${escapeAttr(sanitizeText(metadata.fileName))}">${safeFileName}</div>
-                        <div class="text-[10px] text-overlay-25 mt-0.5">
-                            Video &middot; ${this.formatFileSize(metadata.fileSize)} &middot; not on this device
-                        </div>
-                    </div>
-                </div>
-            `;
+        const active = !!(isDownloading && downloadProgress);
+        let status = '';
+        if (active && downloadProgress.total > 0) {
+            const got = (downloadProgress.received / downloadProgress.total) * downloadProgress.fileSize;
+            status = `${this.formatFileSize(got)} of ${this.formatFileSize(downloadProgress.fileSize)}`;
+        } else if (!videoUrl && !canDownload) {
+            status = 'Not on this device';
+        } else if (videoUrl && isSeeding && isOwn) {
+            status = 'Sharing';
+        }
+        return this.renderVideoTile({
+            id: metadata.fileId,
+            metadata,
+            url: videoUrl,
+            playable: this.deps.isVideoPlayable?.(metadata.fileType) !== false,
+            downloadClass: 'download-file-btn',
+            canDownload: canDownload && !videoUrl,
+            active,
+            percent: active ? downloadProgress.percent : 0,
+            status
+        });
+    }
+
+    /**
+     * Shared by mesh and storage: the download class and the data-progress-*
+     * nodes are the contract their transfer wiring listens on.
+     * @param {Object} o
+     * @returns {string}
+     */
+    renderVideoTile({ id, metadata, url, playable = true, downloadClass, msgId = null, canDownload, active, percent = 0, status = '' }) {
+        const safeId = escapeAttr(id);
+        const name = escapeHtml(sanitizeText(metadata.fileName));
+        const attrName = escapeAttr(sanitizeText(metadata.fileName));
+        const size = this.formatFileSize(metadata.fileSize ?? metadata.originalSize ?? 0);
+        const autoplay = this.videoAutoplay.delete(id);
+
+        let stage = '';
+        if (url && playable) {
+            const mediaId = this.deps.registerMedia?.(url, 'video');
+            // #t= makes the browser paint a frame instead of an empty box.
+            stage = `<video src="${url}#t=0.1" class="video-tile-media" controls preload="metadata" playsinline${autoplay ? ' autoplay' : ''}></video>${mediaId ? `
+                    <button class="video-tile-fs lightbox-trigger" data-media-id="${mediaId}" title="Fullscreen" aria-label="Fullscreen">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+                    </button>` : ''}`;
+        } else if (url) {
+            stage = `<div class="video-tile-note">This video format can't play here</div>`;
+        } else if (canDownload) {
+            stage = `<button class="video-tile-play ${downloadClass}" data-file-id="${safeId}"${msgId ? ` data-msg-id="${escapeAttr(msgId)}"` : ''} data-video-play aria-label="Play video"${active ? ' disabled' : ''}>
+                        <svg class="download-play-icon w-6 h-6${active ? ' hidden' : ''}" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        <span class="download-loading-icon${active ? '' : ' hidden'}"><span class="video-tile-spinner"></span></span>
+                    </button>`;
         }
 
-        // Video not available yet - show preview panel (with downloading state if active)
-        const dlActive = isDownloading && downloadProgress;
-        const dlPercent = dlActive ? downloadProgress.percent : 0;
-        const dlReceivedMB = dlActive && downloadProgress.total > 0 ? ((downloadProgress.received / downloadProgress.total) * downloadProgress.fileSize / (1024 * 1024)).toFixed(1) : '0.0';
-        const dlTotalMB = dlActive ? (downloadProgress.fileSize / (1024 * 1024)).toFixed(1) : '0.0';
-        const overlayClass = dlActive ? '' : 'hidden';
-        const playIconClass = dlActive ? 'hidden' : '';
-        const loadingIconClass = dlActive ? '' : 'hidden';
-        const btnDisabled = dlActive ? 'disabled' : '';
-        const btnCursorClass = dlActive ? 'cursor-not-allowed' : '';
-
+        const pill = status || (url ? '' : size);
         return `
-            <div data-file-id="${safeFileId}" class="video-container">
-                <div class="relative rounded-xl overflow-hidden bg-overlay-5 cursor-pointer group"
-                     style="aspect-ratio: 16/9; width: 220px;">
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <svg class="w-10 h-10 text-purple-500/20" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/>
-                        </svg>
-                    </div>
-                    <button class="download-file-btn absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-all ${btnCursorClass}" 
-                            data-file-id="${safeFileId}" ${btnDisabled}>
-                        <div class="play-btn-container transform group-hover:scale-105 transition-transform">
-                            <div class="w-12 h-12 rounded-full bg-overlay-20 backdrop-blur-sm flex items-center justify-center border border-overlay-30">
-                                <svg class="w-5 h-5 text-primary ml-0.5 download-play-icon ${playIconClass}" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M8 5v14l11-7z"/>
-                                </svg>
-                                <div class="download-loading-icon ${loadingIconClass}">
-                                    <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </button>
-                    <div data-progress-overlay="${safeFileId}" class="${overlayClass} absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
-                        <div class="text-primary text-sm font-medium" data-progress-percent="${safeFileId}">${dlPercent}%</div>
-                        <div class="w-2/3 bg-overlay-10 rounded-full h-1.5 mt-1.5">
-                            <div data-progress-fill="${safeFileId}" class="bg-blue-500 h-1.5 rounded-full transition-all duration-300" style="width: ${dlPercent}%"></div>
-                        </div>
-                        <div class="text-[10px] text-overlay-30 mt-1" data-progress-text="${safeFileId}">${dlActive ? `${dlReceivedMB} / ${dlTotalMB} MB` : 'Starting...'}</div>
-                    </div>
-                    <div class="absolute top-1.5 left-1.5 bg-black/60 text-primary text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1">
-                        <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.553 1.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/>
-                        </svg>
-                        ${this.formatFileSize(metadata.fileSize)}
-                    </div>
-                    <div class="absolute top-1.5 right-1.5 bg-black/60 text-overlay-30 text-[10px] px-1.5 py-0.5 rounded" data-seeder-count="${safeFileId}"></div>
+            <div data-file-id="${safeId}" class="video-tile">
+                <div class="video-tile-frame">
+                    ${stage}
+                    <span class="video-tile-pill${pill ? '' : ' hidden'}" data-progress-text="${safeId}">${escapeHtml(pill)}</span>
+                    <div class="video-tile-bar${active ? '' : ' hidden'}" data-progress-overlay="${safeId}"><div data-progress-fill="${safeId}" style="width: ${percent}%"></div></div>
                 </div>
-                <div class="mt-1 px-0.5 text-[11px] text-overlay-40 truncate" title="${escapeHtml(sanitizeText(metadata.fileName))}">
-                    ${escapeHtml(sanitizeText(metadata.fileName))}
+                <div class="video-tile-meta">
+                    <span class="truncate" title="${attrName}">${name}</span>
+                    <span class="flex-shrink-0">${size}</span>${url ? `
+                    <a href="${url}" download="${attrName}" class="flex-shrink-0 hover:text-overlay-70">Save</a>` : ''}
                 </div>
             </div>
         `;

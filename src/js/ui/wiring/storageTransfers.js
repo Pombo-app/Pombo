@@ -63,7 +63,9 @@ export function attachStorageTransfers(ui) {
     // inline player); the controller's deps now report the blob URL
     storageMediaController.onFileComplete((tid, metadata) => {
         const url = storageMediaController.getFileUrl(tid);
-        mediaHandler.autoSaveStorageOnce(tid, url, metadata.fileName);
+        if (!(metadata.fileType || '').startsWith('video/')) {
+            mediaHandler.autoSaveStorageOnce(tid, url, metadata.fileName);
+        }
 
         const container = document.querySelector(`[data-file-id="${CSS.escape(tid)}"]`);
         if (container) {

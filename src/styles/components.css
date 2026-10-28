@@ -886,6 +886,123 @@ body.network-offline {
     }
 }
 
+/* ----- Video tile ----- */
+.video-tile {
+    width: 300px;
+    max-width: 100%;
+}
+
+.video-tile-frame {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: var(--pombo-overlay-6);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.video-tile-media {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.video-tile-play {
+    width: 52px;
+    height: 52px;
+    border-radius: 9999px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid var(--pombo-overlay-20);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.video-tile-play .download-play-icon {
+    margin-left: 2px;
+}
+
+.video-tile-play:disabled {
+    cursor: default;
+}
+
+.video-tile-spinner {
+    display: block;
+    width: 22px;
+    height: 22px;
+    border: 2px solid var(--pombo-overlay-30);
+    border-top-color: #fff;
+    border-radius: 9999px;
+    animation: spin 1s linear infinite;
+}
+
+.video-tile-fs {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 5px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+}
+
+.video-tile-pill {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    padding: 1px 7px;
+    border-radius: 9999px;
+    background: rgba(0, 0, 0, 0.6);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 11px;
+    line-height: 16px;
+    pointer-events: none;
+}
+
+.video-tile-media ~ .video-tile-pill {
+    top: 8px;
+    bottom: auto;
+}
+
+.video-tile-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.video-tile-bar > div {
+    height: 100%;
+    background: rgba(255, 255, 255, 0.85);
+    transition: width 0.3s;
+}
+
+.video-tile-note {
+    color: var(--pombo-overlay-50);
+    font-size: 12px;
+}
+
+.video-tile-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    padding: 0 2px;
+    font-size: 11px;
+    color: var(--pombo-overlay-40);
+}
+
+.video-tile-meta .truncate {
+    flex: 1;
+    min-width: 0;
+}
+
 /* ----- YouTube Embed ----- */
 .youtube-embed {
     position: relative;
