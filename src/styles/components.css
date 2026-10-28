@@ -785,6 +785,18 @@ body.network-offline {
     margin-top: 1.25rem;
 }
 
+.message-entry:is(.msg-group-single, .msg-group-first):not([data-type="image"]):not([data-emoji-only]) .message-bubble {
+    min-width: 120px;
+}
+
+.message-entry:not([data-emoji-only]) .message-bubble:has(> .reply-preview) {
+    min-width: 170px;
+}
+
+.message-sender-row {
+    line-height: 16px;
+}
+
 /* Hide sender name in middle/last of group */
 .msg-group-middle .message-sender-row,
 .msg-group-last .message-sender-row {
@@ -898,6 +910,7 @@ body.network-offline {
 
 /* ----- Message Content ----- */
 .message-content {
+    display: flow-root;
     font-size: 0.95rem;
     line-height: 1.4rem;
     word-wrap: break-word;
@@ -1034,38 +1047,79 @@ body.network-offline {
 
 .message-footer {
     display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 8px;
-    margin-top: 0px;
+    align-items: flex-end;
+    gap: 14px;
 }
 
-.message-footer .message-time {
-    flex-shrink: 0;
+.message-footer .reactions-container:not(:empty) {
+    margin-top: 4px;
+}
+
+/* Floated after the text so it takes the last line when there is room and
+   drops to a line of its own when there is not. */
+.message-meta {
+    float: right;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-left: 14px;
+    position: relative;
+    top: 0.45em;
+    white-space: nowrap;
+    line-height: inherit;
+}
+
+.message-meta .message-time,
+.message-meta .message-edited {
+    font-size: 11px;
+}
+
+.message-meta .message-time {
+    color: var(--pombo-overlay-35);
+}
+
+.message-footer .message-meta {
+    float: none;
     margin-left: auto;
+    top: 2px;
+    line-height: 16px;
 }
 
-.message-footer .message-edited {
-    margin-left: auto;
-    line-height: 1;
+.msg-group-first .message-meta:not(.message-meta--keep),
+.msg-group-middle .message-meta:not(.message-meta--keep) {
+    display: none;
 }
 
-.message-footer .message-edited + .message-time {
-    margin-left: -4px;
+.message-entry.message-active .message-meta {
+    display: inline-flex;
+}
+
+.message-content--meta-over {
+    position: relative;
+}
+
+.message-content--meta-over .message-meta {
+    float: none;
+    position: absolute;
+    top: auto;
+    right: 6px;
+    bottom: 6px;
+    margin: 0;
+    padding: 1px 6px;
+    border-radius: 9999px;
+    background: rgba(0, 0, 0, 0.55);
+    line-height: 16px;
+}
+
+.message-content--meta-over .message-meta .message-time {
+    color: rgba(255, 255, 255, 0.85);
 }
 
 .message-pending .message-bubble {
     opacity: 0.6;
 }
 
-.message-footer .message-status {
-    flex-shrink: 0;
-    line-height: 1;
-}
-
-.message-footer .message-retry {
-    flex-shrink: 0;
-    line-height: 1;
+.message-meta .message-retry {
     text-decoration: underline;
     cursor: pointer;
 }
@@ -1073,8 +1127,9 @@ body.network-offline {
 .reaction-badge {
     background-color: var(--pombo-overlay-8);
     color: var(--pombo-overlay-80);
-    padding: 3px 8px;
-    border-radius: 12px;
+    height: 22px;
+    padding: 0 9px;
+    border-radius: 11px;
     font-size: 0.75rem;
     cursor: pointer;
     transition: background-color 0.2s;
@@ -1083,10 +1138,12 @@ body.network-offline {
     gap: 4px;
 }
 
+/* The emoji overflows the 22px chip by 2px above and below (the "pop"); the
+   negative margin keeps it from growing the chip. */
 .reaction-badge .reaction-emoji {
-    font-size: 1.6rem;
+    font-size: 26px;
     line-height: 1;
-    margin: -4px -2px;
+    margin: -2px -2px;
     display: inline-block;
 }
 
@@ -1164,15 +1221,24 @@ body.cannot-write #context-menu-reply-btn {
 
 /* ----- Reply Preview ----- */
 .reply-preview {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     background: var(--pombo-overlay-5);
     border-left: 2px solid var(--pombo-overlay-15);
-    padding: 4px 8px;
+    padding: 3px 8px;
+    margin-top: 4px;
     margin-bottom: 6px;
     border-radius: 6px;
     font-size: 0.8rem;
     color: var(--pombo-overlay-50);
     cursor: pointer;
     max-width: 280px;
+}
+
+.msg-group-middle .reply-preview,
+.msg-group-last .reply-preview {
+    margin-top: 7px;
 }
 
 .reply-preview:hover {
@@ -1183,14 +1249,14 @@ body.cannot-write #context-menu-reply-btn {
     color: var(--pombo-overlay-60);
     font-weight: 500;
     font-size: 0.75rem;
+    flex-shrink: 0;
 }
 
 .reply-preview-text {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    display: block;
-    margin-top: 2px;
+    min-width: 0;
 }
 
 /* ----- Pinned Message Banner -----
@@ -3543,13 +3609,7 @@ body.explore-open #explore-channels-list {
     
     /* Larger reaction badges for touch */
     .reaction-badge {
-        padding: 6px 12px;
-        font-size: 0.875rem;
-    }
-    
-    .reaction-badge .reaction-emoji {
-        font-size: 1.5rem;
-        margin: -6px -3px;
+        font-size: 0.8125rem;
     }
     
     /* Bigger emoji picker items */

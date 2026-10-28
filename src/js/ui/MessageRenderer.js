@@ -140,7 +140,7 @@ class MessageRenderer {
         // Defense-in-depth: sanitize network content
         const previewText = replyTo.text 
             ? escapeHtml(sanitizeText(replyTo.text.substring(0, 50))) + (replyTo.text.length > 50 ? '...' : '') 
-            : '[Message]';
+            : '[Media]';
         
         return `
             <div class="reply-preview" data-reply-to-id="${escapeAttr(replyTo.id)}">
@@ -852,18 +852,20 @@ class MessageRenderer {
                 ? `<span class="message-status message-status--failed text-xs text-danger" title="${escapeAttr(msg.failError || '')}">${msg.undelivered ? 'Not delivered' : 'Not sent'}</span><button type="button" class="message-retry text-xs text-danger" data-msg-id="${escapeAttr(msgId)}">Retry</button>`
                 : '';
 
+        const keepMeta = msg._edited || sendState === ' message-pending' || sendState === ' message-failed';
+        const metaHtml = `<span class="message-meta${keepMeta ? ' message-meta--keep' : ''}">${msg._edited ? '<span class="message-edited text-xs text-overlay-25">(edited)</span>' : ''}<span class="message-time text-xs text-overlay-40">${time}</span>${sendStateHtml}</span>`;
+        const metaOverContent = msgType === 'image' || emojiOnly;
+        const metaInFooter = !metaOverContent && reactionsHtml.includes('reaction-badge');
+
         return `
             <div class="message-entry ${isOwn ? 'own-message' : 'other-message'} ${groupClass} ${spacingClass}${msg._hidden ? ' message-hidden' : ''}${sendState}" data-msg-id="${escapeAttr(msgId)}" data-sender="${escapeAttr(msg.sender || '')}" data-type="${escapeAttr(msgType)}"${emojiAttr}>
                 <div class="message-bubble"${bubbleStyle}>
                     ${moderationHtml}
                     ${senderRowHtml}
                     ${replyPreviewHtml}
-                    <div class="message-content">${contentHtml}</div>
+                    <div class="message-content${metaOverContent ? ' message-content--meta-over' : ''}">${contentHtml}${metaInFooter ? '' : metaHtml}</div>
                     <div class="message-footer">
-                        ${reactionsHtml}
-                        ${msg._edited ? '<span class="message-edited text-xs text-overlay-25">(edited)</span>' : ''}
-                        <span class="message-time text-xs text-overlay-40">${time}</span>
-                        ${sendStateHtml}
+                        ${reactionsHtml}${metaInFooter ? metaHtml : ''}
                     </div>
                     ${msg.verified && !msg.verified.valid && msg.signature ? '<div class="text-xs text-danger mt-1">⚠️ Invalid signature</div>' : ''}
                     <span class="reply-trigger reply-btn" data-msg-id="${escapeAttr(msgId)}" title="Reply"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17l-5-5 5-5"/><path d="M4 12h11a4 4 0 0 1 4 4v4"/></svg></span>
@@ -872,6 +874,20 @@ class MessageRenderer {
             </div>
         `;
     }
+}
+
+/**
+ * Moves a rendered message's time to the reactions row while it has
+ * reactions, and back to the end of the text when it has none.
+ * @param {Element|null} entry - `.message-entry`
+ */
+export function placeMessageMeta(entry) {
+    const meta = entry?.querySelector('.message-meta');
+    const content = entry?.querySelector('.message-content');
+    const footer = entry?.querySelector('.message-footer');
+    if (!meta || !content || !footer || content.classList.contains('message-content--meta-over')) return;
+    const target = footer.querySelector('.reaction-badge') ? footer : content;
+    if (meta.parentElement !== target) target.appendChild(meta);
 }
 
 // Export singleton instance

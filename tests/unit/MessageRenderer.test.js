@@ -302,7 +302,7 @@ describe('MessageRenderer', () => {
             expect(result).not.toContain('A'.repeat(100));
         });
         
-        it('should show [Message] for empty text', () => {
+        it('should show [Media] for empty text', () => {
             const replyTo = {
                 id: 'reply-123',
                 sender: '0x123',
@@ -311,7 +311,7 @@ describe('MessageRenderer', () => {
             };
             
             const result = messageRenderer.renderReplyPreview(replyTo);
-            expect(result).toContain('[Message]');
+            expect(result).toContain('[Media]');
         });
         
         it('should sanitize display name', () => {
@@ -730,6 +730,30 @@ describe('MessageRenderer', () => {
 
             expect(result).not.toContain('(edited)');
             expect(result).not.toContain('message-edited');
+        });
+
+        const render = (msg) => {
+            const host = document.createElement('div');
+            host.innerHTML = messageRenderer.buildMessageHTML(
+                { id: 'm', sender: '0x1', ...msg }, false, '22:00', { html: '' }, 'User'
+            );
+            return host;
+        };
+
+        it('puts the time at the end of the text, reactions below it', () => {
+            const host = render({ text: 'hello' });
+            const meta = host.querySelector('.message-content > .message-meta');
+            expect(meta.textContent).toContain('22:00');
+            expect(host.querySelector('.message-content--meta-over')).toBeNull();
+            expect(host.querySelector('.message-footer .message-time')).toBeNull();
+            expect(host.querySelector('.message-footer .reactions-container')).not.toBeNull();
+        });
+
+        it('lays the time over images and emoji-only messages', () => {
+            for (const msg of [{ type: 'image', imageData: 'data:image/png;base64,AA==' }, { text: '🔥' }]) {
+                const host = render(msg);
+                expect(host.querySelector('.message-content--meta-over > .message-meta')).not.toBeNull();
+            }
         });
     });
 
