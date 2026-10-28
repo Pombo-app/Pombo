@@ -587,6 +587,11 @@ class ChannelSettingsUI {
         const counter = document.getElementById('banned-members-count');
         if (!list) return;
 
+        const pinnedEl = document.getElementById('mod-pinned-count');
+        const hiddenEl = document.getElementById('mod-hidden-count');
+        if (pinnedEl) pinnedEl.textContent = String(channel?.adminState?.pins?.length ?? 0);
+        if (hiddenEl) hiddenEl.textContent = String(channel?.adminState?.hiddenMessageIds?.length ?? 0);
+
         const { channelManager, showNotification } = this.deps;
         const clientBanned = Array.isArray(channel?.adminState?.bannedMembers)
             ? channel.adminState.bannedMembers.map(e => String(e?.address ?? e).toLowerCase())
