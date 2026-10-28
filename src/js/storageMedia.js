@@ -2567,10 +2567,11 @@ class StorageMediaController {
                     await staging.writable.close();
                     const stagedFile = await staging.handle.getFile();
                     if (!isCompressed) {
+                        // The blob reads the staged file lazily: deleting it
+                        // here leaves an unreadable URL. The boot sweep removes it.
                         blob = new Blob([stagedFile], { type: meta.fileType || 'application/octet-stream' });
                         staging = null;
                         clearResumeMeta(tid);
-                        opfsDelete(stagingName);
                     } else {
                         // Streaming decompression staged→OPFS output (never the
                         // whole file in RAM).
