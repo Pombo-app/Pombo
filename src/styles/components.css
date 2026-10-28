@@ -3500,6 +3500,27 @@ body.explore-open #explore-channels-list {
         user-select: none;
     }
 
+    #message-context-menu,
+    #channel-dropdown-menu {
+        min-width: 200px;
+    }
+
+    #message-context-menu .context-menu-item,
+    #channel-dropdown-menu .dropdown-action {
+        padding-top: 10px;
+        padding-bottom: 10px;
+        font-size: 15px;
+        line-height: 20px;
+        gap: 12px;
+    }
+
+    #message-context-menu .context-menu-item > svg,
+    #channel-dropdown-menu .dropdown-action > svg,
+    #channel-dropdown-menu .dropdown-action > span:first-child {
+        width: 18px;
+        height: 18px;
+    }
+
     /* Larger touch targets */
     .input-button {
         width: 2.75rem;
