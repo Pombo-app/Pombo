@@ -108,14 +108,21 @@ export function recoverPublisherAccount(publisherId, proof) {
  * in each of them is how the same bug arrives seven times — see D10c, which
  * catalogues that exact shape. This is the one place that assigns both.
  *
+ * `_accountProven` is what the author badge reads: true only where a proof was
+ * checked against the publisher (channel ingest, sealed DM) or we wrote the
+ * message ourselves. Left untouched when `proven` is omitted, so re-applying
+ * the same account after opening keeps the verdict of the opening.
+ *
  * @param {Object} data - Payload (mutated in place)
  * @param {string} account - The resolved account
+ * @param {boolean} [proven] - Whether a proof established the account
  * @returns {Object} The same object, for chaining
  */
-export function applyAccount(data, account) {
+export function applyAccount(data, account, proven) {
     if (!data || typeof data !== 'object') return data;
     data.account = account;
     data.sender = account;
+    if (proven !== undefined) data._accountProven = proven === true;
     return data;
 }
 
@@ -146,7 +153,7 @@ export function stripLocalFields(data) {
     return dropLocalState(networkMessage);
 }
 
-const LOCAL_STATE_FIELDS = ['verified', 'pending', 'failed', 'failError', 'delivered', 'undelivered', '_dmSent', '_hidden'];
+const LOCAL_STATE_FIELDS = ['verified', '_accountProven', 'pending', 'failed', 'failError', 'delivered', 'undelivered', '_dmSent', '_hidden'];
 
 /**
  * Drop the sender's local UI state from a received payload: the ingress

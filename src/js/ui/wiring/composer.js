@@ -50,7 +50,7 @@ export function attachComposer(ui) {
     // Mobile: tap on message to show reply/react buttons
     ui.elements.messagesArea?.addEventListener('click', (e) => {
         const messageEntry = e.target.closest('.message-entry');
-        const isActionButton = e.target.closest('.reply-trigger, .react-trigger, .reaction-badge');
+        const isActionButton = e.target.closest('.reply-trigger, .react-trigger, .reaction-badge, .verification-badge');
         
         // Don't toggle when clicking action buttons
         if (isActionButton) return;

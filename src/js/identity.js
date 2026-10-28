@@ -147,13 +147,14 @@ class IdentityManager {
     // ==================== MESSAGE SIGNING ====================
 
     /**
-     * Create signed message payload
+     * Create a message payload. Not signed: the publisher proof added at
+     * publish time (inside the sealed envelope, in DMs) names the author.
      * @param {string} text - Message text
      * @param {string} channelId - Channel ID for context
      * @param {Object|null} replyTo - Reply context (optional)
-     * @returns {Promise<Object>} - Signed message object
+     * @returns {Promise<Object>} - Message object
      */
-    async createSignedMessage(text, channelId, replyTo = null) {
+    async createMessage(text, channelId, replyTo = null) {
         return applyAccount({
             type: 'text', // Explicit type for history filtering
             id: this.generateMessageId(),

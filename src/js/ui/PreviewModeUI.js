@@ -1010,7 +1010,7 @@ class PreviewModeUI {
         const streamId = this.previewChannel.streamId;
         
         // Create signed message using identity manager (same as channelManager)
-        const message = await identityManager.createSignedMessage(text, streamId, replyTo);
+        const message = await identityManager.createMessage(text, streamId, replyTo);
         
         // Add verification info for local display
         message.verified = {

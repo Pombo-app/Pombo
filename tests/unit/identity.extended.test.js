@@ -1,6 +1,6 @@
 /**
  * identity.js Extended Tests
- * Covers: createSignedMessage, verifyMessage, resolveAddress, pruneExpiredENSEntries (overflow)
+ * Covers: createMessage, verifyMessage, resolveAddress, pruneExpiredENSEntries (overflow)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -73,10 +73,10 @@ describe('IdentityManager Extended', () => {
         mockResolveName.mockResolvedValue(null);
     });
 
-    // ==================== createSignedMessage ====================
-    describe('createSignedMessage()', () => {
+    // ==================== createMessage ====================
+    describe('createMessage()', () => {
         it('should create a message with all fields', async () => {
-            const msg = await identityManager.createSignedMessage('Hello', 'channel-1');
+            const msg = await identityManager.createMessage('Hello', 'channel-1');
 
             expect(msg.type).toBe('text');
             expect(msg.text).toBe('Hello');
@@ -86,7 +86,7 @@ describe('IdentityManager Extended', () => {
         });
 
         it('stamps the local identity so the message renders before it is sent', async () => {
-            const msg = await identityManager.createSignedMessage('Hello', 'channel-1');
+            const msg = await identityManager.createMessage('Hello', 'channel-1');
 
             // Set locally, stripped at egress, re-derived from the proof on
             // arrival — the sender's own copy never goes through ingest.
@@ -95,7 +95,7 @@ describe('IdentityManager Extended', () => {
         });
 
         it('carries no app-layer signature or channelId (D6/D7)', async () => {
-            const msg = await identityManager.createSignedMessage('Hello', 'channel-1');
+            const msg = await identityManager.createMessage('Hello', 'channel-1');
 
             // Streamr signs the envelope and the proof authenticates the
             // account; a third signature only re-exposed the address.
@@ -106,7 +106,7 @@ describe('IdentityManager Extended', () => {
         it('should include senderName when username is set', async () => {
             identityManager.username = 'Alice';
 
-            const msg = await identityManager.createSignedMessage('Hi', 'ch-1');
+            const msg = await identityManager.createMessage('Hi', 'ch-1');
 
             expect(msg.senderName).toBe('Alice');
         });
@@ -114,7 +114,7 @@ describe('IdentityManager Extended', () => {
         it('should set senderName to null when no username', async () => {
             identityManager.username = null;
 
-            const msg = await identityManager.createSignedMessage('Hi', 'ch-1');
+            const msg = await identityManager.createMessage('Hi', 'ch-1');
 
             expect(msg.senderName).toBeNull();
         });
@@ -122,7 +122,7 @@ describe('IdentityManager Extended', () => {
         it('should include replyTo when provided', async () => {
             const replyTo = { id: 'msg-original', text: 'Original', sender: '0xOther' };
 
-            const msg = await identityManager.createSignedMessage('Reply', 'ch-1', replyTo);
+            const msg = await identityManager.createMessage('Reply', 'ch-1', replyTo);
 
             expect(msg.replyTo).toEqual(replyTo);
         });
@@ -130,7 +130,7 @@ describe('IdentityManager Extended', () => {
         it('should not hash the message', async () => {
             const hashSpy = vi.spyOn(identityManager, 'createMessageHash');
 
-            await identityManager.createSignedMessage('Test', 'ch-2');
+            await identityManager.createMessage('Test', 'ch-2');
 
             // The hash existed only to be signed. createMessageHash survives
             // for verifying pre-migration history, nothing else.
@@ -138,14 +138,14 @@ describe('IdentityManager Extended', () => {
         });
 
         it('should not sign', async () => {
-            await identityManager.createSignedMessage('Sign me', 'ch-1');
+            await identityManager.createMessage('Sign me', 'ch-1');
 
             expect(authManager.signMessage).not.toHaveBeenCalled();
         });
 
         it('should generate unique IDs for each message', async () => {
-            const msg1 = await identityManager.createSignedMessage('A', 'ch');
-            const msg2 = await identityManager.createSignedMessage('B', 'ch');
+            const msg1 = await identityManager.createMessage('A', 'ch');
+            const msg2 = await identityManager.createMessage('B', 'ch');
 
             expect(msg1.id).not.toBe(msg2.id);
         });

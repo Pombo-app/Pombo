@@ -683,8 +683,7 @@ class DMManager {
                 });
                 // The transport-level account was the ephemeral key; the proof
                 // is authoritative.
-                applyAccount(message, sender.toLowerCase());
-                return dropLocalState(message);
+                return applyAccount(dropLocalState(message), sender.toLowerCase(), true);
             } catch (e) {
                 // Not addressed to us, or tampered with. Either way it is not
                 // actionable — and with sealed sender we cannot tell which,
@@ -726,7 +725,7 @@ class DMManager {
             const decrypted = await dmCrypto.decrypt(data, aesKey);
             
             // Restore account (not part of encrypted payload)
-            applyAccount(decrypted, senderAddress);
+            applyAccount(decrypted, senderAddress, false);
             
             return decrypted;
         } catch (e) {
@@ -861,7 +860,7 @@ class DMManager {
                         payload = await dmCrypto.decryptBinary(data, aesKey);
                     } else if (dmCrypto.isEncrypted(data)) {
                         payload = await dmCrypto.decrypt(data, aesKey);
-                        applyAccount(payload, senderAddress);
+                        applyAccount(payload, senderAddress, false);
                     }
                 }
             } catch (e) {
@@ -1300,7 +1299,7 @@ class DMManager {
         }
 
         // Create signed message
-        const message = await identityManager.createSignedMessage(text, peerInboxStreamId, replyTo);
+        const message = await identityManager.createMessage(text, peerInboxStreamId, replyTo);
 
         // Add verification info for local display
         message.verified = {
@@ -1659,7 +1658,7 @@ class DMManager {
                 try {
                     const content = rawMsg.content;
                     if (content && typeof content === 'object' && publisherId) {
-                        applyAccount(content, publisherId);
+                        applyAccount(content, publisherId, false);
                     }
                     data = await this.openDMEnvelope(content);
                 } catch {

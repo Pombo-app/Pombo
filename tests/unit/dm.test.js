@@ -45,7 +45,7 @@ vi.mock('../../src/js/auth.js', () => ({
 
 vi.mock('../../src/js/identity.js', () => ({
     identityManager: {
-        createSignedMessage: vi.fn().mockImplementation(async (text, channelId, replyTo) => ({
+        createMessage: vi.fn().mockImplementation(async (text, channelId, replyTo) => ({
             id: `msg-${Date.now()}`,
             sender: '0xmyaddress1234567890abcdef12345678',
             text,
@@ -696,14 +696,16 @@ describe('DMManager', () => {
                 message: {
                     id: 'sealed-1', text: 'hi', pending: true, failed: true, failError: 'x',
                     delivered: true, undelivered: true, _dmSent: true,
-                    verified: { valid: true, trustLevel: 2 }
+                    verified: { valid: true, trustLevel: 2 }, _accountProven: false
                 }
             });
 
             const opened = await dmManager.openDMEnvelope({ v: 2, epk: '0x02eph', ct: 'c', iv: 'i', e: 'aes-256-gcm' });
 
+            // The seal's own proof named the sender, whatever the payload claimed.
             expect(opened).toEqual({
-                id: 'sealed-1', text: 'hi', account: peerAddress, sender: peerAddress
+                id: 'sealed-1', text: 'hi', account: peerAddress, sender: peerAddress,
+                _accountProven: true
             });
         });
 

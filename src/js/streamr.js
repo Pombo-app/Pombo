@@ -2217,8 +2217,8 @@ class StreamrController {
      */
     attachAccount(data, publisherId) {
         if (!data || typeof data !== 'object' || !publisherId) return data;
-        const account = (data.proof && recoverPublisherAccount(publisherId, data.proof))
-            || publisherId;
+        const proven = (data.proof && recoverPublisherAccount(publisherId, data.proof)) || null;
+        const account = proven || publisherId;
 
         // `sender` no longer travels on the wire (D6) — it duplicated the proof
         // in the clear. It stays as a DERIVED alias because ~85 call sites read
@@ -2229,7 +2229,7 @@ class StreamrController {
         //
         // Legacy messages carry their own `sender`; overwriting it is a no-op,
         // since back then publisherId WAS the wallet.
-        return applyAccount(dropLocalState(data), account);
+        return applyAccount(dropLocalState(data), account, !!proven);
     }
 
     /**

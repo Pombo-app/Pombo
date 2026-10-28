@@ -22,7 +22,7 @@ vi.mock('../../src/js/channels.js', () => ({
 
 vi.mock('../../src/js/identity.js', () => ({
     identityManager: {
-        createSignedMessage: vi.fn(),
+        createMessage: vi.fn(),
         getTrustLevel: vi.fn()
     }
 }));

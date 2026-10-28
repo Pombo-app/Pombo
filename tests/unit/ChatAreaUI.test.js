@@ -107,6 +107,47 @@ describe('ChatAreaUI', () => {
         vi.restoreAllMocks();
     });
 
+    // ==================== author badge ====================
+    describe('author badge', () => {
+        const kind = (msg, isOwn = false) =>
+            /data-badge="(\w+)"/.exec(chatAreaUI.getVerificationBadge(msg, isOwn).html)?.[1] ?? null;
+
+        it('vouches only for a proven account that passed its checks', () => {
+            expect(kind({ _accountProven: true, verified: { valid: true, trustLevel: 0 } })).toBe('verified');
+            expect(kind({ _accountProven: true })).toBeNull();
+            expect(kind({ _accountProven: false, verified: { valid: true, trustLevel: 0 } })).toBeNull();
+            expect(kind({ verified: { valid: true, trustLevel: 0 } })).toBeNull();
+        });
+
+        it('shows ENS and trusted contact only on top of a proof', () => {
+            expect(kind({ _accountProven: true, verified: { valid: true, trustLevel: 1 } })).toBe('ens');
+            expect(kind({ _accountProven: true, verified: { valid: true, trustLevel: 2 } })).toBe('contact');
+            expect(kind({ verified: { valid: true, trustLevel: 1 } })).toBeNull();
+            expect(kind({ verified: { valid: true, trustLevel: 2 } })).toBeNull();
+        });
+
+        it('flags a failed check, but never a legacy signed message', () => {
+            expect(kind({ _accountProven: true, verified: { valid: false } })).toBe('failed');
+            expect(kind({ signature: '0xsig', verified: { valid: false } })).toBeNull();
+            expect(kind({ signature: '0xsig', verified: { valid: true, trustLevel: 0 } })).toBeNull();
+        });
+
+        it('vouches for our own current-format messages only', () => {
+            expect(kind({}, true)).toBe('verified');
+            expect(kind({ signature: '0xsig' }, true)).toBeNull();
+        });
+
+        it('explains itself when tapped', () => {
+            const area = document.getElementById('messages-area');
+            area.innerHTML = `<div class="message-entry">${chatAreaUI.getVerificationBadge(
+                { _accountProven: true, verified: { valid: true, trustLevel: 0 } }).html}</div>`;
+            area.querySelector('.verification-badge').click();
+            const pop = document.getElementById('author-badge-popover');
+            expect(pop.textContent).toContain('Verified author');
+            expect(pop.textContent).toContain('someone else');
+        });
+    });
+
     // ==================== retry ====================
     describe('retry button', () => {
         it('hands a Retry click to onRetrySend with the message id', () => {

@@ -634,20 +634,28 @@ describe('MessageRenderer', () => {
             expect(result).toContain('data-emoji-only="true"');
         });
         
-        it('should show invalid signature warning', () => {
-            const msg = {
-                id: 'msg-6',
-                sender: '0x1',
-                text: 'Suspicious',
-                verified: { valid: false },
-                signature: 'invalid-sig'
-            };
-            
+        it('warns and tints a current-format message that failed its check', () => {
+            const msg = { id: 'msg-6', sender: '0x1', text: 'Suspicious', verified: { valid: false } };
+
             const result = messageRenderer.buildMessageHTML(
                 msg, false, '17:00', { html: '' }, 'User'
             );
-            
-            expect(result).toContain('Invalid signature');
+
+            expect(result).toContain('Could not verify');
+            expect(result).toContain('message-unverified');
+        });
+
+        it('never flags a legacy signed message', () => {
+            const msg = {
+                id: 'msg-6b', sender: '0x1', text: 'Old', verified: { valid: false }, signature: 'invalid-sig'
+            };
+
+            const result = messageRenderer.buildMessageHTML(
+                msg, false, '17:00', { html: '' }, 'User'
+            );
+
+            expect(result).not.toContain('Could not verify');
+            expect(result).not.toContain('message-unverified');
         });
         
         it('should include reply preview when present', () => {

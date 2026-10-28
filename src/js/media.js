@@ -801,11 +801,10 @@ class MediaController {
         
         // Create image message with data embedded (so storage backends can persist it)
         // This goes to messageStream so it's stored and retrievable from history
-        const announcement = await identityManager.createSignedMessage('', messageStreamId);
+        const announcement = await identityManager.createMessage('', messageStreamId);
         announcement.type = 'image';
         announcement.imageId = imageId;
         announcement.imageData = base64Data; // Include data for persistence
-        // Keep the id from createSignedMessage (signed)
         const messageId = announcement.id;
         
         // Add verification info for local display
@@ -1347,7 +1346,7 @@ class MediaController {
         }
 
         Logger.warn('identityManager.createSignedImageManifest missing; falling back to legacy message signing');
-        const manifest = await identityManager.createSignedMessage('', input.channelId);
+        const manifest = await identityManager.createMessage('', input.channelId);
         manifest.type = 'image';
         manifest.transport = STORED_IMAGE_TRANSPORT;
         manifest.v = STORED_IMAGE_PROTOCOL_VERSION;

@@ -29,6 +29,29 @@ import { epochKeyManager } from '../epochKeyManager.js';
 const PAGINATION_WATCHDOG_MS = 15000;
 const LOADING_SLOW_MS = 30000;
 
+// What each author badge claims, shown when it is tapped. Mirrored verbatim in
+// the Android client (AuthorBadge.kt).
+export const AUTHOR_BADGE_TEXT = {
+    verified: {
+        title: 'Verified author',
+        body: 'This message carries a proof bound to the account shown. No one can post under someone else\'s account.'
+    },
+    ens: {
+        title: 'Verified author · ENS',
+        body: 'This message carries a proof bound to the account shown, and the name is that account\'s ENS name. No one can post under someone else\'s account.'
+    },
+    contact: {
+        title: 'Verified author · Trusted contact',
+        body: 'This message carries a proof bound to the account shown, which you marked as a trusted contact. No one can post under someone else\'s account.'
+    },
+    failed: {
+        title: 'Could not verify',
+        body: 'This message is dated more than 5 minutes ahead of your clock. It may be replayed, or the sender\'s clock is wrong.'
+    }
+};
+
+const CONTACT_BADGE_SVG = '<svg class="inline-block" style="vertical-align: -1px" width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3.2l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.5l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" style="stroke:var(--pombo-success)" stroke-width="2" stroke-linejoin="round"/></svg>';
+
 class ChatAreaUI {
     constructor() {
         this.deps = {};
@@ -182,6 +205,56 @@ class ChatAreaUI {
         this.messageInput = elements.messageInput;
         this._wireAdminStateHandler();
         this._wireRetryHandler();
+        this._wireAuthorBadgeHandler();
+    }
+
+    /**
+     * Delegated: a tap on an author badge explains what it vouches for.
+     * @private
+     */
+    _wireAuthorBadgeHandler() {
+        if (!this.messagesArea || this._badgeWiredArea === this.messagesArea) return;
+        this.messagesArea.addEventListener('click', (e) => {
+            const btn = e.target.closest?.('.verification-badge');
+            if (!btn || !this.messagesArea.contains(btn)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            this._showAuthorBadgePopover(btn);
+        });
+        this._badgeWiredArea = this.messagesArea;
+    }
+
+    /** @private */
+    _showAuthorBadgePopover(anchor) {
+        const text = AUTHOR_BADGE_TEXT[anchor.dataset.badge];
+        if (!text) return;
+        document.getElementById('author-badge-popover')?.remove();
+        const pop = document.createElement('div');
+        pop.id = 'author-badge-popover';
+        pop.setAttribute('role', 'dialog');
+        const title = document.createElement('strong');
+        title.textContent = text.title;
+        pop.append(title, text.body);
+        document.body.appendChild(pop);
+
+        const r = anchor.getBoundingClientRect();
+        const margin = 10;
+        const left = Math.min(Math.max(margin, r.left - 8), window.innerWidth - pop.offsetWidth - margin);
+        const below = r.bottom + 6;
+        const top = below + pop.offsetHeight + margin <= window.innerHeight ? below : r.top - 6 - pop.offsetHeight;
+        pop.style.left = `${left}px`;
+        pop.style.top = `${Math.max(margin, top)}px`;
+
+        const close = () => {
+            pop.remove();
+            document.removeEventListener('pointerdown', onDown, true);
+            this.messagesArea?.removeEventListener('scroll', close);
+        };
+        const onDown = (ev) => { if (!pop.contains(ev.target)) close(); };
+        setTimeout(() => {
+            document.addEventListener('pointerdown', onDown, true);
+            this.messagesArea?.addEventListener('scroll', close, { once: true });
+        }, 0);
     }
 
     /**
@@ -1567,96 +1640,38 @@ class ChatAreaUI {
      * Get verification badge HTML for a message
      * @param {Object} msg - Message object
      * @param {boolean} isOwn - Whether this is the user's own message
-     * @returns {Object} - { html, textColor, bgColor, border }
+     * @returns {Object} - { html }, empty when the author is not vouched for
      */
     getVerificationBadge(msg, isOwn = false) {
-        const trustLevel = msg.verified?.trustLevel ?? 0;
+        const none = { html: '' };
+        const badge = (kind, inner) => ({
+            html: `<button type="button" class="verification-badge" data-badge="${kind}" aria-label="${AUTHOR_BADGE_TEXT[kind].title}">${inner}</button>`
+        });
+
+        // A clock check failed on a current-format message. Legacy messages
+        // (with `signature`) are attributed to their address and never flagged.
+        if (!msg.signature && msg.verified?.valid === false) {
+            return badge('failed', '<span class="text-danger">❌</span>');
+        }
+
+        // Anti-spoofing: the author is only vouched for when a proof bound the
+        // publisher to the account and the message passed its checks. Our own
+        // current-format messages carry our proof by construction.
+        const proven = isOwn
+            ? !msg.signature
+            : msg._accountProven === true && msg.verified?.valid === true;
+        if (!proven) return none;
+
         // Cache-first so the badge upgrades once ENS lands, instead of being
         // frozen at whatever the cache held when the message was verified.
         const ensName = identityManager.getCachedENS?.(msg.sender) || msg.verified?.ensName;
-        // A known ENS name alone is enough (parity with Android's
-        // `trustLevel == 1 || ensName != null`). Gating on trustLevel >= 1
-        // meant a received message whose sender's ENS resolved only AFTER
-        // verification (the usual order) kept a plain ✓ forever, because
-        // trustLevel was snapshotted at 0 — the name showed but the badge
-        // never upgraded.
-        const hasENS = trustLevel === 1 || !!ensName;
-
-        // ENS verified badge — green checkmark inside organic circle
-        const ensBadgeSvg = `<svg class="inline-block" style="vertical-align: -1px" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" style="stroke:var(--pombo-success)" stroke-width="2" fill="none"/><path d="M7.5 12.5l3 3 6-6.5" style="stroke:var(--pombo-success)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
-
-        // Own messages
-        if (isOwn) {
-            if (hasENS) {
-                return {
-                    html: `<span title="ENS verified">${ensBadgeSvg}</span>`,
-                    textColor: 'text-success',
-                    bgColor: '',
-                    border: ''
-                };
-            }
-            return {
-                html: '<span class="text-success" title="Your message">✓</span>',
-                textColor: 'text-success',
-                bgColor: '',
-                border: ''
-            };
+        if (msg.verified?.trustLevel === 1 || ensName) {
+            return badge('ens', `<svg class="inline-block" style="vertical-align: -1px" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" style="stroke:var(--pombo-success)" stroke-width="2"/><path d="M7.5 12.5l3 3 6-6.5" style="stroke:var(--pombo-success)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`);
         }
-
-        // Signed but verification FAILED → red impersonation flag.
-        if (msg.signature && msg.verified && !msg.verified.valid) {
-            return {
-                html: '<span class="text-red-500" title="⚠️ Invalid signature - may be impersonation!">❌</span>',
-                textColor: 'text-danger',
-                bgColor: 'bg-red-900/20',
-                border: 'border border-red-500/50'
-            };
+        if (!isOwn && msg.verified?.trustLevel === 2) {
+            return badge('contact', CONTACT_BADGE_SVG);
         }
-
-        // Unsigned = the CURRENT format (D6). Identity is established by the
-        // proof at INGEST (attachAccount → msg.account), NOT by the async
-        // verifyMessage — so show the badge optimistically, exactly as a
-        // signed message showed ✓ before its async check returned. Waiting on
-        // `verified.valid` left every received (unsigned) message with NO
-        // badge until batch verification happened to re-render, which is why
-        // only own messages (rendered via the isOwn branch) ever showed one.
-        // The only unsigned case that gets no badge is an EXPLICIT failure
-        // (replay guard / no account) — and never a red ❌, matching the old
-        // "unsigned = no flag, not a failure" rule.
-        if (!msg.signature && msg.verified && msg.verified.valid === false) {
-            return {
-                html: '',
-                textColor: 'text-overlay-30',
-                bgColor: 'bg-overlay-10',
-                border: ''
-            };
-        }
-
-        // Valid signature - ENS badge overrides all other badges
-        if (hasENS) {
-            return {
-                html: `<span title="ENS verified">${ensBadgeSvg}</span>`,
-                textColor: 'text-success',
-                bgColor: '',
-                border: ''
-            };
-        }
-
-        const trustedStarSvg = `<svg class="inline-block" style="vertical-align: -1px" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2.5l2.9 5.8 6.4.9-4.6 4.5 1.1 6.4L12 17.3l-5.8 3.8 1.1-6.4-4.6-4.5 6.4-.9z" fill="#d4a544" opacity="0.85" stroke="#d4a544" stroke-width="0.5" stroke-linejoin="round"/></svg>`;
-
-        const badges = {
-            0: { icon: '✓', color: 'text-success', label: 'Valid signature' },
-            2: { icon: trustedStarSvg, color: 'text-amber-400/70', label: 'Trusted contact' }
-        };
-        
-        const badge = badges[trustLevel] || badges[0];
-
-        return {
-            html: trustLevel === 2 ? `<span title="${badge.label}">${badge.icon}</span>` : `<span class="${badge.color}" title="${badge.label}">${badge.icon}</span>`,
-            textColor: badge.color,
-            bgColor: '',
-            border: ''
-        };
+        return badge('verified', '<span class="text-success">✓</span>');
     }
 
     /**

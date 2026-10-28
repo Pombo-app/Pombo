@@ -41,7 +41,7 @@ vi.mock('../../src/js/channels.js', () => ({
 
 vi.mock('../../src/js/identity.js', () => ({
     identityManager: {
-        createSignedMessage: vi.fn().mockResolvedValue({
+        createMessage: vi.fn().mockResolvedValue({
             id: 'msg-123',
             sender: '0xmyaddress',
             timestamp: Date.now()
@@ -2283,8 +2283,8 @@ describe('media.js core', () => {
             // Mock resizeImage to skip canvas
             vi.spyOn(mediaController, 'resizeImage').mockResolvedValue('data:image/jpeg;base64,abc');
             channelManager.getChannel.mockReturnValue({ type: 'public', messages: [], password: null });
-            // createSignedMessage returns fresh copy each call
-            identityManager.createSignedMessage.mockResolvedValue({
+            // createMessage returns fresh copy each call
+            identityManager.createMessage.mockResolvedValue({
                 id: 'msg-img-1',
                 sender: '0xmyaddress',
                 timestamp: Date.now()

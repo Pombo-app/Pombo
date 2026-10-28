@@ -858,7 +858,7 @@ class MessageRenderer {
         const metaInFooter = !metaOverContent && reactionsHtml.includes('reaction-badge');
 
         return `
-            <div class="message-entry ${isOwn ? 'own-message' : 'other-message'} ${groupClass} ${spacingClass}${msg._hidden ? ' message-hidden' : ''}${sendState}" data-msg-id="${escapeAttr(msgId)}" data-sender="${escapeAttr(msg.sender || '')}" data-type="${escapeAttr(msgType)}"${emojiAttr}>
+            <div class="message-entry ${isOwn ? 'own-message' : 'other-message'} ${groupClass} ${spacingClass}${msg._hidden ? ' message-hidden' : ''}${!msg.signature && msg.verified?.valid === false ? ' message-unverified' : ''}${sendState}" data-msg-id="${escapeAttr(msgId)}" data-sender="${escapeAttr(msg.sender || '')}" data-type="${escapeAttr(msgType)}"${emojiAttr}>
                 <div class="message-bubble"${bubbleStyle}>
                     ${moderationHtml}
                     ${senderRowHtml}
@@ -867,7 +867,7 @@ class MessageRenderer {
                     <div class="message-footer">
                         ${reactionsHtml}${metaInFooter ? metaHtml : ''}
                     </div>
-                    ${msg.verified && !msg.verified.valid && msg.signature ? '<div class="text-xs text-danger mt-1">⚠️ Invalid signature</div>' : ''}
+                    ${!msg.signature && msg.verified?.valid === false ? '<div class="message-verify-warning text-xs text-danger mt-1">Could not verify: dated ahead of your clock</div>' : ''}
                     <span class="reply-trigger reply-btn" data-msg-id="${escapeAttr(msgId)}" title="Reply"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17l-5-5 5-5"/><path d="M4 12h11a4 4 0 0 1 4 4v4"/></svg></span>
                     <span class="react-trigger react-btn" data-msg-id="${escapeAttr(msgId)}" title="React"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></span>
                 </div>

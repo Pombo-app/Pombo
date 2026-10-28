@@ -38,7 +38,7 @@ vi.mock('../../src/js/channels.js', () => ({
 
 vi.mock('../../src/js/identity.js', () => ({
     identityManager: {
-        createSignedMessage: vi.fn().mockResolvedValue({
+        createMessage: vi.fn().mockResolvedValue({
             id: 'msg-123', sender: '0xmyaddress', timestamp: Date.now()
         }),
         getTrustLevel: vi.fn().mockResolvedValue('verified')

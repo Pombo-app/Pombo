@@ -1119,6 +1119,43 @@ body.network-offline {
     opacity: 0.6;
 }
 
+.message-entry.message-unverified .message-bubble {
+    background-color: rgba(127, 29, 29, 0.2);
+    box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.5);
+}
+
+.verification-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    line-height: 1;
+}
+
+#author-badge-popover {
+    position: fixed;
+    z-index: 60;
+    max-width: 260px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--pombo-surface-raised, #16161b);
+    border: 1px solid var(--pombo-overlay-10);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--pombo-overlay-70);
+}
+
+#author-badge-popover strong {
+    display: block;
+    margin-bottom: 2px;
+    font-weight: 600;
+    color: var(--pombo-overlay-90);
+}
+
 .message-meta .message-retry {
     text-decoration: underline;
     cursor: pointer;
