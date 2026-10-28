@@ -2144,7 +2144,7 @@ class StorageMediaController {
                 lastChunkTs,
                 storedChunks: storedCount
             };
-            const announcement = await identityManager.createSignedStorageFileManifest({
+            const announcement = await identityManager.createStorageFileManifest({
                 channelId: messageStreamId,
                 metadata: finalMetadata,
                 id: messageId

@@ -28,7 +28,7 @@ vi.mock('../../src/js/identity.js', () => ({
         username: 'tester',
         generateMessageId: vi.fn(() => 'msg-1'),
         getTrustLevel: vi.fn(async () => 0),
-        createSignedStorageFileManifest: vi.fn()
+        createStorageFileManifest: vi.fn()
     }
 }));
 vi.mock('../../src/js/secureStorage.js', () => ({ secureStorage: { addSentMessage: vi.fn() } }));

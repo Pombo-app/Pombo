@@ -1,15 +1,12 @@
 /**
  * Crypto Worker
  * Offloads heavy cryptographic operations from the main thread:
- * - ECDSA signature verification (ethers.verifyMessage)
  * - PBKDF2 key derivation (310k iterations)
  * - AES-GCM encryption/decryption
  * 
  * This file is bundled by Webpack as a separate entry point
  */
 
-// Import only the functions we need from ethers (tree-shaking friendly)
-import { keccak256, toUtf8Bytes, verifyMessage as ethersVerifyMessage } from 'ethers';
 import { CONFIG } from '../config.js';
 
 // Single source of truth for PBKDF2 iterations — hardcoding this in multiple
@@ -30,14 +27,6 @@ self.onmessage = async (e) => {
         let result;
         
         switch (type) {
-            case 'VERIFY_SIGNATURE':
-                result = await verifySignature(payload);
-                break;
-                
-            case 'CREATE_HASH':
-                result = createMessageHash(payload);
-                break;
-                
             case 'DERIVE_KEY':
                 result = await deriveKey(payload);
                 break;
@@ -63,50 +52,6 @@ self.onmessage = async (e) => {
         self.postMessage({ id, success: false, error: error.message });
     }
 };
-
-// ==================== SIGNATURE VERIFICATION ====================
-
-/**
- * Create deterministic message hash for signing/verification
- * Uses keccak256 for cryptographic security
- */
-function createMessageHash({ id, text, sender, timestamp, channelId }) {
-    const data = JSON.stringify({
-        protocol: 'POMBO',
-        version: 1,
-        id: id,
-        text: text,
-        sender: sender.toLowerCase(),
-        timestamp: timestamp,
-        channelId: channelId
-    });
-    return keccak256(toUtf8Bytes(data));
-}
-
-/**
- * Verify ECDSA signature and recover signer address
- * This is the most CPU-intensive operation (elliptic curve recovery)
- */
-async function verifySignature({ messageHash, signature, expectedSender }) {
-    try {
-        // Recover the signer address from signature (CPU-intensive ECDSA recovery)
-        const recoveredAddress = ethersVerifyMessage(messageHash, signature);
-        
-        // Compare with expected sender
-        const valid = recoveredAddress.toLowerCase() === expectedSender.toLowerCase();
-        
-        return {
-            valid,
-            recoveredAddress
-        };
-    } catch (error) {
-        return {
-            valid: false,
-            recoveredAddress: null,
-            error: error.message
-        };
-    }
-}
 
 // ==================== KEY DERIVATION (PBKDF2) ====================
 

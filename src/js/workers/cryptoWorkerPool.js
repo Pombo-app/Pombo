@@ -64,7 +64,7 @@ class CryptoWorkerPool {
                 // '/js/...' only works when the app is deployed at the domain
                 // root; served from a subfolder (a local static server, a
                 // preview deploy, a reverse proxy) it 404s and the whole pool
-                // dies — taking signature verification down with it.
+                // dies — taking key derivation down with it.
                 // index.html already loads its bundles as './js/...'.
                 const worker = new Worker(new URL('js/crypto.worker.bundle.js', document.baseURI));
                 
@@ -162,7 +162,7 @@ class CryptoWorkerPool {
             
             // Safety-net timeout: without it, a crashed/hung worker leaves the
             // promise pending forever, silently blocking callers on the auth
-            // critical path (deriveStorageKey/verifyMessage).
+            // critical path (deriveStorageKey).
             const timer = setTimeout(() => {
                 if (this.pendingTasks.delete(id)) {
                     reject(new Error(`Crypto worker task ${type} timed out after ${CryptoWorkerPool.TASK_TIMEOUT_MS}ms`));
@@ -216,16 +216,7 @@ class CryptoWorkerPool {
      * Fallback for executing tasks on main thread
      */
     async executeFallback(type, payload) {
-        // Dynamic import ethers only when needed
-        const { keccak256, toUtf8Bytes, verifyMessage } = await import('ethers');
-        
         switch (type) {
-            case 'VERIFY_SIGNATURE':
-                return this.verifySignatureFallback(payload, verifyMessage);
-                
-            case 'CREATE_HASH':
-                return this.createHashFallback(payload, keccak256, toUtf8Bytes);
-                
             case 'DERIVE_KEY':
                 return this.deriveKeyFallback(payload);
                 
@@ -238,29 +229,6 @@ class CryptoWorkerPool {
             default:
                 throw new Error(`Unknown task type: ${type}`);
         }
-    }
-    
-    async verifySignatureFallback({ messageHash, signature, expectedSender }, verifyMessage) {
-        try {
-            const recoveredAddress = verifyMessage(messageHash, signature);
-            return {
-                valid: recoveredAddress.toLowerCase() === expectedSender.toLowerCase(),
-                recoveredAddress
-            };
-        } catch (error) {
-            return { valid: false, recoveredAddress: null, error: error.message };
-        }
-    }
-    
-    createHashFallback({ id, text, sender, timestamp, channelId }, keccak256, toUtf8Bytes) {
-        const data = JSON.stringify({
-            protocol: 'POMBO',
-            version: 1,
-            id, text,
-            sender: sender.toLowerCase(),
-            timestamp, channelId
-        });
-        return keccak256(toUtf8Bytes(data));
     }
     
     async deriveKeyFallback({ password, salt, iterations = CONFIG.crypto.pbkdf2Iterations }) {

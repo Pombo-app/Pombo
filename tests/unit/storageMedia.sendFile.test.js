@@ -50,7 +50,7 @@ vi.mock('../../src/js/identity.js', () => ({
         username: 'tester',
         generateMessageId: vi.fn(() => 'msg-1'),
         getTrustLevel: vi.fn(async () => 0),
-        createSignedStorageFileManifest: vi.fn(async ({ channelId, metadata, id }) => ({
+        createStorageFileManifest: vi.fn(async ({ channelId, metadata, id }) => ({
             type: 'storage_file_announce', v: 1, id,
             sender: H.accountAddress, senderName: 'tester',
             timestamp: Date.now(), channelId, metadata,
@@ -561,7 +561,7 @@ describe('sendFile — the optimistic bubble', () => {
     it('drops the bubble and reports the error when the transfer fails', async () => {
         const onError = vi.fn();
         storageMediaController.onFileError(onError);
-        identityManager.createSignedStorageFileManifest.mockRejectedValueOnce(new Error('signing failed'));
+        identityManager.createStorageFileManifest.mockRejectedValueOnce(new Error('signing failed'));
 
         await expect(storageMediaController.sendFile(SID, fileOfSize(500))).rejects.toThrow('signing failed');
 

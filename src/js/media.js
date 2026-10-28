@@ -723,7 +723,7 @@ class MediaController {
             channel
         });
 
-        const manifest = await this.createSignedStoredImageManifest({
+        const manifest = await this.createStoredImageManifest({
             imageId,
             channelId: messageStreamId,
             originalMime: prepared.originalMime,
@@ -1340,12 +1340,12 @@ class MediaController {
         });
     }
 
-    async createSignedStoredImageManifest(input) {
-        if (typeof identityManager.createSignedImageManifest === 'function') {
-            return identityManager.createSignedImageManifest(input);
+    async createStoredImageManifest(input) {
+        if (typeof identityManager.createImageManifest === 'function') {
+            return identityManager.createImageManifest(input);
         }
 
-        Logger.warn('identityManager.createSignedImageManifest missing; falling back to legacy message signing');
+        Logger.warn('identityManager.createImageManifest missing; falling back to legacy message signing');
         const manifest = await identityManager.createMessage('', input.channelId);
         manifest.type = 'image';
         manifest.transport = STORED_IMAGE_TRANSPORT;
@@ -1895,7 +1895,7 @@ class MediaController {
                         // Sign the manifest itself: every downloader verifies pieces
                         // against metadata.pieceHashes, so those hashes must be inside
                         // the signature rather than attached to it afterwards.
-                        const announcement = await identityManager.createSignedFileManifest({
+                        const announcement = await identityManager.createFileManifest({
                             channelId: messageStreamId,
                             metadata
                         });
