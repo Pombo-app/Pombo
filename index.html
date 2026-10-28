@@ -3156,12 +3156,18 @@
 
     <!-- Modal: Media Lightbox -->
     <div id="media-lightbox-modal" class="hidden fixed inset-0 bg-black/95 flex items-center justify-center z-[70]">
-        <!-- Close button -->
-        <button id="lightbox-close-btn" class="absolute top-4 right-4 text-overlay-70 hover:text-primary p-2 rounded-full bg-overlay-10 hover:bg-overlay-20 transition z-10">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-        </button>
+        <div class="absolute top-4 right-4 flex items-center gap-2.5 z-10">
+            <button id="lightbox-save-btn" class="hidden text-overlay-70 hover:text-primary p-2 rounded-full bg-overlay-10 hover:bg-overlay-20 transition" title="Save image" aria-label="Save image">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14"/>
+                </svg>
+            </button>
+            <button id="lightbox-close-btn" class="text-overlay-70 hover:text-primary p-2 rounded-full bg-overlay-10 hover:bg-overlay-20 transition" aria-label="Close">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
         
         <!-- Image container -->
         <img id="lightbox-image" class="hidden max-w-[90vw] max-h-[90vh] object-contain rounded-lg" alt="Full size"/>
