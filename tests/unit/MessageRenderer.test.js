@@ -987,6 +987,25 @@ describe('MessageRenderer', () => {
             expect(result).not.toContain('data-video-play');
         });
 
+        it('keeps a download that stopped short on the tile, with play to try again', () => {
+            messageRenderer.setDependencies({
+                getStorageFileUrl: () => null,
+                getCurrentAddress: () => '0xreader',
+                getCurrentChannel: () => ({ type: 'dm' }),
+                getStorageDownloadError: () => 'Incomplete on storage (68/77)'
+            });
+
+            const result = messageRenderer.renderStorageFileBubble({
+                id: 'msg-short',
+                sender: '0xsender',
+                type: 'storage_file_announce',
+                metadata: { transferId: 't-short', fileName: 'clip.mp4', fileType: 'video/mp4', originalSize: 1000, totalChunks: 77, storedChunks: 77 }
+            });
+
+            expect(result).toContain('>Incomplete on storage (68/77)</span>');
+            expect(result).toContain('data-video-play');
+        });
+
         // Non-video types go to the file bubble in every state, including this one —
         // it renders its own unavailable treatment rather than the video placeholder
         it('should route unavailable non-video files to the file bubble', () => {

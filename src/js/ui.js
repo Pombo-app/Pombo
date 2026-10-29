@@ -158,6 +158,7 @@ class UIController {
             getStorageDownloadProgress: (tid) => storageMediaController.getDownloadProgress(tid),
             getStorageUploadState: (tid) => storageMediaController.getUploadState(tid),
             getStorageResumePercent: (tid) => storageMediaController.getResumePercent(tid),
+            getStorageDownloadError: (tid) => storageMediaController.getDownloadError(tid),
             canRetryStorageUpload: (tid) => storageMediaController.canRetryUpload(tid),
             isStorageSaved: (tid) => mediaHandler.isStorageSaved(tid)
         });

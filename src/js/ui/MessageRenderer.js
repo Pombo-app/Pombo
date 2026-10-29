@@ -504,9 +504,11 @@ class MessageRenderer {
         const canDownload = !fileUrl && !active && !msg.pending && Number.isFinite(metadata.totalChunks) && !unreachable;
 
         if ((metadata.fileType || '').startsWith('video/')) {
+            const downloadError = !fileUrl && !active ? this.deps.getStorageDownloadError?.(tid) : null;
             const status = uploadState
                 ? (this.formatStorageUploadDetail(uploadState).line1 || 'Uploading…')
                 : downloadProgress ? this.formatStorageDownloadDetail(downloadProgress).line1
+                : downloadError ? downloadError
                 : incomplete ? `Incomplete on storage (${metadata.storedChunks}/${metadata.totalChunks})`
                 : unreachable ? 'Not on this device' : '';
             return this.renderVideoTile({

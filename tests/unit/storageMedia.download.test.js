@@ -469,7 +469,7 @@ describe('downloadFile — incomplete', () => {
         const transfer = storageMediaController.downloads.get('tid-1');
         expect(transfer.status).toBe('error');
         expect(transfer.chunks.size).toBe(total - 1);
-        expect(onError).toHaveBeenCalledWith('tid-1', expect.stringMatching(/Storage incomplete/));
+        expect(onError).toHaveBeenCalledWith('tid-1', `Incomplete on storage (${total - 1}/${total})`);
         expect(storageMediaController.completedFiles.has('tid-1')).toBe(false);
     }, 20000);
 });

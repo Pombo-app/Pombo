@@ -144,6 +144,8 @@ export function attachStorageTransfers(ui) {
             btn.querySelector('.download-loading-icon')?.classList.add('hidden');
             btn.disabled = false;
         }
+        const pill = document.querySelector(`.video-tile-pill[data-progress-text="${CSS.escape(tid)}"]`);
+        if (pill) { pill.textContent = message; pill.classList.remove('hidden'); }
         ui.showNotification('Storage transfer failed: ' + message, 'error');
     });
 }

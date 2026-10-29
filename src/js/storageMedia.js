@@ -1328,6 +1328,12 @@ class StorageMediaController {
     getUploadState(tid) { return this.uploads.get(tid) || null; }
     isDownloading(tid) { return this.downloads.get(tid)?.status === 'downloading'; }
 
+    /** Why the last download of `tid` stopped short, or null. */
+    getDownloadError(tid) {
+        const t = this.downloads.get(tid);
+        return t?.status === 'error' ? (t.error || null) : null;
+    }
+
     /**
      * Pauses a running storage download: the fetch loop stops between windows
      * (see fetchWindowsParallel's shouldStop) and preserves whatever is
@@ -3099,7 +3105,7 @@ class StorageMediaController {
                 transfer.status = 'error';
                 transfer.error = stagingError
                     ? 'Disk write error during staging'
-                    : 'Storage incomplete — some chunks are not on the storage nodes. The sender can repair by re-uploading; Retry later.';
+                    : `Incomplete on storage (${transfer.chunks.size}/${transfer.totalChunks})`;
                 if (staging) {
                     if (stagingError) {
                         try { await staging.writable.abort(); } catch (e) { /* dead */ }
