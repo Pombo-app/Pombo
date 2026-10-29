@@ -2875,6 +2875,7 @@ class StorageMediaController {
             }
 
             let retryPass = 0;
+            let widened = false;
             while (!transfer.paused && transfer.chunks.size < transfer.totalChunks && retryPass < SM.downloadRetryPasses) {
                 retryPass++;
                 await sleep(2000 * retryPass);
@@ -2884,7 +2885,16 @@ class StorageMediaController {
                 const windows = buildMissingWindows(meta, missingNow, fromT, toT);
                 Logger.warn(`Storage download retry ${retryPass}/${SM.downloadRetryPasses}: ${missingNow.length} chunks missing → ${windows.length} window(s)`);
                 await fetchWindowsParallel(chunkStreamId, windows, onChunkMessage, DL_CONC, bases, shouldStop, wantedFrom);
-                const recovered = transfer.chunks.size - (transfer.totalChunks - missingNow.length);
+                let recovered = transfer.chunks.size - (transfer.totalChunks - missingNow.length);
+                if (recovered === 0 && !widened && !transfer.paused) {
+                    // The windows guess each chunk's time from its index, and an upload
+                    // that published in bursts puts chunks far from that guess.
+                    widened = true;
+                    const parts = [...new Set(missingNow.map(i => partitionOfChunk(meta, i)))].sort((a, b) => a - b);
+                    Logger.warn(`Storage retry: estimated windows found nothing, reading P${parts.join(',P')} over the full range`);
+                    await fetchWindowsParallel(chunkStreamId, parts.map(partition => ({ partition, from: fromT, to: toT })), onChunkMessage, DL_CONC, bases, shouldStop);
+                    recovered = transfer.chunks.size - (transfer.totalChunks - missingNow.length);
+                }
                 if (recovered === 0) {
                     Logger.warn(`Storage retry made no progress: the storage does not have the ${missingNow.length} missing chunks — incomplete upload`);
                     break;
