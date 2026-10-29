@@ -191,6 +191,16 @@ export function sequentialWindows(meta, fromT, toT, sliceChunks) {
     return ordered.flatMap(s => chunkWindowsFor(meta, s.from, s.to));
 }
 
+/**
+ * How many partitions an upload spreads its chunks over: the standard count,
+ * or what the stream really has past `firstPartition` (channels created under
+ * an older layout have fewer). Unknown count → the standard one.
+ */
+export function chunkPartitionsFor(partitionCount, firstPartition) {
+    if (!Number.isFinite(partitionCount)) return STORAGE_FILE.CHUNK_PARTITIONS;
+    return Math.max(0, Math.min(STORAGE_FILE.CHUNK_PARTITIONS, partitionCount - firstPartition));
+}
+
 // ================= ENVIRONMENT HELPERS =================
 
 const hasDom = typeof window !== 'undefined' && typeof document !== 'undefined';
@@ -1340,7 +1350,7 @@ class StorageMediaController {
      * A 1-byte ping per chunk partition + a wait fixes that. Once per session
      * per stream (re-armed if the client reconnects: callers clear warmedUp).
      */
-    warmUpPartitions(sid, firstPartition, onStatus, identity = null) {
+    warmUpPartitions(sid, firstPartition, count, onStatus, identity = null) {
         if (!sid || this.warmedUp.has(sid)) return Promise.resolve();
         if (this.warmUpPromises.has(sid)) return this.warmUpPromises.get(sid);
         const p = (async () => {
@@ -1349,7 +1359,7 @@ class StorageMediaController {
             // Warm-up pings ride the SAME publisher as the chunks — otherwise
             // the wallet would appear on the channel's -1 stream just from
             // waking its partitions.
-            await Promise.all(Array.from({ length: STORAGE_FILE.CHUNK_PARTITIONS }, (_, k) =>
+            await Promise.all(Array.from({ length: count }, (_, k) =>
                 streamrController.publishStorageChunk(sid, firstPartition + k, ping, identity)
                     .catch(e => Logger.warn(`storage warm-up P${firstPartition + k} failed: ${e.message}`))
             ));
@@ -1473,7 +1483,16 @@ class StorageMediaController {
         const firstChunkPartition = isDM
             ? STORAGE_FILE.DM_FIRST_CHUNK_PARTITION
             : STORAGE_FILE.FIRST_CHUNK_PARTITION;
-        const chunkPartition = (i) => storageChunkPartition(i, firstChunkPartition);
+        const partitionCount = await streamrController.getStreamPartitionCount(messageStreamId).catch((e) => {
+            Logger.warn('storage upload: partition count unknown, assuming the standard layout:', e.message);
+            return null;
+        });
+        const chunkPartitions = chunkPartitionsFor(partitionCount, firstChunkPartition);
+        if (chunkPartitions < 1) throw new Error('This channel has no partitions for files on storage');
+        if (chunkPartitions < STORAGE_FILE.CHUNK_PARTITIONS) {
+            Logger.info(`storage upload: ${chunkPartitions} chunk partitions (stream has ${partitionCount})`);
+        }
+        const chunkPartition = (i) => storageChunkPartition(i, firstChunkPartition, chunkPartitions);
 
         // Endpoint rotation for verify reads. Empty is allowed (verify falls
         // back to SDK resend reads) but on DM uploads the sender has no
@@ -1507,7 +1526,7 @@ class StorageMediaController {
             compression: 'none',
             totalChunks: null,
             chunkDataSize: null,
-            chunkPartitions: STORAGE_FILE.CHUNK_PARTITIONS,
+            chunkPartitions,
             firstChunkPartition,
             firstChunkTs: null,
             lastChunkTs: null,
@@ -1732,7 +1751,7 @@ class StorageMediaController {
                 chunkPublisher = await chunkIdentity.getUserId();
             }
 
-            await this.warmUpPartitions(messageStreamId, firstChunkPartition, () => emitPhase('Preparing network…', 'processing'), chunkIdentity);
+            await this.warmUpPartitions(messageStreamId, firstChunkPartition, chunkPartitions, () => emitPhase('Preparing network…', 'processing'), chunkIdentity);
 
             let failedChunks = [];
             const firstChunkTs = Date.now();
@@ -1767,7 +1786,7 @@ class StorageMediaController {
             const announceRows = () => (dmManager.rowsOf?.(messageId) || []).filter((r) => r.partition === MESSAGE_STREAM.MESSAGES);
 
             const allPartitionWindows = (from, to) =>
-                Array.from({ length: STORAGE_FILE.CHUNK_PARTITIONS }, (_, k) => ({ partition: firstChunkPartition + k, from, to }));
+                Array.from({ length: chunkPartitions }, (_, k) => ({ partition: firstChunkPartition + k, from, to }));
 
             const windowsForIndices = (indices) => {
                 const PAD = 1500;
@@ -1802,7 +1821,7 @@ class StorageMediaController {
             };
 
             const thr = SM.throttleMs;
-            const PARALLEL = Math.min(STORAGE_FILE.CHUNK_PARTITIONS, Math.max(1, SM.parallel));
+            const PARALLEL = Math.min(chunkPartitions, Math.max(1, SM.parallel));
             const AUTOTUNE = SM.autotune;
             const doVerify = SM.verify;
             const doSecondChance = SM.secondChance;
@@ -2086,9 +2105,9 @@ class StorageMediaController {
 
                 // Frontier visibility: wait until each partition's NEWEST chunk is
                 // readable before judging the rest — reads before that undercount.
-                const newestByPart = new Array(STORAGE_FILE.CHUNK_PARTITIONS).fill(0);
+                const newestByPart = new Array(chunkPartitions).fill(0);
                 for (let i = 0; i < tc; i++) {
-                    const k = i % STORAGE_FILE.CHUNK_PARTITIONS;
+                    const k = i % chunkPartitions;
                     if (chunkTs[i] && chunkTs[i] > newestByPart[k]) newestByPart[k] = chunkTs[i];
                 }
                 const frontierBaseFor = (k) => bases.length ? bases[k % bases.length] : null;
@@ -2111,7 +2130,7 @@ class StorageMediaController {
                 };
                 if (bases.length && tc > 1) {
                     const pendingParts = new Set();
-                    for (let k = 0; k < STORAGE_FILE.CHUNK_PARTITIONS; k++) if (newestByPart[k] > 0) pendingParts.add(k);
+                    for (let k = 0; k < chunkPartitions; k++) if (newestByPart[k] > 0) pendingParts.add(k);
                     let lastPending = pendingParts.size, frontStall = 0;
                     while (pendingParts.size > 0 && frontStall < 10) {
                         for (const k of [...pendingParts]) {
@@ -2120,7 +2139,7 @@ class StorageMediaController {
                         if (pendingParts.size === 0) break;
                         frontStall = pendingParts.size < lastPending ? 0 : frontStall + 1;
                         lastPending = pendingParts.size;
-                        emitPhase(`Waiting for storage (${STORAGE_FILE.CHUNK_PARTITIONS - pendingParts.size}/${STORAGE_FILE.CHUNK_PARTITIONS} partitions caught up)…`, 'verifying');
+                        emitPhase(`Waiting for storage (${chunkPartitions - pendingParts.size}/${chunkPartitions} partitions caught up)…`, 'verifying');
                         await sleep(2000);
                     }
                 }
@@ -2163,7 +2182,7 @@ class StorageMediaController {
                         if (missing.length < before) { zeroProgress = 0; stalledReal = 0; }
                         else {
                             zeroProgress++;
-                            const parts = [...new Set(missing.map(i => i % STORAGE_FILE.CHUNK_PARTITIONS))];
+                            const parts = [...new Set(missing.map(i => i % chunkPartitions))];
                             let allPassed = true;
                             for (const k of parts) { if (!(await partFrontierVisible(k))) { allPassed = false; break; } }
                             if (allPassed) stalledReal++;

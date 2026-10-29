@@ -23,7 +23,8 @@ const H = vi.hoisted(() => {
         failPublish: null,         // (index) => bool
         announceVisible: true,
         nextTs: 1700000000000,
-        bases: []
+        bases: [],
+        partitionCount: null       // the stream's partitions; null = lookup gave nothing
     };
     // Wire-format reader: [4B metaLen][meta][4B totalChunks][4B chunkIndex][data]
     state.indexOf = (p) => {
@@ -75,6 +76,7 @@ vi.mock('../../src/js/streamr.js', () => ({
     streamrController: {
         client: null,
         getDMInboxId: vi.fn((addr) => `inbox/${addr}`),
+        getStreamPartitionCount: vi.fn(async () => H.partitionCount),
         publishStorageChunk: vi.fn(async (streamId, partition, payload, identity) => {
             // The warm-up ping is the 1-byte publish; a sealed chunk hides its
             // header, so index stays null there.
@@ -206,6 +208,7 @@ beforeEach(() => {
     H.channel = { messageStreamId: SID, type: 'public', messages: [] };
     H.P0 = MESSAGE_STREAM.MESSAGES;
     H.publisherOverride = null;
+    H.partitionCount = null;
     H.storeChunk = null;
     H.failPublish = null;
     H.announceVisible = true;
@@ -291,6 +294,16 @@ describe('sendFile — chunking', () => {
         }
         expect(seen).toBe(original.length);
         expect(rebuilt).toEqual(original);
+    });
+
+    it('keeps the chunks inside a stream created with fewer partitions, and says so in the announce', async () => {
+        H.partitionCount = 11;
+        const { metadata } = await storageMediaController.sendFile(SID, fileOfSize(20000));
+
+        expect(metadata.chunkPartitions).toBe(8);
+        const parts = new Set(chunkPublishes().map(c => c.partition));
+        expect(Math.max(...parts)).toBe(10);
+        expect(parts.size).toBe(8);
     });
 
     it('pings every chunk partition once before the first real publish', async () => {
