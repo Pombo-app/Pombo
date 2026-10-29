@@ -557,8 +557,21 @@ async function opfsCreateWorkerWriter(name, size, resume) {
     });
 }
 
-// Boot-time sweep of stale staging files (kept only while a resume record
-// points at them, or for 30 min after last write).
+// Received videos stay on the device across reloads: their OPFS file is kept,
+// and indexed here, for as long as the mesh keeps its seed files.
+const KEPT_KEY = 'pomboStorageKept';
+function readKept() {
+    try { return JSON.parse(localStorage.getItem(KEPT_KEY)) || {}; } catch (e) { return {}; }
+}
+function writeKept(kept) {
+    try { localStorage.setItem(KEPT_KEY, JSON.stringify(kept)); } catch (e) { /* private mode */ }
+}
+function keptExpired(entry) {
+    return Date.now() - (entry.at || 0) > APP_CONFIG.media.seedFilesExpireDays * 24 * 60 * 60 * 1000;
+}
+
+// Boot-time sweep of stale staging files (kept only while a resume record or
+// a kept video points at them, or for 30 min after last write).
 async function sweepStaleStaging() {
     try {
         const dir = await getOpfsDir();
@@ -570,6 +583,12 @@ async function sweepStaleStaging() {
                 try { const m = JSON.parse(localStorage.getItem(k)); if (m && m.stagingName) keep.add(m.stagingName); } catch (e) { /* corrupt record */ }
             }
         }
+        const kept = readKept();
+        for (const [tid, entry] of Object.entries(kept)) {
+            if (keptExpired(entry)) delete kept[tid];
+            else keep.add(entry.name);
+        }
+        writeKept(kept);
         const stale = [];
         for await (const [name] of dir.entries()) {
             if (!name.startsWith(OPFS_PREFIX) || keep.has(name)) continue;
@@ -1144,6 +1163,26 @@ class StorageMediaController {
         };
     }
     getFileUrl(tid) { return this.completedFiles.get(tid)?.url || null; }
+
+    /** Brings back the received videos kept on disk by an earlier session. */
+    async restoreKept() {
+        const dir = await getOpfsDir();
+        if (!dir) return;
+        const kept = readKept();
+        let changed = false;
+        for (const [tid, entry] of Object.entries(kept)) {
+            if (keptExpired(entry) || this.completedFiles.has(tid)) continue;
+            try {
+                const file = await (await dir.getFileHandle(entry.name)).getFile();
+                const blob = new Blob([file], { type: entry.metadata?.fileType || 'application/octet-stream' });
+                this.completedFiles.set(tid, { url: URL.createObjectURL(blob), blob, metadata: entry.metadata });
+            } catch (e) {
+                delete kept[tid];
+                changed = true;
+            }
+        }
+        if (changed) writeKept(kept);
+    }
     hasResumeState(tid) {
         const m = getResumeMeta(tid);
         return !!(m && Array.isArray(m.indices) && m.totalChunks);
@@ -2563,6 +2602,7 @@ class StorageMediaController {
 
             if (transfer.chunks.size === transfer.totalChunks && !stagingError) {
                 let blob = null;
+                let keptName = null;
                 if (staging) {
                     transfer.phase = 'Finishing write to disk…';
                     emitProgress();
@@ -2573,12 +2613,14 @@ class StorageMediaController {
                         // The blob reads the staged file lazily: deleting it
                         // here leaves an unreadable URL. The boot sweep removes it.
                         blob = new Blob([stagedFile], { type: meta.fileType || 'application/octet-stream' });
+                        keptName = stagingName;
                         staging = null;
                         clearResumeMeta(tid);
                     } else {
                         // Streaming decompression staged→OPFS output (never the
                         // whole file in RAM).
                         const outName = stagingName.replace(/\.z$/, '.bin');
+                        keptName = outName;
                         const out = await opfsCreate(outName);
                         if (!out) throw new Error('OPFS output creation failed');
                         const SLICE = 4 * 1024 * 1024;
@@ -2666,6 +2708,15 @@ class StorageMediaController {
                 transfer.status = 'complete';
                 const url = URL.createObjectURL(blob);
                 this.completedFiles.set(tid, { url, blob, metadata: meta });
+                if (keptName && (meta.fileType || '').startsWith('video/')) {
+                    const kept = readKept();
+                    kept[tid] = {
+                        name: keptName,
+                        at: Date.now(),
+                        metadata: { transferId: tid, fileName: meta.fileName, fileType: meta.fileType, originalSize: meta.originalSize }
+                    };
+                    writeKept(kept);
+                }
                 emitProgress();
                 try { this.fileCompleteCallback?.(tid, meta, url, blob); } catch (e) { /* UI */ }
                 Logger.info(`Storage download complete: ${meta.fileName} (${transfer.totalChunks} chunks)`);
@@ -2753,3 +2804,4 @@ class StorageMediaController {
 }
 
 export const storageMediaController = new StorageMediaController();
+if (hasDom) storageMediaController.restoreKept();
