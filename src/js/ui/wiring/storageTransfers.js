@@ -56,11 +56,17 @@ export function attachStorageTransfers(ui) {
     storageMediaController.onUploadStats((tid, stats) => {
         const d = messageRenderer.formatStorageUploadDetail(stats);
         const progressText = document.querySelector(`[data-progress-text="${CSS.escape(tid)}"]`);
-        if (progressText && d.line1) progressText.textContent = d.line1;
+        if (progressText && d.line1) {
+            progressText.textContent = d.line1;
+            progressText.classList.remove('hidden');
+        }
         const progressEta = document.querySelector(`[data-progress-eta="${CSS.escape(tid)}"]`);
         if (progressEta) progressEta.textContent = d.line2;
         const progressOverlay = document.querySelector(`[data-progress-overlay="${CSS.escape(tid)}"]`);
-        if (progressOverlay) progressOverlay.classList.remove('hidden');
+        if (progressOverlay) {
+            progressOverlay.classList.remove('hidden');
+            progressOverlay.classList.toggle('is-working', messageRenderer.isUploadWorking(stats));
+        }
         const progressFill = document.querySelector(`[data-progress-fill="${CSS.escape(tid)}"]`);
         if (progressFill) progressFill.style.width = `${stats.percent || 0}%`;
     });

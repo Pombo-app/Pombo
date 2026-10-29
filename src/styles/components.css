@@ -983,6 +983,20 @@ body.network-offline {
     transition: width 0.3s;
 }
 
+[data-progress-overlay].is-working [data-progress-fill] {
+    animation: progress-working 1.4s ease-in-out infinite;
+}
+
+@keyframes progress-working {
+    50% { opacity: 0.4; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-progress-overlay].is-working [data-progress-fill] {
+        animation: none;
+    }
+}
+
 .video-tile-note {
     color: var(--pombo-overlay-50);
     font-size: 12px;

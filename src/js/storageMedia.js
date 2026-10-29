@@ -2097,10 +2097,8 @@ class StorageMediaController {
             let storedCount = null;
             if (doVerify) {
                 const missingIdx = () => { const m = []; for (let i = 0; i < tc; i++) if (!stored.has(i)) m.push(i); return m; };
-                const updVerifyBar = () => {
-                    const pct = tc > 0 ? Math.round(stored.size / tc * 100) : 0;
-                    emitProgress(pct, stored.size, tc, null);
-                };
+                const updVerifyBar = () => emitProgress(100, stored.size, tc, null);
+                emitPhase('Verifying on storage…', 'verifying');
                 updVerifyBar();
 
                 // Frontier visibility: wait until each partition's NEWEST chunk is

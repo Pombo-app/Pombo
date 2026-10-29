@@ -385,6 +385,11 @@ class MessageRenderer {
         return `${h}h ${String(m % 60).padStart(2, '0')}m`;
     }
 
+    /** Past sending, the upload confirms what it sent: the bar stays full and pulses. */
+    isUploadWorking(s) {
+        return !!s && ['verifying', 'repairing', 'announce'].includes(s.stage);
+    }
+
     /**
      * Compose the sender-bubble stats from a storage upload snapshot, as TWO
      * lines so nothing truncates in a 300px card:
@@ -467,6 +472,7 @@ class MessageRenderer {
         const totalSize = this.formatFileSize(metadata.fileSize ?? metadata.originalSize ?? 0);
         const active = !!(isDownloading && downloadProgress) || !!uploadState;
         const percent = uploadState ? (uploadState.percent || 0) : (downloadProgress ? downloadProgress.percent : 0);
+        const working = this.isUploadWorking(uploadState);
 
         let detail = { line1: totalSize, line2: '' };
         if (uploadState) {
@@ -511,6 +517,7 @@ class MessageRenderer {
                 canDownload,
                 active,
                 percent,
+                working,
                 status
             });
         }
@@ -580,7 +587,7 @@ class MessageRenderer {
                     </div>
                     ${action}
                 </div>
-                <div class="h-1.5 bg-overlay-6 ${active ? '' : 'hidden'}" data-progress-overlay="${safeTid}">
+                <div class="h-1.5 bg-overlay-6 ${active ? '' : 'hidden'}${working ? ' is-working' : ''}" data-progress-overlay="${safeTid}">
                     <div class="h-full rounded-r-full transition-all duration-300"
                          style="width: ${percent}%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"
                          data-progress-fill="${safeTid}"></div>
@@ -644,7 +651,7 @@ class MessageRenderer {
      * @param {Object} o
      * @returns {string}
      */
-    renderVideoTile({ id, metadata, url, playable = true, downloadClass, msgId = null, canDownload, active, percent = 0, status = '' }) {
+    renderVideoTile({ id, metadata, url, playable = true, downloadClass, msgId = null, canDownload, active, percent = 0, working = false, status = '' }) {
         const safeId = escapeAttr(id);
         const name = escapeHtml(sanitizeText(metadata.fileName));
         const attrName = escapeAttr(sanitizeText(metadata.fileName));
@@ -674,7 +681,7 @@ class MessageRenderer {
                 <div class="video-tile-frame">
                     ${stage}
                     <span class="video-tile-pill${pill ? '' : ' hidden'}" data-progress-text="${safeId}">${escapeHtml(pill)}</span>
-                    <div class="video-tile-bar${active ? '' : ' hidden'}" data-progress-overlay="${safeId}"><div data-progress-fill="${safeId}" style="width: ${percent}%"></div></div>
+                    <div class="video-tile-bar${active ? '' : ' hidden'}${working ? ' is-working' : ''}" data-progress-overlay="${safeId}"><div data-progress-fill="${safeId}" style="width: ${percent}%"></div></div>
                 </div>
                 <div class="video-tile-meta">
                     <span class="truncate" title="${attrName}">${name}</span>
