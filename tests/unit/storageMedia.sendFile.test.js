@@ -122,7 +122,8 @@ vi.mock('../../src/js/dm.js', () => ({
             H.dmPublishes.push(rec);
             if (H.announceVisible) H.rows.push(rec);
             return { timestamp: rec.timestamp };
-        })
+        }),
+        rememberFileRows: vi.fn()
     }
 }));
 vi.mock('../../src/js/dmCrypto.js', () => ({
@@ -531,6 +532,20 @@ describe('sendFile — announce', () => {
         expect(sealed.verified).toBeUndefined();
         expect(sealed.pending).toBeUndefined();
         expect(H.sentLocally).toHaveLength(1);
+    });
+
+    it('remembers the warm-up pings for deletion with the transfer that sent them, only', async () => {
+        H.channel = { messageStreamId: SID, type: 'dm', peerAddress: '0xpeer', messages: [] };
+        globalThis.EthereumKeyPairIdentity = window.EthereumKeyPairIdentity = dmIdentityClass();
+        dmManager.rememberFileRows.mockClear();
+        await storageMediaController.sendFile(SID, fileOfSize(1000));
+        await storageMediaController.sendFile(SID, fileOfSize(1000));
+
+        const pingTs = new Set(warmUpPings().map(p => `${p.partition}:${p.timestamp}`));
+        expect(pingTs.size).toBe(STORAGE_FILE.CHUNK_PARTITIONS);
+        const rowsOf = (call) => dmManager.rememberFileRows.mock.calls[call][1].map(r => `${r.partition}:${r.timestamp}`);
+        expect(rowsOf(0).filter(k => pingTs.has(k))).toHaveLength(STORAGE_FILE.CHUNK_PARTITIONS);
+        expect(rowsOf(1).filter(k => pingTs.has(k))).toHaveLength(0);
     });
 
     it('persists the announce locally on a write-only channel', async () => {
