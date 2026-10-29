@@ -1237,11 +1237,12 @@ async function sdkFetchWindow(sid, partition, fromTime, toTime, onMessage, idleT
  * One window read: direct HTTP against `base` when given (with health notes),
  * SDK resend otherwise or on HTTP failure.
  */
-async function fetchWindow(sid, w, onMessage, base) {
+async function fetchWindow(sid, w, onMessage, base, via = null) {
     if (base) {
         try {
             const n = await directFetchRange(base, sid, w.partition, w.from, w.to, onMessage);
             storageEndpoints.noteSuccess(base);
+            if (via) via.direct = true;
             return n;
         } catch (e) {
             storageEndpoints.noteReadError(base, e);
@@ -1623,6 +1624,7 @@ class StorageMediaController {
         if (storedKey) {
             const present = await this.storedIndices(sid, windows, tsIndex, storedKey, label);
             if (present) {
+                if (stats) stats.storedAnswered = true;
                 present.forEach((i) => found.add(i));
                 if (onProgress) onProgress(found, windows.length, windows.length);
                 return found;
@@ -1661,6 +1663,7 @@ class StorageMediaController {
                         for (const m of arr) matchTs(w.partition, m.timestamp, m.publisherId);
                         storageEndpoints.noteSuccess(base);
                         noteWin(true);
+                        if (stats) stats.directOk = (stats.directOk || 0) + 1;
                         done = true;
                     } catch (e) {
                         if (/HTTP 400/.test(e.message)) {
@@ -1674,8 +1677,10 @@ class StorageMediaController {
                 }
                 if (!done) {
                     try {
-                        await fetchWindow(sid, w, (msg) => matchTs(w.partition, msg.timestamp, msg.publisherId), base);
+                        const via = {};
+                        await fetchWindow(sid, w, (msg) => matchTs(w.partition, msg.timestamp, msg.publisherId), base, via);
                         noteWin(true);
+                        if (stats && via.direct) stats.directOk = (stats.directOk || 0) + 1;
                     } catch (e) {
                         noteWin(false);
                         Logger.warn(`${label}: window P${w.partition} read failed: ${e.message}`);
@@ -2381,21 +2386,29 @@ class StorageMediaController {
                     }
                 }
 
+                // A read nobody answered says nothing about the chunks; treating it
+                // as "all missing" republishes the file. A DM sender may not read the
+                // peer's inbox, so there only `stored` or a node's HTTP read answers:
+                // the SDK resend of a stream we cannot read comes back empty, not refused.
+                let lastReadKnown = true;
+                const verifyRead = async (windows, label, onProgress) => {
+                    const st = {};
+                    const f = await this.readStoredIndices(messageStreamId, windows, tsIndexForVerify(), bases, label, onProgress, st, chunkPublisher, chunkPrivateKey);
+                    lastReadKnown = !!(st.storedAnswered || st.directOk || (!isDM && st.winsOk));
+                    return f;
+                };
+
                 let missing = missingIdx();
                 if (missing.length > 0) {
                     emitPhase('Verifying on storage…', 'verifying');
-                    const found = await this.readStoredIndices(
-                        messageStreamId,
+                    const found = await verifyRead(
                         allPartitionWindows(firstChunkTs - 15000, Date.now() + 1000),
-                        tsIndexForVerify(), bases, 'full sweep',
+                        'full sweep',
                         (foundSoFar) => {
                             foundSoFar.forEach(x => stored.add(x));
                             updVerifyBar();
                             emitPhase(`Verifying: ${stored.size}/${tc} confirmed…`, 'verifying');
-                        },
-                        null,
-                        chunkPublisher,
-                        chunkPrivateKey
+                        }
                     );
                     found.forEach(x => stored.add(x));
                     missing = missingIdx();
@@ -2413,7 +2426,7 @@ class StorageMediaController {
                     while (missing.length > 0 && performance.now() - lastProgress < SM.verifyQuietMs && performance.now() - scStart < cap) {
                         await sleep(2500);
                         const before = missing.length;
-                        const found2 = await this.readStoredIndices(messageStreamId, windowsForIndices(missing), tsIndexForVerify(), bases, 'drain', undefined, null, chunkPublisher, chunkPrivateKey);
+                        const found2 = await verifyRead(windowsForIndices(missing), 'drain');
                         found2.forEach(x => stored.add(x));
                         missing = missingIdx();
                         updVerifyBar();
@@ -2423,7 +2436,7 @@ class StorageMediaController {
                 }
 
                 let pass = 0, stalledPasses = 0;
-                while (missing.length > 0 && !verifyBlind && pass < 8 && stalledPasses < 3) {
+                while (missing.length > 0 && !verifyBlind && lastReadKnown && pass < 8 && stalledPasses < 3) {
                     pass++;
                     const storedBeforePass = stored.size;
                     if (pass > 1) sendSpacing = Math.min(2000, sendSpacing * 1.5);
@@ -2437,12 +2450,13 @@ class StorageMediaController {
                         const wait = r === 0 ? 2000 : Math.max(0, 2000 - lastRepairReadMs);
                         if (wait > 0) await sleep(wait);
                         const tRead2 = performance.now();
-                        const found = await this.readStoredIndices(messageStreamId, windowsForIndices(missing), tsIndexForVerify(), bases, `post-repair pass ${pass}`, undefined, null, chunkPublisher, chunkPrivateKey);
+                        const found = await verifyRead(windowsForIndices(missing), `post-repair pass ${pass}`);
                         found.forEach(x => stored.add(x));
                         const before = missing.length;
                         missing = missingIdx();
                         updVerifyBar();
                         lastRepairReadMs = performance.now() - tRead2;
+                        if (!lastReadKnown) break;
                         if (missing.length < before) { lastProgress = performance.now(); continue; }
                         if (performance.now() - lastProgress >= SM.verifyQuietMs) {
                             Logger.warn(`Nothing new for ${Math.round(SM.verifyQuietMs / 1000)}s — republishing the ${missing.length} missing chunks again`);
@@ -2454,7 +2468,10 @@ class StorageMediaController {
                         Logger.warn(`3 consecutive repair passes with no progress — ending verify with ${missing.length} missing`);
                     }
                 }
-                if (verifyBlind && stored.size === 0) {
+                if (!lastReadKnown && missing.length > 0) {
+                    storedCount = null;
+                    Logger.error('Storage verify: no node could confirm the chunks (stored unanswered, reads refused) — announcing UNVERIFIED');
+                } else if (verifyBlind && stored.size === 0) {
                     // Reads work but the node never shows our chunks — the count
                     // would be a lie either way. Announce UNVERIFIED (null).
                     storedCount = null;

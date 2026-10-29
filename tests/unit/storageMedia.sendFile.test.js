@@ -66,7 +66,7 @@ vi.mock('../../src/js/storageEndpoints.js', () => ({
     storageEndpoints: {
         resolve: vi.fn(),
         rotation: vi.fn(async () => H.bases),
-        noteFailure: vi.fn(), noteSuccess: vi.fn(),
+        noteFailure: vi.fn(), noteSuccess: vi.fn(), noteReadError: vi.fn(),
         supportsMetaFormat: vi.fn(() => true),
         setMetaFormatSupport: vi.fn()
     }
@@ -213,6 +213,7 @@ beforeEach(() => {
     H.partitionCount = null;
     H.storeChunk = null;
     H.failPublish = null;
+    H.readsRefused = false;
     H.announceVisible = true;
     H.bases = [NODE];
     H.nextTs = 1700000000000;
@@ -227,6 +228,7 @@ beforeEach(() => {
     globalThis.setTimeout = (fn, ms, ...rest) => realSetTimeout(fn, ms > 1 ? 1 : ms, ...rest);
 
     globalThis.fetch = vi.fn(async (url) => {
+        if (H.readsRefused) return { ok: false, status: 401, json: async () => ({}) };
         const u = new URL(url);
         const m = u.pathname.match(/partitions\/(\d+)\/range/);
         const partition = m ? Number(m[1]) : -1;
@@ -491,6 +493,29 @@ describe('sendFile — verify and repair', () => {
         const { metadata } = await storageMediaController.sendFile(SID, fileOfSize(3000));
         expect(metadata.storedChunks).toBe(metadata.totalChunks);
         expect(chunkPublishes().filter(c => c.index === 2)).toHaveLength(2);
+    }, 30000);
+
+    it('announces UNVERIFIED and republishes nothing when no node can be read', async () => {
+        SM.verify = true;
+        H.readsRefused = true;
+        const { metadata } = await storageMediaController.sendFile(SID, fileOfSize(3000));
+        expect(metadata.storedChunks).toBeNull();
+        expect(chunkPublishes()).toHaveLength(metadata.totalChunks);
+    }, 30000);
+
+    it('does not take an empty resend of the peer inbox as an answer on a DM', async () => {
+        SM.verify = true;
+        H.readsRefused = true;
+        H.channel = { messageStreamId: SID, type: 'dm', peerAddress: '0xpeer', messages: [] };
+        globalThis.EthereumKeyPairIdentity = window.EthereumKeyPairIdentity = dmIdentityClass();
+        streamrController.client = { resend: async () => ({ async *[Symbol.asyncIterator]() {} }) };
+        try {
+            const { metadata } = await storageMediaController.sendFile(SID, fileOfSize(2000));
+            expect(metadata.storedChunks).toBeNull();
+            expect(chunkPublishes()).toHaveLength(metadata.totalChunks);
+        } finally {
+            streamrController.client = null;
+        }
     }, 30000);
 
     it('never counts rows published by somebody else', async () => {
