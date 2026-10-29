@@ -1090,6 +1090,9 @@ class StorageMediaController {
         this.downloads = new Map();
         // transferId → {url, blob, metadata} for completed downloads (session cache)
         this.completedFiles = new Map();
+        // transferId → {streamId, file, password, messageId} of an upload this
+        // session announced with gaps: what a retry sends again (memory only)
+        this.retryable = new Map();
         // transferIds whose resume was requested but whose new downloadFile run
         // hasn't flipped the status back to 'downloading' yet (endpoint rotation
         // alone can take seconds) — the bell shows "Resuming…" off this
@@ -1220,6 +1223,27 @@ class StorageMediaController {
         };
     }
     getFileUrl(tid) { return this.completedFiles.get(tid)?.url || null; }
+
+    canRetryUpload(tid) { return this.retryable.has(tid); }
+
+    /**
+     * Sends an upload that was announced with gaps again, then deletes the
+     * incomplete copy (erasing it from storage with this session's keys). The
+     * old copy stays until the new one is out, so a failed retry loses nothing.
+     */
+    async retryUpload(tid) {
+        const entry = this.retryable.get(tid);
+        if (!entry) throw new Error('This upload can no longer be retried');
+        this.retryable.delete(tid);
+        try {
+            const result = await this.sendFile(entry.streamId, entry.file, entry.password);
+            await channelManager.sendDelete(entry.streamId, entry.messageId);
+            return result;
+        } catch (err) {
+            this.retryable.set(tid, entry);
+            throw err;
+        }
+    }
 
     /** Brings back the received videos kept on disk by an earlier session. */
     async restoreKept() {
@@ -2334,6 +2358,7 @@ class StorageMediaController {
                 : ok ? `Stored in ${totalSecs}s ✓` : `Stored with gaps (${storedCount}/${tc})`, 'done');
             emitProgress(100, tc, tc, null);
             this.uploads.delete(tid);
+            if (!ok && !unverified) this.retryable.set(tid, { streamId: messageStreamId, file, password, messageId: announcement.id });
             try { this.uploadCompleteCallback?.(tid, localMessage); } catch (e) { /* UI */ }
 
             return { messageId: announcement.id, metadata: finalMetadata };

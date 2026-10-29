@@ -104,7 +104,8 @@ vi.mock('../../src/js/channels.js', () => ({
     channelManager: {
         getChannel: vi.fn(() => H.channel),
         notifyHandlers: vi.fn(),
-        usesAccountPublish: vi.fn(() => false)
+        usesAccountPublish: vi.fn(() => false),
+        sendDelete: vi.fn(async () => null)
     }
 }));
 vi.mock('../../src/js/channelIdentity.js', () => ({
@@ -583,5 +584,37 @@ describe('sendFile — the optimistic bubble', () => {
         expect(onError).toHaveBeenCalledWith(expect.any(String), 'signing failed');
         expect(storageMediaController.uploads.size).toBe(0);
         storageMediaController.onFileError(null);
+    });
+});
+
+describe('retryUpload — an upload announced with gaps', () => {
+    it('sends the file again before deleting the incomplete copy', async () => {
+        const { channelManager } = await import('../../src/js/channels.js');
+        const order = [];
+        const send = vi.spyOn(storageMediaController, 'sendFile').mockImplementation(async () => { order.push('send'); return { messageId: 'new' }; });
+        channelManager.sendDelete.mockImplementation(async () => { order.push('delete'); return null; });
+        const file = fileOfSize(100);
+        storageMediaController.retryable.set('t1', { streamId: SID, file, password: null, messageId: 'old' });
+
+        await storageMediaController.retryUpload('t1');
+
+        expect(send).toHaveBeenCalledWith(SID, file, null);
+        expect(channelManager.sendDelete).toHaveBeenCalledWith(SID, 'old');
+        expect(order).toEqual(['send', 'delete']);
+        expect(storageMediaController.canRetryUpload('t1')).toBe(false);
+        send.mockRestore();
+    });
+
+    it('keeps the incomplete copy and the retry when sending again fails', async () => {
+        const { channelManager } = await import('../../src/js/channels.js');
+        channelManager.sendDelete.mockClear();
+        const send = vi.spyOn(storageMediaController, 'sendFile').mockRejectedValue(new Error('offline'));
+        storageMediaController.retryable.set('t2', { streamId: SID, file: fileOfSize(100), password: null, messageId: 'old' });
+
+        await expect(storageMediaController.retryUpload('t2')).rejects.toThrow('offline');
+
+        expect(channelManager.sendDelete).not.toHaveBeenCalled();
+        expect(storageMediaController.canRetryUpload('t2')).toBe(true);
+        send.mockRestore();
     });
 });

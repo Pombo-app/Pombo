@@ -969,6 +969,24 @@ describe('MessageRenderer', () => {
             expect(result).not.toContain('data-video-play');
         });
 
+        it('should say a stored video is incomplete and not offer to play it', () => {
+            messageRenderer.setDependencies({
+                getStorageFileUrl: () => null,
+                getCurrentAddress: () => '0xreader',
+                getCurrentChannel: () => ({ type: 'public' })
+            });
+
+            const result = messageRenderer.renderStorageFileBubble({
+                id: 'msg-gaps',
+                sender: '0xsender',
+                type: 'storage_file_announce',
+                metadata: { transferId: 't-gaps', fileName: 'clip.mp4', fileType: 'video/mp4', originalSize: 1000, totalChunks: 362, storedChunks: 322 }
+            });
+
+            expect(result).toContain('Incomplete on storage (322/362)');
+            expect(result).not.toContain('data-video-play');
+        });
+
         // Non-video types go to the file bubble in every state, including this one —
         // it renders its own unavailable treatment rather than the video placeholder
         it('should route unavailable non-video files to the file bubble', () => {

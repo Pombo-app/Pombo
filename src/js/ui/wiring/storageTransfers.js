@@ -10,6 +10,24 @@ import { messageRenderer } from '../MessageRenderer.js';
  * @param {Object} ui - the UI controller singleton
  */
 export function attachStorageTransfers(ui) {
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest?.('.storage-retry-btn');
+        if (!btn || btn.disabled) return;
+        e.preventDefault();
+        e.stopPropagation();
+        btn.disabled = true;
+        storageMediaController.retryUpload(btn.dataset.fileId)
+            .then((result) => {
+                const m = result?.metadata;
+                const gaps = m && Number.isFinite(m.storedChunks) && m.storedChunks < m.totalChunks;
+                ui.showNotification(gaps ? `Sent again, still with gaps (${m.storedChunks}/${m.totalChunks})` : 'Sent again ✓', gaps ? 'warning' : 'success');
+            })
+            .catch((err) => {
+                btn.disabled = false;
+                ui.showNotification('Retry failed: ' + err.message, 'error');
+            });
+    });
+
     // ===== Persistent (storage-node) transfers =====
     // Storage bubbles share the mesh data-* DOM contract, so the progress
     // plumbing mirrors the handlers above, keyed by transferId.

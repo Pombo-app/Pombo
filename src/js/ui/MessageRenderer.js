@@ -487,8 +487,9 @@ class MessageRenderer {
 
         const incomplete = Number.isFinite(metadata.storedChunks) && Number.isFinite(metadata.totalChunks)
             && metadata.storedChunks !== null && metadata.storedChunks < metadata.totalChunks;
+        const retryable = incomplete && !!this.deps.canRetryStorageUpload?.(tid);
         const incompleteBadge = incomplete
-            ? `<div class="text-[10px] text-amber-400/70 mt-0.5">&#9888; incomplete on storage (${metadata.storedChunks}/${metadata.totalChunks})</div>`
+            ? `<div class="text-[10px] text-amber-400/70 mt-0.5">&#9888; incomplete on storage (${metadata.storedChunks}/${metadata.totalChunks})${retryable ? ` · <button class="storage-retry-btn underline hover:text-amber-300" data-file-id="${safeTid}">Retry</button>` : ''}</div>`
             : '';
 
         // One action slot on the avatar side, unified with the mesh card:
@@ -506,6 +507,7 @@ class MessageRenderer {
             const status = uploadState
                 ? (this.formatStorageUploadDetail(uploadState).line1 || 'Uploading…')
                 : downloadProgress ? this.formatStorageDownloadDetail(downloadProgress).line1
+                : incomplete ? `Incomplete on storage (${metadata.storedChunks}/${metadata.totalChunks})`
                 : unreachable ? 'Not on this device' : '';
             return this.renderVideoTile({
                 id: tid,
@@ -514,7 +516,8 @@ class MessageRenderer {
                 playable: this.deps.isVideoPlayable?.(metadata.fileType) !== false,
                 downloadClass: 'storage-download-btn',
                 msgId: msg.id || null,
-                canDownload,
+                canDownload: canDownload && !incomplete,
+                retryable,
                 active,
                 percent,
                 working,
@@ -658,7 +661,7 @@ class MessageRenderer {
                     </button>` : '';
     }
 
-    renderVideoTile({ id, metadata, url, playable = true, downloadClass, msgId = null, canDownload, active, percent = 0, working = false, status = '' }) {
+    renderVideoTile({ id, metadata, url, playable = true, downloadClass, msgId = null, canDownload, active, percent = 0, working = false, retryable = false, status = '' }) {
         const safeId = escapeAttr(id);
         const name = escapeHtml(sanitizeText(metadata.fileName));
         const attrName = escapeAttr(sanitizeText(metadata.fileName));
@@ -690,7 +693,8 @@ class MessageRenderer {
                 <div class="video-tile-meta">
                     <span class="truncate" title="${attrName}">${name}</span>
                     <span class="flex-shrink-0">${size}</span>${url ? `
-                    <a href="${url}" download="${attrName}" class="flex-shrink-0 hover:text-overlay-70">Save</a>` : ''}
+                    <a href="${url}" download="${attrName}" class="flex-shrink-0 hover:text-overlay-70">Save</a>` : ''}${retryable ? `
+                    <button class="storage-retry-btn flex-shrink-0 hover:text-overlay-70" data-file-id="${safeId}">Retry</button>` : ''}
                 </div>
             </div>
         `;

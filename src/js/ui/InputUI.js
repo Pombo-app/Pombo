@@ -408,7 +408,14 @@ class InputUI {
         // the timeline carries live progress; completion/failure lands as a toast.
         if (transport === 'storage' && type !== 'image') {
             storageMediaController.sendFile(currentChannel.streamId, file, currentChannel.password)
-                .then(() => showNotification?.('File stored ✓', 'success'))
+                .then((result) => {
+                    const m = result?.metadata;
+                    if (m && Number.isFinite(m.storedChunks) && m.storedChunks < m.totalChunks) {
+                        showNotification?.(`Stored with gaps (${m.storedChunks}/${m.totalChunks}) — Retry sends it again`, 'warning');
+                    } else {
+                        showNotification?.('File stored ✓', 'success');
+                    }
+                })
                 .catch((error) => showNotification?.('Storage upload failed: ' + error.message, 'error'));
             return;
         }
