@@ -227,6 +227,45 @@ describe('StreamrController Core', () => {
         });
     });
 
+    // ==================== publishAs() without neighbours ====================
+    describe('publishAs() when no neighbour joins', () => {
+        let node;
+        beforeEach(() => {
+            node = { join: vi.fn().mockRejectedValue(new Error('timed out')), broadcast: vi.fn().mockResolvedValue(undefined) };
+            mockClient.getNode = vi.fn().mockReturnValue(node);
+            window.MessageID = class {
+                constructor(streamId, partition, timestamp) { Object.assign(this, { streamId, partition, timestamp }); }
+                getStreamPartID() { return `${this.streamId}#${this.partition}`; }
+            };
+            window.MessageSigner = class { async createSignedMessage({ messageId }) { return { messageId }; } };
+            window.StreamMessageType = { MESSAGE: 0 };
+            window.ContentType = { BINARY: 0, JSON: 1 };
+            window.EncryptionType = { NONE: 0 };
+            vi.spyOn(streamrController, 'mayPublishAs').mockResolvedValue(true);
+        });
+        afterEach(() => {
+            for (const k of ['MessageID', 'MessageSigner', 'StreamMessageType', 'ContentType', 'EncryptionType']) delete window[k];
+        });
+        const identity = { getUserId: async () => '0xthrowaway', getSignatureType: () => 0 };
+
+        it('broadcasts anyway by default', async () => {
+            await streamrController.publishAs(identity, '0xpeer/Pombo-DM-1', 4, new Uint8Array([1]), { msgChainId: 'c' });
+            expect(node.broadcast).toHaveBeenCalledTimes(1);
+        });
+
+        it('fails without broadcasting when a neighbour is required', async () => {
+            await expect(streamrController.publishAs(identity, '0xpeer/Pombo-DM-1', 4, new Uint8Array([1]),
+                { msgChainId: 'c', requireNeighbour: true })).rejects.toThrow(/no neighbours on 0xpeer\/Pombo-DM-1#4/);
+            expect(node.broadcast).not.toHaveBeenCalled();
+        });
+
+        it('requires a neighbour for every storage chunk sent under a throwaway identity', async () => {
+            await expect(streamrController.publishStorageChunk('0xpeer/Pombo-DM-1', 4, new Uint8Array([1]), identity))
+                .rejects.toThrow(/no neighbours/);
+            expect(node.broadcast).not.toHaveBeenCalled();
+        });
+    });
+
     // ==================== publish() ====================
     describe('publish()', () => {
         it('should throw if client is null', async () => {

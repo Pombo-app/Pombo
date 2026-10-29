@@ -2608,13 +2608,16 @@ class StreamrController {
         //
         // Best-effort: on timeout we publish anyway. The smoke test showed a
         // message still reaching the storage node from a cold node, so giving
-        // up here would be worse than trying.
+        // up here would be worse than trying. With `requireNeighbour` it fails
+        // instead: a broadcast with no neighbour reaches nobody, and a storage
+        // chunk must be retried rather than counted as sent.
         try {
             await node.join(streamPartId, {
                 minCount: STREAM_CONFIG.PUBLISH_MIN_NEIGHBORS,
                 timeout: STREAM_CONFIG.PUBLISH_NEIGHBOR_TIMEOUT_MS
             });
         } catch (error) {
+            if (options.requireNeighbour) throw new Error(`no neighbours on ${streamPartId} (${error.message})`);
             Logger.debug(`publishAs: no neighbours on ${streamPartId} yet (${error.message}) — publishing anyway`);
         }
 
@@ -3432,7 +3435,7 @@ class StreamrController {
         // window), so a key per chunk would buy nothing and cost thousands of
         // signatures.
         if (identity) {
-            const msg = await this.publishAs(identity, messageStreamId, partition, data);
+            const msg = await this.publishAs(identity, messageStreamId, partition, data, { requireNeighbour: true });
             // Normalise to client.publish()'s shape. Callers read `.timestamp`
             // to record the chunk's position, and the download path locates
             // chunks by that timestamp window — a StreamMessage has no such
@@ -3462,12 +3465,12 @@ class StreamrController {
                             `No publish key for ${channel.messageStreamId} — cannot upload on a Sealed channel without one`);
                     }
                     const msg = await this.publishAs(
-                        this._sharedPublishIdentity(pubKey), messageStreamId, partition, data);
+                        this._sharedPublishIdentity(pubKey), messageStreamId, partition, data, { requireNeighbour: true });
                     return { timestamp: msg.messageId.timestamp, message: msg };
                 }
                 const msg = await this.publishAs(
                     this._accountIdentity, messageStreamId, partition, data,
-                    this._gateTransportOptions(channel));
+                    { ...this._gateTransportOptions(channel), requireNeighbour: true });
                 return { timestamp: msg.messageId.timestamp, message: msg };
             }
         }
