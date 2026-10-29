@@ -204,7 +204,7 @@ beforeEach(() => {
     cfgSnapshot = { ...SM };
     Object.assign(SM, {
         chunkKB: 1, throttleMs: 0, parallel: 1, autotune: false,
-        verify: false, secondChance: false, warmUpWaitMs: 0, faststart: true
+        verify: false, secondChance: false, warmUpWaitMs: 0, faststart: true, verifyQuietMs: 0
     });
     H.publishes = []; H.messages = []; H.dmPublishes = []; H.sentLocally = []; H.rows = [];
     H.channel = { messageStreamId: SID, type: 'public', messages: [] };

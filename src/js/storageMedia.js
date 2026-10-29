@@ -2402,29 +2402,22 @@ class StorageMediaController {
                     updVerifyBar();
                 }
 
-                // Pre-repair drain: re-read while the cluster catches up; repair
-                // only what stalls with the frontier already visible.
-                if (doSecondChance && !verifyBlind && missing.length > Math.max(10, tc * 0.05)) {
+                // Pre-repair drain: publish() resolves long before the chunks
+                // reach storage, and they keep arriving for minutes after. Repair
+                // only once nothing new has landed for a quiet period.
+                if (doSecondChance && !verifyBlind && missing.length > 0) {
                     const scStart = performance.now();
-                    let zeroProgress = 0;
-                    let stalledReal = 0;
+                    const cap = Math.max(5 * 60000, tc * 2000);
+                    let lastProgress = performance.now();
                     Logger.warn(`Storage pre-repair drain: ${missing.length}/${tc} missing after the sweep`);
-                    while (missing.length > 0 && stalledReal < 2 && zeroProgress < 24 && performance.now() - scStart < 5 * 60000) {
+                    while (missing.length > 0 && performance.now() - lastProgress < SM.verifyQuietMs && performance.now() - scStart < cap) {
                         await sleep(2500);
                         const before = missing.length;
                         const found2 = await this.readStoredIndices(messageStreamId, windowsForIndices(missing), tsIndexForVerify(), bases, 'drain', undefined, null, chunkPublisher, chunkPrivateKey);
                         found2.forEach(x => stored.add(x));
                         missing = missingIdx();
                         updVerifyBar();
-                        if (missing.length < before) { zeroProgress = 0; stalledReal = 0; }
-                        else {
-                            zeroProgress++;
-                            const parts = [...new Set(missing.map(i => i % chunkPartitions))];
-                            let allPassed = true;
-                            for (const k of parts) { if (!(await partFrontierVisible(k))) { allPassed = false; break; } }
-                            if (allPassed) stalledReal++;
-                            else stalledReal = 0;
-                        }
+                        if (missing.length < before) lastProgress = performance.now();
                         emitPhase(`Waiting for storage: ${missing.length} unconfirmed…`, 'verifying');
                     }
                 }
@@ -2438,10 +2431,9 @@ class StorageMediaController {
                     emitPhase(`Repairing (pass ${pass})…`, 'repairing');
                     await republishParallel(missing, `repair pass ${pass}`);
 
-                    let stalled = false;
-                    let noProg = 0;
                     let lastRepairReadMs = 0;
-                    for (let r = 0; r < 30 && missing.length > 0; r++) {
+                    let lastProgress = performance.now();
+                    for (let r = 0; missing.length > 0; r++) {
                         const wait = r === 0 ? 2000 : Math.max(0, 2000 - lastRepairReadMs);
                         if (wait > 0) await sleep(wait);
                         const tRead2 = performance.now();
@@ -2451,12 +2443,9 @@ class StorageMediaController {
                         missing = missingIdx();
                         updVerifyBar();
                         lastRepairReadMs = performance.now() - tRead2;
-                        const progressed = missing.length < before;
-                        stalled = !progressed;
-                        if (progressed) { noProg = 0; continue; }
-                        noProg++;
-                        if (noProg >= 6) {
-                            Logger.warn(`${noProg} reads with no progress — republishing the ${missing.length} missing chunks again`);
+                        if (missing.length < before) { lastProgress = performance.now(); continue; }
+                        if (performance.now() - lastProgress >= SM.verifyQuietMs) {
+                            Logger.warn(`Nothing new for ${Math.round(SM.verifyQuietMs / 1000)}s — republishing the ${missing.length} missing chunks again`);
                             break;
                         }
                     }

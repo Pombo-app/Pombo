@@ -282,6 +282,7 @@ export const CONFIG = {
         writeBackpressureDesktopMB: 48,
         writeBackpressureMobileMB: 12,
         downloadRetryPasses: 3,
+        verifyQuietMs: 30000,          // Upload verify repairs only after this long with no new chunk confirmed
         stallChaseMs: 6000,            // A player waiting this long on a missing chunk makes the download fetch it directly
         videoSliceChunks: 36,          // Video downloads read the file front to back in slices of this many chunks
         resendIdleTimeoutMs: 20000,    // SDK-resend fallback inactivity cutoff
