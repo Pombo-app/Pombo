@@ -14,6 +14,22 @@ export function attachStorageTransfers(ui) {
     // Storage bubbles share the mesh data-* DOM contract, so the progress
     // plumbing mirrors the handlers above, keyed by transferId.
     storageMediaController.onFileProgress((tid, percent) => {
+        if (messageRenderer.videoAutoplay.has(tid)) {
+            const url = storageMediaController.streamUrl(tid);
+            const play = url && document.querySelector(`.video-tile-play[data-file-id="${CSS.escape(tid)}"]`);
+            if (play) {
+                messageRenderer.videoAutoplay.delete(tid);
+                const video = document.createElement('video');
+                video.className = 'video-tile-media';
+                video.src = url;
+                video.controls = true;
+                video.autoplay = true;
+                video.playsInline = true;
+                video.dataset.stream = '';
+                play.replaceWith(video);
+            }
+        }
+
         const progressOverlay = document.querySelector(`[data-progress-overlay="${CSS.escape(tid)}"]`);
         if (progressOverlay) progressOverlay.classList.remove('hidden');
 
@@ -68,13 +84,28 @@ export function attachStorageTransfers(ui) {
         }
 
         const container = document.querySelector(`[data-file-id="${CSS.escape(tid)}"]`);
-        if (container) {
+        const live = container?.querySelector('video[data-stream]');
+        if (live) {
+            // The playing element moves into the finished tile within this
+            // task, so it never leaves the document long enough to pause. The
+            // holder must belong to this document (not a <template>): adopting
+            // a media element into another document restarts its load.
+            const holder = document.createElement('div');
+            holder.innerHTML = messageRenderer.renderStorageFileBubble({ metadata }).trim();
+            const fresh = holder.firstElementChild;
+            fresh.querySelector('video')?.replaceWith(live);
+            container.replaceWith(fresh);
+            ui.attachReactionListeners();
+        } else if (container) {
             container.outerHTML = messageRenderer.renderStorageFileBubble({ metadata });
             ui.attachReactionListeners();
         }
     });
 
     storageMediaController.onFileError((tid, message) => {
+        const streaming = document.querySelector(`[data-file-id="${CSS.escape(tid)}"] video[data-stream]`);
+        const failedMeta = storageMediaController.downloads.get(tid)?.metadata;
+        if (streaming && failedMeta) streaming.closest('[data-file-id]').outerHTML = messageRenderer.renderStorageFileBubble({ metadata: failedMeta });
         const progressOverlay = document.querySelector(`[data-progress-overlay="${CSS.escape(tid)}"]`);
         if (progressOverlay) progressOverlay.classList.add('hidden');
         const btn = document.querySelector(`.storage-download-btn[data-file-id="${CSS.escape(tid)}"]`);

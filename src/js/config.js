@@ -282,6 +282,7 @@ export const CONFIG = {
         writeBackpressureDesktopMB: 48,
         writeBackpressureMobileMB: 12,
         downloadRetryPasses: 3,
+        videoSliceChunks: 36,          // Video downloads read the file front to back in slices of this many chunks
         resendIdleTimeoutMs: 20000,    // SDK-resend fallback inactivity cutoff
         directFetchTimeoutMs: 120000,  // Direct HTTP read inactivity watchdog
         // A stored message whose declared timestamp is later than the node's

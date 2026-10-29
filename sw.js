@@ -4,7 +4,7 @@
 // to have scope over all pages.
 // ================================================
 
-const SW_VERSION = '2.6.0';
+const SW_VERSION = '2.7.0';
 
 // ================================================
 // INDEXEDDB CONFIGURATION
@@ -730,6 +730,70 @@ async function handleShareTarget(request) {
         console.warn('[SW] Share target handling failed:', err?.message);
     }
     return Response.redirect('/?share=1', 303);
+}
+
+// ================================================
+// STORAGE VIDEO STREAM
+// A video still downloading plays from <scope>/__pombo_stream/<transferId>.
+// The page holds the bytes and hands them over as they land on disk.
+// ================================================
+
+// Must match STREAM_PATH in storageMedia.js.
+const STREAM_PATH = '/__pombo_stream/';
+const STREAM_BLOCK = 1024 * 1024;
+
+self.addEventListener('fetch', (event) => {
+    const url = new URL(event.request.url);
+    const at = url.pathname.indexOf(STREAM_PATH);
+    if (event.request.method !== 'GET' || at < 0) return;
+    event.respondWith(streamResponse(event, decodeURIComponent(url.pathname.slice(at + STREAM_PATH.length))));
+});
+
+function askPage(client, tid, start) {
+    return new Promise((resolve, reject) => {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = (e) => (e.data?.error ? reject(new Error(e.data.error)) : resolve(e.data));
+        client.postMessage({ type: 'POMBO_STREAM_READ', tid, start, max: STREAM_BLOCK }, [channel.port2]);
+    });
+}
+
+async function streamResponse(event, tid) {
+    const client = (event.clientId && await self.clients.get(event.clientId))
+        || (await self.clients.matchAll({ type: 'window' }))[0];
+    if (!client) return new Response(null, { status: 404 });
+    const range = /bytes=(\d+)-(\d*)/.exec(event.request.headers.get('range') || '');
+    const start = range ? Number(range[1]) : 0;
+    let first;
+    try { first = await askPage(client, tid, start); } catch (e) { return new Response(null, { status: 404 }); }
+    const size = first.size;
+    if (start >= size) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
+    const end = range && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+    let pos = start;
+    let pending = first.data;
+    const body = new ReadableStream({
+        async pull(controller) {
+            try {
+                let bytes = pending || (await askPage(client, tid, pos)).data;
+                pending = null;
+                if (!bytes.length) throw new Error('stream ended early');
+                if (bytes.length > end + 1 - pos) bytes = bytes.subarray(0, end + 1 - pos);
+                controller.enqueue(bytes);
+                pos += bytes.length;
+                if (pos > end) controller.close();
+            } catch (e) {
+                controller.error(e);
+            }
+        }
+    });
+    return new Response(body, {
+        status: 206,
+        headers: {
+            'Content-Type': first.type || 'video/mp4',
+            'Content-Range': `bytes ${start}-${end}/${size}`,
+            'Content-Length': String(end - start + 1),
+            'Accept-Ranges': 'bytes'
+        }
+    });
 }
 
 // ================================================

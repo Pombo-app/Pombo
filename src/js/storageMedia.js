@@ -173,9 +173,30 @@ export function buildMissingWindows(meta, missing, fromT, toT) {
     return windows;
 }
 
+/**
+ * Windows that bring a video in roughly front to back, so it can play while
+ * it downloads: contiguous time slices over every partition, the first slice,
+ * then the last (a non-faststart MP4 keeps its index there), then the rest.
+ * The slices tile [fromT, toT] exactly, so they read what the full windows do.
+ */
+export function sequentialWindows(meta, fromT, toT, sliceChunks) {
+    if (!meta.firstChunkTs || !meta.lastChunkTs || meta.totalChunks <= 1) return chunkWindowsFor(meta, fromT, toT);
+    const interval = (meta.lastChunkTs - meta.firstChunkTs) / (meta.totalChunks - 1);
+    const sliceMs = Math.max(1, interval * sliceChunks);
+    const edges = [fromT];
+    for (let t = meta.firstChunkTs + sliceMs; t < meta.lastChunkTs; t += sliceMs) edges.push(Math.round(t));
+    edges.push(toT);
+    const slices = edges.slice(0, -1).map((from, k) => ({ from, to: edges[k + 1] }));
+    const ordered = slices.length > 2 ? [slices[0], slices[slices.length - 1], ...slices.slice(1, -1)] : slices;
+    return ordered.flatMap(s => chunkWindowsFor(meta, s.from, s.to));
+}
+
 // ================= ENVIRONMENT HELPERS =================
 
 const hasDom = typeof window !== 'undefined' && typeof document !== 'undefined';
+
+// Must match STREAM_PATH in sw.js.
+const STREAM_PATH = '__pombo_stream/';
 
 // Timer worker: setTimeout is throttled to 1/min in hidden tabs; a worker is not.
 let timerWorker = null, timerSeq = 0;
@@ -497,6 +518,12 @@ async function opfsCreateWorkerWriter(name, size, resume) {
                     const n = sync.write(d.data, { at: d.pos });
                     if (n !== d.data.length) throw new Error('short write: ' + n + '/' + d.data.length);
                     postMessage({ type: 'ack', bytes: d.data.length });
+                } else if (d.type === 'read') {
+                    try {
+                        const buf = new Uint8Array(d.len);
+                        const n = sync.read(buf, { at: d.pos });
+                        postMessage({ type: 'read', id: d.id, data: buf.subarray(0, n) });
+                    } catch (err) { postMessage({ type: 'read', id: d.id, error: String(err && err.message || err) }); }
                 } else if (d.type === 'flush') { sync.flush(); postMessage({ type: 'flushed' }); }
                 else if (d.type === 'close') { sync.flush(); sync.close(); postMessage({ type: 'closed' }); }
                 else if (d.type === 'abort') { try { if (sync) sync.close(); } catch (err) {} postMessage({ type: 'closed' }); }
@@ -513,11 +540,15 @@ async function opfsCreateWorkerWriter(name, size, resume) {
     return await new Promise((resolveInit) => {
         let pending = 0, errored = null, errCb = null;
         let drainWaiters = [], flushWaiters = [], closeWaiters = [];
+        const readWaiters = new Map();
+        let readSeq = 0;
         const fail = (msg) => {
             if (!errored) { errored = new Error(msg); if (errCb) errCb(errored); }
             drainWaiters.splice(0).forEach(x => x.res());
             flushWaiters.splice(0).forEach(res => res());
             closeWaiters.splice(0).forEach(res => res());
+            for (const r of readWaiters.values()) r.rej(errored);
+            readWaiters.clear();
         };
         const st = {
             handle,
@@ -527,6 +558,12 @@ async function opfsCreateWorkerWriter(name, size, resume) {
             onError: (fn) => { errCb = fn; if (errored) fn(errored); },
             drainBelow: (limit) => (pending <= limit || errored) ? Promise.resolve() : new Promise(res => drainWaiters.push({ limit, res })),
             flush: () => errored ? Promise.reject(errored) : new Promise((res) => { flushWaiters.push(res); w.postMessage({ type: 'flush' }); }),
+            // Queued behind every write posted before it, so it sees them.
+            read: (pos, len) => errored ? Promise.reject(errored) : new Promise((res, rej) => {
+                const id = ++readSeq;
+                readWaiters.set(id, { res, rej });
+                w.postMessage({ type: 'read', id, pos, len });
+            }),
             writable: {
                 write: (op) => {
                     if (errored) return Promise.reject(errored);
@@ -550,7 +587,16 @@ async function opfsCreateWorkerWriter(name, size, resume) {
                 pending -= d.bytes;
                 drainWaiters = drainWaiters.filter(x => { if (pending <= x.limit) { x.res(); return false; } return true; });
             } else if (d.type === 'flushed') { const f = flushWaiters.shift(); if (f) f(); }
-            else if (d.type === 'closed') { closeWaiters.splice(0).forEach(res => res()); }
+            else if (d.type === 'read') {
+                const r = readWaiters.get(d.id);
+                readWaiters.delete(d.id);
+                if (r) { if (d.error) r.rej(new Error(d.error)); else r.res(d.data); }
+            }
+            else if (d.type === 'closed') {
+                closeWaiters.splice(0).forEach(res => res());
+                for (const r of readWaiters.values()) r.rej(new Error('staging closed'));
+                readWaiters.clear();
+            }
             else if (d.type === 'error') { resolveInit(null); fail(d.message); }
         };
         w.postMessage({ init: true, name, size: size || 0, resume: !!resume });
@@ -2430,6 +2476,10 @@ class StorageMediaController {
             etaHistory: [],
             firstByteTime: null,
             resumedCount: 0,
+            // Chunk indices whose bytes are on disk, and readers waiting for more.
+            written: new Set(),
+            writeWaiters: new Set(),
+            staging: null,
             // Set by pauseDownload()/resumeDownload() — fetchWindowsParallel()
             // checks this between windows and stops early, without discarding
             // any chunk already staged to disk.
@@ -2476,7 +2526,7 @@ class StorageMediaController {
                     if (existing && existing.size === meta.compressedSize) {
                         staging = existing;
                         if (rMeta.upc) upcDl = rMeta.upc;
-                        for (const idx of rMeta.indices) transfer.chunks.set(idx, 0);
+                        for (const idx of rMeta.indices) { transfer.chunks.set(idx, 0); transfer.written.add(idx); }
                         transfer.resumedCount = rMeta.indices.length;
                         Logger.info(`Storage download resume: ${transfer.resumedCount}/${meta.totalChunks} chunks already on disk`);
                     } else {
@@ -2500,6 +2550,7 @@ class StorageMediaController {
                 }
 
                 if (staging && staging.onError) staging.onError((err) => { stagingError = true; Logger.error(`OPFS write (worker) failed: ${err.message}`); });
+                if (staging?.read && !isCompressed) { transfer.staging = staging; transfer.upc = upcDl; }
             }
 
             const persistCheckpoint = (snapshot, snapUpc) => {
@@ -2545,9 +2596,14 @@ class StorageMediaController {
                         ? meta.compressedSize - chunkBytes
                         : u.chunkIndex * upcDl;
                     const idx = u.chunkIndex, data = u.chunkData;
+                    transfer.upc = upcDl;
                     pendingWriteBytes += chunkBytes;
                     writeChain = writeChain
                         .then(() => staging.writable.write({ type: 'write', position: pos, data }))
+                        .then(() => {
+                            transfer.written.add(idx);
+                            for (const wake of transfer.writeWaiters) wake();
+                        })
                         .catch(e => { stagingError = true; Logger.error(`OPFS write failed (chunk ${idx}): ${e.message}`); })
                         .then(() => { pendingWriteBytes -= chunkBytes; });
                     transfer.chunks.set(u.chunkIndex, chunkBytes);
@@ -2579,7 +2635,9 @@ class StorageMediaController {
                 const windows0 = buildMissingWindows(meta, missing0, fromT, toT);
                 await fetchWindowsParallel(chunkStreamId, windows0, onChunkMessage, DL_CONC, bases, shouldStop);
             } else {
-                const fullWindows = chunkWindowsFor(meta, fromT, toT);
+                const fullWindows = (meta.fileType || '').startsWith('video/')
+                    ? sequentialWindows(meta, fromT, toT, SM.videoSliceChunks)
+                    : chunkWindowsFor(meta, fromT, toT);
                 await fetchWindowsParallel(chunkStreamId, fullWindows, onChunkMessage, DL_CONC, bases, shouldStop);
             }
 
@@ -2785,8 +2843,60 @@ class StorageMediaController {
             try { this.fileErrorCallback?.(tid, error.message); } catch (e) { /* UI */ }
             throw error;
         } finally {
+            transfer.staging = null;
+            for (const wake of transfer.writeWaiters) wake();
             this.activeTransfers--;
             this.releaseWakeLock();
+        }
+    }
+
+    /**
+     * Where a video still downloading can play from, through the service
+     * worker; null when this transfer cannot stream (the tile then plays it
+     * once it is complete).
+     */
+    streamUrl(tid) {
+        if (!hasDom || !navigator.serviceWorker?.controller) return null;
+        const t = this.downloads.get(tid);
+        if (!t?.staging || !(t.metadata.fileType || '').startsWith('video/')) return null;
+        return new URL(`${STREAM_PATH}${encodeURIComponent(tid)}`, document.baseURI).href;
+    }
+
+    /**
+     * Up to `max` bytes of a streaming video from `start`: the run already on
+     * disk, waiting for its first chunk if it has not landed yet. Null when
+     * the transfer is neither streaming nor complete.
+     */
+    async readStream(tid, start, max) {
+        for (;;) {
+            const done = this.completedFiles.get(tid);
+            if (done) {
+                const size = done.blob.size;
+                const end = Math.min(size, start + max);
+                const data = start >= size ? new Uint8Array(0) : new Uint8Array(await done.blob.slice(start, end).arrayBuffer());
+                return { size, type: done.metadata?.fileType || done.blob.type, data };
+            }
+            const t = this.downloads.get(tid);
+            if (!t || t.status !== 'downloading') return null;
+            const meta = t.metadata;
+            const size = meta.compressedSize;
+            if (start >= size) return { size, type: meta.fileType, data: new Uint8Array(0) };
+            if (t.staging && t.upc) {
+                const first = Math.floor(start / t.upc);
+                let next = first;
+                while (next < meta.totalChunks && t.written.has(next)) next++;
+                const end = Math.min(size, next * t.upc, start + max);
+                if (end > start) {
+                    try {
+                        return { size, type: meta.fileType, data: await t.staging.read(start, end - start) };
+                    } catch (e) { /* closing for assembly: wait for it to finish */ }
+                }
+            }
+            await new Promise((res) => {
+                const wake = () => { clearTimeout(timer); t.writeWaiters.delete(wake); res(); };
+                const timer = setTimeout(wake, 30000);
+                t.writeWaiters.add(wake);
+            });
         }
     }
 
@@ -2805,3 +2915,17 @@ class StorageMediaController {
 
 export const storageMediaController = new StorageMediaController();
 if (hasDom) storageMediaController.restoreKept();
+
+if (hasDom && navigator.serviceWorker) {
+    // Same registration as the push setup: streaming must not wait for push.
+    navigator.serviceWorker.register(new URL('sw.js', document.baseURI), { scope: new URL('./', document.baseURI).pathname })
+        .catch((e) => Logger.warn('Service Worker registration failed — videos play once downloaded:', e.message));
+    navigator.serviceWorker.addEventListener('message', (event) => {
+        const d = event.data;
+        const port = event.ports?.[0];
+        if (d?.type !== 'POMBO_STREAM_READ' || !port) return;
+        storageMediaController.readStream(d.tid, d.start, d.max)
+            .then(r => r ? port.postMessage(r) : port.postMessage({ error: 'not streaming' }))
+            .catch(e => port.postMessage({ error: e.message }));
+    });
+}

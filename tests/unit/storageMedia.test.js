@@ -44,6 +44,7 @@ import {
     mergeWindows,
     chunkWindowsFor,
     buildMissingWindows,
+    sequentialWindows,
     partitionOfChunk,
     makeFaststartSource
 } from '../../src/js/storageMedia.js';
@@ -197,6 +198,23 @@ describe('window builders', () => {
         const noTs = { ...meta, firstChunkTs: null, lastChunkTs: null };
         const wins = buildMissingWindows(noTs, [1], 5, 6);
         expect(wins).toHaveLength(9);
+    });
+
+    it('sequentialWindows tiles the full range: start, end, then the middle in order', () => {
+        const fromT = meta.firstChunkTs - 30000, toT = meta.lastChunkTs + 60000;
+        const wins = sequentialWindows(meta, fromT, toT, 36);
+        const slices = [];
+        for (let i = 0; i < wins.length; i += 9) slices.push({ from: wins[i].from, to: wins[i].to });
+        expect(slices[0].from).toBe(fromT);
+        expect(slices[1].to).toBe(toT);
+        const tiled = [slices[0], ...slices.slice(2), slices[1]];
+        for (let k = 1; k < tiled.length; k++) expect(tiled[k].from).toBe(tiled[k - 1].to);
+        expect(wins.slice(0, 9).map(w => w.partition)).toEqual(chunkWindowsFor(meta, 0, 1).map(w => w.partition));
+    });
+
+    it('sequentialWindows falls back to full ranges without chunk timestamps', () => {
+        const noTs = { ...meta, firstChunkTs: null, lastChunkTs: null };
+        expect(sequentialWindows(noTs, 5, 6, 36)).toEqual(chunkWindowsFor(noTs, 5, 6));
     });
 });
 
