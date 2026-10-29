@@ -1578,22 +1578,26 @@ class StorageMediaController {
      * join — messages published before neighbours exist are silently lost.
      * A 1-byte ping per chunk partition + a wait fixes that. Once per session
      * per stream (re-armed if the client reconnects: callers clear warmedUp).
+     * Resolves to the pings' rows for the caller that sent them, so its delete
+     * removes them with the chunks they share a key with; [] for every other.
      */
     warmUpPartitions(sid, firstPartition, count, onStatus, identity = null) {
-        if (!sid || this.warmedUp.has(sid)) return Promise.resolve();
-        if (this.warmUpPromises.has(sid)) return this.warmUpPromises.get(sid);
+        if (!sid || this.warmedUp.has(sid)) return Promise.resolve([]);
+        if (this.warmUpPromises.has(sid)) return this.warmUpPromises.get(sid).then(() => []);
         const p = (async () => {
             if (onStatus) onStatus('Preparing network…');
             const ping = new Uint8Array([0]);
             // Warm-up pings ride the SAME publisher as the chunks — otherwise
             // the wallet would appear on the channel's -1 stream just from
             // waking its partitions.
-            await Promise.all(Array.from({ length: count }, (_, k) =>
+            const sent = await Promise.all(Array.from({ length: count }, (_, k) =>
                 streamrController.publishStorageChunk(sid, firstPartition + k, ping, identity)
-                    .catch(e => Logger.warn(`storage warm-up P${firstPartition + k} failed: ${e.message}`))
+                    .then(pub => (typeof pub?.timestamp === 'number' ? { partition: firstPartition + k, timestamp: pub.timestamp } : null))
+                    .catch(e => { Logger.warn(`storage warm-up P${firstPartition + k} failed: ${e.message}`); return null; })
             ));
             await sleep(SM.warmUpWaitMs);
             this.warmedUp.add(sid);
+            return sent.filter(Boolean);
         })().finally(() => this.warmUpPromises.delete(sid));
         this.warmUpPromises.set(sid, p);
         return p;
@@ -1990,7 +1994,7 @@ class StorageMediaController {
                 chunkSigner = { address: pseudonym.wallet.address, sign: (m) => pseudonym.wallet.signMessage(m) };
             }
 
-            await this.warmUpPartitions(messageStreamId, firstChunkPartition, chunkPartitions, () => emitPhase('Preparing network…', 'processing'), chunkIdentity);
+            const warmUpRows = await this.warmUpPartitions(messageStreamId, firstChunkPartition, chunkPartitions, () => emitPhase('Preparing network…', 'processing'), chunkIdentity);
 
             let failedChunks = [];
             const firstChunkTs = Date.now();
@@ -2016,7 +2020,7 @@ class StorageMediaController {
             };
 
             const chunkRows = () => {
-                const rows = [];
+                const rows = warmUpRows.map(r => ({ streamId: messageStreamId, partition: r.partition, timestamp: r.timestamp, sequenceNumber: 0 }));
                 for (let i = 0; i < chunkTsHist.length; i++) {
                     for (const t of (chunkTsHist[i] || [])) rows.push({ streamId: messageStreamId, partition: chunkPartition(i), timestamp: t, sequenceNumber: 0 });
                 }
