@@ -27,6 +27,8 @@ export function attachStorageTransfers(ui) {
                 video.playsInline = true;
                 video.dataset.stream = '';
                 play.replaceWith(video);
+                video.insertAdjacentHTML('afterend', messageRenderer.videoFullscreenButton(mediaHandler.registerMedia(url, 'video')));
+                mediaHandler.attachLightboxListeners();
             }
         }
 

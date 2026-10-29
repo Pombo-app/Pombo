@@ -651,6 +651,13 @@ class MessageRenderer {
      * @param {Object} o
      * @returns {string}
      */
+    videoFullscreenButton(mediaId) {
+        return mediaId ? `
+                    <button class="video-tile-fs lightbox-trigger" data-media-id="${mediaId}" title="Fullscreen" aria-label="Fullscreen">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+                    </button>` : '';
+    }
+
     renderVideoTile({ id, metadata, url, playable = true, downloadClass, msgId = null, canDownload, active, percent = 0, working = false, status = '' }) {
         const safeId = escapeAttr(id);
         const name = escapeHtml(sanitizeText(metadata.fileName));
@@ -662,10 +669,7 @@ class MessageRenderer {
         if (url && playable) {
             const mediaId = this.deps.registerMedia?.(url, 'video');
             // #t= makes the browser paint a frame instead of an empty box.
-            stage = `<video src="${url}#t=0.1" class="video-tile-media" controls preload="metadata" playsinline${autoplay ? ' autoplay' : ''}></video>${mediaId ? `
-                    <button class="video-tile-fs lightbox-trigger" data-media-id="${mediaId}" title="Fullscreen" aria-label="Fullscreen">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
-                    </button>` : ''}`;
+            stage = `<video src="${url}#t=0.1" class="video-tile-media" controls preload="metadata" playsinline${autoplay ? ' autoplay' : ''}></video>${this.videoFullscreenButton(mediaId)}`;
         } else if (url) {
             stage = `<div class="video-tile-note">This video format can't play here</div>`;
         } else if (canDownload) {
