@@ -44,6 +44,7 @@ export function attachStorageTransfers(ui) {
                 video.autoplay = true;
                 video.playsInline = true;
                 video.dataset.stream = '';
+                play.closest('.video-tile-frame')?.querySelector('.video-tile-bar')?.remove();
                 play.replaceWith(video);
                 video.insertAdjacentHTML('afterend', messageRenderer.videoFullscreenButton(mediaHandler.registerMedia(url, 'video')));
                 mediaHandler.attachLightboxListeners();

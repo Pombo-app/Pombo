@@ -683,12 +683,13 @@ class MessageRenderer {
         }
 
         const pill = status || (url ? '' : size);
+        const playing = !!url && playable;
         return `
             <div data-file-id="${safeId}" class="video-tile">
                 <div class="video-tile-frame">
                     ${stage}
-                    <span class="video-tile-pill${pill ? '' : ' hidden'}" data-progress-text="${safeId}">${escapeHtml(pill)}</span>
-                    <div class="video-tile-bar${active ? '' : ' hidden'}${working ? ' is-working' : ''}" data-progress-overlay="${safeId}"><div data-progress-fill="${safeId}" style="width: ${percent}%"></div></div>
+                    <span class="video-tile-pill${pill ? '' : ' hidden'}" data-progress-text="${safeId}">${escapeHtml(pill)}</span>${playing ? '' : `
+                    <div class="video-tile-bar${active ? '' : ' hidden'}${working ? ' is-working' : ''}" data-progress-overlay="${safeId}"><div data-progress-fill="${safeId}" style="width: ${percent}%"></div></div>`}
                 </div>
                 <div class="video-tile-meta">
                     <span class="truncate" title="${attrName}">${name}</span>
