@@ -1140,6 +1140,24 @@ describe('MessageRenderer', () => {
             expect(result).toMatch(/download-loading-icon[^"]*hidden/);
         });
 
+        it('shows the announce thumbnail behind play, and only plain bounded base64', () => {
+            messageRenderer.setDependencies({
+                getFileUrl: () => null,
+                getCurrentAddress: () => '0x123',
+                isSeeding: () => false,
+                isDownloading: () => false,
+                getDownloadProgress: () => null
+            });
+            const tile = (thumbnail) => messageRenderer.renderVideoContent({
+                type: 'file_announce',
+                metadata: { fileId: 'file-thumb-1', pieceHashes: ['h0'], fileName: 'clip.mp4', fileType: 'video/mp4', fileSize: 2048, thumbnail }
+            });
+            expect(tile('/9j/4AAQSkZJRg==')).toContain('<img class="video-tile-thumb" src="data:image/jpeg;base64,/9j/4AAQSkZJRg=="');
+            expect(tile('" onerror="alert(1)')).not.toContain('video-tile-thumb');
+            expect(tile('A'.repeat(40001))).not.toContain('video-tile-thumb');
+            expect(tile(undefined)).not.toContain('video-tile-thumb');
+        });
+
         it('should fallback gracefully when isDownloading dep is not wired', () => {
             messageRenderer.setDependencies({
                 getFileUrl: () => null,

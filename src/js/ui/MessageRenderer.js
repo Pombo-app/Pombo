@@ -661,18 +661,31 @@ class MessageRenderer {
                     </button>` : '';
     }
 
+    /**
+     * The announce's first-frame thumbnail as an image URL, or '' when absent
+     * or not plain bounded base64 (it comes from the sender, unchecked).
+     * @param {Object} metadata
+     * @returns {string}
+     */
+    videoThumbnailSrc(metadata) {
+        const t = metadata?.thumbnail;
+        if (typeof t !== 'string' || t.length === 0 || t.length > 40000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(t)) return '';
+        return `data:image/jpeg;base64,${t}`;
+    }
+
     renderVideoTile({ id, metadata, url, playable = true, downloadClass, msgId = null, canDownload, active, percent = 0, working = false, retryable = false, status = '' }) {
         const safeId = escapeAttr(id);
         const name = escapeHtml(sanitizeText(metadata.fileName));
         const attrName = escapeAttr(sanitizeText(metadata.fileName));
         const size = this.formatFileSize(metadata.fileSize ?? metadata.originalSize ?? 0);
         const autoplay = this.videoAutoplay.delete(id);
+        const thumb = this.videoThumbnailSrc(metadata);
 
         let stage = '';
         if (url && playable) {
             const mediaId = this.deps.registerMedia?.(url, 'video');
             // #t= makes the browser paint a frame instead of an empty box.
-            stage = `<video src="${url}#t=0.1" class="video-tile-media" controls preload="metadata" playsinline${autoplay ? ' autoplay' : ''}></video>${this.videoFullscreenButton(mediaId)}`;
+            stage = `<video src="${url}#t=0.1" class="video-tile-media" controls preload="metadata" playsinline${thumb ? ` poster="${thumb}"` : ''}${autoplay ? ' autoplay' : ''}></video>${this.videoFullscreenButton(mediaId)}`;
         } else if (url) {
             stage = `<div class="video-tile-note">This video format can't play here</div>`;
         } else if (canDownload) {
@@ -686,7 +699,8 @@ class MessageRenderer {
         const playing = !!url && playable;
         return `
             <div data-file-id="${safeId}" class="video-tile">
-                <div class="video-tile-frame">
+                <div class="video-tile-frame">${thumb && !(url && playable) ? `
+                    <img class="video-tile-thumb" src="${thumb}" alt="">` : ''}
                     ${stage}
                     <span class="video-tile-pill${pill ? '' : ' hidden'}" data-progress-text="${safeId}">${escapeHtml(pill)}</span>${playing ? '' : `
                     <div class="video-tile-bar${active ? '' : ' hidden'}${working ? ' is-working' : ''}" data-progress-overlay="${safeId}"><div data-progress-fill="${safeId}" style="width: ${percent}%"></div></div>`}

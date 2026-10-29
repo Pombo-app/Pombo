@@ -516,6 +516,49 @@ export async function addSegmentIndex(file) {
     }
 }
 
+/**
+ * A small JPEG of a video's first frame, base64 without a data: prefix, for
+ * the announce to carry. Null when the browser cannot decode the video.
+ * @param {Blob|File} file
+ */
+export async function makeVideoThumbnail(file, { width = 320, maxBytes = 24 * 1024, timeoutMs = 5000 } = {}) {
+    if (!hasDom) return null;
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    try {
+        await new Promise((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error('timeout')), timeoutMs);
+            video.addEventListener('loadeddata', () => { video.currentTime = Math.min(0.1, (video.duration || 0.2) / 2); }, { once: true });
+            video.addEventListener('seeked', () => { clearTimeout(timer); resolve(); }, { once: true });
+            video.addEventListener('error', () => { clearTimeout(timer); reject(new Error('decode')); }, { once: true });
+            video.src = url;
+        });
+        if (!video.videoWidth || !video.videoHeight) return null;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.min(width, video.videoWidth);
+        canvas.height = Math.max(1, Math.round(video.videoHeight * canvas.width / video.videoWidth));
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        for (const quality of [0.7, 0.5, 0.35]) {
+            const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', quality));
+            if (!blob || blob.size > maxBytes) continue;
+            const bytes = new Uint8Array(await blob.arrayBuffer());
+            let bin = '';
+            for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+            return btoa(bin);
+        }
+        return null;
+    } catch (e) {
+        return null;
+    } finally {
+        video.removeAttribute('src');
+        video.load();
+        URL.revokeObjectURL(url);
+    }
+}
+
 const isMp4Like = (file) =>
     /\.(mp4|m4v|mov)$/i.test(file.name || '') || /video\/(mp4|quicktime)/i.test(file.type || '');
 
@@ -1713,8 +1756,10 @@ class StorageMediaController {
             storedChunks: null,
             encSalt: sealer.encSalt
         };
+        let thumbnailP = Promise.resolve(null);
         if (draftMetadata.fileType.startsWith('video/')) {
             this.completedFiles.set(tid, { url: URL.createObjectURL(file), blob: file, metadata: draftMetadata });
+            thumbnailP = makeVideoThumbnail(file);
         }
         const localMessage = {
             type: 'storage_file_announce',
@@ -2437,6 +2482,8 @@ class StorageMediaController {
                 lastChunkTs,
                 storedChunks: storedCount
             };
+            const thumbnail = await thumbnailP;
+            if (thumbnail) finalMetadata.thumbnail = thumbnail;
             const announcement = await identityManager.createStorageFileManifest({
                 channelId: messageStreamId,
                 metadata: finalMetadata,

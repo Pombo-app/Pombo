@@ -44,7 +44,10 @@ export function attachStorageTransfers(ui) {
                 video.autoplay = true;
                 video.playsInline = true;
                 video.dataset.stream = '';
-                play.closest('.video-tile-frame')?.querySelector('.video-tile-bar')?.remove();
+                const frame = play.closest('.video-tile-frame');
+                frame?.querySelector('.video-tile-bar')?.remove();
+                const thumb = frame?.querySelector('.video-tile-thumb');
+                if (thumb) { video.poster = thumb.src; thumb.remove(); }
                 play.replaceWith(video);
                 video.insertAdjacentHTML('afterend', messageRenderer.videoFullscreenButton(mediaHandler.registerMedia(url, 'video')));
                 mediaHandler.attachLightboxListeners();
