@@ -64,6 +64,7 @@ const REGISTRY_READ_TIMEOUT_MS = 10_000;
 
 // === STREAM CONFIG (DUAL-STREAM ARCHITECTURE) ===
 import { STREAM_CONFIG } from './streamConfig.js';
+import { rememberPublished, clearChannelSentRows } from './channelSentRows.js';
 import { History } from './streamr/History.js';
 import { MessagePipeline } from './streamr/MessagePipeline.js';
 import { storageFetch } from './storageFetch.js';
@@ -2497,7 +2498,7 @@ class StreamrController {
             return this.publish(streamId, partition, stripLocalFields(data), password);
         }
 
-        const { identity, proof } = getChannelIdentity(streamId);
+        const { identity, proof, wallet } = getChannelIdentity(streamId);
 
         const payload = { ...stripLocalFields(data), proof };
 
@@ -2505,7 +2506,9 @@ class StreamrController {
             ? await cryptoManager.encryptJSON(payload, password)
             : payload;
 
-        return this.publishAs(identity, streamId, partition, content);
+        const published = await this.publishAs(identity, streamId, partition, content);
+        rememberPublished(streamId, data, published, partition, { address: wallet.address, sign: (m) => wallet.signMessage(m) });
+        return published;
     }
 
     /**
@@ -4321,6 +4324,7 @@ class StreamrController {
         // Pseudonyms must never outlive a session, or yesterday's can be tied
         // to today's (D2).
         clearChannelIdentities();
+        clearChannelSentRows();
     }
 
     /**

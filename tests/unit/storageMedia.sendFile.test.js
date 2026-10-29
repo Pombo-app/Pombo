@@ -109,7 +109,8 @@ vi.mock('../../src/js/channels.js', () => ({
 }));
 vi.mock('../../src/js/channelIdentity.js', () => ({
     getChannelIdentity: vi.fn(() => ({
-        identity: { __addr: H.ephemeralAddress, getUserId: async () => H.ephemeralAddress }
+        identity: { __addr: H.ephemeralAddress, getUserId: async () => H.ephemeralAddress },
+        wallet: { address: H.ephemeralAddress, signMessage: async () => '0xpseudosig' }
     }))
 }));
 vi.mock('../../src/js/dm.js', () => ({

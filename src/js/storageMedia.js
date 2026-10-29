@@ -49,6 +49,7 @@ import { getChannelIdentity } from './channelIdentity.js';
 import { dmManager } from './dm.js';
 import { STORAGE_FILE, MESSAGE_STREAM, storageChunkPartition } from './streamConstants.js';
 import { storedOn, keySigner } from './storagePurge.js';
+import { rememberFileRows } from './channelSentRows.js';
 import { epochKeyManager, usesEpochKeys } from './epochKeyManager.js';
 import { epochKeyCrypto } from './epochKeyCrypto.js';
 
@@ -1722,6 +1723,7 @@ class StorageMediaController {
             // verify must match; a wrong value makes every chunk read back as
             // foreign and repair concludes the upload is missing.
             let chunkIdentity = null;
+            let chunkSigner = null;
             let chunkPublisher = null;
             let chunkPrivateKey = null;
             if (isDM) {
@@ -1747,8 +1749,10 @@ class StorageMediaController {
                 // that is the publisher the verify reads must match.
                 chunkPublisher = channel.gate.address.toLowerCase();
             } else if (!channelManager.usesAccountPublish(messageStreamId)) {
-                chunkIdentity = getChannelIdentity(messageStreamId).identity;
+                const pseudonym = getChannelIdentity(messageStreamId);
+                chunkIdentity = pseudonym.identity;
                 chunkPublisher = await chunkIdentity.getUserId();
+                chunkSigner = { address: pseudonym.wallet.address, sign: (m) => pseudonym.wallet.signMessage(m) };
             }
 
             await this.warmUpPartitions(messageStreamId, firstChunkPartition, chunkPartitions, () => emitPhase('Preparing network…', 'processing'), chunkIdentity);
@@ -2275,6 +2279,7 @@ class StorageMediaController {
             } else {
                 const pub = await streamrController.publishMessage(messageStreamId, announcement, password);
                 if (pub && typeof pub.timestamp === 'number') annTss.push(pub.timestamp);
+                if (chunkSigner) rememberFileRows(messageStreamId, messageId, chunkRows(), chunkSigner);
             }
 
             // Persist locally where a replay cannot restore it.

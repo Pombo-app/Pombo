@@ -2760,7 +2760,7 @@ class ChannelManager {
         const channel = this.channels.get(streamId);
         if (channel?.type === 'dm') return dmManager.canPurge(streamId, targetId);
         const msg = channel?.messages?.find((m) => m.id === targetId);
-        return !!(msg && this.overrides.ownPurgeSigner(channel, msg));
+        return !!(msg && this.overrides.ownPurgePlan(channel, msg));
     }
     /**
      * Erase everything an author wrote from the storage providers that can:

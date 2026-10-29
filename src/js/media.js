@@ -740,9 +740,9 @@ class MediaController {
         await this.assertStoredImagePayloadFits(manifest, password, dmPeer, 'image manifest', channel);
 
         for (const chunkPayload of chunkPayloads) {
-            await this.publishStoredImagePayload(messageStreamId, chunkPayload, password, dmPeer, channel);
+            await this.publishStoredImagePayload(messageStreamId, chunkPayload, password, dmPeer, channel, manifest.id);
         }
-        await this.publishStoredImagePayload(messageStreamId, manifest, password, dmPeer, channel);
+        await this.publishStoredImagePayload(messageStreamId, manifest, password, dmPeer, channel, manifest.id);
 
         this.cacheImage(imageId, finalDataUrl);
 
@@ -1281,7 +1281,7 @@ class MediaController {
         return this.assertPayloadBytesFit(payloadBytes, label);
     }
 
-    async publishStoredImagePayload(messageStreamId, payload, password = null, dmPeer = null, channel = null) {
+    async publishStoredImagePayload(messageStreamId, payload, password = null, dmPeer = null, channel = null, messageId = null) {
         if (dmPeer) {
             // Seal ONCE and publish that exact envelope. Sizing one envelope and
             // sending a freshly sealed second one would measure a different
@@ -1290,7 +1290,17 @@ class MediaController {
             this.assertPayloadBytesFit(
                 new TextEncoder().encode(JSON.stringify(sealed.envelope)).length
             );
-            await dmManager.publishSealed(messageStreamId, sealed);
+            const published = await dmManager.publishSealed(messageStreamId, sealed);
+            const timestamp = published?.messageId?.timestamp ?? published?.timestamp;
+            if (messageId && Number.isFinite(timestamp)) {
+                dmManager.rememberRow(messageId, {
+                    streamId: messageStreamId,
+                    partition: STREAM_CONFIG.MESSAGE_STREAM.MESSAGES,
+                    timestamp,
+                    sequenceNumber: 0,
+                    privateKey: sealed.ephemeralPrivateKey
+                });
+            }
             return;
         }
 
