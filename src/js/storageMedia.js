@@ -193,6 +193,39 @@ export function sequentialWindows(meta, fromT, toT, sliceChunks) {
 }
 
 /**
+ * Hands out each window once, shared by the fetch workers: in list order,
+ * unless a player waits at `wantedFrom()` — then the earliest windows still
+ * ahead of that time come first, and what lies behind it is filled last.
+ */
+export function windowPicker(windows, wantedFrom = () => null) {
+    const taken = new Array(windows.length).fill(false);
+    let cursor = 0;
+    return {
+        next() {
+            const t = wantedFrom();
+            if (t != null) {
+                let best = -1;
+                for (let i = 0; i < windows.length; i++) {
+                    if (!taken[i] && windows[i].to > t && (best < 0 || windows[i].from < windows[best].from)) best = i;
+                }
+                if (best >= 0) { taken[best] = true; return windows[best]; }
+            }
+            while (cursor < windows.length && taken[cursor]) cursor++;
+            if (cursor >= windows.length) return null;
+            taken[cursor] = true;
+            return windows[cursor++];
+        }
+    };
+}
+
+/** Where a player waiting on chunk `wanted` needs the download to be, a round of partitions early. */
+export function wantedTime(meta, wanted) {
+    if (wanted == null || wanted < 0 || !meta.firstChunkTs || !meta.lastChunkTs || meta.totalChunks <= 1) return null;
+    const interval = (meta.lastChunkTs - meta.firstChunkTs) / (meta.totalChunks - 1);
+    return meta.firstChunkTs + Math.round(interval * (wanted - (meta.chunkPartitions || STORAGE_FILE.CHUNK_PARTITIONS)));
+}
+
+/**
  * How many partitions an upload spreads its chunks over: the standard count,
  * or what the stream really has past `firstPartition` (channels created under
  * an older layout have fewer). Unknown count → the standard one.
@@ -1185,13 +1218,15 @@ async function fetchWindow(sid, w, onMessage, base) {
  *   so a pause takes effect within one window's worth of latency instead of
  *   waiting for the whole batch — see StorageMediaController.pauseDownload.
  */
-async function fetchWindowsParallel(sid, windows, onMessage, concurrency, bases, shouldStop) {
+async function fetchWindowsParallel(sid, windows, onMessage, concurrency, bases, shouldStop, wantedFrom) {
+    const picker = windowPicker(windows, wantedFrom);
     let next = 0;
     const worker = async () => {
-        while (next < windows.length) {
+        for (;;) {
             if (shouldStop?.()) return;
+            const w = picker.next();
+            if (!w) return;
             const idx = next++;
-            const w = windows[idx];
             const base = (bases && bases.length) ? bases[idx % bases.length] : null;
             try { await fetchWindow(sid, w, onMessage, base); }
             catch (e) { Logger.warn(`storage window P${w.partition} failed: ${e.message}`); }
@@ -2658,6 +2693,7 @@ class StorageMediaController {
             paused: false
         };
         const shouldStop = () => transfer.paused;
+        const wantedFrom = () => wantedTime(meta, transfer.wanted);
         this.downloads.set(tid, transfer);
         this.activeTransfers++;
         this.acquireWakeLock();
@@ -2805,12 +2841,37 @@ class StorageMediaController {
                 const missing0 = [];
                 for (let i = 0; i < transfer.totalChunks; i++) if (!transfer.chunks.has(i)) missing0.push(i);
                 const windows0 = buildMissingWindows(meta, missing0, fromT, toT);
-                await fetchWindowsParallel(chunkStreamId, windows0, onChunkMessage, DL_CONC, bases, shouldStop);
+                await fetchWindowsParallel(chunkStreamId, windows0, onChunkMessage, DL_CONC, bases, shouldStop, wantedFrom);
             } else {
                 const fullWindows = (meta.fileType || '').startsWith('video/')
                     ? sequentialWindows(meta, fromT, toT, SM.videoSliceChunks)
                     : chunkWindowsFor(meta, fromT, toT);
-                await fetchWindowsParallel(chunkStreamId, fullWindows, onChunkMessage, DL_CONC, bases, shouldStop);
+                // A player stuck on a chunk the pass already read past fetches it
+                // directly: near its estimated time first, then its whole partition.
+                let fullDone = false;
+                const chase = (async () => {
+                    let chased = -1, tries = 0;
+                    while (!fullDone && !transfer.paused) {
+                        await sleep(2000);
+                        const w = transfer.wanted;
+                        if (fullDone || w == null || w < 0 || w >= transfer.totalChunks || transfer.chunks.has(w)) continue;
+                        if (Date.now() - (transfer.wantedSince || 0) < SM.stallChaseMs) continue;
+                        if (w !== chased) { chased = w; tries = 0; }
+                        tries++;
+                        Logger.info(`Storage download: player waits on chunk ${w}, fetching it directly (try ${tries})`);
+                        const wins = tries === 1
+                            ? buildMissingWindows(meta, [w], fromT, toT)
+                            : [{ partition: partitionOfChunk(meta, w), from: fromT, to: toT }];
+                        await fetchWindowsParallel(chunkStreamId, wins, onChunkMessage, DL_CONC, bases, shouldStop);
+                        transfer.wantedSince = Date.now();
+                    }
+                })();
+                try {
+                    await fetchWindowsParallel(chunkStreamId, fullWindows, onChunkMessage, DL_CONC, bases, shouldStop, wantedFrom);
+                } finally {
+                    fullDone = true;
+                }
+                await chase;
             }
 
             let retryPass = 0;
@@ -2822,7 +2883,7 @@ class StorageMediaController {
                 for (let i = 0; i < transfer.totalChunks; i++) if (!transfer.chunks.has(i)) missingNow.push(i);
                 const windows = buildMissingWindows(meta, missingNow, fromT, toT);
                 Logger.warn(`Storage download retry ${retryPass}/${SM.downloadRetryPasses}: ${missingNow.length} chunks missing → ${windows.length} window(s)`);
-                await fetchWindowsParallel(chunkStreamId, windows, onChunkMessage, DL_CONC, bases, shouldStop);
+                await fetchWindowsParallel(chunkStreamId, windows, onChunkMessage, DL_CONC, bases, shouldStop, wantedFrom);
                 const recovered = transfer.chunks.size - (transfer.totalChunks - missingNow.length);
                 if (recovered === 0) {
                     Logger.warn(`Storage retry made no progress: the storage does not have the ${missingNow.length} missing chunks — incomplete upload`);
@@ -3063,6 +3124,7 @@ class StorageMediaController {
                         return { size, type: meta.fileType, data: await t.staging.read(start, end - start) };
                     } catch (e) { /* closing for assembly: wait for it to finish */ }
                 }
+                if (t.wanted !== first) { t.wanted = first; t.wantedSince = Date.now(); }
             }
             await new Promise((res) => {
                 const wake = () => { clearTimeout(timer); t.writeWaiters.delete(wake); res(); };

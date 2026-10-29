@@ -45,6 +45,8 @@ import {
     chunkWindowsFor,
     buildMissingWindows,
     sequentialWindows,
+    windowPicker,
+    wantedTime,
     chunkPartitionsFor,
     partitionOfChunk,
     makeFaststartSource,
@@ -221,6 +223,32 @@ describe('window builders', () => {
         expect(chunkPartitionsFor(20, 3)).toBe(9);
         expect(chunkPartitionsFor(3, 3)).toBe(0);
         expect(chunkPartitionsFor(null, 3)).toBe(9);
+    });
+
+    const drain = (p) => { const out = []; for (let w; (w = p.next());) out.push(w); return out; };
+
+    it('windowPicker hands out every window once, in order, with no player waiting', () => {
+        const wins = [0, 1, 2, 3].map(k => ({ partition: 3, from: k * 10, to: k * 10 + 10 }));
+        expect(drain(windowPicker(wins))).toEqual(wins);
+    });
+
+    it('windowPicker serves a waiting player from its time on, then fills what lies behind', () => {
+        const slices = [[0, 10], [40, 50], [10, 20], [20, 30], [30, 40]];
+        const wins = slices.flatMap(([from, to]) => [{ partition: 3, from, to }, { partition: 4, from, to }]);
+        let wanted = null;
+        const picker = windowPicker(wins, () => wanted);
+        expect(picker.next()).toBe(wins[0]);
+        wanted = 25;
+        const rest = drain(picker);
+        expect(rest.map(w => w.from)).toEqual([20, 20, 30, 30, 40, 40, 0, 10, 10]);
+        expect(new Set([wins[0], ...rest])).toEqual(new Set(wins));
+    });
+
+    it('wantedTime sits one round of partitions before the chunk', () => {
+        const m = { firstChunkTs: 1000, lastChunkTs: 1990, totalChunks: 100, chunkPartitions: 9 };
+        expect(wantedTime(m, 100)).toBe(1000 + 91 * 10);
+        expect(wantedTime(m, undefined)).toBeNull();
+        expect(wantedTime({ ...m, firstChunkTs: null }, 5)).toBeNull();
     });
 
     it('sequentialWindows falls back to full ranges without chunk timestamps', () => {
