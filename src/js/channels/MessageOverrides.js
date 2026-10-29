@@ -12,7 +12,7 @@ import { identityManager } from '../identity.js';
 import { secureStorage } from '../secureStorage.js';
 import { dmManager } from '../dm.js';
 import { CONFIG } from '../config.js';
-import { hasChannelIdentity, getChannelIdentity } from '../channelIdentity.js';
+import { canErase, purgeGroupsOf, forget as forgetSentRows } from '../channelSentRows.js';
 
 export class MessageOverrides {
     /**
@@ -320,26 +320,26 @@ export class MessageOverrides {
     }
 
     /**
-     * The signer an own delete can erase the message from storage with, or
-     * null when the purge does not apply. The node honours whoever signed the
-     * message: the account on a Visible gated (or read-only) channel, the
-     * session pseudonym on public/password, where an older message is out of
-     * its author's reach. Sealed channels sign with the shared key, so nobody
-     * can claim authorship there.
+     * How an own delete erases the message from storage, or null when it only
+     * hides it. The node honours whoever signed the rows, and the channel owner:
+     *  - rows this session published under a pseudonym: those exact rows, with
+     *    the keys that wrote them (a pseudonym from an earlier session is gone);
+     *  - the account on a channel that publishes as the account, and always
+     *    for the channel owner.
+     * Sealed rows carry the shared key, so authorship proves nothing there.
      * @param {Object} channel - Channel record
      * @param {Object} msg - The message being deleted
-     * @returns {{address: string, sign: (message: string) => Promise<string>}|null}
+     * @returns {{groups: Array}|{signer: Object}|null}
      */
-    ownPurgeSigner(channel, msg) {
+    ownPurgePlan(channel, msg) {
         if (!channel || channel.type === 'dm' || !(channel.purgeProviders?.length > 0)) return null;
+        const streamId = channel.messageStreamId || channel.streamId;
+        if (canErase(streamId, msg)) return { groups: purgeGroupsOf(streamId, msg) };
+        const account = { address: authManager.getAddress(), sign: (m) => authManager.signMessage(m) };
+        if (this.manager.isChannelOwner(channel.streamId)) return { signer: account };
         if (channel.wireIdentity === 'sealed') return null;
-        if (this.manager.usesAccountPublish(channel.streamId)) {
-            return { address: authManager.getAddress(), sign: (m) => authManager.signMessage(m) };
-        }
-        if (!hasChannelIdentity(channel.streamId)) return null;
-        const { publisherId, wallet } = getChannelIdentity(channel.streamId);
-        if (msg?._publisherId && String(msg._publisherId).toLowerCase() !== publisherId.toLowerCase()) return null;
-        return { address: wallet.address, sign: (m) => wallet.signMessage(m) };
+        if (this.manager.usesAccountPublish(channel.streamId)) return { signer: account };
+        return null;
     }
 
     /**
@@ -350,11 +350,17 @@ export class MessageOverrides {
      * @returns {Promise<Object|null>} storagePurge outcome, null when the purge does not apply
      */
     async purgeOwnMessage(channel, msg) {
-        const signer = this.ownPurgeSigner(channel, msg);
-        if (!signer) return null;
+        const plan = this.ownPurgePlan(channel, msg);
+        if (!plan) return null;
         try {
-            const { eraseMessage } = await import('../storagePurge.js');
-            return await eraseMessage(channel, msg, signer, this.manager.purgeOptions?.(channel));
+            const { eraseMessage, purgeGroups } = await import('../storagePurge.js');
+            if (plan.groups) {
+                const streamId = channel.messageStreamId || channel.streamId;
+                const outcome = await purgeGroups(streamId, plan.groups, plan.groups[plan.groups.length - 1].signer);
+                if (outcome.erasedOn > 0) forgetSentRows(streamId, msg);
+                return outcome;
+            }
+            return await eraseMessage(channel, msg, plan.signer, this.manager.purgeOptions?.(channel));
         } catch (err) {
             Logger.warn('Storage purge of own message failed:', err?.message || err);
             return { providers: channel.purgeProviders.length, erasedOn: 0, forbiddenOn: 0, unreachable: 0, error: err?.message || String(err) };

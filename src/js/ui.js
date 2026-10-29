@@ -158,6 +158,8 @@ class UIController {
             getStorageDownloadProgress: (tid) => storageMediaController.getDownloadProgress(tid),
             getStorageUploadState: (tid) => storageMediaController.getUploadState(tid),
             getStorageResumePercent: (tid) => storageMediaController.getResumePercent(tid),
+            getStorageDownloadError: (tid) => storageMediaController.getDownloadError(tid),
+            canRetryStorageUpload: (tid) => storageMediaController.canRetryUpload(tid),
             isStorageSaved: (tid) => mediaHandler.isStorageSaved(tid)
         });
         
@@ -192,6 +194,7 @@ class UIController {
         // ExploreUI
         exploreUI.setDependencies({
             getPublicChannels: () => channelManager.getPublicChannels(),
+            publicDirectoryFailed: () => channelManager.publicDirectoryFailed === true,
             joinPublicChannel: (streamId, channelInfo) => this.joinPublicChannel(streamId, channelInfo),
             enterPreviewMode: (streamId, channelInfo) => previewModeUI.enterPreviewMode(streamId, channelInfo),
             getNsfwEnabled: () => secureStorage.getNsfwEnabled()
@@ -243,7 +246,8 @@ class UIController {
             Logger,
             channelManager,
             chatAreaUI,
-            getActiveChannel: () => this.getActiveChannel()
+            getActiveChannel: () => this.getActiveChannel(),
+            getAccount: () => (authManager.isGuest ? null : authManager.getAddress())
         });
 
         subscriptionBannerUI.setDependencies({
@@ -288,7 +292,8 @@ class UIController {
             secureStorage,
             onChannelSelect: (streamId) => this.selectChannel(streamId),
             onFinishPendingCreate: (basePath) => channelModalsUI.finishInterruptedCreate(basePath),
-            onDiscardPendingCreate: (basePath) => channelModalsUI.discardInterruptedCreate(basePath)
+            onDiscardPendingCreate: (basePath) => channelModalsUI.discardInterruptedCreate(basePath),
+            openExploreView: () => this.openExploreView()
         });
 
         // ChannelModalsUI
@@ -387,7 +392,6 @@ class UIController {
             joinChannelModal: document.getElementById('join-channel-modal'),
             joinStreamIdInput: document.getElementById('join-stream-id-input'),
             joinPasswordInput: document.getElementById('join-password-input'),
-            joinPasswordField: document.getElementById('join-password-field'),
             joinBtn: document.getElementById('join-btn'),
             cancelJoinBtn: document.getElementById('cancel-join-btn'),
 
@@ -451,14 +455,10 @@ class UIController {
             dangerTabBtn: document.getElementById('danger-tab-btn'),
             deleteChannelSection: document.getElementById('delete-channel-section'),
             deleteChannelBtn: document.getElementById('delete-channel-btn'),
+            deleteChannelText: document.getElementById('delete-channel-text'),
+            deleteChannelProgress: document.getElementById('delete-channel-progress'),
             channelSettingsTabs: document.querySelectorAll('.channel-settings-tab'),
             channelSettingsPanels: document.querySelectorAll('.channel-settings-panel'),
-
-            // Delete channel confirmation modal
-            deleteChannelModal: document.getElementById('delete-channel-modal'),
-            deleteChannelName: document.getElementById('delete-channel-name'),
-            cancelDeleteBtn: document.getElementById('cancel-delete-btn'),
-            confirmDeleteBtn: document.getElementById('confirm-delete-btn'),
 
             // Join/Browse channels
             browseChannelsBtn: document.getElementById('browse-channels-btn'),
@@ -548,7 +548,8 @@ class UIController {
             storageMediaController,
             showNotification: (msg, type) => this.showNotification(msg, type),
             getActiveChannel: () => this.getActiveChannel(),
-            onRetrySend: (msgId) => this.handleRetrySend(msgId)
+            onRetrySend: (msgId) => this.handleRetrySend(msgId),
+            reopenChannel: () => subscriptionManager.reopenActive()
         });
         chatAreaUI.init({
             messagesArea: this.elements.messagesArea,
@@ -733,8 +734,8 @@ class UIController {
             const countEl = document.querySelector(`[data-channel-count="${CSS.escape(streamId)}"]`);
             if (countEl && activity.unreadCount > 0) {
                 countEl.textContent = activity.unreadCount >= 30 ? '+30' : activity.unreadCount;
-                countEl.classList.remove('hidden', 'text-white/30', 'bg-white/[0.04]');
-                countEl.classList.add('text-white', 'bg-[#F6851B]/20');
+                countEl.classList.remove('hidden', 'text-overlay-30', 'bg-overlay-4');
+                countEl.classList.add('text-primary', 'bg-[#F6851B]/20');
             }
         });
     }
@@ -838,7 +839,6 @@ class UIController {
         // Close any open modals first (using ModalManager)
         modalManager.hide('channel-settings-modal');
         modalManager.hide('invite-users-modal');
-        modalManager.hide('delete-channel-modal');
         this.hideLeaveChannelModal();
         
         // Reset channel name and info
@@ -859,7 +859,7 @@ class UIController {
         
         // Reset online users list
         if (this.elements.onlineUsersList) {
-            this.elements.onlineUsersList.innerHTML = '<div class="text-white/30 text-sm text-center">No one online</div>';
+            this.elements.onlineUsersList.innerHTML = '<div class="text-overlay-30 text-sm text-center">No one online</div>';
         }
         if (this.elements.onlineUsersCount) {
             this.elements.onlineUsersCount.textContent = '0';
@@ -897,7 +897,7 @@ class UIController {
             this.openChatView();
             await this.showExploreView();
             document.querySelectorAll('.channel-item').forEach(item => {
-                item.classList.remove('bg-white/[0.06]');
+                item.classList.remove('bg-overlay-6');
             });
             headerUI.setActivePillTab?.('explore');
 
@@ -973,7 +973,7 @@ class UIController {
         
         // Remove selection highlight from channel list
         document.querySelectorAll('.channel-item').forEach(item => {
-            item.classList.remove('bg-white/[0.06]');
+            item.classList.remove('bg-overlay-6');
         });
         
         // Push to browser history (replace if current entry is an orphaned modal state)
@@ -1318,7 +1318,7 @@ class UIController {
             const loading = btn.querySelector('.download-loading-icon');
             if (loading) {
                 loading.classList.remove('hidden');
-                loading.innerHTML = '<div class="w-4 h-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin"></div>';
+                loading.innerHTML = '<div class="w-4 h-4 border-2 border-overlay-60 border-t-transparent rounded-full animate-spin"></div>';
             }
             btn.disabled = true;
         }
@@ -1526,8 +1526,8 @@ class UIController {
             tab.classList.toggle('border-[#F6851B]', isActive);
             tab.classList.toggle('border-transparent', !isActive);
             tab.classList.toggle('text-[#F6851B]', isActive);
-            tab.classList.toggle('text-white/40', !isActive);
-            tab.classList.toggle('hover:text-white/60', !isActive);
+            tab.classList.toggle('text-overlay-40', !isActive);
+            tab.classList.toggle('hover:text-overlay-60', !isActive);
         });
         
         this.currentChannelFilter = filter;
@@ -1781,52 +1781,11 @@ class UIController {
         this.joinChannelUI.hideJoinChannelModal();
     }
 
-    async handleQuickJoin(streamId) {
-        return this.joinChannelUI.handleQuickJoin(
-            (msg, type) => this.showNotification(msg, type),
-            () => this.renderChannelList(),
-            streamId
-        );
-    }
-
-    /**
-     * Show the quick join modal (mobile pill)
-     */
-    showQuickJoinModal() {
-        const modal = document.getElementById('quick-join-modal');
-        const input = document.getElementById('quick-join-modal-input');
-        if (modal) {
-            modal.classList.remove('hidden');
-            setTimeout(() => input?.focus(), 100);
-        }
-    }
-
-    /**
-     * Handle join from the quick join modal
-     * @private
-     */
-    async _handleQuickJoinModal() {
-        const modal = document.getElementById('quick-join-modal');
-        const input = document.getElementById('quick-join-modal-input');
-        const streamId = input?.value.trim();
-
-        if (!streamId) {
-            this.showNotification('Please enter a channel ID', 'error');
-            return;
-        }
-
-        // Hide modal
-        modal?.classList.add('hidden');
-        if (input) input.value = '';
-
-        // Delegate to existing quick join logic with the streamId directly
-        await this.handleQuickJoin(streamId);
-    }
-
     async handleJoinChannel() {
         return this.joinChannelUI.handleJoinChannel(
             (msg, type) => this.showNotification(msg, type),
-            () => this.renderChannelList()
+            () => this.renderChannelList(),
+            (sid) => this.selectChannel(sid)
         );
     }
 

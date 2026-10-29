@@ -19,11 +19,14 @@ import { syncManager } from './syncManager.js';
 import { epochKeyManager } from './epochKeyManager.js';
 import { storageFetch } from './storageFetch.js';
 import { storageEndpoints } from './storageEndpoints.js';
+import { ConnectionMonitor } from './connectionMonitor.js';
+import { isOffline } from './utils/network.js';
 import { Logger } from './logger.js';
 import { CONFIG } from './config.js';
 import { headerUI } from './ui/HeaderUI.js';
 import { settingsUI } from './ui/SettingsUI.js';
 import { contactsUI } from './ui/ContactsUI.js';
+import { accountsUI } from './ui/AccountsUI.js';
 import { chatAreaUI } from './ui/ChatAreaUI.js';
 import { previewModeUI } from './ui/PreviewModeUI.js';
 import { reactionManager } from './ui/ReactionManager.js';
@@ -100,6 +103,15 @@ class App {
             streamrController.onClientReplaced(() => this.resumeAfterClientReplaced());
             streamrController.onNodeStateChange((up) => headerUI.setNetworkDown(!up));
 
+            const connection = new ConnectionMonitor({
+                probe: () => storageEndpoints.reachable(),
+                onChange: (offline) => headerUI.setOffline(offline)
+            });
+            streamrController.onNodeStateChange((up) => connection.setNodeAlive(up));
+            window.addEventListener('online', () => connection.setBrowserOnline(true));
+            window.addEventListener('offline', () => connection.setBrowserOnline(false));
+            if (isOffline()) connection.setBrowserOnline(false);
+
             // Wire wallet flows with app-level callbacks
             walletFlows.init({
                 disconnectWallet: (opts) => this.disconnectWallet(opts),
@@ -127,13 +139,25 @@ class App {
             this.setupWalletHandlers();
 
             // Initialize mobile pill nav
+            accountsUI.init({
+                authManager,
+                identityManager,
+                switchTo: (address) => walletFlows.switchToWallet(address),
+                addAccount: () => walletFlows.addAccount(),
+                browseAsGuest: () => this.disconnectWallet(),
+                lock: () => walletFlows.lock(),
+                hideOtherScreens: () => {
+                    settingsUI.hide({ skipHistory: true });
+                    contactsUI.hide({ skipHistory: true });
+                }
+            });
+
             headerUI.initPillNav({
                 onConnect: () => walletFlows.connectWallet(),
-                onDisconnect: () => this.disconnectWallet(),
-                onSwitchWallet: () => walletFlows.switchWallet(),
                 onChatsTab: () => {
                     settingsUI.hide({ skipHistory: true });
                     contactsUI.hide({ skipHistory: true });
+                    accountsUI.hide({ skipHistory: true });
                     uiController.closeChatView();
                     // Clean orphaned modal history entry
                     if (window.history.state?.modal) {
@@ -143,11 +167,10 @@ class App {
                 onExploreTab: () => {
                     settingsUI.hide({ skipHistory: true });
                     contactsUI.hide({ skipHistory: true });
+                    accountsUI.hide({ skipHistory: true });
                     uiController.openExploreView();
                 },
-                onJoinWithId: () => {
-                    uiController.showQuickJoinModal();
-                },
+                onProfileTab: () => accountsUI.show(),
                 onCreateChannel: () => {
                     channelModalsUI.show();
                 }
@@ -180,9 +203,7 @@ class App {
         const connectBtn = document.getElementById('connect-wallet');
         const disconnectBtn = document.getElementById('disconnect-wallet');
         const switchBtn = document.getElementById('switch-wallet');
-        const desktopJoinIdBtn = document.getElementById('desktop-join-id-btn');
         const syncBtn = document.getElementById('sync-devices-btn');
-        const pillSyncBtn = document.getElementById('pill-sync-devices-btn');
 
         connectBtn.addEventListener('click', () => walletFlows.connectWallet());
 
@@ -194,11 +215,6 @@ class App {
         switchBtn?.addEventListener('click', async () => {
             headerUI._closeDesktopDropdown();
             await walletFlows.switchWallet();
-        });
-
-        desktopJoinIdBtn?.addEventListener('click', () => {
-            headerUI._closeDesktopDropdown();
-            uiController.showQuickJoinModal();
         });
 
         // Sync buttons (desktop + mobile)
@@ -240,8 +256,9 @@ class App {
             await handleSync(syncBtn);
         });
 
-        pillSyncBtn?.addEventListener('click', async () => {
-            await handleSync(pillSyncBtn);
+        const settingsSyncBtn = document.getElementById('settings-sync-devices-btn');
+        settingsSyncBtn?.addEventListener('click', async () => {
+            await handleSync(settingsSyncBtn);
         });
 
         // Best-effort push when the page is being hidden/unloaded.

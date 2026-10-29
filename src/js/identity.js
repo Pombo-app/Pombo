@@ -12,7 +12,6 @@
 import { authManager } from './auth.js';
 import { secureStorage } from './secureStorage.js';
 import { Logger } from './logger.js';
-import { cryptoWorkerPool } from './workers/cryptoWorkerPool.js';
 import { CONFIG } from './config.js';
 import { applyAccount } from './publisherProof.js';
 
@@ -147,13 +146,14 @@ class IdentityManager {
     // ==================== MESSAGE SIGNING ====================
 
     /**
-     * Create signed message payload
+     * Create a message payload. Not signed: the publisher proof added at
+     * publish time (inside the sealed envelope, in DMs) names the author.
      * @param {string} text - Message text
      * @param {string} channelId - Channel ID for context
      * @param {Object|null} replyTo - Reply context (optional)
-     * @returns {Promise<Object>} - Signed message object
+     * @returns {Promise<Object>} - Message object
      */
-    async createSignedMessage(text, channelId, replyTo = null) {
+    async createMessage(text, channelId, replyTo = null) {
         return applyAccount({
             type: 'text', // Explicit type for history filtering
             id: this.generateMessageId(),
@@ -165,7 +165,7 @@ class IdentityManager {
     }
 
     /**
-     * Create a signed chunked-image manifest payload.
+     * Create a chunked-image manifest payload.
      * @param {Object} input
      * @param {string} input.imageId
      * @param {string} input.channelId
@@ -180,7 +180,7 @@ class IdentityManager {
      * @param {number|null} [input.qualityUsed=null]
      * @returns {Promise<Object>}
      */
-    async createSignedImageManifest({
+    async createImageManifest({
         imageId,
         channelId,
         originalMime,
@@ -214,12 +214,11 @@ class IdentityManager {
     }
 
     /**
-     * Create a signed file (file_announce) manifest.
+     * Create a file (file_announce) manifest.
      *
-     * The announcement carries the piece hashes every downloader verifies against,
-     * so those hashes must be covered by the signature. Signing an empty-text
-     * message and attaching the metadata afterwards authenticates nothing about
-     * the file.
+     * The announcement carries the piece hashes every downloader verifies
+     * against; the publish's envelope signature covers them, and the publisher
+     * proof binds that signature to the account.
      *
      * Note there is deliberately no whole-file hash: pieceHashes + pieceCount +
      * fileSize already commit to the content, and crypto.subtle.digest cannot be
@@ -231,7 +230,7 @@ class IdentityManager {
      * @param {Object} input.metadata - File metadata from the hashing worker
      * @returns {Promise<Object>}
      */
-    async createSignedFileManifest({ channelId, metadata }) {
+    async createFileManifest({ channelId, metadata }) {
         return applyAccount({
             type: 'file_announce',
             v: 2,
@@ -244,55 +243,26 @@ class IdentityManager {
     }
 
     /**
-     * Create deterministic hash for file (file_announce) manifests.
-     *
-     * Fields are listed explicitly rather than hashing the metadata object whole:
-     * it fixes the canonical order (so other clients can reproduce it byte for
-     * byte) and stops a future field from silently changing the hash.
-     *
-     * @param {Object} input
-     * @returns {string}
-     */
-    createFileManifestHash({ id, sender, timestamp, channelId, metadata }) {
-        const data = JSON.stringify({
-            protocol: 'POMBO',
-            version: 2,
-            type: 'file_announce',
-            id,
-            sender: sender.toLowerCase(),
-            timestamp,
-            channelId,
-            fileId: metadata?.fileId ?? null,
-            fileName: metadata?.fileName ?? null,
-            fileSize: metadata?.fileSize ?? null,
-            fileType: metadata?.fileType ?? null,
-            pieceCount: metadata?.pieceCount ?? null,
-            pieceHashes: metadata?.pieceHashes ?? []
-        });
-        return ethers.keccak256(ethers.toUtf8Bytes(data));
-    }
-
-    /**
-     * Create a signed storage-file (storage_file_announce) manifest.
+     * Create a storage-file (storage_file_announce) manifest.
      *
      * Persistent File Sharing: chunks already live on the channel's storage
      * nodes when this is published; the manifest is what receivers trust to
      * locate them (partition layout, timestamps window) and to decrypt them
-     * (encSalt on password channels), so all of it is under the signature.
+     * (encSalt on password channels). The publish's envelope signature covers
+     * all of it, so a forged announce cannot redirect a download.
      *
      * Unlike the mesh manifest there are no piece hashes: integrity comes from
-     * AES-GCM authentication on sealed channels. transferId + sizes + chunk
-     * layout are signed so a forged announce cannot redirect a download.
+     * AES-GCM authentication on sealed channels.
      *
      * @param {Object} input
      * @param {string} input.channelId - Channel ID
      * @param {Object} input.metadata - Storage transfer metadata
      * @param {string|null} [input.id] - Reuse a message id (the sender's optimistic
-     *   bubble is pushed at upload start; signing at completion must keep the same
-     *   id so the published echo dedupes against it)
+     *   bubble is pushed at upload start; the manifest built at completion must
+     *   keep the same id so the published echo dedupes against it)
      * @returns {Promise<Object>}
      */
-    async createSignedStorageFileManifest({ channelId, metadata, id = null }) {
+    async createStorageFileManifest({ channelId, metadata, id = null }) {
         return applyAccount({
             type: 'storage_file_announce',
             v: 1,
@@ -302,110 +272,6 @@ class IdentityManager {
             metadata,
             replyTo: null
         }, authManager.getAddress());
-    }
-
-    /**
-     * Deterministic hash for storage-file (storage_file_announce) manifests.
-     * Fields listed explicitly to fix the canonical order — same rule as
-     * createFileManifestHash.
-     *
-     * @param {Object} input
-     * @returns {string}
-     */
-    createStorageFileManifestHash({ id, sender, timestamp, channelId, metadata }) {
-        const data = JSON.stringify({
-            protocol: 'POMBO',
-            version: 1,
-            type: 'storage_file_announce',
-            id,
-            sender: sender.toLowerCase(),
-            timestamp,
-            channelId,
-            transferId: metadata?.transferId ?? null,
-            fileName: metadata?.fileName ?? null,
-            fileType: metadata?.fileType ?? null,
-            originalSize: metadata?.originalSize ?? null,
-            compressedSize: metadata?.compressedSize ?? null,
-            compression: metadata?.compression ?? null,
-            totalChunks: metadata?.totalChunks ?? null,
-            chunkDataSize: metadata?.chunkDataSize ?? null,
-            chunkPartitions: metadata?.chunkPartitions ?? null,
-            firstChunkPartition: metadata?.firstChunkPartition ?? null,
-            firstChunkTs: metadata?.firstChunkTs ?? null,
-            lastChunkTs: metadata?.lastChunkTs ?? null,
-            storedChunks: metadata?.storedChunks ?? null,
-            encSalt: metadata?.encSalt ?? null
-        });
-        return ethers.keccak256(ethers.toUtf8Bytes(data));
-    }
-
-    /**
-     * Create deterministic message hash for signing/verification
-     * Uses keccak256 for cryptographic security and collision resistance
-     * @param {string} id - Message ID
-     * @param {string} text - Message content
-     * @param {string} sender - Sender address
-     * @param {number} timestamp - Message timestamp
-     * @param {string} channelId - Channel ID
-     * @returns {string} - Keccak256 hash of the message data
-     */
-    createMessageHash(id, text, sender, timestamp, channelId) {
-        // Use structured data encoding to prevent delimiter injection attacks
-        const data = JSON.stringify({
-            protocol: 'POMBO',
-            version: 1,
-            id: id,
-            text: text,
-            sender: sender.toLowerCase(),
-            timestamp: timestamp,
-            channelId: channelId
-        });
-        // Use keccak256 for cryptographic hash
-        return ethers.keccak256(ethers.toUtf8Bytes(data));
-    }
-
-    /**
-     * Create deterministic hash for chunked image manifests.
-     * @param {Object} input
-     * @returns {string}
-     */
-    createImageManifestHash({
-        id,
-        imageId,
-        sender,
-        timestamp,
-        channelId,
-        originalMime,
-        finalMime,
-        finalSizeBytes,
-        chunkCount,
-        chunkHashes,
-        assembledSha256,
-        preservedOriginal = false,
-        convertedTo = null,
-        qualityUsed = null
-    }) {
-        const data = JSON.stringify({
-            protocol: 'POMBO',
-            version: 2,
-            type: 'image',
-            transport: 'chunked',
-            id,
-            imageId,
-            sender: sender.toLowerCase(),
-            timestamp,
-            channelId,
-            originalMime,
-            finalMime,
-            finalSizeBytes,
-            chunkCount,
-            chunkHashes,
-            assembledSha256,
-            preservedOriginal: !!preservedOriginal,
-            convertedTo: convertedTo || null,
-            qualityUsed: Number.isFinite(qualityUsed) ? Number(qualityUsed.toFixed(3)) : null
-        });
-        return ethers.keccak256(ethers.toUtf8Bytes(data));
     }
 
     /**
@@ -439,162 +305,45 @@ class IdentityManager {
     }
 
     /**
-     * Verify message signature
-     * Uses Web Worker for CPU-intensive ECDSA signature recovery
-     * @param {Object} message - Message object with signature
-     * @param {string} channelId - Channel ID (optional)
-     * @returns {Object} - Verification result { valid, recoveredAddress, trustLevel, ensName }
+     * Check a received message: it names an account, and a fresh one is not
+     * dated outside the replay window.
+     *
+     * Authorship is settled before this runs. The Streamr envelope signature
+     * authenticates the publisher and the proof at ingest binds it to the
+     * account (`_accountProven`); a legacy message's publisher was the wallet
+     * itself. The app-layer `signature` some legacy payloads still carry adds
+     * no authority and is not checked.
+     *
+     * @param {Object} message - Message object with `account`
+     * @param {string} channelId - Channel ID (unused, kept for callers)
+     * @returns {Object} - { valid, recoveredAddress, trustLevel, ensName }
      */
     async verifyMessage(message, channelId = null, options = {}) {
         const { skipTimestampCheck = false } = options;
-        
-        try {
-            // No app-layer signature is the CURRENT format, not a failure (D6).
-            //
-            // Two signatures used to cover the same claim. Streamr signs the
-            // envelope, authenticating the ephemeral publisher; the proof in the
-            // payload authenticates the account behind it, and streamr.js
-            // verified it at ingest before this message reached anyone. Signing
-            // the body a third time added no authority — it only put `sender`
-            // and `signature` in the clear, re-exposing the very address the
-            // ephemeral publisher exists to hide.
-            //
-            // `account` is therefore already cryptographically established here.
-            // Trusting it is not a weakening: refusing it would reject every
-            // message the app now produces.
-            if (!message.signature) {
-                if (!message.account) {
-                    return { valid: false, error: 'No account', trustLevel: -1 };
-                }
 
-                if (!skipTimestampCheck) {
-                    const timestampResult = this.validateTimestamp(message.timestamp);
-                    if (!timestampResult.valid) {
-                        return {
-                            valid: false,
-                            error: timestampResult.error,
-                            trustLevel: -1,
-                            isReplayAttempt: true
-                        };
-                    }
-                }
+        if (!message.account) {
+            return { valid: false, error: 'No account', trustLevel: -1 };
+        }
 
-                const ens = this.getCachedENS(message.account);
-                return {
-                    valid: true,
-                    recoveredAddress: message.account,
-                    trustLevel: this._getTrustLevelSync(message.account, ens),
-                    ensName: ens
-                };
-            }
-
-            // Everything below is the legacy path: messages published before the
-            // migration, still readable from storage. Kept only for history.
-
-            // Validate timestamp to prevent replay attacks (fast, main thread)
-            if (!skipTimestampCheck) {
-                const timestampResult = this.validateTimestamp(message.timestamp);
-                if (!timestampResult.valid) {
-                    return {
-                        valid: false,
-                        error: timestampResult.error,
-                        trustLevel: -1,
-                        isReplayAttempt: true
-                    };
-                }
-            }
-
-            // Create message hash (fast, main thread)
-            const isChunkedImageManifest = message?.type === 'image' && message?.transport === 'chunked';
-            const isFileManifest = message?.type === 'file_announce' && !!message?.metadata;
-            const isStorageFileManifest = message?.type === 'storage_file_announce' && !!message?.metadata;
-
-            const messageHash = isStorageFileManifest
-                ? this.createStorageFileManifestHash({
-                    id: message.id,
-                    sender: message.sender,
-                    timestamp: message.timestamp,
-                    channelId: message.channelId,
-                    metadata: message.metadata
-                })
-                : isFileManifest
-                ? this.createFileManifestHash({
-                    id: message.id,
-                    sender: message.sender,
-                    timestamp: message.timestamp,
-                    channelId: message.channelId,
-                    metadata: message.metadata
-                })
-                : isChunkedImageManifest
-                ? this.createImageManifestHash({
-                    id: message.id,
-                    imageId: message.imageId,
-                    sender: message.sender,
-                    timestamp: message.timestamp,
-                    channelId: message.channelId,
-                    originalMime: message.originalMime,
-                    finalMime: message.finalMime,
-                    finalSizeBytes: message.finalSizeBytes,
-                    chunkCount: message.chunkCount,
-                    chunkHashes: message.chunkHashes,
-                    assembledSha256: message.assembledSha256,
-                    preservedOriginal: message.preservedOriginal,
-                    convertedTo: message.convertedTo,
-                    qualityUsed: message.qualityUsed
-                })
-                : this.createMessageHash(
-                    message.id,
-                    message.text,
-                    message.sender,
-                    message.timestamp,
-                    message.channelId
-                );
-
-            // Verify signature in worker (CPU-intensive ECDSA recovery)
-            const verification = await cryptoWorkerPool.execute('VERIFY_SIGNATURE', {
-                messageHash,
-                signature: message.signature,
-                expectedSender: message.sender
-            });
-            
-            if (!verification.valid) {
+        if (!skipTimestampCheck) {
+            const timestampResult = this.validateTimestamp(message.timestamp);
+            if (!timestampResult.valid) {
                 return {
                     valid: false,
-                    error: verification.error || 'Signature mismatch',
-                    claimedSender: message.sender,
-                    actualSigner: verification.recoveredAddress,
-                    trustLevel: -1
+                    error: timestampResult.error,
+                    trustLevel: -1,
+                    isReplayAttempt: true
                 };
             }
-
-            // ENS is read from cache only — NEVER resolved here.
-            //
-            // This runs for every message the user sees, including history that
-            // may never be rendered. Resolving here meant handing the full list
-            // of people you talk to, in the clear, to whichever public RPC
-            // answered — a social-graph leak entirely outside Streamr's reach.
-            //
-            // Resolution is now lazy: the UI calls queueENSResolution() for the
-            // senders it actually paints, and re-renders when a name lands. The
-            // UI already tolerates ENS arriving late (see ChannelListUI's
-            // _resolvePreviewSenders and ChatAreaUI's _resolveMessageAvatars).
-            const ensName = this.getCachedENS(verification.recoveredAddress);
-            const trustLevel = this._getTrustLevelSync(verification.recoveredAddress, ensName);
-
-            return {
-                valid: true,
-                recoveredAddress: verification.recoveredAddress,
-                trustLevel: trustLevel,
-                ensName: ensName
-            };
-        } catch (error) {
-            Logger.error('Signature verification failed:', error);
-            return {
-                valid: false,
-                error: error.message,
-                trustLevel: -1
-            };
         }
+
+        const ens = this.getCachedENS(message.account);
+        return {
+            valid: true,
+            recoveredAddress: message.account,
+            trustLevel: this._getTrustLevelSync(message.account, ens),
+            ensName: ens
+        };
     }
 
     // ==================== ENS RESOLUTION ====================
@@ -1118,9 +867,9 @@ class IdentityManager {
      */
     getTrustLevelInfo(level) {
         const levels = {
-            [-1]: { label: 'Invalid Signature', icon: '<svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>', color: 'red', bgColor: 'bg-red-900/30', textColor: 'text-red-400' },
-            [0]: { label: 'Valid Signature', icon: '<svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>', color: 'green', bgColor: '', textColor: 'text-green-400' },
-            [1]: { label: 'ENS Verified', icon: '<svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z"/></svg>', color: 'green', bgColor: '', textColor: 'text-green-400' },
+            [-1]: { label: 'Invalid Signature', icon: '<svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>', color: 'red', bgColor: 'bg-red-900/30', textColor: 'text-danger' },
+            [0]: { label: 'Valid Signature', icon: '<svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>', color: 'green', bgColor: '', textColor: 'text-success' },
+            [1]: { label: 'ENS Verified', icon: '<svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z"/></svg>', color: 'green', bgColor: '', textColor: 'text-success' },
             [2]: { label: 'Trusted Contact', icon: '<svg class="w-3.5 h-3.5 inline" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clip-rule="evenodd"/></svg>', color: 'yellow', bgColor: '', textColor: 'text-yellow-400' }
         };
         return levels[level] || levels[0];

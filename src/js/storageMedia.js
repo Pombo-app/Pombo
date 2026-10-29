@@ -49,6 +49,7 @@ import { getChannelIdentity } from './channelIdentity.js';
 import { dmManager } from './dm.js';
 import { STORAGE_FILE, MESSAGE_STREAM, storageChunkPartition } from './streamConstants.js';
 import { storedOn, keySigner } from './storagePurge.js';
+import { rememberFileRows } from './channelSentRows.js';
 import { epochKeyManager, usesEpochKeys } from './epochKeyManager.js';
 import { epochKeyCrypto } from './epochKeyCrypto.js';
 
@@ -173,9 +174,73 @@ export function buildMissingWindows(meta, missing, fromT, toT) {
     return windows;
 }
 
+/**
+ * Windows that bring a video in roughly front to back, so it can play while
+ * it downloads: contiguous time slices over every partition, the first slice,
+ * then the last (a non-faststart MP4 keeps its index there), then the rest.
+ * The slices tile [fromT, toT] exactly, so they read what the full windows do.
+ */
+export function sequentialWindows(meta, fromT, toT, sliceChunks) {
+    if (!meta.firstChunkTs || !meta.lastChunkTs || meta.totalChunks <= 1) return chunkWindowsFor(meta, fromT, toT);
+    const interval = (meta.lastChunkTs - meta.firstChunkTs) / (meta.totalChunks - 1);
+    const sliceMs = Math.max(1, interval * sliceChunks);
+    const edges = [fromT];
+    for (let t = meta.firstChunkTs + sliceMs; t < meta.lastChunkTs; t += sliceMs) edges.push(Math.round(t));
+    edges.push(toT);
+    const slices = edges.slice(0, -1).map((from, k) => ({ from, to: edges[k + 1] }));
+    const ordered = slices.length > 2 ? [slices[0], slices[slices.length - 1], ...slices.slice(1, -1)] : slices;
+    return ordered.flatMap(s => chunkWindowsFor(meta, s.from, s.to));
+}
+
+/**
+ * Hands out each window once, shared by the fetch workers: in list order,
+ * unless a player waits at `wantedFrom()` — then the earliest windows still
+ * ahead of that time come first, and what lies behind it is filled last.
+ */
+export function windowPicker(windows, wantedFrom = () => null) {
+    const taken = new Array(windows.length).fill(false);
+    let cursor = 0;
+    return {
+        next() {
+            const t = wantedFrom();
+            if (t != null) {
+                let best = -1;
+                for (let i = 0; i < windows.length; i++) {
+                    if (!taken[i] && windows[i].to > t && (best < 0 || windows[i].from < windows[best].from)) best = i;
+                }
+                if (best >= 0) { taken[best] = true; return windows[best]; }
+            }
+            while (cursor < windows.length && taken[cursor]) cursor++;
+            if (cursor >= windows.length) return null;
+            taken[cursor] = true;
+            return windows[cursor++];
+        }
+    };
+}
+
+/** Where a player waiting on chunk `wanted` needs the download to be, a round of partitions early. */
+export function wantedTime(meta, wanted) {
+    if (wanted == null || wanted < 0 || !meta.firstChunkTs || !meta.lastChunkTs || meta.totalChunks <= 1) return null;
+    const interval = (meta.lastChunkTs - meta.firstChunkTs) / (meta.totalChunks - 1);
+    return meta.firstChunkTs + Math.round(interval * (wanted - (meta.chunkPartitions || STORAGE_FILE.CHUNK_PARTITIONS)));
+}
+
+/**
+ * How many partitions an upload spreads its chunks over: the standard count,
+ * or what the stream really has past `firstPartition` (channels created under
+ * an older layout have fewer). Unknown count → the standard one.
+ */
+export function chunkPartitionsFor(partitionCount, firstPartition) {
+    if (!Number.isFinite(partitionCount)) return STORAGE_FILE.CHUNK_PARTITIONS;
+    return Math.max(0, Math.min(STORAGE_FILE.CHUNK_PARTITIONS, partitionCount - firstPartition));
+}
+
 // ================= ENVIRONMENT HELPERS =================
 
 const hasDom = typeof window !== 'undefined' && typeof document !== 'undefined';
+
+// Must match STREAM_PATH in sw.js.
+const STREAM_PATH = '__pombo_stream/';
 
 // Timer worker: setTimeout is throttled to 1/min in hidden tabs; a worker is not.
 let timerWorker = null, timerSeq = 0;
@@ -328,6 +393,169 @@ export async function makeFaststartSource(file) {
         };
     } catch (e) {
         return bail(`parse error: ${e.message}`);
+    }
+}
+
+/**
+ * Gives a fragmented MP4 (what a browser's MediaRecorder writes) a segment
+ * index right after its moov. Without one a player finds the fragments by
+ * walking the file from moof to moof, which a file still downloading cannot
+ * answer, and does not know the duration. Fragment data offsets are relative
+ * to their moof, so inserting a box before them moves nothing they point at.
+ * Returns { blob, changed, reason }; the file unchanged on any doubt.
+ * @param {Blob|File} file
+ */
+export async function addSegmentIndex(file) {
+    const bail = (reason) => ({ blob: file, changed: false, reason });
+    try {
+        const bytes = async (pos, len) => new DataView(await file.slice(pos, pos + len).arrayBuffer());
+        const typeAt = (dv, at) => String.fromCharCode(dv.getUint8(at), dv.getUint8(at + 1), dv.getUint8(at + 2), dv.getUint8(at + 3));
+        const boxes = [];
+        let pos = 0;
+        while (pos + 8 <= file.size) {
+            const hdr = await bytes(pos, Math.min(16, file.size - pos));
+            let size = hdr.getUint32(0, false);
+            const type = typeAt(hdr, 4);
+            if (size === 1) size = hdr.getUint32(8, false) * 4294967296 + hdr.getUint32(12, false);
+            else if (size === 0) size = file.size - pos;
+            if (size < 8 || pos + size > file.size) return bail(`invalid box '${type}'`);
+            boxes.push({ type, pos, size });
+            pos += size;
+        }
+        if (boxes.some(b => b.type === 'sidx')) return bail('already indexed');
+        const moov = boxes.find(b => b.type === 'moov');
+        const moofs = boxes.filter(b => b.type === 'moof');
+        if (!moov || !moofs.length || moov.pos > moofs[0].pos) return bail('not a fragmented MP4');
+
+        const children = (dv, start, end) => {
+            const out = [];
+            for (let p = start; p + 8 <= end;) {
+                const size = dv.getUint32(p, false);
+                if (size < 8 || p + size > end) break;
+                out.push({ type: typeAt(dv, p + 4), pos: p, size });
+                p += size;
+            }
+            return out;
+        };
+        const mv = await bytes(moov.pos, moov.size);
+        const mvKids = children(mv, 8, moov.size);
+        const trak = mvKids.find(b => b.type === 'trak');
+        const mvex = mvKids.find(b => b.type === 'mvex');
+        if (!trak || !mvex) return bail('no track or mvex');
+        const tkhd = children(mv, trak.pos + 8, trak.pos + trak.size).find(b => b.type === 'tkhd');
+        const mdia = children(mv, trak.pos + 8, trak.pos + trak.size).find(b => b.type === 'mdia');
+        const mdhd = mdia && children(mv, mdia.pos + 8, mdia.pos + mdia.size).find(b => b.type === 'mdhd');
+        if (!tkhd || !mdhd) return bail('no tkhd/mdhd');
+        const trackId = mv.getUint32(tkhd.pos + (mv.getUint8(tkhd.pos + 8) === 1 ? 28 : 20), false);
+        const timescale = mv.getUint32(mdhd.pos + (mv.getUint8(mdhd.pos + 8) === 1 ? 28 : 20), false);
+        const trex = children(mv, mvex.pos + 8, mvex.pos + mvex.size).find(b => b.type === 'trex' && mv.getUint32(b.pos + 12, false) === trackId);
+        const trexDuration = trex ? mv.getUint32(trex.pos + 20, false) : 0;
+
+        const refs = [];
+        let earliest = null;
+        for (let i = 0; i < moofs.length; i++) {
+            const m = moofs[i];
+            let k = boxes.indexOf(m) + 1;
+            while (k < boxes.length && boxes[k].type === 'mdat') k++;
+            const end = boxes[k - 1].pos + boxes[k - 1].size;
+            if (i + 1 < moofs.length && end !== moofs[i + 1].pos) return bail('fragments are not contiguous');
+            const dv = await bytes(m.pos, m.size);
+            const traf = children(dv, 8, m.size).filter(b => b.type === 'traf')
+                .find(t => { const h = children(dv, t.pos + 8, t.pos + t.size).find(b => b.type === 'tfhd'); return h && dv.getUint32(h.pos + 12, false) === trackId; });
+            if (!traf) return bail('a fragment without the indexed track');
+            const parts = children(dv, traf.pos + 8, traf.pos + traf.size);
+            const tfhd = parts.find(b => b.type === 'tfhd');
+            const tfhdFlags = dv.getUint32(tfhd.pos + 8, false) & 0xffffff;
+            let o = tfhd.pos + 16;
+            if (tfhdFlags & 0x1) o += 8;
+            if (tfhdFlags & 0x2) o += 4;
+            const defaultDuration = (tfhdFlags & 0x8) ? dv.getUint32(o, false) : trexDuration;
+            const tfdt = parts.find(b => b.type === 'tfdt');
+            if (tfdt && earliest === null) {
+                earliest = dv.getUint8(tfdt.pos + 8) === 1
+                    ? dv.getUint32(tfdt.pos + 12, false) * 4294967296 + dv.getUint32(tfdt.pos + 16, false)
+                    : dv.getUint32(tfdt.pos + 12, false);
+            }
+            let duration = 0;
+            for (const trun of parts.filter(b => b.type === 'trun')) {
+                const flags = dv.getUint32(trun.pos + 8, false) & 0xffffff;
+                const count = dv.getUint32(trun.pos + 12, false);
+                let q = trun.pos + 16 + ((flags & 0x1) ? 4 : 0) + ((flags & 0x4) ? 4 : 0);
+                const stride = ((flags & 0x100) ? 4 : 0) + ((flags & 0x200) ? 4 : 0) + ((flags & 0x400) ? 4 : 0) + ((flags & 0x800) ? 4 : 0);
+                if (flags & 0x100) {
+                    for (let s = 0; s < count; s++, q += stride) duration += dv.getUint32(q, false);
+                } else {
+                    duration += count * defaultDuration;
+                }
+            }
+            if (!duration) return bail('a fragment with no duration');
+            refs.push({ size: end - m.pos, duration });
+        }
+
+        if (refs.length > 0xffff) return bail('too many fragments for a segment index');
+        const sidx = new DataView(new ArrayBuffer(40 + refs.length * 12));
+        let w = 0;
+        const u32 = (x) => { sidx.setUint32(w, x, false); w += 4; };
+        u32(sidx.byteLength); u32(0x73696478); u32(0x01000000);
+        u32(trackId); u32(timescale);
+        u32(Math.floor((earliest || 0) / 4294967296)); u32((earliest || 0) % 4294967296);
+        u32(0); u32(moofs[0].pos - (moov.pos + moov.size));
+        sidx.setUint16(w, 0, false); sidx.setUint16(w + 2, refs.length, false); w += 4;
+        for (const r of refs) {
+            if (r.size > 0x7fffffff) return bail('fragment too large for a segment index');
+            u32(r.size); u32(r.duration); u32(0x90000000);
+        }
+        const cut = moov.pos + moov.size;
+        return {
+            blob: new Blob([file.slice(0, cut), sidx.buffer, file.slice(cut)], { type: file.type || 'video/mp4' }),
+            changed: true,
+            reason: `segment index over ${refs.length} fragment(s) added`
+        };
+    } catch (e) {
+        return bail(`parse error: ${e.message}`);
+    }
+}
+
+/**
+ * A small JPEG of a video's first frame, base64 without a data: prefix, for
+ * the announce to carry. Null when the browser cannot decode the video.
+ * @param {Blob|File} file
+ */
+export async function makeVideoThumbnail(file, { width = 320, maxBytes = 24 * 1024, timeoutMs = 5000 } = {}) {
+    if (!hasDom) return null;
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    try {
+        await new Promise((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error('timeout')), timeoutMs);
+            video.addEventListener('loadeddata', () => { video.currentTime = Math.min(0.1, (video.duration || 0.2) / 2); }, { once: true });
+            video.addEventListener('seeked', () => { clearTimeout(timer); resolve(); }, { once: true });
+            video.addEventListener('error', () => { clearTimeout(timer); reject(new Error('decode')); }, { once: true });
+            video.src = url;
+        });
+        if (!video.videoWidth || !video.videoHeight) return null;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.min(width, video.videoWidth);
+        canvas.height = Math.max(1, Math.round(video.videoHeight * canvas.width / video.videoWidth));
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        for (const quality of [0.7, 0.5, 0.35]) {
+            const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', quality));
+            if (!blob || blob.size > maxBytes) continue;
+            const bytes = new Uint8Array(await blob.arrayBuffer());
+            let bin = '';
+            for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+            return btoa(bin);
+        }
+        return null;
+    } catch (e) {
+        return null;
+    } finally {
+        video.removeAttribute('src');
+        video.load();
+        URL.revokeObjectURL(url);
     }
 }
 
@@ -497,6 +725,12 @@ async function opfsCreateWorkerWriter(name, size, resume) {
                     const n = sync.write(d.data, { at: d.pos });
                     if (n !== d.data.length) throw new Error('short write: ' + n + '/' + d.data.length);
                     postMessage({ type: 'ack', bytes: d.data.length });
+                } else if (d.type === 'read') {
+                    try {
+                        const buf = new Uint8Array(d.len);
+                        const n = sync.read(buf, { at: d.pos });
+                        postMessage({ type: 'read', id: d.id, data: buf.subarray(0, n) });
+                    } catch (err) { postMessage({ type: 'read', id: d.id, error: String(err && err.message || err) }); }
                 } else if (d.type === 'flush') { sync.flush(); postMessage({ type: 'flushed' }); }
                 else if (d.type === 'close') { sync.flush(); sync.close(); postMessage({ type: 'closed' }); }
                 else if (d.type === 'abort') { try { if (sync) sync.close(); } catch (err) {} postMessage({ type: 'closed' }); }
@@ -513,11 +747,15 @@ async function opfsCreateWorkerWriter(name, size, resume) {
     return await new Promise((resolveInit) => {
         let pending = 0, errored = null, errCb = null;
         let drainWaiters = [], flushWaiters = [], closeWaiters = [];
+        const readWaiters = new Map();
+        let readSeq = 0;
         const fail = (msg) => {
             if (!errored) { errored = new Error(msg); if (errCb) errCb(errored); }
             drainWaiters.splice(0).forEach(x => x.res());
             flushWaiters.splice(0).forEach(res => res());
             closeWaiters.splice(0).forEach(res => res());
+            for (const r of readWaiters.values()) r.rej(errored);
+            readWaiters.clear();
         };
         const st = {
             handle,
@@ -527,6 +765,12 @@ async function opfsCreateWorkerWriter(name, size, resume) {
             onError: (fn) => { errCb = fn; if (errored) fn(errored); },
             drainBelow: (limit) => (pending <= limit || errored) ? Promise.resolve() : new Promise(res => drainWaiters.push({ limit, res })),
             flush: () => errored ? Promise.reject(errored) : new Promise((res) => { flushWaiters.push(res); w.postMessage({ type: 'flush' }); }),
+            // Queued behind every write posted before it, so it sees them.
+            read: (pos, len) => errored ? Promise.reject(errored) : new Promise((res, rej) => {
+                const id = ++readSeq;
+                readWaiters.set(id, { res, rej });
+                w.postMessage({ type: 'read', id, pos, len });
+            }),
             writable: {
                 write: (op) => {
                     if (errored) return Promise.reject(errored);
@@ -550,15 +794,37 @@ async function opfsCreateWorkerWriter(name, size, resume) {
                 pending -= d.bytes;
                 drainWaiters = drainWaiters.filter(x => { if (pending <= x.limit) { x.res(); return false; } return true; });
             } else if (d.type === 'flushed') { const f = flushWaiters.shift(); if (f) f(); }
-            else if (d.type === 'closed') { closeWaiters.splice(0).forEach(res => res()); }
+            else if (d.type === 'read') {
+                const r = readWaiters.get(d.id);
+                readWaiters.delete(d.id);
+                if (r) { if (d.error) r.rej(new Error(d.error)); else r.res(d.data); }
+            }
+            else if (d.type === 'closed') {
+                closeWaiters.splice(0).forEach(res => res());
+                for (const r of readWaiters.values()) r.rej(new Error('staging closed'));
+                readWaiters.clear();
+            }
             else if (d.type === 'error') { resolveInit(null); fail(d.message); }
         };
         w.postMessage({ init: true, name, size: size || 0, resume: !!resume });
     });
 }
 
-// Boot-time sweep of stale staging files (kept only while a resume record
-// points at them, or for 30 min after last write).
+// Received videos stay on the device across reloads: their OPFS file is kept,
+// and indexed here, for as long as the mesh keeps its seed files.
+const KEPT_KEY = 'pomboStorageKept';
+function readKept() {
+    try { return JSON.parse(localStorage.getItem(KEPT_KEY)) || {}; } catch (e) { return {}; }
+}
+function writeKept(kept) {
+    try { localStorage.setItem(KEPT_KEY, JSON.stringify(kept)); } catch (e) { /* private mode */ }
+}
+function keptExpired(entry) {
+    return Date.now() - (entry.at || 0) > APP_CONFIG.media.seedFilesExpireDays * 24 * 60 * 60 * 1000;
+}
+
+// Boot-time sweep of stale staging files (kept only while a resume record or
+// a kept video points at them, or for 30 min after last write).
 async function sweepStaleStaging() {
     try {
         const dir = await getOpfsDir();
@@ -570,6 +836,12 @@ async function sweepStaleStaging() {
                 try { const m = JSON.parse(localStorage.getItem(k)); if (m && m.stagingName) keep.add(m.stagingName); } catch (e) { /* corrupt record */ }
             }
         }
+        const kept = readKept();
+        for (const [tid, entry] of Object.entries(kept)) {
+            if (keptExpired(entry)) delete kept[tid];
+            else keep.add(entry.name);
+        }
+        writeKept(kept);
         const stale = [];
         for await (const [name] of dir.entries()) {
             if (!name.startsWith(OPFS_PREFIX) || keep.has(name)) continue;
@@ -989,13 +1261,15 @@ async function fetchWindow(sid, w, onMessage, base) {
  *   so a pause takes effect within one window's worth of latency instead of
  *   waiting for the whole batch — see StorageMediaController.pauseDownload.
  */
-async function fetchWindowsParallel(sid, windows, onMessage, concurrency, bases, shouldStop) {
+async function fetchWindowsParallel(sid, windows, onMessage, concurrency, bases, shouldStop, wantedFrom) {
+    const picker = windowPicker(windows, wantedFrom);
     let next = 0;
     const worker = async () => {
-        while (next < windows.length) {
+        for (;;) {
             if (shouldStop?.()) return;
+            const w = picker.next();
+            if (!w) return;
             const idx = next++;
-            const w = windows[idx];
             const base = (bases && bases.length) ? bases[idx % bases.length] : null;
             try { await fetchWindow(sid, w, onMessage, base); }
             catch (e) { Logger.warn(`storage window P${w.partition} failed: ${e.message}`); }
@@ -1014,6 +1288,9 @@ class StorageMediaController {
         this.downloads = new Map();
         // transferId → {url, blob, metadata} for completed downloads (session cache)
         this.completedFiles = new Map();
+        // transferId → {streamId, file, password, messageId} of an upload this
+        // session announced with gaps: what a retry sends again (memory only)
+        this.retryable = new Map();
         // transferIds whose resume was requested but whose new downloadFile run
         // hasn't flipped the status back to 'downloading' yet (endpoint rotation
         // alone can take seconds) — the bell shows "Resuming…" off this
@@ -1050,6 +1327,12 @@ class StorageMediaController {
     isUploading(tid) { return this.uploads.has(tid); }
     getUploadState(tid) { return this.uploads.get(tid) || null; }
     isDownloading(tid) { return this.downloads.get(tid)?.status === 'downloading'; }
+
+    /** Why the last download of `tid` stopped short, or null. */
+    getDownloadError(tid) {
+        const t = this.downloads.get(tid);
+        return t?.status === 'error' ? (t.error || null) : null;
+    }
 
     /**
      * Pauses a running storage download: the fetch loop stops between windows
@@ -1144,6 +1427,47 @@ class StorageMediaController {
         };
     }
     getFileUrl(tid) { return this.completedFiles.get(tid)?.url || null; }
+
+    canRetryUpload(tid) { return this.retryable.has(tid); }
+
+    /**
+     * Sends an upload that was announced with gaps again, then deletes the
+     * incomplete copy (erasing it from storage with this session's keys). The
+     * old copy stays until the new one is out, so a failed retry loses nothing.
+     */
+    async retryUpload(tid) {
+        const entry = this.retryable.get(tid);
+        if (!entry) throw new Error('This upload can no longer be retried');
+        this.retryable.delete(tid);
+        try {
+            const result = await this.sendFile(entry.streamId, entry.file, entry.password);
+            await channelManager.sendDelete(entry.streamId, entry.messageId);
+            return result;
+        } catch (err) {
+            this.retryable.set(tid, entry);
+            throw err;
+        }
+    }
+
+    /** Brings back the received videos kept on disk by an earlier session. */
+    async restoreKept() {
+        const dir = await getOpfsDir();
+        if (!dir) return;
+        const kept = readKept();
+        let changed = false;
+        for (const [tid, entry] of Object.entries(kept)) {
+            if (keptExpired(entry) || this.completedFiles.has(tid)) continue;
+            try {
+                const file = await (await dir.getFileHandle(entry.name)).getFile();
+                const blob = new Blob([file], { type: entry.metadata?.fileType || 'application/octet-stream' });
+                this.completedFiles.set(tid, { url: URL.createObjectURL(blob), blob, metadata: entry.metadata });
+            } catch (e) {
+                delete kept[tid];
+                changed = true;
+            }
+        }
+        if (changed) writeKept(kept);
+    }
     hasResumeState(tid) {
         const m = getResumeMeta(tid);
         return !!(m && Array.isArray(m.indices) && m.totalChunks);
@@ -1255,7 +1579,7 @@ class StorageMediaController {
      * A 1-byte ping per chunk partition + a wait fixes that. Once per session
      * per stream (re-armed if the client reconnects: callers clear warmedUp).
      */
-    warmUpPartitions(sid, firstPartition, onStatus, identity = null) {
+    warmUpPartitions(sid, firstPartition, count, onStatus, identity = null) {
         if (!sid || this.warmedUp.has(sid)) return Promise.resolve();
         if (this.warmUpPromises.has(sid)) return this.warmUpPromises.get(sid);
         const p = (async () => {
@@ -1264,7 +1588,7 @@ class StorageMediaController {
             // Warm-up pings ride the SAME publisher as the chunks — otherwise
             // the wallet would appear on the channel's -1 stream just from
             // waking its partitions.
-            await Promise.all(Array.from({ length: STORAGE_FILE.CHUNK_PARTITIONS }, (_, k) =>
+            await Promise.all(Array.from({ length: count }, (_, k) =>
                 streamrController.publishStorageChunk(sid, firstPartition + k, ping, identity)
                     .catch(e => Logger.warn(`storage warm-up P${firstPartition + k} failed: ${e.message}`))
             ));
@@ -1388,7 +1712,16 @@ class StorageMediaController {
         const firstChunkPartition = isDM
             ? STORAGE_FILE.DM_FIRST_CHUNK_PARTITION
             : STORAGE_FILE.FIRST_CHUNK_PARTITION;
-        const chunkPartition = (i) => storageChunkPartition(i, firstChunkPartition);
+        const partitionCount = await streamrController.getStreamPartitionCount(messageStreamId).catch((e) => {
+            Logger.warn('storage upload: partition count unknown, assuming the standard layout:', e.message);
+            return null;
+        });
+        const chunkPartitions = chunkPartitionsFor(partitionCount, firstChunkPartition);
+        if (chunkPartitions < 1) throw new Error('This channel has no partitions for files on storage');
+        if (chunkPartitions < STORAGE_FILE.CHUNK_PARTITIONS) {
+            Logger.info(`storage upload: ${chunkPartitions} chunk partitions (stream has ${partitionCount})`);
+        }
+        const chunkPartition = (i) => storageChunkPartition(i, firstChunkPartition, chunkPartitions);
 
         // Endpoint rotation for verify reads. Empty is allowed (verify falls
         // back to SDK resend reads) but on DM uploads the sender has no
@@ -1422,13 +1755,18 @@ class StorageMediaController {
             compression: 'none',
             totalChunks: null,
             chunkDataSize: null,
-            chunkPartitions: STORAGE_FILE.CHUNK_PARTITIONS,
+            chunkPartitions,
             firstChunkPartition,
             firstChunkTs: null,
             lastChunkTs: null,
             storedChunks: null,
             encSalt: sealer.encSalt
         };
+        let thumbnailP = Promise.resolve(null);
+        if (draftMetadata.fileType.startsWith('video/')) {
+            this.completedFiles.set(tid, { url: URL.createObjectURL(file), blob: file, metadata: draftMetadata });
+            thumbnailP = makeVideoThumbnail(file);
+        }
         const localMessage = {
             type: 'storage_file_announce',
             v: 1,
@@ -1505,7 +1843,7 @@ class StorageMediaController {
                 compPct = Math.round(p * 100);
                 if (doneCount === 0) {
                     emitPhase(`Processing… ${compPct}%`, 'processing');
-                    emitProgress(compPct, 0, 1, null);
+                    emitProgress(0, 0, 1, null);
                 }
             };
 
@@ -1523,6 +1861,11 @@ class StorageMediaController {
                     } else {
                         const already = /already faststart/.test(fs.reason);
                         Logger[already ? 'info' : 'warn'](`Faststart: no conversion (${fs.reason})`);
+                    }
+                    const indexed = await addSegmentIndex(compFile);
+                    if (indexed.changed) {
+                        compFile = indexed.blob;
+                        Logger.info(`Segment index: ${indexed.reason}`);
                     }
                 }
                 compSize = compFile.size;
@@ -1615,6 +1958,7 @@ class StorageMediaController {
             // verify must match; a wrong value makes every chunk read back as
             // foreign and repair concludes the upload is missing.
             let chunkIdentity = null;
+            let chunkSigner = null;
             let chunkPublisher = null;
             let chunkPrivateKey = null;
             if (isDM) {
@@ -1640,11 +1984,13 @@ class StorageMediaController {
                 // that is the publisher the verify reads must match.
                 chunkPublisher = channel.gate.address.toLowerCase();
             } else if (!channelManager.usesAccountPublish(messageStreamId)) {
-                chunkIdentity = getChannelIdentity(messageStreamId).identity;
+                const pseudonym = getChannelIdentity(messageStreamId);
+                chunkIdentity = pseudonym.identity;
                 chunkPublisher = await chunkIdentity.getUserId();
+                chunkSigner = { address: pseudonym.wallet.address, sign: (m) => pseudonym.wallet.signMessage(m) };
             }
 
-            await this.warmUpPartitions(messageStreamId, firstChunkPartition, () => emitPhase('Preparing network…', 'processing'), chunkIdentity);
+            await this.warmUpPartitions(messageStreamId, firstChunkPartition, chunkPartitions, () => emitPhase('Preparing network…', 'processing'), chunkIdentity);
 
             let failedChunks = [];
             const firstChunkTs = Date.now();
@@ -1679,7 +2025,7 @@ class StorageMediaController {
             const announceRows = () => (dmManager.rowsOf?.(messageId) || []).filter((r) => r.partition === MESSAGE_STREAM.MESSAGES);
 
             const allPartitionWindows = (from, to) =>
-                Array.from({ length: STORAGE_FILE.CHUNK_PARTITIONS }, (_, k) => ({ partition: firstChunkPartition + k, from, to }));
+                Array.from({ length: chunkPartitions }, (_, k) => ({ partition: firstChunkPartition + k, from, to }));
 
             const windowsForIndices = (indices) => {
                 const PAD = 1500;
@@ -1714,7 +2060,7 @@ class StorageMediaController {
             };
 
             const thr = SM.throttleMs;
-            const PARALLEL = Math.min(STORAGE_FILE.CHUNK_PARTITIONS, Math.max(1, SM.parallel));
+            const PARALLEL = Math.min(chunkPartitions, Math.max(1, SM.parallel));
             const AUTOTUNE = SM.autotune;
             const doVerify = SM.verify;
             const doSecondChance = SM.secondChance;
@@ -1990,17 +2336,15 @@ class StorageMediaController {
             let storedCount = null;
             if (doVerify) {
                 const missingIdx = () => { const m = []; for (let i = 0; i < tc; i++) if (!stored.has(i)) m.push(i); return m; };
-                const updVerifyBar = () => {
-                    const pct = tc > 0 ? Math.round(stored.size / tc * 100) : 0;
-                    emitProgress(pct, stored.size, tc, null);
-                };
+                const updVerifyBar = () => emitProgress(100, stored.size, tc, null);
+                emitPhase('Verifying on storage…', 'verifying');
                 updVerifyBar();
 
                 // Frontier visibility: wait until each partition's NEWEST chunk is
                 // readable before judging the rest — reads before that undercount.
-                const newestByPart = new Array(STORAGE_FILE.CHUNK_PARTITIONS).fill(0);
+                const newestByPart = new Array(chunkPartitions).fill(0);
                 for (let i = 0; i < tc; i++) {
-                    const k = i % STORAGE_FILE.CHUNK_PARTITIONS;
+                    const k = i % chunkPartitions;
                     if (chunkTs[i] && chunkTs[i] > newestByPart[k]) newestByPart[k] = chunkTs[i];
                 }
                 const frontierBaseFor = (k) => bases.length ? bases[k % bases.length] : null;
@@ -2023,7 +2367,7 @@ class StorageMediaController {
                 };
                 if (bases.length && tc > 1) {
                     const pendingParts = new Set();
-                    for (let k = 0; k < STORAGE_FILE.CHUNK_PARTITIONS; k++) if (newestByPart[k] > 0) pendingParts.add(k);
+                    for (let k = 0; k < chunkPartitions; k++) if (newestByPart[k] > 0) pendingParts.add(k);
                     let lastPending = pendingParts.size, frontStall = 0;
                     while (pendingParts.size > 0 && frontStall < 10) {
                         for (const k of [...pendingParts]) {
@@ -2032,7 +2376,7 @@ class StorageMediaController {
                         if (pendingParts.size === 0) break;
                         frontStall = pendingParts.size < lastPending ? 0 : frontStall + 1;
                         lastPending = pendingParts.size;
-                        emitPhase(`Waiting for storage (${STORAGE_FILE.CHUNK_PARTITIONS - pendingParts.size}/${STORAGE_FILE.CHUNK_PARTITIONS} partitions caught up)…`, 'verifying');
+                        emitPhase(`Waiting for storage (${chunkPartitions - pendingParts.size}/${chunkPartitions} partitions caught up)…`, 'verifying');
                         await sleep(2000);
                     }
                 }
@@ -2058,29 +2402,22 @@ class StorageMediaController {
                     updVerifyBar();
                 }
 
-                // Pre-repair drain: re-read while the cluster catches up; repair
-                // only what stalls with the frontier already visible.
-                if (doSecondChance && !verifyBlind && missing.length > Math.max(10, tc * 0.05)) {
+                // Pre-repair drain: publish() resolves long before the chunks
+                // reach storage, and they keep arriving for minutes after. Repair
+                // only once nothing new has landed for a quiet period.
+                if (doSecondChance && !verifyBlind && missing.length > 0) {
                     const scStart = performance.now();
-                    let zeroProgress = 0;
-                    let stalledReal = 0;
+                    const cap = Math.max(5 * 60000, tc * 2000);
+                    let lastProgress = performance.now();
                     Logger.warn(`Storage pre-repair drain: ${missing.length}/${tc} missing after the sweep`);
-                    while (missing.length > 0 && stalledReal < 2 && zeroProgress < 24 && performance.now() - scStart < 5 * 60000) {
+                    while (missing.length > 0 && performance.now() - lastProgress < SM.verifyQuietMs && performance.now() - scStart < cap) {
                         await sleep(2500);
                         const before = missing.length;
                         const found2 = await this.readStoredIndices(messageStreamId, windowsForIndices(missing), tsIndexForVerify(), bases, 'drain', undefined, null, chunkPublisher, chunkPrivateKey);
                         found2.forEach(x => stored.add(x));
                         missing = missingIdx();
                         updVerifyBar();
-                        if (missing.length < before) { zeroProgress = 0; stalledReal = 0; }
-                        else {
-                            zeroProgress++;
-                            const parts = [...new Set(missing.map(i => i % STORAGE_FILE.CHUNK_PARTITIONS))];
-                            let allPassed = true;
-                            for (const k of parts) { if (!(await partFrontierVisible(k))) { allPassed = false; break; } }
-                            if (allPassed) stalledReal++;
-                            else stalledReal = 0;
-                        }
+                        if (missing.length < before) lastProgress = performance.now();
                         emitPhase(`Waiting for storage: ${missing.length} unconfirmed…`, 'verifying');
                     }
                 }
@@ -2094,10 +2431,9 @@ class StorageMediaController {
                     emitPhase(`Repairing (pass ${pass})…`, 'repairing');
                     await republishParallel(missing, `repair pass ${pass}`);
 
-                    let stalled = false;
-                    let noProg = 0;
                     let lastRepairReadMs = 0;
-                    for (let r = 0; r < 30 && missing.length > 0; r++) {
+                    let lastProgress = performance.now();
+                    for (let r = 0; missing.length > 0; r++) {
                         const wait = r === 0 ? 2000 : Math.max(0, 2000 - lastRepairReadMs);
                         if (wait > 0) await sleep(wait);
                         const tRead2 = performance.now();
@@ -2107,12 +2443,9 @@ class StorageMediaController {
                         missing = missingIdx();
                         updVerifyBar();
                         lastRepairReadMs = performance.now() - tRead2;
-                        const progressed = missing.length < before;
-                        stalled = !progressed;
-                        if (progressed) { noProg = 0; continue; }
-                        noProg++;
-                        if (noProg >= 6) {
-                            Logger.warn(`${noProg} reads with no progress — republishing the ${missing.length} missing chunks again`);
+                        if (missing.length < before) { lastProgress = performance.now(); continue; }
+                        if (performance.now() - lastProgress >= SM.verifyQuietMs) {
+                            Logger.warn(`Nothing new for ${Math.round(SM.verifyQuietMs / 1000)}s — republishing the ${missing.length} missing chunks again`);
                             break;
                         }
                     }
@@ -2144,7 +2477,9 @@ class StorageMediaController {
                 lastChunkTs,
                 storedChunks: storedCount
             };
-            const announcement = await identityManager.createSignedStorageFileManifest({
+            const thumbnail = await thumbnailP;
+            if (thumbnail) finalMetadata.thumbnail = thumbnail;
+            const announcement = await identityManager.createStorageFileManifest({
                 channelId: messageStreamId,
                 metadata: finalMetadata,
                 id: messageId
@@ -2170,6 +2505,7 @@ class StorageMediaController {
             } else {
                 const pub = await streamrController.publishMessage(messageStreamId, announcement, password);
                 if (pub && typeof pub.timestamp === 'number') annTss.push(pub.timestamp);
+                if (chunkSigner) rememberFileRows(messageStreamId, messageId, chunkRows(), chunkSigner);
             }
 
             // Persist locally where a replay cannot restore it.
@@ -2224,6 +2560,7 @@ class StorageMediaController {
                 : ok ? `Stored in ${totalSecs}s ✓` : `Stored with gaps (${storedCount}/${tc})`, 'done');
             emitProgress(100, tc, tc, null);
             this.uploads.delete(tid);
+            if (!ok && !unverified) this.retryable.set(tid, { streamId: messageStreamId, file, password, messageId: announcement.id });
             try { this.uploadCompleteCallback?.(tid, localMessage); } catch (e) { /* UI */ }
 
             return { messageId: announcement.id, metadata: finalMetadata };
@@ -2388,12 +2725,17 @@ class StorageMediaController {
             etaHistory: [],
             firstByteTime: null,
             resumedCount: 0,
+            // Chunk indices whose bytes are on disk, and readers waiting for more.
+            written: new Set(),
+            writeWaiters: new Set(),
+            staging: null,
             // Set by pauseDownload()/resumeDownload() — fetchWindowsParallel()
             // checks this between windows and stops early, without discarding
             // any chunk already staged to disk.
             paused: false
         };
         const shouldStop = () => transfer.paused;
+        const wantedFrom = () => wantedTime(meta, transfer.wanted);
         this.downloads.set(tid, transfer);
         this.activeTransfers++;
         this.acquireWakeLock();
@@ -2434,7 +2776,7 @@ class StorageMediaController {
                     if (existing && existing.size === meta.compressedSize) {
                         staging = existing;
                         if (rMeta.upc) upcDl = rMeta.upc;
-                        for (const idx of rMeta.indices) transfer.chunks.set(idx, 0);
+                        for (const idx of rMeta.indices) { transfer.chunks.set(idx, 0); transfer.written.add(idx); }
                         transfer.resumedCount = rMeta.indices.length;
                         Logger.info(`Storage download resume: ${transfer.resumedCount}/${meta.totalChunks} chunks already on disk`);
                     } else {
@@ -2458,6 +2800,7 @@ class StorageMediaController {
                 }
 
                 if (staging && staging.onError) staging.onError((err) => { stagingError = true; Logger.error(`OPFS write (worker) failed: ${err.message}`); });
+                if (staging?.read && !isCompressed) { transfer.staging = staging; transfer.upc = upcDl; }
             }
 
             const persistCheckpoint = (snapshot, snapUpc) => {
@@ -2503,9 +2846,14 @@ class StorageMediaController {
                         ? meta.compressedSize - chunkBytes
                         : u.chunkIndex * upcDl;
                     const idx = u.chunkIndex, data = u.chunkData;
+                    transfer.upc = upcDl;
                     pendingWriteBytes += chunkBytes;
                     writeChain = writeChain
                         .then(() => staging.writable.write({ type: 'write', position: pos, data }))
+                        .then(() => {
+                            transfer.written.add(idx);
+                            for (const wake of transfer.writeWaiters) wake();
+                        })
                         .catch(e => { stagingError = true; Logger.error(`OPFS write failed (chunk ${idx}): ${e.message}`); })
                         .then(() => { pendingWriteBytes -= chunkBytes; });
                     transfer.chunks.set(u.chunkIndex, chunkBytes);
@@ -2535,13 +2883,41 @@ class StorageMediaController {
                 const missing0 = [];
                 for (let i = 0; i < transfer.totalChunks; i++) if (!transfer.chunks.has(i)) missing0.push(i);
                 const windows0 = buildMissingWindows(meta, missing0, fromT, toT);
-                await fetchWindowsParallel(chunkStreamId, windows0, onChunkMessage, DL_CONC, bases, shouldStop);
+                await fetchWindowsParallel(chunkStreamId, windows0, onChunkMessage, DL_CONC, bases, shouldStop, wantedFrom);
             } else {
-                const fullWindows = chunkWindowsFor(meta, fromT, toT);
-                await fetchWindowsParallel(chunkStreamId, fullWindows, onChunkMessage, DL_CONC, bases, shouldStop);
+                const fullWindows = (meta.fileType || '').startsWith('video/')
+                    ? sequentialWindows(meta, fromT, toT, SM.videoSliceChunks)
+                    : chunkWindowsFor(meta, fromT, toT);
+                // A player stuck on a chunk the pass already read past fetches it
+                // directly: near its estimated time first, then its whole partition.
+                let fullDone = false;
+                const chase = (async () => {
+                    let chased = -1, tries = 0;
+                    while (!fullDone && !transfer.paused) {
+                        await sleep(2000);
+                        const w = transfer.wanted;
+                        if (fullDone || w == null || w < 0 || w >= transfer.totalChunks || transfer.chunks.has(w)) continue;
+                        if (Date.now() - (transfer.wantedSince || 0) < SM.stallChaseMs) continue;
+                        if (w !== chased) { chased = w; tries = 0; }
+                        tries++;
+                        Logger.info(`Storage download: player waits on chunk ${w}, fetching it directly (try ${tries})`);
+                        const wins = tries === 1
+                            ? buildMissingWindows(meta, [w], fromT, toT)
+                            : [{ partition: partitionOfChunk(meta, w), from: fromT, to: toT }];
+                        await fetchWindowsParallel(chunkStreamId, wins, onChunkMessage, DL_CONC, bases, shouldStop);
+                        transfer.wantedSince = Date.now();
+                    }
+                })();
+                try {
+                    await fetchWindowsParallel(chunkStreamId, fullWindows, onChunkMessage, DL_CONC, bases, shouldStop, wantedFrom);
+                } finally {
+                    fullDone = true;
+                }
+                await chase;
             }
 
             let retryPass = 0;
+            let widened = false;
             while (!transfer.paused && transfer.chunks.size < transfer.totalChunks && retryPass < SM.downloadRetryPasses) {
                 retryPass++;
                 await sleep(2000 * retryPass);
@@ -2550,8 +2926,17 @@ class StorageMediaController {
                 for (let i = 0; i < transfer.totalChunks; i++) if (!transfer.chunks.has(i)) missingNow.push(i);
                 const windows = buildMissingWindows(meta, missingNow, fromT, toT);
                 Logger.warn(`Storage download retry ${retryPass}/${SM.downloadRetryPasses}: ${missingNow.length} chunks missing → ${windows.length} window(s)`);
-                await fetchWindowsParallel(chunkStreamId, windows, onChunkMessage, DL_CONC, bases, shouldStop);
-                const recovered = transfer.chunks.size - (transfer.totalChunks - missingNow.length);
+                await fetchWindowsParallel(chunkStreamId, windows, onChunkMessage, DL_CONC, bases, shouldStop, wantedFrom);
+                let recovered = transfer.chunks.size - (transfer.totalChunks - missingNow.length);
+                if (recovered === 0 && !widened && !transfer.paused) {
+                    // The windows guess each chunk's time from its index, and an upload
+                    // that published in bursts puts chunks far from that guess.
+                    widened = true;
+                    const parts = [...new Set(missingNow.map(i => partitionOfChunk(meta, i)))].sort((a, b) => a - b);
+                    Logger.warn(`Storage retry: estimated windows found nothing, reading P${parts.join(',P')} over the full range`);
+                    await fetchWindowsParallel(chunkStreamId, parts.map(partition => ({ partition, from: fromT, to: toT })), onChunkMessage, DL_CONC, bases, shouldStop);
+                    recovered = transfer.chunks.size - (transfer.totalChunks - missingNow.length);
+                }
                 if (recovered === 0) {
                     Logger.warn(`Storage retry made no progress: the storage does not have the ${missingNow.length} missing chunks — incomplete upload`);
                     break;
@@ -2560,6 +2945,7 @@ class StorageMediaController {
 
             if (transfer.chunks.size === transfer.totalChunks && !stagingError) {
                 let blob = null;
+                let keptName = null;
                 if (staging) {
                     transfer.phase = 'Finishing write to disk…';
                     emitProgress();
@@ -2567,14 +2953,17 @@ class StorageMediaController {
                     await staging.writable.close();
                     const stagedFile = await staging.handle.getFile();
                     if (!isCompressed) {
+                        // The blob reads the staged file lazily: deleting it
+                        // here leaves an unreadable URL. The boot sweep removes it.
                         blob = new Blob([stagedFile], { type: meta.fileType || 'application/octet-stream' });
+                        keptName = stagingName;
                         staging = null;
                         clearResumeMeta(tid);
-                        opfsDelete(stagingName);
                     } else {
                         // Streaming decompression staged→OPFS output (never the
                         // whole file in RAM).
                         const outName = stagingName.replace(/\.z$/, '.bin');
+                        keptName = outName;
                         const out = await opfsCreate(outName);
                         if (!out) throw new Error('OPFS output creation failed');
                         const SLICE = 4 * 1024 * 1024;
@@ -2662,6 +3051,15 @@ class StorageMediaController {
                 transfer.status = 'complete';
                 const url = URL.createObjectURL(blob);
                 this.completedFiles.set(tid, { url, blob, metadata: meta });
+                if (keptName && (meta.fileType || '').startsWith('video/')) {
+                    const kept = readKept();
+                    kept[tid] = {
+                        name: keptName,
+                        at: Date.now(),
+                        metadata: { transferId: tid, fileName: meta.fileName, fileType: meta.fileType, originalSize: meta.originalSize }
+                    };
+                    writeKept(kept);
+                }
                 emitProgress();
                 try { this.fileCompleteCallback?.(tid, meta, url, blob); } catch (e) { /* UI */ }
                 Logger.info(`Storage download complete: ${meta.fileName} (${transfer.totalChunks} chunks)`);
@@ -2696,7 +3094,7 @@ class StorageMediaController {
                 transfer.status = 'error';
                 transfer.error = stagingError
                     ? 'Disk write error during staging'
-                    : 'Storage incomplete — some chunks are not on the storage nodes. The sender can repair by re-uploading; Retry later.';
+                    : `Incomplete on storage (${transfer.chunks.size}/${transfer.totalChunks})`;
                 if (staging) {
                     if (stagingError) {
                         try { await staging.writable.abort(); } catch (e) { /* dead */ }
@@ -2730,8 +3128,61 @@ class StorageMediaController {
             try { this.fileErrorCallback?.(tid, error.message); } catch (e) { /* UI */ }
             throw error;
         } finally {
+            transfer.staging = null;
+            for (const wake of transfer.writeWaiters) wake();
             this.activeTransfers--;
             this.releaseWakeLock();
+        }
+    }
+
+    /**
+     * Where a video still downloading can play from, through the service
+     * worker; null when this transfer cannot stream (the tile then plays it
+     * once it is complete).
+     */
+    streamUrl(tid) {
+        if (!hasDom || !navigator.serviceWorker?.controller) return null;
+        const t = this.downloads.get(tid);
+        if (!t?.staging || !(t.metadata.fileType || '').startsWith('video/')) return null;
+        return new URL(`${STREAM_PATH}${encodeURIComponent(tid)}`, document.baseURI).href;
+    }
+
+    /**
+     * Up to `max` bytes of a streaming video from `start`: the run already on
+     * disk, waiting for its first chunk if it has not landed yet. Null when
+     * the transfer is neither streaming nor complete.
+     */
+    async readStream(tid, start, max) {
+        for (;;) {
+            const done = this.completedFiles.get(tid);
+            if (done) {
+                const size = done.blob.size;
+                const end = Math.min(size, start + max);
+                const data = start >= size ? new Uint8Array(0) : new Uint8Array(await done.blob.slice(start, end).arrayBuffer());
+                return { size, type: done.metadata?.fileType || done.blob.type, data };
+            }
+            const t = this.downloads.get(tid);
+            if (!t || t.status !== 'downloading') return null;
+            const meta = t.metadata;
+            const size = meta.compressedSize;
+            if (start >= size) return { size, type: meta.fileType, data: new Uint8Array(0) };
+            if (t.staging && t.upc) {
+                const first = Math.floor(start / t.upc);
+                let next = first;
+                while (next < meta.totalChunks && t.written.has(next)) next++;
+                const end = Math.min(size, next * t.upc, start + max);
+                if (end > start) {
+                    try {
+                        return { size, type: meta.fileType, data: await t.staging.read(start, end - start) };
+                    } catch (e) { /* closing for assembly: wait for it to finish */ }
+                }
+                if (t.wanted !== first) { t.wanted = first; t.wantedSince = Date.now(); }
+            }
+            await new Promise((res) => {
+                const wake = () => { clearTimeout(timer); t.writeWaiters.delete(wake); res(); };
+                const timer = setTimeout(wake, 30000);
+                t.writeWaiters.add(wake);
+            });
         }
     }
 
@@ -2749,3 +3200,18 @@ class StorageMediaController {
 }
 
 export const storageMediaController = new StorageMediaController();
+if (hasDom) storageMediaController.restoreKept();
+
+if (hasDom && navigator.serviceWorker) {
+    // Same registration as the push setup: streaming must not wait for push.
+    navigator.serviceWorker.register(new URL('sw.js', document.baseURI), { scope: new URL('./', document.baseURI).pathname })
+        .catch((e) => Logger.warn('Service Worker registration failed — videos play once downloaded:', e.message));
+    navigator.serviceWorker.addEventListener('message', (event) => {
+        const d = event.data;
+        const port = event.ports?.[0];
+        if (d?.type !== 'POMBO_STREAM_READ' || !port) return;
+        storageMediaController.readStream(d.tid, d.start, d.max)
+            .then(r => r ? port.postMessage(r) : port.postMessage({ error: 'not streaming' }))
+            .catch(e => port.postMessage({ error: e.message }));
+    });
+}

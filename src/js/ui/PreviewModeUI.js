@@ -345,7 +345,7 @@ class PreviewModeUI {
             });
         } else {
             elements.messagesArea.innerHTML = `
-                <div class="flex flex-col items-center justify-center h-full text-white/40">
+                <div class="flex flex-col items-center justify-center h-full text-overlay-40">
                     <div class="spinner mb-3" style="width: 24px; height: 24px;"></div>
                     <span class="text-sm">Loading messages...</span>
                 </div>
@@ -366,7 +366,7 @@ class PreviewModeUI {
             if (ownerChannel.isLoading && ownerChannel.messages.length === 0) {
                 ownerChannel.isLoading = false;
                 elements.messagesArea.innerHTML = `
-                    <div class="flex items-center justify-center h-full text-white/40">
+                    <div class="flex items-center justify-center h-full text-overlay-40">
                         No messages yet. Start the conversation!
                     </div>
                 `;
@@ -1010,7 +1010,7 @@ class PreviewModeUI {
         const streamId = this.previewChannel.streamId;
         
         // Create signed message using identity manager (same as channelManager)
-        const message = await identityManager.createSignedMessage(text, streamId, replyTo);
+        const message = await identityManager.createMessage(text, streamId, replyTo);
         
         // Add verification info for local display
         message.verified = {
@@ -1524,7 +1524,7 @@ class PreviewModeUI {
             );
             for (const el of placeholders) {
                 el.innerHTML = `
-                    <div class="flex flex-col items-center gap-2 text-white/40 text-sm p-3">
+                    <div class="flex flex-col items-center gap-2 text-overlay-40 text-sm p-3">
                         <div class="flex items-center gap-2">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -1532,7 +1532,7 @@ class PreviewModeUI {
                             </svg>
                             <span>Image unavailable</span>
                         </div>
-                        <button type="button" class="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs" data-retry-image-id="${escapeAttr(imageId)}">Retry</button>
+                        <button type="button" class="px-2 py-1 rounded bg-overlay-10 hover:bg-overlay-20 text-overlay-80 text-xs" data-retry-image-id="${escapeAttr(imageId)}">Retry</button>
                     </div>
                 `;
                 const btn = el.querySelector(`[data-retry-image-id="${CSS.escape(imageId)}"]`);
@@ -1562,8 +1562,8 @@ class PreviewModeUI {
         try {
             if (placeholderEl) {
                 placeholderEl.innerHTML = `
-                    <div class="flex items-center gap-2 text-white/40 text-sm">
-                        <div class="w-4 h-4 border-2 border-white/30 border-t-white/80 rounded-full animate-spin" aria-hidden="true"></div>
+                    <div class="flex items-center gap-2 text-overlay-40 text-sm">
+                        <div class="w-4 h-4 border-2 border-overlay-30 border-t-overlay-80 rounded-full animate-spin" aria-hidden="true"></div>
                         <span>Loading\u2026</span>
                     </div>
                 `;

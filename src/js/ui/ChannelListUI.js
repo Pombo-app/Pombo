@@ -28,6 +28,7 @@ class ChannelListUI {
         this.onChannelSelect = null;
         this.onFinishPendingCreate = null;
         this.onDiscardPendingCreate = null;
+        this.openExploreView = null;
 
         // Tracks which adminStreamIds / DM peers we have *attempted* to
         // resolve. Any row not in these sets renders a spinner placeholder
@@ -45,12 +46,13 @@ class ChannelListUI {
     /**
      * Set dependencies for the module
      */
-    setDependencies({ channelManager, secureStorage, onChannelSelect, onFinishPendingCreate, onDiscardPendingCreate }) {
+    setDependencies({ channelManager, secureStorage, onChannelSelect, onFinishPendingCreate, onDiscardPendingCreate, openExploreView }) {
         this.channelManager = channelManager;
         this.secureStorage = secureStorage;
         this.onChannelSelect = onChannelSelect;
         this.onFinishPendingCreate = onFinishPendingCreate || null;
         this.onDiscardPendingCreate = onDiscardPendingCreate || null;
+        this.openExploreView = openExploreView || null;
 
         // Wire a single global listener for channel-image updates so any
         // visible row gets its avatar refreshed without a full re-render.
@@ -473,14 +475,14 @@ class ChannelListUI {
         const block = document.createElement('div');
         block.className = 'pending-creates space-y-1.5';
         block.innerHTML = records.map(record => `
-            <div class="pending-create mx-2 rounded-xl bg-white/[0.02] border border-white/[0.04] px-3 py-2.5" data-pending-base="${escapeAttr(record.basePath)}">
+            <div class="pending-create mx-2 rounded-xl bg-overlay-2 border border-overlay-4 px-3 py-2.5" data-pending-base="${escapeAttr(record.basePath)}">
                 <div class="flex items-center gap-1.5 min-w-0">
-                    <h3 class="text-sm font-medium text-white/90 truncate">${escapeHtml(sanitizeText(record.name))}</h3>
-                    <span class="text-[12px] text-white/40 flex-shrink-0">· creation interrupted</span>
+                    <h3 class="text-sm font-medium text-overlay-90 truncate">${escapeHtml(sanitizeText(record.name))}</h3>
+                    <span class="text-[12px] text-overlay-40 flex-shrink-0">· creation interrupted</span>
                 </div>
                 <div class="flex items-center gap-2 mt-2">
-                    <button type="button" data-pending-action="finish" class="bg-white/90 hover:bg-white text-[#0a0a0a] px-3 py-1 rounded-md text-[11px] font-medium transition">Finish</button>
-                    <button type="button" data-pending-action="discard" class="bg-white/10 hover:bg-white/20 text-white/70 px-3 py-1 rounded-md text-[11px] font-medium transition">Discard</button>
+                    <button type="button" data-pending-action="finish" class="bg-overlay-90 hover:bg-white text-surface-2 px-3 py-1 rounded-md text-[11px] font-medium transition">Finish</button>
+                    <button type="button" data-pending-action="discard" class="bg-overlay-10 hover:bg-overlay-20 text-overlay-70 px-3 py-1 rounded-md text-[11px] font-medium transition">Discard</button>
                 </div>
             </div>`).join('');
         this.elements.channelList.prepend(block);
@@ -508,8 +510,15 @@ class ChannelListUI {
             : `No ${this.currentFilter} channels`;
 
         const emptyState = document.createElement('div');
-        emptyState.className = 'p-4 text-center text-white/25 text-[13px]';
+        emptyState.className = 'p-4 flex flex-col items-center gap-3 text-center text-overlay-25 text-[13px]';
         emptyState.textContent = filterMsg;
+        if (this.currentFilter === 'all' && this.openExploreView) {
+            const explore = document.createElement('button');
+            explore.className = 'px-4 py-2 rounded-xl text-sm bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-70 transition';
+            explore.textContent = 'Explore channels';
+            explore.addEventListener('click', () => this.openExploreView());
+            emptyState.appendChild(explore);
+        }
         this.elements.channelList.replaceChildren(emptyState);
         Logger.debug('ChannelListUI: No channels to render');
     }
@@ -652,7 +661,7 @@ class ChannelListUI {
      */
     _renderReadOnlyIcon(readOnly = false) {
         if (!readOnly) return '';
-        const cls = 'w-3.5 h-3.5 text-white/40 flex-shrink-0';
+        const cls = 'w-3.5 h-3.5 text-overlay-40 flex-shrink-0';
         return `<svg class="${cls}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>`;
     }
 
@@ -662,11 +671,11 @@ class ChannelListUI {
      */
     _renderChannelItem(channelViewModel) {
         const countClass = channelViewModel.hasUnread 
-            ? 'text-white bg-[#F6851B]/20 font-medium' 
-            : 'text-white/30 bg-white/[0.04]';
+            ? 'text-primary bg-[#F6851B]/20 font-medium' 
+            : 'text-overlay-30 bg-overlay-4';
 
         const activeClass = channelViewModel.isActive 
-            ? 'border-l-2 border-l-[#F6851B] bg-white/[0.06]' 
+            ? 'border-l-2 border-l-[#F6851B] bg-overlay-6' 
             : 'border-l-2 border-l-transparent';
 
         // Icon / avatar slot:
@@ -677,7 +686,7 @@ class ChannelListUI {
         // Render image / avatar / spinner. We show a spinner whenever the
         // remote lookup is still pending so the deterministic fallback
         // doesn't flash before the real image / ENS avatar arrives.
-        const spinnerSlot = `<div class="rounded-full flex items-center justify-center bg-white/[0.04]" style="width:44px;height:44px"><div class="thumb-spinner" style="width:16px;height:16px"></div></div>`;
+        const spinnerSlot = `<div class="rounded-full flex items-center justify-center bg-overlay-4" style="width:44px;height:44px"><div class="thumb-spinner" style="width:16px;height:16px"></div></div>`;
         let iconSlot = '';
         if (channelViewModel.type === 'dm') {
             const seed = channelViewModel.peerAddress || channelViewModel.streamId;
@@ -702,7 +711,7 @@ class ChannelListUI {
 
         return `
             <div
-                class="channel-item mx-2 rounded-xl cursor-pointer bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.06] hover:border-white/[0.08] transition-all duration-200 group ${activeClass}"
+                class="channel-item mx-2 rounded-xl cursor-pointer bg-overlay-2 border border-overlay-4 hover:bg-overlay-6 hover:border-overlay-8 transition-all duration-200 group ${activeClass}"
                 data-stream-id="${escapeAttr(channelViewModel.streamId)}"
                 data-admin-stream-id="${escapeAttr(channelViewModel.adminStreamId || '')}"
                 draggable="true"
@@ -715,7 +724,7 @@ class ChannelListUI {
                     <!-- Two stacked rows: name + read-only icon | preview line -->
                     <div class="channel-item-main flex-1 min-w-0">
                         <div class="flex items-center min-w-0">
-                            <h3 class="text-sm font-medium text-white/90 truncate">${escapeHtml(sanitizeText(channelViewModel.name))}</h3>
+                            <h3 class="text-sm font-medium text-overlay-90 truncate">${escapeHtml(sanitizeText(channelViewModel.name))}</h3>
                             ${readOnlyIcon ? `<div class="channel-item-readonly-icon flex items-center flex-shrink-0">${readOnlyIcon}</div>` : ''}
                         </div>
                         <div class="channel-preview-slot">
@@ -725,7 +734,7 @@ class ChannelListUI {
                     <!-- Right side: drag handle + counter (vertically centered between the 2 rows by the body's items-center) -->
                     <div class="channel-item-actions flex items-center flex-shrink-0">
                         <!-- Drag handle (6 dots) - visible on hover -->
-                        <div class="drag-handle cursor-grab opacity-0 group-hover:opacity-100 transition-opacity text-white/20 hover:text-white/40" title="Drag to reorder">
+                        <div class="drag-handle cursor-grab opacity-0 group-hover:opacity-100 transition-opacity text-overlay-20 hover:text-overlay-40" title="Drag to reorder">
                             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                                 <circle cx="8" cy="6" r="1.5"/>
                                 <circle cx="16" cy="6" r="1.5"/>
@@ -737,7 +746,7 @@ class ChannelListUI {
                         </div>
                         ${channelViewModel.hasUnread 
                             ? `<span class="channel-msg-count text-[10px] ${countClass} rounded-md" data-channel-count="${escapeAttr(channelViewModel.streamId)}">${channelViewModel.displayCount}</span>` 
-                            : `<span class="channel-msg-count text-[10px] text-white/30 bg-white/[0.04] rounded-md hidden" data-channel-count="${escapeAttr(channelViewModel.streamId)}">0</span>`
+                            : `<span class="channel-msg-count text-[10px] text-overlay-30 bg-overlay-4 rounded-md hidden" data-channel-count="${escapeAttr(channelViewModel.streamId)}">0</span>`
                         }
                     </div>
                 </div>
@@ -955,13 +964,13 @@ class ChannelListUI {
 
         if (count > 0) {
             badge.textContent = count >= 30 ? '+30' : count;
-            badge.classList.remove('hidden', 'text-white/30', 'bg-white/[0.04]');
-            badge.classList.add('text-white', 'bg-[#F6851B]/20', 'font-medium');
+            badge.classList.remove('hidden', 'text-overlay-30', 'bg-overlay-4');
+            badge.classList.add('text-primary', 'bg-[#F6851B]/20', 'font-medium');
         } else {
             badge.textContent = '0';
             badge.classList.add('hidden');
-            badge.classList.remove('text-white', 'bg-[#F6851B]/20', 'font-medium');
-            badge.classList.add('text-white/30', 'bg-white/[0.04]');
+            badge.classList.remove('text-primary', 'bg-[#F6851B]/20', 'font-medium');
+            badge.classList.add('text-overlay-30', 'bg-overlay-4');
         }
     }
 
@@ -973,7 +982,7 @@ class ChannelListUI {
         this.elements.channelList?.querySelectorAll('.channel-item').forEach(item => {
             const isActive = item.dataset.streamId === streamId;
             item.classList.toggle('border-l-[#F6851B]', isActive);
-            item.classList.toggle('bg-white/[0.06]', isActive);
+            item.classList.toggle('bg-overlay-6', isActive);
             item.classList.toggle('border-l-transparent', !isActive);
         });
     }

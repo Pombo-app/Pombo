@@ -1,5 +1,6 @@
 import { escapeHtml as _escapeHtml, escapeAttr as _escapeAttr } from './utils.js';
 import { getAvatarHtml, downgradeEnsAvatars } from './AvatarGenerator.js';
+import { holdToConfirm } from './holdToConfirm.js';
 import {
     CONFIG,
     loadRpcSelection,
@@ -11,7 +12,6 @@ import {
 import { rpcHealth, describeVerdict } from '../rpcHealth.js';
 import { MESSAGE_STREAM } from '../streamConstants.js';
 import { importBackupData } from '../backupImport.js';
-import { positionPillDropdown } from './pillDropdown.js';
 
 /**
  * Settings UI Manager
@@ -22,9 +22,17 @@ class SettingsUI {
     constructor() {
         this.deps = {};
         this.elements = {};
-        this.settingsTabOrder = ['profile', 'devicesync', 'notifications', 'api', 'linkpreviews', 'privacy', 'security', 'repair', 'about'];
-        this.currentSettingsTabIndex = 0;
-        this.isAnimating = false; // Prevent multiple simultaneous animations
+        this.sectionTitles = {
+            profile: 'Account',
+            devicesync: 'Device Sync',
+            notifications: 'Notifications',
+            api: 'Networks',
+            linkpreviews: 'Content',
+            privacy: 'Privacy',
+            security: 'Security',
+            repair: 'DM Inbox',
+            about: 'About'
+        };
     }
 
     /**
@@ -67,20 +75,20 @@ class SettingsUI {
         const modal = document.createElement('div');
         modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50';
         modal.innerHTML = `
-            <div class="bg-[#111113] rounded-2xl w-[300px] overflow-hidden shadow-2xl border border-white/[0.06]">
+            <div class="bg-surface rounded-2xl w-[300px] overflow-hidden shadow-2xl border border-overlay-6">
                 <div class="px-5 pt-5 pb-2">
-                    <h3 class="text-[14px] font-medium text-white">${_escapeHtml(title)}</h3>
-                    <p class="text-[11px] text-white/30 mt-0.5">${_escapeHtml(subtitle)}</p>
+                    <h3 class="text-[14px] font-medium text-primary">${_escapeHtml(title)}</h3>
+                    <p class="text-[11px] text-overlay-30 mt-0.5">${_escapeHtml(subtitle)}</p>
                 </div>
                 <div class="px-5 pb-5 pt-3">
                     <div class="flex items-center justify-between mb-1.5">
-                        <span class="text-[10px] text-white/30">Progress</span>
-                        <span class="text-[10px] font-medium text-white" id="progress-label">0%</span>
+                        <span class="text-[10px] text-overlay-30">Progress</span>
+                        <span class="text-[10px] font-medium text-primary" id="progress-label">0%</span>
                     </div>
-                    <div class="h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+                    <div class="h-1.5 bg-overlay-5 rounded-full overflow-hidden">
                         <div id="progress-bar" class="h-full bg-white transition-all duration-300 ease-out" style="width: 0%"></div>
                     </div>
-                    <p class="text-[10px] text-white/25 text-center mt-3">This may take a few seconds...</p>
+                    <p class="text-[10px] text-overlay-25 text-center mt-3">This may take a few seconds...</p>
                 </div>
             </div>
         `;
@@ -125,7 +133,6 @@ class SettingsUI {
         const lockBtn = document.getElementById('lock-private-key-btn');
 
         let unlockedPrivateKey = null;
-        let holdTimer = null;
         let isKeyVisible = false;
 
         // Unlock private key
@@ -172,55 +179,30 @@ class SettingsUI {
                     isKeyVisible = !isKeyVisible;
                     privateKeyDisplay.type = isKeyVisible ? 'text' : 'password';
                     toggleVisibilityBtn.innerHTML = isKeyVisible 
-                        ? '<svg class="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>'
-                        : '<svg class="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>';
+                        ? '<svg class="w-4 h-4 text-overlay-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>'
+                        : '<svg class="w-4 h-4 text-overlay-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>';
                 }
             });
         }
 
-        // Long press to copy (2 seconds)
         if (copyKeyBtn) {
-            const startHold = () => {
-                if (!unlockedPrivateKey) return;
-                
-                copyKeyProgress?.classList.remove('-translate-x-full');
-                copyKeyProgress?.classList.add('translate-x-0');
-                if (copyKeyText) copyKeyText.textContent = 'Keep holding...';
-
-                holdTimer = setTimeout(async () => {
+            const { idleText } = holdToConfirm(copyKeyBtn, {
+                label: copyKeyText,
+                progress: copyKeyProgress,
+                canStart: () => !!unlockedPrivateKey,
+                onConfirm: async () => {
                     try {
                         await navigator.clipboard.writeText(unlockedPrivateKey);
                         this.showNotification('Private key copied!', 'success');
                         if (copyKeyText) copyKeyText.textContent = 'Copied!';
-                        
                         setTimeout(() => {
-                            if (copyKeyText) copyKeyText.textContent = 'Hold to Copy Private Key (2s)';
+                            if (copyKeyText) copyKeyText.textContent = idleText;
                         }, 2000);
                     } catch (e) {
                         this.showNotification('Failed to copy', 'error');
                     }
-                    resetProgress();
-                }, 2000);
-            };
-
-            const resetProgress = () => {
-                if (holdTimer) {
-                    clearTimeout(holdTimer);
-                    holdTimer = null;
                 }
-                copyKeyProgress?.classList.remove('translate-x-0');
-                copyKeyProgress?.classList.add('-translate-x-full');
-                if (copyKeyText && copyKeyText.textContent === 'Keep holding...') {
-                    copyKeyText.textContent = 'Hold to Copy Private Key (2s)';
-                }
-            };
-
-            copyKeyBtn.addEventListener('mousedown', startHold);
-            copyKeyBtn.addEventListener('touchstart', startHold);
-            copyKeyBtn.addEventListener('mouseup', resetProgress);
-            copyKeyBtn.addEventListener('mouseleave', resetProgress);
-            copyKeyBtn.addEventListener('touchend', resetProgress);
-            copyKeyBtn.addEventListener('touchcancel', resetProgress);
+            });
         }
 
         // Lock (reset to step 1)
@@ -234,7 +216,7 @@ class SettingsUI {
                     privateKeyDisplay.type = 'password';
                 }
                 isKeyVisible = false;
-                if (toggleVisibilityBtn) toggleVisibilityBtn.innerHTML = '<svg class="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>';
+                if (toggleVisibilityBtn) toggleVisibilityBtn.innerHTML = '<svg class="w-4 h-4 text-overlay-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>';
                 this.showNotification('Private key locked', 'info');
             });
         }
@@ -381,7 +363,6 @@ class SettingsUI {
         const cancelBtn = document.getElementById('cancel-delete-account-btn');
 
         let isPasswordVerified = false;
-        let holdTimer = null;
 
         // Verify password
         if (verifyBtn) {
@@ -422,16 +403,12 @@ class SettingsUI {
             });
         }
 
-        // Long press to delete (2 seconds)
         if (deleteBtn) {
-            const startHold = () => {
-                if (!isPasswordVerified) return;
-                
-                deleteProgress?.classList.remove('-translate-x-full');
-                deleteProgress?.classList.add('translate-x-0');
-                if (deleteText) deleteText.textContent = 'Keep holding...';
-
-                holdTimer = setTimeout(async () => {
+            holdToConfirm(deleteBtn, {
+                label: deleteText,
+                progress: deleteProgress,
+                canStart: () => isPasswordVerified,
+                onConfirm: async () => {
                     try {
                         const currentAddress = this.authManager.getAddress();
                         if (!currentAddress) {
@@ -485,28 +462,8 @@ class SettingsUI {
                         this.Logger?.error('Failed to delete account:', e);
                         this.showNotification('Failed to delete: ' + e.message, 'error');
                     }
-                    resetProgress();
-                }, 2000);
-            };
-
-            const resetProgress = () => {
-                if (holdTimer) {
-                    clearTimeout(holdTimer);
-                    holdTimer = null;
                 }
-                deleteProgress?.classList.remove('translate-x-0');
-                deleteProgress?.classList.add('-translate-x-full');
-                if (deleteText && deleteText.textContent === 'Keep holding...') {
-                    deleteText.textContent = 'Hold to Delete (2s)';
-                }
-            };
-
-            deleteBtn.addEventListener('mousedown', startHold);
-            deleteBtn.addEventListener('touchstart', startHold);
-            deleteBtn.addEventListener('mouseup', resetProgress);
-            deleteBtn.addEventListener('mouseleave', resetProgress);
-            deleteBtn.addEventListener('touchend', resetProgress);
-            deleteBtn.addEventListener('touchcancel', resetProgress);
+            });
         }
     }
 
@@ -869,7 +826,7 @@ class SettingsUI {
             const avatarContainer = document.getElementById('settings-avatar-container');
             if (avatarContainer && address) {
                 const ensAvatar = this.identityManager.getCachedENSAvatar(address);
-                avatarContainer.innerHTML = `<div class="w-14 h-14 rounded-full overflow-hidden border border-white/[0.08]">${getAvatarHtml(address, 56, 0.5, ensAvatar)}</div>`;
+                avatarContainer.innerHTML = `<div class="w-14 h-14 rounded-full overflow-hidden border border-overlay-8">${getAvatarHtml(address, 56, 0.5, ensAvatar)}</div>`;
             }
 
             if (this.elements.settingsUsername) {
@@ -885,10 +842,10 @@ class SettingsUI {
                         ensHint.className = 'text-xs text-blue-400 mt-2 flex items-center gap-1';
                         this.elements.settingsUsername.parentNode.appendChild(ensHint);
                     }
-                    ensHint.innerHTML = '<svg class="inline-block" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#4ade80" stroke-width="2" fill="none"/><path d="M7.5 12.5l3 3 6-6.5" stroke="#4ade80" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> ENS Verified';
+                    ensHint.innerHTML = '<svg class="inline-block" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" style="stroke:var(--pombo-success)" stroke-width="2" fill="none"/><path d="M7.5 12.5l3 3 6-6.5" style="stroke:var(--pombo-success)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> ENS Verified';
                     ensHint.classList.remove('hidden');
                     // Hide the default hint
-                    const defaultHint = this.elements.settingsUsername.parentNode.querySelector('p.text-white\\/30');
+                    const defaultHint = this.elements.settingsUsername.parentNode.querySelector('p.text-overlay-30');
                     if (defaultHint && defaultHint !== ensHint) defaultHint.classList.add('hidden');
                 } else {
                     const username = this.identityManager.getUsername();
@@ -897,7 +854,7 @@ class SettingsUI {
                     this.elements.settingsUsername.title = '';
                     const ensHint = document.getElementById('ens-name-hint');
                     if (ensHint) ensHint.classList.add('hidden');
-                    const defaultHint = this.elements.settingsUsername.parentNode.querySelector('p.text-white\\/30:not(#ens-name-hint)');
+                    const defaultHint = this.elements.settingsUsername.parentNode.querySelector('p.text-overlay-30:not(#ens-name-hint)');
                     if (defaultHint) defaultHint.classList.remove('hidden');
                 }
             }
@@ -915,8 +872,8 @@ class SettingsUI {
             if (this.elements.notificationsStatus) {
                 this.elements.notificationsStatus.textContent = isMuted ? 'Muted' : '';
                 this.elements.notificationsStatus.className = isMuted 
-                    ? 'text-xs text-white/40' 
-                    : 'text-xs text-white/40';
+                    ? 'text-xs text-overlay-40' 
+                    : 'text-xs text-overlay-40';
             }
 
             // Update push notifications toggle state
@@ -957,8 +914,8 @@ class SettingsUI {
             // Update Device Sync mode selection
             this.updateSyncModeDisplay();
 
-            // Select first tab by default
-            this.selectSettingsTab('profile');
+            // Mobile opens on the section list; desktop on the first section.
+            this.selectSettingsTab(this.isMobileView?.() ? 'index' : 'profile');
 
             // Reset private key export UI to step 1
             this.resetExportKeyUI();
@@ -983,6 +940,9 @@ class SettingsUI {
                         document.body.classList.remove('contacts-open');
                     }
                 }
+                if (this.modalManager?.isVisible('accounts-modal')) {
+                    this.modalManager.hide('accounts-modal', { skipHistory: true });
+                }
                 // Update pill nav active tab
                 document.querySelectorAll('.pill-nav-item[data-pill-tab]').forEach(item => {
                     item.classList.toggle('active', item.dataset.pillTab === 'settings');
@@ -1000,10 +960,7 @@ class SettingsUI {
     _cleanupOnHide() {
         // Remove settings-open class for mobile
         document.body.classList.remove('settings-open');
-        // Clear active tab highlight from settings dropdown
-        document.querySelectorAll('#pill-settings-dropdown .pill-dropdown-item[data-settings-tab]').forEach(item => {
-            item.classList.remove('active-tab');
-        });
+        this._sectionInHistory = false;
         // Only reset pill nav to chats if still on settings tab
         // If pill was already switched (e.g. to explore), don't override
         const activeTab = document.querySelector('.pill-nav-item[data-pill-tab].active');
@@ -1036,218 +993,83 @@ class SettingsUI {
                 });
             });
         }
-        this.initSettingsCarousel();
-        this.initPillSettingsDropdown();
+        this.initMobileSettingsNav();
     }
 
     /**
-     * Initialize pill settings dropdown for mobile
+     * Mobile: the pill opens Settings on the section list; each row opens its
+     * section and the header's back arrow returns to the list.
      */
-    initPillSettingsDropdown() {
-        const settingsBtn = document.getElementById('settings-btn');
-        const dropdown = document.getElementById('pill-settings-dropdown');
-        if (!settingsBtn || !dropdown) return;
-
-        settingsBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // Close other pill dropdowns if open
-            document.getElementById('pill-profile-dropdown')?.classList.add('hidden');
-            document.getElementById('pill-explore-dropdown')?.classList.add('hidden');
-            if (dropdown.classList.contains('hidden')) positionPillDropdown(dropdown);
-            dropdown.classList.toggle('hidden');
-        });
-
-        // Tab items in dropdown
-        dropdown.querySelectorAll('.pill-dropdown-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const tabName = item.dataset.settingsTab;
-                if (tabName) {
-                    dropdown.classList.add('hidden');
-                    this.show().then(() => {
-                        this.selectSettingsTab(tabName);
-                    });
-                }
-            });
-        });
-
-        // Close dropdown on outside click
-        document.addEventListener('click', (e) => {
-            if (!settingsBtn.contains(e.target) && !dropdown.contains(e.target)) {
-                dropdown.classList.add('hidden');
+    initMobileSettingsNav() {
+        document.getElementById('settings-btn')?.addEventListener('click', () => {
+            if (this.modalManager?.isVisible('settings-modal')) {
+                this.selectSettingsTab('index');
+            } else {
+                this.show();
             }
         });
-    }
-
-    /**
-     * Initialize settings carousel for mobile
-     */
-    initSettingsCarousel() {
-        const carousel = document.getElementById('settings-carousel');
-        const modal = document.getElementById('settings-modal');
-        if (!carousel || !modal) return;
-
-        const tabElements = carousel.querySelectorAll('.carousel-tab');
-
-        tabElements.forEach((tab, index) => {
-            tab.addEventListener('click', () => {
-                if (index === 0) {
-                    this.navigateSettingsCarousel(-1);
-                } else if (index === 2) {
-                    this.navigateSettingsCarousel(1);
-                }
-            });
+        document.querySelectorAll('[data-settings-open]').forEach(row => {
+            row.addEventListener('click', () => this.selectSettingsTab(row.dataset.settingsOpen));
         });
-
-        // Add swipe support on entire modal
-        let touchStartX = 0;
-        let touchStartY = 0;
-        let isSwiping = false;
-        
-        const modalContainer = modal.querySelector('.bg-\\[\\#111113\\]');
-        if (!modalContainer) return;
-
-        modalContainer.addEventListener('touchstart', (e) => {
-            const target = e.target;
-            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
-                isSwiping = false;
-                return;
-            }
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-            isSwiping = true;
-        }, { passive: true });
-
-        modalContainer.addEventListener('touchend', (e) => {
-            if (!isSwiping || (this.isMobileView && !this.isMobileView())) return;
-            
-            const touchEndX = e.changedTouches[0].clientX;
-            const touchEndY = e.changedTouches[0].clientY;
-            const diffX = touchStartX - touchEndX;
-            const diffY = touchStartY - touchEndY;
-            
-            if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
-                // Infinite carousel - always navigate (loops around)
-                this.navigateSettingsCarousel(diffX > 0 ? 1 : -1);
-            }
-            isSwiping = false;
-        }, { passive: true });
+        document.getElementById('settings-mobile-back')?.addEventListener('click', () => {
+            this.selectSettingsTab('index');
+        });
     }
 
     /**
-     * Navigate carousel by offset (-1 for prev, +1 for next)
+     * Mobile Account shows Device Sync between the address and Backup &
+     * Restore, as on Android; everywhere else the panel sits on its own.
      */
-    navigateSettingsCarousel(offset) {
-        // Prevent multiple simultaneous animations
-        if (this.isAnimating) return;
-        
-        const total = this.settingsTabOrder.length;
-        this.currentSettingsTabIndex = (this.currentSettingsTabIndex + offset + total) % total;
-        const tabName = this.settingsTabOrder[this.currentSettingsTabIndex];
-        this.selectSettingsTab(tabName, offset);
-    }
-
-    /**
-     * Update carousel display with current, prev, and next tabs
-     * @param {string} tabName - Current tab name
-     * @param {number} direction - Direction of navigation for animation (-1, 0, or 1)
-     */
-    updateSettingsCarousel(tabName, direction = 0) {
-        const carousel = document.getElementById('settings-carousel');
-        if (!carousel) return;
-
-        const tabsContainer = carousel.querySelector('.carousel-tabs');
-        const tabs = carousel.querySelectorAll('.carousel-tab');
-        if (tabs.length !== 3 || !tabsContainer) return;
-
-        const total = this.settingsTabOrder.length;
-        const currentIndex = this.settingsTabOrder.indexOf(tabName);
-        if (currentIndex === -1) return;
-
-        this.currentSettingsTabIndex = currentIndex;
-
-        const prevIndex = (currentIndex - 1 + total) % total;
-        const nextIndex = (currentIndex + 1) % total;
-
-        const tabLabels = {
-            'profile': 'Account',
-            'devicesync': 'Device Sync',
-            'notifications': 'Notifications',
-            'api': 'API',
-            'linkpreviews': 'Content',
-            'privacy': 'Privacy',
-            'security': 'Security',
-            'repair': 'Repair',
-            'about': 'About'
-        };
-
-        const newLabels = [
-            tabLabels[this.settingsTabOrder[prevIndex]],
-            tabLabels[this.settingsTabOrder[currentIndex]],
-            tabLabels[this.settingsTabOrder[nextIndex]]
-        ];
-
-        // Simple cross-fade animation for tabs
-        if (direction !== 0) {
-            // Fade out
-            tabsContainer.style.transition = 'opacity 0.15s ease';
-            tabsContainer.style.opacity = '0';
-            
-            setTimeout(() => {
-                // Update labels while hidden
-                tabs[0].textContent = newLabels[0];
-                tabs[0].dataset.tab = this.settingsTabOrder[prevIndex];
-                tabs[0].classList.remove('active');
-                tabs[0].classList.add('adjacent');
-
-                tabs[1].textContent = newLabels[1];
-                tabs[1].dataset.tab = this.settingsTabOrder[currentIndex];
-                tabs[1].classList.add('active');
-                tabs[1].classList.remove('adjacent');
-
-                tabs[2].textContent = newLabels[2];
-                tabs[2].dataset.tab = this.settingsTabOrder[nextIndex];
-                tabs[2].classList.remove('active');
-                tabs[2].classList.add('adjacent');
-
-                // Fade in
-                tabsContainer.style.opacity = '1';
-                
-                setTimeout(() => {
-                    tabsContainer.style.transition = '';
-                    tabsContainer.style.opacity = '';
-                }, 150);
-            }, 150);
-        } else {
-            // Instant update (no animation)
-            tabs[0].textContent = newLabels[0];
-            tabs[0].dataset.tab = this.settingsTabOrder[prevIndex];
-            tabs[0].classList.remove('active');
-            tabs[0].classList.add('adjacent');
-
-            tabs[1].textContent = newLabels[1];
-            tabs[1].dataset.tab = this.settingsTabOrder[currentIndex];
-            tabs[1].classList.add('active');
-            tabs[1].classList.remove('adjacent');
-
-            tabs[2].textContent = newLabels[2];
-            tabs[2].dataset.tab = this.settingsTabOrder[nextIndex];
-            tabs[2].classList.remove('active');
-            tabs[2].classList.add('adjacent');
+    _placeSyncPanel(insideAccount) {
+        const sync = document.getElementById('settings-panel-devicesync');
+        const profile = document.getElementById('settings-panel-profile');
+        const divider = document.getElementById('settings-backup-divider');
+        if (!sync || !profile) return;
+        sync.classList.toggle('settings-panel-follows', insideAccount);
+        if (insideAccount) {
+            divider?.before(sync);
+        } else if (sync.parentElement !== profile.parentElement) {
+            profile.after(sync);
         }
     }
 
     /**
-     * Select a settings tab
-     * @param {string} tabName - Tab to select
-     * @param {number} direction - Direction of navigation (-1 = left, 1 = right, 0 = direct click)
+     * A section is one history step deep, so the system Back returns to the
+     * list instead of closing Settings.
      */
-    selectSettingsTab(tabName, direction = 0) {
-        // Update settings dropdown active indicator
-        document.querySelectorAll('#pill-settings-dropdown .pill-dropdown-item[data-settings-tab]').forEach(item => {
-            item.classList.toggle('active-tab', item.dataset.settingsTab === tabName);
-        });
+    _trackSectionHistory(tabName) {
+        const inSection = tabName !== 'index';
+        if (inSection && !this._sectionInHistory) {
+            this._sectionInHistory = true;
+            this.modalManager?.pushSubState('settings-modal', () => {
+                this._sectionInHistory = false;
+                this.selectSettingsTab('index');
+            });
+        } else if (!inSection && this._sectionInHistory) {
+            this._sectionInHistory = false;
+            this.modalManager?.dropSubState('settings-modal');
+        }
+    }
 
-        if (tabName === 'devicesync') {
+    /** Mobile header: "Settings" on the list, back arrow + section title inside one. */
+    updateMobileSettingsHeader(tabName) {
+        const back = document.getElementById('settings-mobile-back');
+        const title = document.getElementById('settings-mobile-title');
+        const onIndex = tabName === 'index';
+        back?.classList.toggle('hidden', onIndex);
+        if (title) title.textContent = onIndex ? 'Settings' : (this.sectionTitles[tabName] || 'Settings');
+    }
+
+    /**
+     * Select a settings tab
+     * @param {string} tabName - Tab to select ('index' is the mobile section list)
+     */
+    selectSettingsTab(tabName) {
+        const isMobile = this.isMobileView && this.isMobileView();
+        // Mobile Account carries Device Sync below it, as on Android.
+        const withSync = isMobile && tabName === 'profile';
+
+        if (tabName === 'devicesync' || withSync) {
             this.updateSyncModeDisplay();
         }
 
@@ -1268,82 +1090,28 @@ class SettingsUI {
             this.testRpcEndpoints();
         }
 
-        // Start animation lock
-        if (direction !== 0) {
-            this.isAnimating = true;
-        }
-
         this.elements.settingsTabs?.forEach(tab => {
             const isActive = tab.dataset.settingsTab === tabName;
-            tab.classList.toggle('bg-white/10', isActive);
-            tab.classList.toggle('text-white', isActive);
-            tab.classList.toggle('text-white/60', !isActive);
+            tab.classList.toggle('bg-overlay-10', isActive);
+            tab.classList.toggle('text-primary', isActive);
+            tab.classList.toggle('text-overlay-60', !isActive);
         });
 
-        if (this.isMobileView && this.isMobileView()) {
-            this.updateSettingsCarousel(tabName, direction);
+        if (isMobile) {
+            this.updateMobileSettingsHeader(tabName);
         }
 
-        // Animate panel transition on mobile
-        const isMobile = this.isMobileView && this.isMobileView();
-        
-        if (isMobile && direction !== 0) {
-            // Find current and target panels
-            let currentPanel = null;
-            let targetPanel = null;
-            
-            this.elements.settingsPanels?.forEach(panel => {
-                const panelName = panel.id.replace('settings-panel-', '');
-                if (panelName === tabName) {
-                    targetPanel = panel;
-                } else if (!panel.classList.contains('hidden')) {
-                    currentPanel = panel;
-                }
-            });
+        this.elements.settingsPanels?.forEach(panel => {
+            const panelName = panel.id.replace('settings-panel-', '');
+            const show = panelName === tabName || (withSync && panelName === 'devicesync');
+            panel.classList.toggle('hidden', !show);
+        });
+        this._placeSyncPanel(withSync);
 
-            if (currentPanel && targetPanel) {
-                // Simple cross-fade for panels (more reliable than slide)
-                currentPanel.style.transition = 'opacity 0.2s ease';
-                currentPanel.style.opacity = '0';
-                
-                setTimeout(() => {
-                    currentPanel.classList.add('hidden');
-                    currentPanel.style.transition = '';
-                    currentPanel.style.opacity = '';
-                    
-                    targetPanel.classList.remove('hidden');
-                    targetPanel.style.opacity = '0';
-                    targetPanel.style.transition = 'opacity 0.2s ease';
-                    
-                    // Force reflow
-                    targetPanel.offsetHeight;
-                    
-                    targetPanel.style.opacity = '1';
-                    
-                    setTimeout(() => {
-                        targetPanel.style.transition = '';
-                        targetPanel.style.opacity = '';
-                        this.isAnimating = false;
-                    }, 200);
-                }, 200);
-            } else if (targetPanel) {
-                targetPanel.classList.remove('hidden');
-                this.isAnimating = false;
-            } else {
-                this.isAnimating = false;
-            }
-        } else {
-            // Instant switch (desktop or direct click)
-            this.elements.settingsPanels?.forEach(panel => {
-                const panelName = panel.id.replace('settings-panel-', '');
-                const isTarget = panelName === tabName;
-                panel.classList.toggle('hidden', !isTarget);
-                panel.style.transition = '';
-                panel.style.opacity = '';
-                panel.style.transform = '';
-            });
-            this.isAnimating = false;
-        }
+        if (isMobile) this._trackSectionHistory(tabName);
+
+        const scroller = document.querySelector('#settings-modal .flex-1.p-6.overflow-y-auto');
+        if (scroller) scroller.scrollTop = 0;
     }
 
     /**
@@ -1356,7 +1124,7 @@ class SettingsUI {
         const blockedPeers = this.secureStorage.getBlockedPeers?.() || [];
 
         if (blockedPeers.length === 0) {
-            container.innerHTML = '<p class="text-xs text-white/30 py-4 text-center">No blocked users</p>';
+            container.innerHTML = '<p class="text-xs text-overlay-30 py-4 text-center">No blocked users</p>';
             return;
         }
 
@@ -1364,8 +1132,8 @@ class SettingsUI {
             const safe = _escapeAttr(addr);
             const short = _escapeHtml(addr.slice(0, 6) + '...' + addr.slice(-4));
             return `
-                <div class="flex items-center justify-between py-2 px-3 bg-white/[0.03] rounded-lg group">
-                    <span class="text-xs text-white/60 font-mono" title="${safe}">${short}</span>
+                <div class="flex items-center justify-between py-2 px-3 bg-overlay-3 rounded-lg group">
+                    <span class="text-xs text-overlay-60 font-mono" title="${safe}">${short}</span>
                     <button class="unblock-peer-btn text-xs text-emerald-400 hover:text-emerald-300 opacity-60 hover:opacity-100 transition px-2 py-1 rounded hover:bg-emerald-500/10" data-address="${safe}">
                         Unblock
                     </button>
@@ -1394,12 +1162,12 @@ class SettingsUI {
         // opening Settings costs nothing. A key the user types is validated on
         // the spot, which is the one moment a call of our own is warranted.
         const ok = this.graphAPI.lastQueryOk;
-        const dot = ok === null ? 'bg-white/20' : (ok ? 'bg-green-500' : 'bg-red-500');
+        const dot = ok === null ? 'bg-overlay-20' : (ok ? 'bg-green-500' : 'bg-red-500');
         const label = ok === null ? 'Not checked' : (ok ? 'OK' : 'Not responding');
-        const labelColor = ok === null ? '' : (ok ? 'text-green-400' : 'text-red-400');
+        const labelColor = ok === null ? '' : (ok ? 'text-success' : 'text-danger');
         const key = this.graphAPI.isUsingDefaultKey()
-            ? '<span class="align-middle text-white/30 ml-2">Using default key (rate limited)</span>'
-            : '<span class="align-middle text-white/30 ml-2">Using your own key</span>';
+            ? '<span class="align-middle text-overlay-30 ml-2">Using default key (rate limited)</span>'
+            : '<span class="align-middle text-overlay-30 ml-2">Using your own key</span>';
 
         this.elements.graphApiStatus.innerHTML =
             `<span class="inline-block w-2 h-2 rounded-full ${dot} mr-1.5 align-middle"></span>` +
@@ -1531,7 +1299,7 @@ class SettingsUI {
             this.elements.pushNotificationsStatus.className = 'text-xs text-green-500';
         } else {
             this.elements.pushNotificationsStatus.textContent = 'Disabled';
-            this.elements.pushNotificationsStatus.className = 'text-xs text-white/40';
+            this.elements.pushNotificationsStatus.className = 'text-xs text-overlay-40';
         }
 
         // Show/hide DM push section based on push being enabled
@@ -1567,24 +1335,24 @@ class SettingsUI {
             const safeTitle = _escapeHtml(title);
             const safeDescription = _escapeHtml(description);
             modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl w-[360px] overflow-hidden shadow-2xl border border-white/[0.06]">
+                <div class="bg-surface rounded-2xl w-[360px] overflow-hidden shadow-2xl border border-overlay-6">
                     <div class="px-5 pt-5 pb-3">
                         <div class="flex items-center justify-between">
-                            <h3 class="text-[15px] font-medium text-white">${safeTitle}</h3>
-                            <button id="close-modal" class="text-white/30 hover:text-white transition p-1 -mr-1">
+                            <h3 class="text-[15px] font-medium text-primary">${safeTitle}</h3>
+                            <button id="close-modal" class="text-overlay-30 hover:text-primary transition p-1 -mr-1">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
                                 </svg>
                             </button>
                         </div>
-                        <p class="text-[11px] text-white/30 mt-1 whitespace-pre-line">${safeDescription}</p>
+                        <p class="text-[11px] text-overlay-30 mt-1 whitespace-pre-line">${safeDescription}</p>
                     </div>
                     <div class="px-5 pb-4 space-y-3">
                         <div class="relative">
                             <input type="password" id="password-input" placeholder="Password"
-                                class="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-2.5 text-[13px] text-white placeholder-white/25 focus:outline-none focus:border-white/[0.15] transition"
+                                class="w-full bg-overlay-5 border border-overlay-8 rounded-xl px-3 py-2.5 text-[13px] text-primary placeholder-overlay-25 focus:outline-none focus:border-overlay-15 transition"
                                 autocomplete="off">
-                            <button id="toggle-visibility" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white transition">
+                            <button id="toggle-visibility" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-overlay-25 hover:text-primary transition">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
@@ -1594,14 +1362,14 @@ class SettingsUI {
                         ${requireConfirm ? `
                         <div class="relative">
                             <input type="password" id="password-confirm" placeholder="Confirm password"
-                                class="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-2.5 text-[13px] text-white placeholder-white/25 focus:outline-none focus:border-white/[0.15] transition"
+                                class="w-full bg-overlay-5 border border-overlay-8 rounded-xl px-3 py-2.5 text-[13px] text-primary placeholder-overlay-25 focus:outline-none focus:border-overlay-15 transition"
                                 autocomplete="off">
                         </div>
                         ` : ''}
                         <p id="password-error" class="text-[11px] text-red-500 hidden"></p>
                     </div>
                     <div class="px-5 pb-5 flex gap-2">
-                        <button id="pw-cancel" class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] text-white text-[13px] font-medium py-2.5 rounded-xl transition border border-white/[0.08]">
+                        <button id="pw-cancel" class="flex-1 bg-overlay-5 hover:bg-overlay-8 text-primary text-[13px] font-medium py-2.5 rounded-xl transition border border-overlay-8">
                             Cancel
                         </button>
                         <button id="pw-confirm" class="flex-1 bg-white hover:bg-[#f0f0f0] text-black text-[13px] font-medium py-2.5 rounded-lg transition">
@@ -1848,31 +1616,31 @@ class SettingsUI {
             const host = (url || '').replace(/^https:\/\//, '');
             const health = row.on && url ? rpcHealth.verdict(url) : null;
             const healthLine = health && health.ok === false
-                ? `<div class="text-[11px] text-red-400/80">${fallback ? 'failing' : 'excluded'}: ${_escapeHtml(describeVerdict(health))} at ${new Date(health.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>`
+                ? `<div class="text-[11px] text-danger/80">${fallback ? 'failing' : 'excluded'}: ${_escapeHtml(describeVerdict(health))} at ${new Date(health.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>`
                 : '';
 
             const remove = isCustom
-                ? `<button class="rpc-row-remove shrink-0 text-white/30 hover:text-red-400/90 px-1 rounded transition" title="Remove">
+                ? `<button class="rpc-row-remove shrink-0 text-overlay-30 hover:text-danger/90 px-1 rounded transition" title="Remove">
                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
                    </button>`
                 : '';
 
             return `
-                <div data-rpc-key="${row.key}" class="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-white/[0.03] border ${row.on ? 'border-white/15' : 'border-white/5'} transition">
+                <div data-rpc-key="${row.key}" class="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-overlay-3 border ${row.on ? 'border-overlay-15' : 'border-overlay-5'} transition">
                     <input type="checkbox" class="rpc-row-check w-3.5 h-3.5 accent-white rounded shrink-0" ${row.on ? 'checked' : ''} />
                     <div class="min-w-0 flex-1">
                         <div class="flex items-baseline gap-2">
-                            <span class="rpc-row-name text-sm ${row.on ? 'text-white' : 'text-white/50'}">${_escapeHtml(name)}</span>
-                            <span class="text-[11px] text-white/25 truncate">${_escapeHtml(host)}</span>
+                            <span class="rpc-row-name text-sm ${row.on ? 'text-primary' : 'text-overlay-50'}">${_escapeHtml(name)}</span>
+                            <span class="text-[11px] text-overlay-25 truncate">${_escapeHtml(host)}</span>
                         </div>
                         ${healthLine}
                     </div>
                     <span class="text-[11px] shrink-0 whitespace-nowrap">${this.renderRpcProbe(probe)}</span>
                     ${remove}
                     <div class="flex flex-col shrink-0 -my-1">
-                        <button class="rpc-row-move text-white/25 hover:text-white/70 transition leading-none px-1 disabled:opacity-20"
+                        <button class="rpc-row-move text-overlay-25 hover:text-overlay-70 transition leading-none px-1 disabled:opacity-20"
                                 data-dir="up" ${i === 0 ? 'disabled' : ''} aria-label="Move up">&#9650;</button>
-                        <button class="rpc-row-move text-white/25 hover:text-white/70 transition leading-none px-1 disabled:opacity-20"
+                        <button class="rpc-row-move text-overlay-25 hover:text-overlay-70 transition leading-none px-1 disabled:opacity-20"
                                 data-dir="down" ${i === last ? 'disabled' : ''} aria-label="Move down">&#9660;</button>
                     </div>
                 </div>`;
@@ -1883,21 +1651,21 @@ class SettingsUI {
 
     /** Reflect one row's checked state without touching the rest of the list. */
     paintRpcRow(row, on) {
-        row.classList.toggle('border-white/15', on);
-        row.classList.toggle('border-white/5', !on);
+        row.classList.toggle('border-overlay-15', on);
+        row.classList.toggle('border-overlay-5', !on);
         const label = row.querySelector('.rpc-row-name');
-        label?.classList.toggle('text-white', on);
-        label?.classList.toggle('text-white/50', !on);
+        label?.classList.toggle('text-primary', on);
+        label?.classList.toggle('text-overlay-50', !on);
     }
 
     /** The per-row verdict of the last probe. */
     renderRpcProbe(probe) {
-        if (!probe) return '<span class="text-white/25">not tested</span>';
+        if (!probe) return '<span class="text-overlay-25">not tested</span>';
         if (probe.state === 'testing') {
             return '<span class="text-yellow-400/80 animate-pulse">testing</span>';
         }
         if (probe.state === 'ok') {
-            return `<span class="text-green-400">${probe.ms} ms</span>`;
+            return `<span class="text-success">${probe.ms} ms</span>`;
         }
         if (probe.state === 'wrongchain') {
             return '<span class="text-yellow-400">not Polygon</span>';
@@ -1908,7 +1676,7 @@ class SettingsUI {
         if (probe.state === 'refused') {
             return '<span class="text-yellow-400">refused</span>';
         }
-        return '<span class="text-red-400">no answer</span>';
+        return '<span class="text-danger">no answer</span>';
     }
 
     /** Say why an action was turned down, where the status already is. */
@@ -1941,18 +1709,18 @@ class SettingsUI {
 
         let html;
         if (this.rpcNotice) {
-            html = dot('bg-red-500', this.rpcNotice, 'text-red-400');
+            html = dot('bg-red-500', this.rpcNotice, 'text-danger');
         } else if (this.rpcTesting) {
             html = dot('bg-yellow-400 animate-pulse', 'Testing...', 'text-yellow-400');
         } else if (tested.length === 0) {
-            html = dot('bg-white/20', 'Not tested', '');
+            html = dot('bg-overlay-20', 'Not tested', '');
         } else if (working.length === 0) {
-            html = dot('bg-red-500', 'Not connected', 'text-red-400');
+            html = dot('bg-red-500', 'Not connected', 'text-danger');
         } else {
-            html = dot('bg-green-500', 'Connected', 'text-green-400');
+            html = dot('bg-green-500', 'Connected', 'text-success');
         }
         const count = selected.length && !this.rpcNotice && !this.rpcTesting
-            ? `<span class="align-middle text-white/30 ml-2">${working.length}/${selected.length}</span>`
+            ? `<span class="align-middle text-overlay-30 ml-2">${working.length}/${selected.length}</span>`
             : '';
         statusEl.innerHTML = html + count;
 
@@ -2273,7 +2041,7 @@ class SettingsUI {
         }
 
         section.classList.remove('hidden');
-        list.innerHTML = '<div class="text-sm text-white/40 px-1">Loading…</div>';
+        list.innerHTML = '<div class="text-sm text-overlay-40 px-1">Loading…</div>';
 
         try {
             const info = await this.streamrController.getStreamStorageInfo(streamId);
@@ -2284,7 +2052,7 @@ class SettingsUI {
             }
 
             if (!info.enabled || !info.nodes?.length) {
-                list.innerHTML = '<div class="text-sm text-white/40 px-1">No storage provider</div>';
+                list.innerHTML = '<div class="text-sm text-overlay-40 px-1">No storage provider</div>';
                 return;
             }
 
@@ -2293,12 +2061,12 @@ class SettingsUI {
                 const label = isOfficial ? 'Pombo' : 'Custom';
                 const safeAddr = _escapeHtml(String(addr));
                 return `
-                    <div class="flex items-center justify-between gap-3 px-3 py-2 bg-white/[0.03] border border-white/5 rounded-xl">
+                    <div class="flex items-center justify-between gap-3 px-3 py-2 bg-overlay-3 border border-overlay-5 rounded-xl">
                         <div class="min-w-0 flex-1">
-                            <div class="text-xs text-white/50">${label}</div>
-                            <code class="text-xs text-white/70 font-mono truncate block">${safeAddr}</code>
+                            <div class="text-xs text-overlay-50">${label}</div>
+                            <code class="text-xs text-overlay-70 font-mono truncate block">${safeAddr}</code>
                         </div>
-                        <button data-storage-remove="${_escapeAttr(String(addr))}" class="inbox-storage-remove-btn shrink-0 text-white/40 hover:text-red-400/90 px-2 py-1 rounded transition" title="Remove">
+                        <button data-storage-remove="${_escapeAttr(String(addr))}" class="inbox-storage-remove-btn shrink-0 text-overlay-40 hover:text-danger/90 px-2 py-1 rounded transition" title="Remove">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
                         </button>
                     </div>
@@ -2306,7 +2074,7 @@ class SettingsUI {
             }).join('');
         } catch (err) {
             this.Logger?.error('Failed to fetch inbox storage info:', err);
-            list.innerHTML = '<div class="text-sm text-red-400/80 px-1">Failed to load storage info</div>';
+            list.innerHTML = '<div class="text-sm text-danger/80 px-1">Failed to load storage info</div>';
         }
     }
 
@@ -2332,14 +2100,14 @@ class SettingsUI {
         this._repairPrimaryAction = mode;
 
         if (mode === 'create') {
-            button.className = 'flex-1 px-5 py-2.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-white border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 inline-flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[#F6851B]/10';
+            button.className = 'flex-1 px-5 py-2.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-primary border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 inline-flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[#F6851B]/10';
             icon.setAttribute('class', 'w-4 h-4');
             icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>';
             label.textContent = 'Create DM Inbox';
             return;
         }
 
-        button.className = 'flex-1 bg-white/5 hover:bg-white/10 text-white/70 border border-white/10 px-3 py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5';
+        button.className = 'flex-1 bg-overlay-5 hover:bg-overlay-10 text-overlay-70 border border-overlay-10 px-3 py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5';
         icon.setAttribute('class', 'w-3.5 h-3.5');
         icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>';
         label.textContent = 'Diagnose';
@@ -2364,21 +2132,21 @@ class SettingsUI {
         const states = {
             idle: {
                 icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>',
-                iconBg: 'bg-white/5 text-white/20',
-                border: 'border-white/5',
+                iconBg: 'bg-overlay-5 text-overlay-20',
+                border: 'border-overlay-5',
                 title: 'Not checked',
                 detail: 'Run a diagnosis to check inbox health'
             },
             loading: {
                 icon: '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>',
-                iconBg: 'bg-white/5 text-white/40',
-                border: 'border-white/5',
+                iconBg: 'bg-overlay-5 text-overlay-40',
+                border: 'border-overlay-5',
                 title: 'Diagnosing...',
                 detail: 'Checking streams, permissions and storage'
             },
             healthy: {
                 icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
-                iconBg: 'bg-green-500/10 text-green-400',
+                iconBg: 'bg-green-500/10 text-success',
                 border: 'border-green-500/10',
                 title: 'Inbox healthy',
                 detail: 'All checks passed'
@@ -2392,7 +2160,7 @@ class SettingsUI {
             },
             error: {
                 icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
-                iconBg: 'bg-red-500/10 text-red-400',
+                iconBg: 'bg-red-500/10 text-danger',
                 border: 'border-red-500/10',
                 title: 'Error',
                 detail: detail || 'Something went wrong'
@@ -2406,7 +2174,7 @@ class SettingsUI {
             },
             repaired: {
                 icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
-                iconBg: 'bg-green-500/10 text-green-400',
+                iconBg: 'bg-green-500/10 text-success',
                 border: 'border-green-500/10',
                 title: 'Repaired',
                 detail: detail || 'All issues fixed'
@@ -2416,7 +2184,7 @@ class SettingsUI {
         const s = states[state] || states.idle;
         icon.innerHTML = s.icon;
         icon.className = `w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full ${s.iconBg}`;
-        card.className = `p-4 rounded-xl bg-white/[0.03] border ${s.border}`;
+        card.className = `p-4 rounded-xl bg-overlay-3 border ${s.border}`;
         title.textContent = s.title;
         detailEl.textContent = detail || s.detail;
     }

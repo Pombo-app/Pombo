@@ -17,15 +17,15 @@ select {
 }
 
 select option {
-    background-color: #1a1a1a;
-    color: #ffffff;
+    background-color: var(--pombo-surface-9);
+    color: var(--pombo-text-primary);
     padding: 8px 12px;
 }
 
 /* Exposure tab hover styles */
-.exposure-tab.border-white\/10:hover {
-    border-color: rgba(255, 255, 255, 0.2);
-    color: rgba(255, 255, 255, 0.7);
+.exposure-tab.border-overlay-10:hover {
+    border-color: var(--pombo-overlay-20);
+    color: var(--pombo-overlay-70);
 }
 
 /* Channel drag and drop styles */
@@ -36,7 +36,7 @@ select option {
 
 .channel-item.drag-over {
     border-color: #F6851B !important;
-    background-color: #1a1a1a !important;
+    background-color: var(--pombo-surface-9) !important;
     transform: scale(1.02);
 }
 

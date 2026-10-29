@@ -195,6 +195,32 @@ describe('ChannelListUI', () => {
         cachedImageSpy.mockRestore();
     });
 
+    describe('empty list', () => {
+        it('offers Explore when there are no channels at all', () => {
+            const openExploreView = vi.fn();
+            channelListUI.setDependencies({ channelManager, secureStorage, onChannelSelect, openExploreView });
+            channelManager.getAllChannels.mockReturnValue([]);
+
+            channelListUI.render();
+
+            const button = [...channelList.querySelectorAll('button')].find((b) => b.textContent === 'Explore channels');
+            expect(channelList.textContent).toContain('No channels yet');
+            button.click();
+            expect(openExploreView).toHaveBeenCalledTimes(1);
+        });
+
+        it('a filtered tab with nothing in it only says so', () => {
+            channelListUI.setDependencies({ channelManager, secureStorage, onChannelSelect, openExploreView: vi.fn() });
+            channelManager.getAllChannels.mockReturnValue([]);
+            channelListUI.currentFilter = 'personal';
+
+            channelListUI.render();
+
+            expect(channelList.querySelector('button')).toBeNull();
+            channelListUI.currentFilter = 'all';
+        });
+    });
+
     describe('interrupted creations', () => {
         const interrupted = { basePath: '0xme/abcd', name: '<b>Group</b>', type: 'gated' };
         let onFinishPendingCreate;

@@ -41,12 +41,12 @@ vi.mock('../../src/js/channels.js', () => ({
 
 vi.mock('../../src/js/identity.js', () => ({
     identityManager: {
-        createSignedMessage: vi.fn().mockResolvedValue({
+        createMessage: vi.fn().mockResolvedValue({
             id: 'msg-123',
             sender: '0xmyaddress',
             timestamp: Date.now()
         }),
-        createSignedFileManifest: vi.fn().mockResolvedValue({
+        createFileManifest: vi.fn().mockResolvedValue({
             type: 'file_announce',
             id: 'msg-123',
             sender: '0xmyaddress',
@@ -2283,8 +2283,8 @@ describe('media.js core', () => {
             // Mock resizeImage to skip canvas
             vi.spyOn(mediaController, 'resizeImage').mockResolvedValue('data:image/jpeg;base64,abc');
             channelManager.getChannel.mockReturnValue({ type: 'public', messages: [], password: null });
-            // createSignedMessage returns fresh copy each call
-            identityManager.createSignedMessage.mockResolvedValue({
+            // createMessage returns fresh copy each call
+            identityManager.createMessage.mockResolvedValue({
                 id: 'msg-img-1',
                 sender: '0xmyaddress',
                 timestamp: Date.now()
@@ -2433,7 +2433,7 @@ describe('media.js core', () => {
                 fileId: 'f-1', fileName: 'clip.mp4', fileSize: 10,
                 fileType: 'video/mp4', pieceCount: 1, pieceHashes: ['h0']
             };
-            identityManager.createSignedFileManifest.mockResolvedValue({
+            identityManager.createFileManifest.mockResolvedValue({
                 type: 'file_announce',
                 id: 'm1',
                 sender: '0xmyaddress',
@@ -2451,7 +2451,7 @@ describe('media.js core', () => {
             await mediaController.localFiles.get(tempKey).callback(metadata);
             await promise;
 
-            expect(identityManager.createSignedFileManifest).toHaveBeenCalledWith({
+            expect(identityManager.createFileManifest).toHaveBeenCalledWith({
                 channelId: 'stream-1',
                 metadata
             });
@@ -2468,7 +2468,7 @@ describe('media.js core', () => {
                 fileId: 'f-1', fileName: 'clip.mp4', fileSize: 10,
                 fileType: 'video/mp4', pieceCount: 1, pieceHashes: ['h0', 'h1']
             };
-            identityManager.createSignedFileManifest.mockResolvedValue({
+            identityManager.createFileManifest.mockResolvedValue({
                 type: 'file_announce', id: 'm1', sender: '0xmyaddress',
                 timestamp: Date.now(), channelId: 'stream-1', metadata, signature: '0xsig'
             });
@@ -2505,7 +2505,7 @@ describe('media.js core', () => {
                 fileId: 'f-2', fileName: 'clip.mp4', fileSize: 10,
                 fileType: 'video/mp4', pieceCount: 1, pieceHashes: ['h0']
             };
-            identityManager.createSignedFileManifest.mockResolvedValue({
+            identityManager.createFileManifest.mockResolvedValue({
                 type: 'file_announce', id: 'm2', sender: '0xmyaddress',
                 timestamp: Date.now(), channelId: 'stream-1', metadata, signature: '0xsig'
             });

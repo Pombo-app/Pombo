@@ -14,11 +14,14 @@ describe('ModalManager', () => {
         // Reset modal stack and onHide callbacks
         modalManager.modalStack = [];
         modalManager._handlingPopState = false;
+        modalManager._subStates = [];
+        modalManager._swallowNextPop = false;
         modalManager.onHideCallbacks.clear();
-        
+
         // Mock window.history for history integration
         window.history.pushState = vi.fn();
         window.history.back = vi.fn();
+        window.history.go = vi.fn();
         
         // Clear any existing modals
         document.body.innerHTML = '';
@@ -256,33 +259,22 @@ describe('ModalManager', () => {
             streamIdInput.value = 'old-stream-id';
             const passwordInput = document.createElement('input');
             passwordInput.value = 'old-password';
-            const passwordField = document.createElement('div');
-            passwordField.classList.remove('hidden');
-            
-            modalManager.showJoinChannelModal(modal, streamIdInput, passwordInput, passwordField);
-            
+            const localName = document.createElement('input');
+            localName.id = 'join-local-name-input';
+            localName.value = 'old-name';
+            document.body.appendChild(localName);
+
+            modalManager.showJoinChannelModal(modal, streamIdInput, passwordInput);
+
             expect(modal.classList.contains('hidden')).toBe(false);
             expect(streamIdInput.value).toBe('');
             expect(passwordInput.value).toBe('');
-            expect(passwordField.classList.contains('hidden')).toBe(true);
+            expect(localName.value).toBe('');
         });
-        
-        it('should uncheck password checkbox if exists', () => {
-            const modal = createModal('join-modal2', true);
-            const checkbox = document.createElement('input');
-            checkbox.id = 'join-has-password';
-            checkbox.type = 'checkbox';
-            checkbox.checked = true;
-            document.body.appendChild(checkbox);
-            
-            modalManager.showJoinChannelModal(modal, null, null, null);
-            
-            expect(checkbox.checked).toBe(false);
-        });
-        
+
         it('should handle null parameters gracefully', () => {
             // Should not throw
-            modalManager.showJoinChannelModal(null, null, null, null);
+            modalManager.showJoinChannelModal(null, null, null);
         });
     });
 
@@ -632,6 +624,57 @@ describe('ModalManager', () => {
                 
                 expect(callback).toHaveBeenCalledTimes(1);
                 expect(window.history.back).not.toHaveBeenCalled();
+            });
+        });
+
+        describe('sub-states inside an open modal', () => {
+            const popTo = (state) => window.dispatchEvent(new PopStateEvent('popstate', { state }));
+
+            it('pushes a history step only while the modal is open', () => {
+                modalManager.pushSubState('settings-modal', vi.fn());
+                expect(window.history.pushState).not.toHaveBeenCalled();
+
+                modalManager.modalStack = ['settings-modal'];
+                modalManager.pushSubState('settings-modal', vi.fn());
+                expect(window.history.pushState).toHaveBeenCalledWith({ modal: 'settings-modal', sub: true }, '');
+            });
+
+            it('Back pops the step and keeps the modal open', () => {
+                createModal('settings-modal', false);
+                modalManager.modalStack = ['settings-modal'];
+                const onPop = vi.fn();
+                modalManager.pushSubState('settings-modal', onPop);
+
+                popTo({ modal: 'settings-modal' });
+
+                expect(onPop).toHaveBeenCalledTimes(1);
+                expect(document.getElementById('settings-modal').classList.contains('hidden')).toBe(false);
+                expect(modalManager.modalStack).toEqual(['settings-modal']);
+            });
+
+            it('leaving the step without Back drops its entry and swallows the pop', () => {
+                createModal('settings-modal', false);
+                modalManager.modalStack = ['settings-modal'];
+                const onPop = vi.fn();
+                modalManager.pushSubState('settings-modal', onPop);
+
+                modalManager.dropSubState('settings-modal');
+                expect(window.history.back).toHaveBeenCalledTimes(1);
+
+                popTo({ modal: 'settings-modal' });
+                expect(onPop).not.toHaveBeenCalled();
+                expect(document.getElementById('settings-modal').classList.contains('hidden')).toBe(false);
+            });
+
+            it('closing the modal goes back past its steps too', () => {
+                createModal('settings-modal', false);
+                modalManager.modalStack = ['settings-modal'];
+                modalManager.pushSubState('settings-modal', vi.fn());
+
+                modalManager.hide('settings-modal');
+
+                expect(window.history.go).toHaveBeenCalledWith(-2);
+                expect(modalManager._subStates).toEqual([]);
             });
         });
 

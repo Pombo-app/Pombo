@@ -11,6 +11,8 @@ import { sanitizeMessageHtml, sanitizeText } from './sanitizer.js';
 class MessageRenderer {
     constructor() {
         this.deps = {};
+        // Video ids whose play started a download: they start playing once re-rendered with the bytes.
+        this.videoAutoplay = new Set();
     }
 
     /**
@@ -140,7 +142,7 @@ class MessageRenderer {
         // Defense-in-depth: sanitize network content
         const previewText = replyTo.text 
             ? escapeHtml(sanitizeText(replyTo.text.substring(0, 50))) + (replyTo.text.length > 50 ? '...' : '') 
-            : '[Message]';
+            : '[Media]';
         
         return `
             <div class="reply-preview" data-reply-to-id="${escapeAttr(replyTo.id)}">
@@ -157,7 +159,7 @@ class MessageRenderer {
      */
     renderImageContent(msg) {
         if (msg?.transport === 'chunked' && msg?.verified?.valid === false) {
-            return `<div class="text-red-400 text-sm">Image failed verification</div>`;
+            return `<div class="text-danger text-sm">Image failed verification</div>`;
         }
 
         let imageData = this.deps.getImage?.(msg.imageId);
@@ -171,7 +173,7 @@ class MessageRenderer {
         if (imageData) {
             const mediaId = this.deps.registerMedia?.(imageData, 'image');
             if (!mediaId) {
-                return `<div class="text-red-400 text-sm">Invalid image data</div>`;
+                return `<div class="text-danger text-sm">Invalid image data</div>`;
             }
             
             return `
@@ -180,7 +182,7 @@ class MessageRenderer {
                          class="max-w-full max-h-60 rounded-lg cursor-pointer object-contain lightbox-trigger" 
                          data-media-id="${mediaId}"
                          alt="Image"/>
-                    <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white p-1 rounded transition opacity-0 group-hover:opacity-100 lightbox-trigger"
+                    <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-primary p-1 rounded transition opacity-0 group-hover:opacity-100 lightbox-trigger"
                             data-media-id="${mediaId}"
                             title="Maximize">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -199,10 +201,10 @@ class MessageRenderer {
             const channel = this.deps.getCurrentChannel?.();
             const channelId = channel?.streamId || '';
             return `
-                <div data-image-id="${escapeAttr(msg.imageId)}" data-channel-id="${escapeAttr(channelId)}" class="bg-white/[0.05] rounded-xl p-4 max-w-xs">
+                <div data-image-id="${escapeAttr(msg.imageId)}" data-channel-id="${escapeAttr(channelId)}" class="bg-overlay-5 rounded-xl p-4 max-w-xs">
                     <div class="flex items-center gap-2">
-                        <div class="animate-spin w-4 h-4 border-2 border-white/20 border-t-white rounded-full"></div>
-                        <span class="text-white/40 text-sm">Loading image...</span>
+                        <div class="animate-spin w-4 h-4 border-2 border-overlay-20 border-t-white rounded-full"></div>
+                        <span class="text-overlay-40 text-sm">Loading image...</span>
                     </div>
                 </div>
             `;
@@ -247,7 +249,7 @@ class MessageRenderer {
      * now, so this is what tells the two transports apart at a glance.
      */
     transportBadge(label) {
-        return `<span class="inline-block text-[9px] uppercase tracking-wider px-1.5 py-px mr-1.5 rounded bg-white/[0.08] text-white/40 align-middle">${label}</span>`;
+        return `<span class="inline-block text-[9px] uppercase tracking-wider px-1.5 py-px mr-1.5 rounded bg-overlay-8 text-overlay-40 align-middle">${label}</span>`;
     }
 
     /**
@@ -319,23 +321,23 @@ class MessageRenderer {
         let action = '';
         if (fileUrl) {
             action = this.deps.isSaved?.(fileId) ? `
-            <div title="Saved" class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] flex items-center justify-center">
-                ${this.iconCheck('w-5 h-5 text-green-400/70')}
+            <div title="Saved" class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-6 flex items-center justify-center">
+                ${this.iconCheck('w-5 h-5 text-success/70')}
             </div>` : `
             <a href="${fileUrl}" download="${attrFileName}" title="Save file"
-               class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] hover:bg-white/[0.14] flex items-center justify-center transition">
-                ${this.iconFloppy('w-5 h-5 text-green-400/70')}
+               class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-6 hover:bg-overlay-14 flex items-center justify-center transition">
+                ${this.iconFloppy('w-5 h-5 text-success/70')}
             </a>`;
         } else if (active) {
             action = `
-            <div class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.04] flex items-center justify-center">
-                ${this.iconArrowDown('w-5 h-5 text-white/25 animate-pulse')}
+            <div class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-4 flex items-center justify-center">
+                ${this.iconArrowDown('w-5 h-5 text-overlay-25 animate-pulse')}
             </div>`;
         } else if (canDownload) {
             action = `
-            <button class="download-file-btn file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition"
+            <button class="download-file-btn file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-6 hover:bg-overlay-12 flex items-center justify-center transition"
                     data-file-id="${safeFileId}" title="Download">
-                <span class="download-play-icon">${this.iconArrowDown('w-5 h-5 text-white/60')}</span>
+                <span class="download-play-icon">${this.iconArrowDown('w-5 h-5 text-overlay-60')}</span>
                 <div class="download-loading-icon hidden"></div>
             </button>`;
         }
@@ -343,24 +345,24 @@ class MessageRenderer {
         // The name stays a link once the file is here (the floppy is the obvious
         // target; the title link costs nothing)
         const title = fileUrl
-            ? `<a href="${fileUrl}" download="${attrFileName}" class="text-[12px] text-white/80 hover:text-white truncate block" title="${attrFileName}">${safeFileName}</a>`
-            : `<div class="text-[12px] text-white/80 truncate" title="${attrFileName}">${safeFileName}</div>`;
+            ? `<a href="${fileUrl}" download="${attrFileName}" class="text-[12px] text-overlay-80 hover:text-primary truncate block" title="${attrFileName}">${safeFileName}</a>`
+            : `<div class="text-[12px] text-overlay-80 truncate" title="${attrFileName}">${safeFileName}</div>`;
 
         return `
-            <div data-file-id="${safeFileId}" class="rounded-xl bg-white/[0.05] overflow-hidden" style="width: 300px; max-width: 100%;">
+            <div data-file-id="${safeFileId}" class="rounded-xl bg-overlay-5 overflow-hidden" style="width: 300px; max-width: 100%;">
                 <div class="flex items-center gap-2.5 px-3 py-2.5">
                     <div class="min-w-0 flex-1">
                         ${title}
-                        <div class="text-[10px] text-white/35 mt-0.5 flex items-center whitespace-nowrap">
+                        <div class="text-[10px] text-overlay-35 mt-0.5 flex items-center whitespace-nowrap">
                             ${this.transportBadge('mesh')}
                             <span data-progress-text="${safeFileId}">${detail}</span>
                             ${seedingStats}
                         </div>
-                        ${(fileUrl && isSeeding) ? `<div class="text-[10px] text-green-400/60 mt-0.5">seeding...</div>` : ''}
+                        ${(fileUrl && isSeeding) ? `<div class="text-[10px] text-success/60 mt-0.5">seeding...</div>` : ''}
                     </div>
                     ${action}
                 </div>
-                <div class="h-1.5 bg-white/[0.06] ${active ? '' : 'hidden'}" data-progress-overlay="${safeFileId}">
+                <div class="h-1.5 bg-overlay-6 ${active ? '' : 'hidden'}" data-progress-overlay="${safeFileId}">
                     <div class="h-full bg-blue-500 rounded-r-full transition-all duration-300"
                          data-progress-fill="${safeFileId}" style="width: ${percent}%"></div>
                 </div>
@@ -381,6 +383,11 @@ class MessageRenderer {
         if (m < 60) return `${m}m ${String(s).padStart(2, '0')}s`;
         const h = Math.floor(m / 60);
         return `${h}h ${String(m % 60).padStart(2, '0')}m`;
+    }
+
+    /** Past sending, the upload confirms what it sent: the bar stays full and pulses. */
+    isUploadWorking(s) {
+        return !!s && ['verifying', 'repairing', 'announce'].includes(s.stage);
     }
 
     /**
@@ -465,6 +472,7 @@ class MessageRenderer {
         const totalSize = this.formatFileSize(metadata.fileSize ?? metadata.originalSize ?? 0);
         const active = !!(isDownloading && downloadProgress) || !!uploadState;
         const percent = uploadState ? (uploadState.percent || 0) : (downloadProgress ? downloadProgress.percent : 0);
+        const working = this.isUploadWorking(uploadState);
 
         let detail = { line1: totalSize, line2: '' };
         if (uploadState) {
@@ -479,8 +487,9 @@ class MessageRenderer {
 
         const incomplete = Number.isFinite(metadata.storedChunks) && Number.isFinite(metadata.totalChunks)
             && metadata.storedChunks !== null && metadata.storedChunks < metadata.totalChunks;
+        const retryable = incomplete && !!this.deps.canRetryStorageUpload?.(tid);
         const incompleteBadge = incomplete
-            ? `<div class="text-[10px] text-amber-400/70 mt-0.5">&#9888; incomplete on storage (${metadata.storedChunks}/${metadata.totalChunks})</div>`
+            ? `<div class="text-[10px] text-amber-400/70 mt-0.5">&#9888; incomplete on storage (${metadata.storedChunks}/${metadata.totalChunks})${retryable ? ` · <button class="storage-retry-btn underline hover:text-amber-300" data-file-id="${safeTid}">Retry</button>` : ''}</div>`
             : '';
 
         // One action slot on the avatar side, unified with the mesh card:
@@ -488,32 +497,62 @@ class MessageRenderer {
         // = download running. Saving is automatic once the bytes are here —
         // the floppy is only a fallback for the rare case that didn't happen;
         // once it has, a plain checkmark confirms it.
-        const canDownload = !fileUrl && !active && !msg.pending && Number.isFinite(metadata.totalChunks);
+        // Our own DM file lives in the peer's inbox, which this account cannot
+        // read: another device of ours has no way to fetch it.
+        const isOwn = !!msg.sender && msg.sender.toLowerCase() === this.deps.getCurrentAddress?.()?.toLowerCase();
+        const unreachable = !fileUrl && !msg.pending && isOwn && this.deps.getCurrentChannel?.()?.type === 'dm';
+        const canDownload = !fileUrl && !active && !msg.pending && Number.isFinite(metadata.totalChunks) && !unreachable;
+
+        if ((metadata.fileType || '').startsWith('video/')) {
+            const downloadError = !fileUrl && !active ? this.deps.getStorageDownloadError?.(tid) : null;
+            const status = uploadState
+                ? (this.formatStorageUploadDetail(uploadState).line1 || 'Uploading…')
+                : downloadProgress ? this.formatStorageDownloadDetail(downloadProgress).line1
+                : downloadError ? downloadError
+                : incomplete ? `Incomplete on storage (${metadata.storedChunks}/${metadata.totalChunks})`
+                : unreachable ? 'Not on this device' : '';
+            return this.renderVideoTile({
+                id: tid,
+                metadata,
+                url: fileUrl,
+                playable: this.deps.isVideoPlayable?.(metadata.fileType) !== false,
+                downloadClass: 'storage-download-btn',
+                msgId: msg.id || null,
+                canDownload: canDownload && !incomplete,
+                retryable,
+                active,
+                percent,
+                working,
+                status
+            });
+        }
+        if (unreachable) detail = { line1: `${totalSize} &middot; not on this device`, line2: '' };
+
         let action = '';
         if (fileUrl) {
             action = this.deps.isStorageSaved?.(tid) ? `
-            <div title="Saved" class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] flex items-center justify-center">
-                ${this.iconCheck('w-5 h-5 text-green-400/70')}
+            <div title="Saved" class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-6 flex items-center justify-center">
+                ${this.iconCheck('w-5 h-5 text-success/70')}
             </div>` : `
             <a href="${fileUrl}" download="${attrFileName}" title="Save file"
-               class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] hover:bg-white/[0.14] flex items-center justify-center transition">
-                ${this.iconFloppy('w-5 h-5 text-green-400/70')}
+               class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-6 hover:bg-overlay-14 flex items-center justify-center transition">
+                ${this.iconFloppy('w-5 h-5 text-success/70')}
             </a>`;
         } else if (uploadState) {
             action = `
-            <div class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.04] flex items-center justify-center">
-                ${this.iconArrowUp('w-5 h-5 text-white/25 animate-pulse')}
+            <div class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-4 flex items-center justify-center">
+                ${this.iconArrowUp('w-5 h-5 text-overlay-25 animate-pulse')}
             </div>`;
         } else if (active) {
             action = `
-            <div class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.04] flex items-center justify-center">
-                ${this.iconArrowDown('w-5 h-5 text-white/25 animate-pulse')}
+            <div class="file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-4 flex items-center justify-center">
+                ${this.iconArrowDown('w-5 h-5 text-overlay-25 animate-pulse')}
             </div>`;
         } else if (canDownload) {
             action = `
-            <button class="storage-download-btn file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition"
+            <button class="storage-download-btn file-card-action flex-shrink-0 w-10 h-10 rounded-lg bg-overlay-6 hover:bg-overlay-12 flex items-center justify-center transition"
                     data-file-id="${safeTid}" data-msg-id="${escapeAttr(msg.id || '')}" title="Download from storage">
-                <span class="download-play-icon">${this.iconArrowDown('w-5 h-5 text-white/60')}</span>
+                <span class="download-play-icon">${this.iconArrowDown('w-5 h-5 text-overlay-60')}</span>
                 <div class="download-loading-icon hidden"></div>
             </button>`;
         }
@@ -529,11 +568,11 @@ class MessageRenderer {
         }
 
         const title = fileUrl
-            ? `<a href="${fileUrl}" download="${attrFileName}" class="text-[12px] text-white/80 hover:text-white truncate block" title="${attrFileName}">${safeFileName}</a>`
-            : `<div class="text-[12px] text-white/80 truncate" title="${attrFileName}">${safeFileName}</div>`;
+            ? `<a href="${fileUrl}" download="${attrFileName}" class="text-[12px] text-overlay-80 hover:text-primary truncate block" title="${attrFileName}">${safeFileName}</a>`
+            : `<div class="text-[12px] text-overlay-80 truncate" title="${attrFileName}">${safeFileName}</div>`;
 
         return `
-            <div data-file-id="${safeTid}" class="rounded-xl bg-white/[0.05] overflow-hidden" style="width: 300px; max-width: 100%;">
+            <div data-file-id="${safeTid}" class="rounded-xl bg-overlay-5 overflow-hidden" style="width: 300px; max-width: 100%;">
                 ${playerHtml}
                 <div class="flex items-center gap-2.5 px-3 py-2.5">
                     <div class="min-w-0 flex-1">
@@ -541,10 +580,10 @@ class MessageRenderer {
                         <div class="mt-0.5 flex items-start whitespace-nowrap">
                             ${this.transportBadge('storage')}
                             <div class="min-w-0 flex-1">
-                                <div class="text-[10px] ${active ? 'text-white/55' : 'text-white/35'} overflow-hidden text-ellipsis">
+                                <div class="text-[10px] ${active ? 'text-overlay-55' : 'text-overlay-35'} overflow-hidden text-ellipsis">
                                     <span data-progress-text="${safeTid}">${detail.line1}</span>
                                 </div>
-                                <div class="text-[10px] ${active ? 'text-white/45' : 'text-white/30'} overflow-hidden text-ellipsis">
+                                <div class="text-[10px] ${active ? 'text-overlay-45' : 'text-overlay-30'} overflow-hidden text-ellipsis">
                                     <span data-progress-eta="${safeTid}">${detail.line2}</span>
                                 </div>
                             </div>
@@ -553,7 +592,7 @@ class MessageRenderer {
                     </div>
                     ${action}
                 </div>
-                <div class="h-1.5 bg-white/[0.06] ${active ? '' : 'hidden'}" data-progress-overlay="${safeTid}">
+                <div class="h-1.5 bg-overlay-6 ${active ? '' : 'hidden'}${working ? ' is-working' : ''}" data-progress-overlay="${safeTid}">
                     <div class="h-full rounded-r-full transition-all duration-300"
                          style="width: ${percent}%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"
                          data-progress-fill="${safeTid}"></div>
@@ -579,12 +618,7 @@ class MessageRenderer {
         const isSeeding = this.deps.isSeeding?.(metadata.fileId);
         const isDownloading = this.deps.isDownloading?.(metadata.fileId);
         const downloadProgress = isDownloading ? this.deps.getDownloadProgress?.(metadata.fileId) : null;
-        
-        const safeFileId = escapeAttr(metadata.fileId);
-        // Defense-in-depth: sanitize network-provided metadata
-        const safeFileName = escapeHtml(sanitizeText(metadata.fileName));
-        const safeFileType = escapeHtml(sanitizeText(metadata.fileType));
-        
+
         // Non-video files get their own bubble in every state: the player shell and the
         // 16:9 download panel below are both meaningless for a PDF or an archive, and a
         // file row has space for the transfer statistics a video thumbnail does not.
@@ -592,144 +626,92 @@ class MessageRenderer {
             return this.renderFileBubble(msg, { isDownloading, downloadProgress });
         }
 
-        if (videoUrl) {
-            const isPlayable = this.deps.isVideoPlayable?.(metadata.fileType);
-            const videoMediaId = this.deps.registerMedia?.(videoUrl, 'video');
-            
-            if (isPlayable && videoMediaId) {
-                return `
-                    <div data-file-id="${safeFileId}" class="video-container">
-                        <div class="relative rounded-lg overflow-hidden bg-black">
-                            <video src="${videoUrl}" 
-                                   class="w-full max-h-56 cursor-pointer video-player-${safeFileId}" 
-                                   controls
-                                   preload="metadata"
-                                   playsinline>
-                                <source src="${videoUrl}" type="${safeFileType}">
-                            </video>
-                            <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white p-1 rounded transition lightbox-trigger"
-                                    data-media-id="${videoMediaId}"
-                                    title="Fullscreen">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
-                                </svg>
-                            </button>
-                            ${isSeeding ? `
-                            <div class="absolute bottom-1 left-1 bg-green-600/80 text-white text-[10px] px-1.5 py-0.5 rounded-full flex items-center gap-1">
-                                <svg class="w-2.5 h-2.5 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
-                                </svg>
-                                Seeding
-                            </div>
-                            ` : ''}
-                        </div>
-                        <div class="flex items-center gap-2 mt-1 px-0.5 text-[11px] text-white/40">
-                            <span class="truncate flex-1">${safeFileName}</span>
-                            <span class="text-white/25">${this.formatFileSize(metadata.fileSize)}</span>
-                            <a href="${videoUrl}" download="${safeFileName}" class="text-blue-400 hover:text-blue-300">Save</a>
-                        </div>
-                    </div>
-                `;
-            } else {
-                return `
-                    <div data-file-id="${safeFileId}" class="video-container">
-                        <div class="flex items-center gap-2 bg-white/[0.05] rounded-xl p-2">
-                            <svg class="w-8 h-8 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/>
-                            </svg>
-                            <div class="flex-1 min-w-0">
-                                <div class="text-sm text-white truncate">${safeFileName}</div>
-                                <div class="text-[10px] text-yellow-500/80">Format not playable · ${this.formatFileSize(metadata.fileSize)}</div>
-                            </div>
-                            <a href="${videoUrl}" download="${safeFileName}" class="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded text-xs flex-shrink-0 transition">
-                                Save
-                            </a>
-                        </div>
-                        ${isSeeding ? `
-                        <div class="flex items-center gap-1 mt-1 px-0.5">
-                            <div class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                            <span class="text-[10px] text-green-400">Seeding</span>
-                        </div>
-                        ` : ''}
-                    </div>
-                `;
-            }
-        }
-        
-        // No local copy, and no piece hashes to fetch one. This is a lean record
-        // restored from our own sync: it carries naming only, deliberately, so the
-        // manifest's hashes never ride the sync payload. Nothing here is actionable,
-        // so it gets its own muted treatment rather than a download panel whose
-        // button could only ever fail.
         const canDownload = Array.isArray(metadata.pieceHashes) && metadata.pieceHashes.length > 0;
-        if (!canDownload) {
-            return `
-                <div data-file-id="${safeFileId}" class="flex items-center gap-2.5 rounded-xl border border-dashed border-white/10 bg-white/[0.03] px-3 py-2.5" style="max-width: 220px;">
-                    <div class="flex-shrink-0 w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center">
-                        <svg class="w-4 h-4 text-white/25" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/>
-                        </svg>
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <div class="text-[12px] text-white/50 truncate" title="${escapeAttr(sanitizeText(metadata.fileName))}">${safeFileName}</div>
-                        <div class="text-[10px] text-white/25 mt-0.5">
-                            Video &middot; ${this.formatFileSize(metadata.fileSize)} &middot; not on this device
-                        </div>
-                    </div>
-                </div>
-            `;
+        const active = !!(isDownloading && downloadProgress);
+        let status = '';
+        if (active && downloadProgress.total > 0) {
+            const got = (downloadProgress.received / downloadProgress.total) * downloadProgress.fileSize;
+            status = `${this.formatFileSize(got)} of ${this.formatFileSize(downloadProgress.fileSize)}`;
+        } else if (!videoUrl && !canDownload) {
+            status = 'Not on this device';
+        } else if (videoUrl && isSeeding && isOwn) {
+            status = 'Sharing';
+        }
+        return this.renderVideoTile({
+            id: metadata.fileId,
+            metadata,
+            url: videoUrl,
+            playable: this.deps.isVideoPlayable?.(metadata.fileType) !== false,
+            downloadClass: 'download-file-btn',
+            canDownload: canDownload && !videoUrl,
+            active,
+            percent: active ? downloadProgress.percent : 0,
+            status
+        });
+    }
+
+    /**
+     * Shared by mesh and storage: the download class and the data-progress-*
+     * nodes are the contract their transfer wiring listens on.
+     * @param {Object} o
+     * @returns {string}
+     */
+    videoFullscreenButton(mediaId) {
+        return mediaId ? `
+                    <button class="video-tile-fs lightbox-trigger" data-media-id="${mediaId}" title="Fullscreen" aria-label="Fullscreen">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+                    </button>` : '';
+    }
+
+    /**
+     * The announce's first-frame thumbnail as an image URL, or '' when absent
+     * or not plain bounded base64 (it comes from the sender, unchecked).
+     * @param {Object} metadata
+     * @returns {string}
+     */
+    videoThumbnailSrc(metadata) {
+        const t = metadata?.thumbnail;
+        if (typeof t !== 'string' || t.length === 0 || t.length > 40000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(t)) return '';
+        return `data:image/jpeg;base64,${t}`;
+    }
+
+    renderVideoTile({ id, metadata, url, playable = true, downloadClass, msgId = null, canDownload, active, percent = 0, working = false, retryable = false, status = '' }) {
+        const safeId = escapeAttr(id);
+        const name = escapeHtml(sanitizeText(metadata.fileName));
+        const attrName = escapeAttr(sanitizeText(metadata.fileName));
+        const size = this.formatFileSize(metadata.fileSize ?? metadata.originalSize ?? 0);
+        const autoplay = this.videoAutoplay.delete(id);
+        const thumb = this.videoThumbnailSrc(metadata);
+
+        let stage = '';
+        if (url && playable) {
+            const mediaId = this.deps.registerMedia?.(url, 'video');
+            // #t= makes the browser paint a frame instead of an empty box.
+            stage = `<video src="${url}#t=0.1" class="video-tile-media" controls preload="metadata" playsinline${thumb ? ` poster="${thumb}"` : ''}${autoplay ? ' autoplay' : ''}></video>${this.videoFullscreenButton(mediaId)}`;
+        } else if (url) {
+            stage = `<div class="video-tile-note">This video format can't play here</div>`;
+        } else if (canDownload) {
+            stage = `<button class="video-tile-play ${downloadClass}" data-file-id="${safeId}"${msgId ? ` data-msg-id="${escapeAttr(msgId)}"` : ''} data-video-play aria-label="Play video"${active ? ' disabled' : ''}>
+                        <svg class="download-play-icon w-6 h-6${active ? ' hidden' : ''}" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        <span class="download-loading-icon${active ? '' : ' hidden'}"><span class="video-tile-spinner"></span></span>
+                    </button>`;
         }
 
-        // Video not available yet - show preview panel (with downloading state if active)
-        const dlActive = isDownloading && downloadProgress;
-        const dlPercent = dlActive ? downloadProgress.percent : 0;
-        const dlReceivedMB = dlActive && downloadProgress.total > 0 ? ((downloadProgress.received / downloadProgress.total) * downloadProgress.fileSize / (1024 * 1024)).toFixed(1) : '0.0';
-        const dlTotalMB = dlActive ? (downloadProgress.fileSize / (1024 * 1024)).toFixed(1) : '0.0';
-        const overlayClass = dlActive ? '' : 'hidden';
-        const playIconClass = dlActive ? 'hidden' : '';
-        const loadingIconClass = dlActive ? '' : 'hidden';
-        const btnDisabled = dlActive ? 'disabled' : '';
-        const btnCursorClass = dlActive ? 'cursor-not-allowed' : '';
-
+        const pill = status || (url ? '' : size);
+        const playing = !!url && playable;
         return `
-            <div data-file-id="${safeFileId}" class="video-container">
-                <div class="relative rounded-xl overflow-hidden bg-white/[0.05] cursor-pointer group"
-                     style="aspect-ratio: 16/9; width: 220px;">
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <svg class="w-10 h-10 text-purple-500/20" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/>
-                        </svg>
-                    </div>
-                    <button class="download-file-btn absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-all ${btnCursorClass}" 
-                            data-file-id="${safeFileId}" ${btnDisabled}>
-                        <div class="play-btn-container transform group-hover:scale-105 transition-transform">
-                            <div class="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30">
-                                <svg class="w-5 h-5 text-white ml-0.5 download-play-icon ${playIconClass}" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M8 5v14l11-7z"/>
-                                </svg>
-                                <div class="download-loading-icon ${loadingIconClass}">
-                                    <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </button>
-                    <div data-progress-overlay="${safeFileId}" class="${overlayClass} absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
-                        <div class="text-white text-sm font-medium" data-progress-percent="${safeFileId}">${dlPercent}%</div>
-                        <div class="w-2/3 bg-white/10 rounded-full h-1.5 mt-1.5">
-                            <div data-progress-fill="${safeFileId}" class="bg-blue-500 h-1.5 rounded-full transition-all duration-300" style="width: ${dlPercent}%"></div>
-                        </div>
-                        <div class="text-[10px] text-white/30 mt-1" data-progress-text="${safeFileId}">${dlActive ? `${dlReceivedMB} / ${dlTotalMB} MB` : 'Starting...'}</div>
-                    </div>
-                    <div class="absolute top-1.5 left-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1">
-                        <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.553 1.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/>
-                        </svg>
-                        ${this.formatFileSize(metadata.fileSize)}
-                    </div>
-                    <div class="absolute top-1.5 right-1.5 bg-black/60 text-white/30 text-[10px] px-1.5 py-0.5 rounded" data-seeder-count="${safeFileId}"></div>
+            <div data-file-id="${safeId}" class="video-tile">
+                <div class="video-tile-frame">${thumb && !(url && playable) ? `
+                    <img class="video-tile-thumb" src="${thumb}" alt="">` : ''}
+                    ${stage}
+                    <span class="video-tile-pill${pill ? '' : ' hidden'}" data-progress-text="${safeId}">${escapeHtml(pill)}</span>${playing ? '' : `
+                    <div class="video-tile-bar${active ? '' : ' hidden'}${working ? ' is-working' : ''}" data-progress-overlay="${safeId}"><div data-progress-fill="${safeId}" style="width: ${percent}%"></div></div>`}
                 </div>
-                <div class="mt-1 px-0.5 text-[11px] text-white/40 truncate" title="${escapeHtml(sanitizeText(metadata.fileName))}">
-                    ${escapeHtml(sanitizeText(metadata.fileName))}
+                <div class="video-tile-meta">
+                    <span class="truncate" title="${attrName}">${name}</span>
+                    <span class="flex-shrink-0">${size}</span>${url ? `
+                    <a href="${url}" download="${attrName}" class="flex-shrink-0 hover:text-overlay-70">Save</a>` : ''}${retryable ? `
+                    <button class="storage-retry-btn flex-shrink-0 hover:text-overlay-70" data-file-id="${safeId}">Retry</button>` : ''}
                 </div>
             </div>
         `;
@@ -832,7 +814,7 @@ class MessageRenderer {
         // A moderator's view of a hidden message: dimmed, labelled, still
         // reachable by the context menu for Unhide and Erase.
         const erasingHtml = msg._erasing && !msg._erased
-            ? '<span class="message-erasing inline-block animate-spin w-2.5 h-2.5 ml-1.5 align-middle border border-white/25 border-t-white/70 rounded-full" aria-label="Erasing from storage"></span>'
+            ? '<span class="message-erasing inline-block animate-spin w-2.5 h-2.5 ml-1.5 align-middle border border-overlay-25 border-t-overlay-70 rounded-full" aria-label="Erasing from storage"></span>'
             : '';
         const moderationHtml = msg._hidden
             ? `<div class="message-moderation text-[11px] text-amber-400/80 mb-1">${msg._erased ? 'Hidden · erased from storage' : 'Hidden by moderation'}${erasingHtml}</div>`
@@ -847,31 +829,47 @@ class MessageRenderer {
             : msg.delivered ? ' message-delivered'
             : '';
         const sendStateHtml = sendState === ' message-pending'
-            ? '<span class="message-status text-xs text-white/40">sending…</span>'
+            ? '<span class="message-status text-xs text-overlay-40">sending…</span>'
             : sendState === ' message-failed'
-                ? `<span class="message-status message-status--failed text-xs text-red-400" title="${escapeAttr(msg.failError || '')}">${msg.undelivered ? 'Not delivered' : 'Not sent'}</span><button type="button" class="message-retry text-xs text-red-400" data-msg-id="${escapeAttr(msgId)}">Retry</button>`
+                ? `<span class="message-status message-status--failed text-xs text-danger" title="${escapeAttr(msg.failError || '')}">${msg.undelivered ? 'Not delivered' : 'Not sent'}</span><button type="button" class="message-retry text-xs text-danger" data-msg-id="${escapeAttr(msgId)}">Retry</button>`
                 : '';
 
+        const keepMeta = msg._edited || sendState === ' message-pending' || sendState === ' message-failed';
+        const metaHtml = `<span class="message-meta${keepMeta ? ' message-meta--keep' : ''}">${msg._edited ? '<span class="message-edited text-xs text-overlay-25">(edited)</span>' : ''}<span class="message-time text-xs text-overlay-40">${time}</span>${sendStateHtml}</span>`;
+        const metaOverContent = msgType === 'image' || emojiOnly;
+        const metaInFooter = !metaOverContent && reactionsHtml.includes('reaction-badge');
+
         return `
-            <div class="message-entry ${isOwn ? 'own-message' : 'other-message'} ${groupClass} ${spacingClass}${msg._hidden ? ' message-hidden' : ''}${sendState}" data-msg-id="${escapeAttr(msgId)}" data-sender="${escapeAttr(msg.sender || '')}" data-type="${escapeAttr(msgType)}"${emojiAttr}>
+            <div class="message-entry ${isOwn ? 'own-message' : 'other-message'} ${groupClass} ${spacingClass}${msg._hidden ? ' message-hidden' : ''}${!msg.signature && msg.verified?.valid === false ? ' message-unverified' : ''}${sendState}" data-msg-id="${escapeAttr(msgId)}" data-sender="${escapeAttr(msg.sender || '')}" data-type="${escapeAttr(msgType)}"${emojiAttr}>
                 <div class="message-bubble"${bubbleStyle}>
                     ${moderationHtml}
                     ${senderRowHtml}
                     ${replyPreviewHtml}
-                    <div class="message-content">${contentHtml}</div>
+                    <div class="message-content${metaOverContent ? ' message-content--meta-over' : ''}">${contentHtml}${metaInFooter ? '' : metaHtml}</div>
                     <div class="message-footer">
-                        ${reactionsHtml}
-                        ${msg._edited ? '<span class="message-edited text-xs text-white/25">(edited)</span>' : ''}
-                        <span class="message-time text-xs text-white/40">${time}</span>
-                        ${sendStateHtml}
+                        ${reactionsHtml}${metaInFooter ? metaHtml : ''}
                     </div>
-                    ${msg.verified && !msg.verified.valid && msg.signature ? '<div class="text-xs text-red-400 mt-1">⚠️ Invalid signature</div>' : ''}
+                    ${!msg.signature && msg.verified?.valid === false ? '<div class="message-verify-warning text-xs text-danger mt-1">Could not verify: dated ahead of your clock</div>' : ''}
                     <span class="reply-trigger reply-btn" data-msg-id="${escapeAttr(msgId)}" title="Reply"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17l-5-5 5-5"/><path d="M4 12h11a4 4 0 0 1 4 4v4"/></svg></span>
                     <span class="react-trigger react-btn" data-msg-id="${escapeAttr(msgId)}" title="React"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></span>
                 </div>
             </div>
         `;
     }
+}
+
+/**
+ * Moves a rendered message's time to the reactions row while it has
+ * reactions, and back to the end of the text when it has none.
+ * @param {Element|null} entry - `.message-entry`
+ */
+export function placeMessageMeta(entry) {
+    const meta = entry?.querySelector('.message-meta');
+    const content = entry?.querySelector('.message-content');
+    const footer = entry?.querySelector('.message-footer');
+    if (!meta || !content || !footer || content.classList.contains('message-content--meta-over')) return;
+    const target = footer.querySelector('.reaction-badge') ? footer : content;
+    if (meta.parentElement !== target) target.appendChild(meta);
 }
 
 // Export singleton instance

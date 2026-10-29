@@ -28,9 +28,20 @@ class ModalManager {
             'invite-users-modal',
             'dm-inbox-setup-modal',
             'new-dm-modal',
-            'wallet-modal'
+            'wallet-modal',
+            'accounts-modal'
         ]);
         
+        // Opened over whatever view is showing: closing one must not navigate.
+        // The history.back() that drops its entry lands on the view's own
+        // state, which the mobile router reads as "go to Home" for Explore.
+        this.overlayModals = new Set(['wallet-modal', 'join-channel-modal']);
+        this._swallowNextPop = false;
+
+        // Extra history steps inside an open modal (e.g. a Settings section
+        // over the section list): Back pops one of these before the modal.
+        this._subStates = []; // { modalId, onPop }
+
         // Flag to prevent recursive popstate handling
         this._handlingPopState = false;
         
@@ -45,6 +56,19 @@ class ModalManager {
      */
     _initHistoryListener() {
         window.addEventListener('popstate', (event) => {
+            if (this._swallowNextPop) {
+                this._swallowNextPop = false;
+                this._resolveSwallowedPop?.();
+                event.stopImmediatePropagation();
+                return;
+            }
+            const sub = this._subStates[this._subStates.length - 1];
+            if (sub && sub.modalId === this.modalStack[this.modalStack.length - 1]) {
+                this._subStates.pop();
+                sub.onPop();
+                event.stopImmediatePropagation();
+                return;
+            }
             // Check if this is a modal state we pushed
             if (event.state && event.state.modal) {
                 // This is handled - modal was closed via back button
@@ -152,13 +176,58 @@ class ModalManager {
             const stackIndex = this.modalStack.indexOf(modalId);
             if (stackIndex !== -1) {
                 this.modalStack.splice(stackIndex, 1);
-                // Go back to remove the history entry we added
+                const subSteps = this._dropSubStatesOf(modalId);
+                // Go back to remove the history entries we added
                 // Skip if: handling popstate, or skipHistory option is set (e.g., switching modals)
                 if (!this._handlingPopState && !options.skipHistory) {
-                    window.history.back();
+                    if (this.overlayModals.has(modalId)) {
+                        this._swallowNextPop = true;
+                        this._swallowedPop = new Promise(resolve => { this._resolveSwallowedPop = resolve; });
+                    }
+                    if (subSteps) window.history.go(-(1 + subSteps));
+                    else window.history.back();
                 }
             }
         }
+    }
+
+    /**
+     * Resolves once the history step an overlay modal dropped on hide has
+     * popped. A route pushed before that would be the entry the pop removes.
+     * @returns {Promise<void>}
+     */
+    historySettled() {
+        return this._swallowNextPop ? this._swallowedPop : Promise.resolve();
+    }
+
+    /**
+     * Add one history step inside an open history modal.
+     * @param {string} modalId - The open modal the step belongs to
+     * @param {Function} onPop - Called when Back pops this step
+     */
+    pushSubState(modalId, onPop) {
+        if (!this.modalStack.includes(modalId)) return;
+        window.history.pushState({ modal: modalId, sub: true }, '');
+        this._subStates.push({ modalId, onPop });
+    }
+
+    /**
+     * Leave the top step of a modal without the Back key (e.g. an in-page back arrow).
+     * @param {string} modalId
+     */
+    dropSubState(modalId) {
+        const top = this._subStates[this._subStates.length - 1];
+        if (!top || top.modalId !== modalId) return;
+        this._subStates.pop();
+        this._swallowNextPop = true;
+        window.history.back();
+    }
+
+    /** @returns {number} how many steps the modal had */
+    _dropSubStatesOf(modalId) {
+        const before = this._subStates.length;
+        this._subStates = this._subStates.filter(s => s.modalId !== modalId);
+        return before - this._subStates.length;
     }
     
     /**
@@ -184,6 +253,7 @@ class ModalManager {
         if (stackIndex !== -1) {
             this.modalStack.splice(stackIndex, 1);
         }
+        this._dropSubStatesOf(modalId);
     }
     
     /**
@@ -246,30 +316,27 @@ class ModalManager {
     }
 
     /**
-     * Show join channel modal
+     * Show join channel modal with every field cleared
      * @param {HTMLElement} modal - Modal element
      * @param {HTMLElement} streamIdInput - Stream ID input
      * @param {HTMLElement} passwordInput - Password input
-     * @param {HTMLElement} passwordField - Password field container
      */
-    showJoinChannelModal(modal, streamIdInput, passwordInput, passwordField) {
-        modal?.classList.remove('hidden');
+    showJoinChannelModal(modal, streamIdInput, passwordInput) {
+        if (modal) this.show(modal.id);
         if (streamIdInput) streamIdInput.value = '';
         if (passwordInput) {
             passwordInput.value = '';
             passwordInput.type = 'password';
             passwordInput.style.webkitTextSecurity = 'disc';
         }
-        passwordField?.classList.add('hidden');
-        
+        const localName = document.getElementById('join-local-name-input');
+        if (localName) localName.value = '';
+
         // Reset join password eye icons
         const joinEyeOpen = document.getElementById('join-pw-eye-open');
         const joinEyeOff = document.getElementById('join-pw-eye-off');
         if (joinEyeOpen) joinEyeOpen.classList.remove('hidden');
         if (joinEyeOff) joinEyeOff.classList.add('hidden');
-
-        const checkbox = document.getElementById('join-has-password');
-        if (checkbox) checkbox.checked = false;
     }
 
     /**

@@ -1,6 +1,6 @@
 /**
  * identity.js Extended Tests
- * Covers: createSignedMessage, verifyMessage, resolveAddress, pruneExpiredENSEntries (overflow)
+ * Covers: createMessage, verifyMessage, resolveAddress, pruneExpiredENSEntries (overflow)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -28,12 +28,6 @@ vi.mock('../../src/js/logger.js', () => ({
     Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }));
 
-vi.mock('../../src/js/workers/cryptoWorkerPool.js', () => ({
-    cryptoWorkerPool: {
-        execute: vi.fn()
-    }
-}));
-
 const mockLookupAddress = vi.fn(() => Promise.resolve(null));
 const mockResolveName = vi.fn(() => Promise.resolve(null));
 
@@ -53,7 +47,6 @@ globalThis.ethers = mockEthers;
 import { identityManager } from '../../src/js/identity.js';
 import { secureStorage } from '../../src/js/secureStorage.js';
 import { authManager } from '../../src/js/auth.js';
-import { cryptoWorkerPool } from '../../src/js/workers/cryptoWorkerPool.js';
 import { Logger } from '../../src/js/logger.js';
 
 describe('IdentityManager Extended', () => {
@@ -73,10 +66,10 @@ describe('IdentityManager Extended', () => {
         mockResolveName.mockResolvedValue(null);
     });
 
-    // ==================== createSignedMessage ====================
-    describe('createSignedMessage()', () => {
+    // ==================== createMessage ====================
+    describe('createMessage()', () => {
         it('should create a message with all fields', async () => {
-            const msg = await identityManager.createSignedMessage('Hello', 'channel-1');
+            const msg = await identityManager.createMessage('Hello', 'channel-1');
 
             expect(msg.type).toBe('text');
             expect(msg.text).toBe('Hello');
@@ -86,7 +79,7 @@ describe('IdentityManager Extended', () => {
         });
 
         it('stamps the local identity so the message renders before it is sent', async () => {
-            const msg = await identityManager.createSignedMessage('Hello', 'channel-1');
+            const msg = await identityManager.createMessage('Hello', 'channel-1');
 
             // Set locally, stripped at egress, re-derived from the proof on
             // arrival — the sender's own copy never goes through ingest.
@@ -95,7 +88,7 @@ describe('IdentityManager Extended', () => {
         });
 
         it('carries no app-layer signature or channelId (D6/D7)', async () => {
-            const msg = await identityManager.createSignedMessage('Hello', 'channel-1');
+            const msg = await identityManager.createMessage('Hello', 'channel-1');
 
             // Streamr signs the envelope and the proof authenticates the
             // account; a third signature only re-exposed the address.
@@ -106,7 +99,7 @@ describe('IdentityManager Extended', () => {
         it('should include senderName when username is set', async () => {
             identityManager.username = 'Alice';
 
-            const msg = await identityManager.createSignedMessage('Hi', 'ch-1');
+            const msg = await identityManager.createMessage('Hi', 'ch-1');
 
             expect(msg.senderName).toBe('Alice');
         });
@@ -114,7 +107,7 @@ describe('IdentityManager Extended', () => {
         it('should set senderName to null when no username', async () => {
             identityManager.username = null;
 
-            const msg = await identityManager.createSignedMessage('Hi', 'ch-1');
+            const msg = await identityManager.createMessage('Hi', 'ch-1');
 
             expect(msg.senderName).toBeNull();
         });
@@ -122,30 +115,20 @@ describe('IdentityManager Extended', () => {
         it('should include replyTo when provided', async () => {
             const replyTo = { id: 'msg-original', text: 'Original', sender: '0xOther' };
 
-            const msg = await identityManager.createSignedMessage('Reply', 'ch-1', replyTo);
+            const msg = await identityManager.createMessage('Reply', 'ch-1', replyTo);
 
             expect(msg.replyTo).toEqual(replyTo);
         });
 
-        it('should not hash the message', async () => {
-            const hashSpy = vi.spyOn(identityManager, 'createMessageHash');
-
-            await identityManager.createSignedMessage('Test', 'ch-2');
-
-            // The hash existed only to be signed. createMessageHash survives
-            // for verifying pre-migration history, nothing else.
-            expect(hashSpy).not.toHaveBeenCalled();
-        });
-
         it('should not sign', async () => {
-            await identityManager.createSignedMessage('Sign me', 'ch-1');
+            await identityManager.createMessage('Sign me', 'ch-1');
 
             expect(authManager.signMessage).not.toHaveBeenCalled();
         });
 
         it('should generate unique IDs for each message', async () => {
-            const msg1 = await identityManager.createSignedMessage('A', 'ch');
-            const msg2 = await identityManager.createSignedMessage('B', 'ch');
+            const msg1 = await identityManager.createMessage('A', 'ch');
+            const msg2 = await identityManager.createMessage('B', 'ch');
 
             expect(msg1.id).not.toBe(msg2.id);
         });
@@ -156,168 +139,65 @@ describe('IdentityManager Extended', () => {
         const validMessage = {
             id: 'msg-123',
             text: 'Hello',
-            sender: '0xSender',
+            account: '0xsender',
             timestamp: Date.now(),
-            channelId: 'ch-1',
-            signature: '0xSig'
+            channelId: 'ch-1'
         };
 
-        it('accepts an unsigned message and takes identity from the account', async () => {
-            // The current format (D6). `account` was established by ecrecover
-            // over the proof at ingest, before this message reached anyone.
-            const result = await identityManager.verifyMessage({
-                ...validMessage,
-                signature: null,
-                account: '0xProvenAccount'
-            });
+        it('takes identity from the account settled at ingest', async () => {
+            const result = await identityManager.verifyMessage(validMessage);
 
             expect(result.valid).toBe(true);
-            expect(result.recoveredAddress).toBe('0xProvenAccount');
+            expect(result.recoveredAddress).toBe('0xsender');
+            expect(result.trustLevel).toBe(0); // unknown address
         });
 
-        it('rejects an unsigned message with no account', async () => {
-            const result = await identityManager.verifyMessage({
-                ...validMessage,
-                signature: null,
-                account: null
-            });
+        it('rejects a message with no account', async () => {
+            const result = await identityManager.verifyMessage({ ...validMessage, account: null });
 
             expect(result.valid).toBe(false);
             expect(result.error).toBe('No account');
             expect(result.trustLevel).toBe(-1);
         });
 
-        it('still rejects an unsigned message with an expired timestamp', async () => {
-            // The replay window must not widen just because the app-layer
-            // signature went away.
-            const result = await identityManager.verifyMessage({
-                ...validMessage,
-                signature: null,
-                account: '0xProvenAccount',
-                timestamp: Date.now() - 10 * 60000
-            });
-
-            expect(result.valid).toBe(false);
-            expect(result.isReplayAttempt).toBe(true);
-        });
-
-        it('should reject expired timestamp (replay attack)', async () => {
-            const oldMsg = { ...validMessage, timestamp: Date.now() - 10 * 60000 };
-
-            const result = await identityManager.verifyMessage(oldMsg);
+        it('rejects an expired timestamp (replay)', async () => {
+            const result = await identityManager.verifyMessage({ ...validMessage, timestamp: Date.now() - 10 * 60000 });
 
             expect(result.valid).toBe(false);
             expect(result.isReplayAttempt).toBe(true);
             expect(result.trustLevel).toBe(-1);
         });
 
-        it('should skip timestamp check when option is set', async () => {
-            const oldMsg = { ...validMessage, timestamp: Date.now() - 10 * 60000 };
-            cryptoWorkerPool.execute.mockResolvedValue({
-                valid: true,
-                recoveredAddress: '0xSender'
-            });
-
-            const result = await identityManager.verifyMessage(oldMsg, 'ch-1', { skipTimestampCheck: true });
+        it('skips the timestamp check when asked', async () => {
+            const result = await identityManager.verifyMessage(
+                { ...validMessage, timestamp: Date.now() - 10 * 60000 }, 'ch-1', { skipTimestampCheck: true }
+            );
 
             expect(result.valid).toBe(true);
         });
 
-        it('should return invalid on signature mismatch', async () => {
-            cryptoWorkerPool.execute.mockResolvedValue({
-                valid: false,
-                error: 'Signer mismatch',
-                recoveredAddress: '0xOtherSigner'
-            });
-
-            const result = await identityManager.verifyMessage(validMessage);
-
-            expect(result.valid).toBe(false);
-            expect(result.error).toBe('Signer mismatch');
-            expect(result.claimedSender).toBe('0xSender');
-            expect(result.actualSigner).toBe('0xOtherSigner');
-            expect(result.trustLevel).toBe(-1);
-        });
-
-        it('should return valid with trust level on success', async () => {
-            cryptoWorkerPool.execute.mockResolvedValue({
-                valid: true,
-                recoveredAddress: '0xSender'
-            });
-
-            const result = await identityManager.verifyMessage(validMessage);
+        it('ignores a legacy app-layer signature', async () => {
+            const result = await identityManager.verifyMessage({ ...validMessage, signature: '0xNotChecked' });
 
             expect(result.valid).toBe(true);
-            expect(result.recoveredAddress).toBe('0xSender');
-            expect(result.trustLevel).toBe(0); // unknown address
+            expect(result.recoveredAddress).toBe('0xsender');
         });
 
-        it('should return trust level 2 for trusted contact', async () => {
+        it('returns trust level 2 for a trusted contact', async () => {
             await identityManager.addTrustedContact('0xSender', 'TrustedGuy');
-            cryptoWorkerPool.execute.mockResolvedValue({
-                valid: true,
-                recoveredAddress: '0xSender'
-            });
 
             const result = await identityManager.verifyMessage(validMessage);
 
             expect(result.trustLevel).toBe(2);
         });
 
-        it('should include ENS name when available', async () => {
-            identityManager.ensCache.set('0xsender', {
-                name: 'sender.eth',
-                timestamp: Date.now()
-            });
-            cryptoWorkerPool.execute.mockResolvedValue({
-                valid: true,
-                recoveredAddress: '0xSender'
-            });
+        it('includes a cached ENS name', async () => {
+            identityManager.ensCache.set('0xsender', { name: 'sender.eth', timestamp: Date.now() });
 
             const result = await identityManager.verifyMessage(validMessage);
 
             expect(result.ensName).toBe('sender.eth');
-            expect(result.trustLevel).toBe(1); // ENS verified
-        });
-
-        it('should call cryptoWorkerPool with correct params', async () => {
-            cryptoWorkerPool.execute.mockResolvedValue({
-                valid: true,
-                recoveredAddress: '0xSender'
-            });
-
-            await identityManager.verifyMessage(validMessage);
-
-            expect(cryptoWorkerPool.execute).toHaveBeenCalledWith('VERIFY_SIGNATURE', {
-                messageHash: '0xMockHash',
-                signature: '0xSig',
-                expectedSender: '0xSender'
-            });
-        });
-
-        it('should handle worker exception gracefully', async () => {
-            cryptoWorkerPool.execute.mockRejectedValue(new Error('Worker crashed'));
-
-            const result = await identityManager.verifyMessage(validMessage);
-
-            expect(result.valid).toBe(false);
-            expect(result.error).toBe('Worker crashed');
-            expect(result.trustLevel).toBe(-1);
-            expect(Logger.error).toHaveBeenCalledWith(
-                expect.stringContaining('Signature verification failed'),
-                expect.any(Error)
-            );
-        });
-
-        it('should use default error when verification has no error message', async () => {
-            cryptoWorkerPool.execute.mockResolvedValue({
-                valid: false,
-                recoveredAddress: '0xBad'
-            });
-
-            const result = await identityManager.verifyMessage(validMessage);
-
-            expect(result.error).toBe('Signature mismatch');
+            expect(result.trustLevel).toBe(1);
         });
     });
 

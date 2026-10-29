@@ -207,14 +207,14 @@ class NotificationManager {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
             </svg>
             <div class="toast-content">
-                <div class="text-[13px] font-medium text-white/90 mb-1">Channel Invite</div>
-                <div class="text-[11px] text-white/50 mb-0.5">From: ${escapeHtml(this.formatAddress(invite.from))}</div>
-                <div class="text-[12px] text-white/80 font-medium">${escapeHtml(sanitizeText(invite.channel.name))}</div>
+                <div class="text-[13px] font-medium text-overlay-90 mb-1">Channel Invite</div>
+                <div class="text-[11px] text-overlay-50 mb-0.5">From: ${escapeHtml(this.formatAddress(invite.from))}</div>
+                <div class="text-[12px] text-overlay-80 font-medium">${escapeHtml(sanitizeText(invite.channel.name))}</div>
                 <div class="mt-2.5 flex gap-2">
-                    <button class="accept-btn bg-white/90 hover:bg-white text-[#0a0a0a] px-3 py-1 rounded-md text-[11px] font-medium transition">
+                    <button class="accept-btn bg-overlay-90 hover:bg-white text-surface-2 px-3 py-1 rounded-md text-[11px] font-medium transition">
                         Accept
                     </button>
-                    <button class="dismiss-btn bg-white/10 hover:bg-white/20 text-white/70 px-3 py-1 rounded-md text-[11px] font-medium transition">
+                    <button class="dismiss-btn bg-overlay-10 hover:bg-overlay-20 text-overlay-70 px-3 py-1 rounded-md text-[11px] font-medium transition">
                         Dismiss
                     </button>
                 </div>

@@ -70,7 +70,7 @@ describe('the failed-send outbox', () => {
         await unlockRealStorage();
         vi.spyOn(authManager, 'getAddress').mockReturnValue(ME);
         vi.spyOn(authManager, 'isConnected').mockReturnValue(true);
-        vi.spyOn(identityManager, 'createSignedMessage').mockImplementation(async () => signed('m1'));
+        vi.spyOn(identityManager, 'createMessage').mockImplementation(async () => signed('m1'));
         vi.spyOn(identityManager, 'getTrustLevel').mockResolvedValue(0);
         vi.spyOn(identityManager, 'resolveENS').mockResolvedValue(null);
     });

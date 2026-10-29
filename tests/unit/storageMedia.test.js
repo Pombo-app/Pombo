@@ -44,8 +44,13 @@ import {
     mergeWindows,
     chunkWindowsFor,
     buildMissingWindows,
+    sequentialWindows,
+    windowPicker,
+    wantedTime,
+    chunkPartitionsFor,
     partitionOfChunk,
-    makeFaststartSource
+    makeFaststartSource,
+    addSegmentIndex
 } from '../../src/js/storageMedia.js';
 import { STORAGE_FILE, MESSAGE_STREAM, storageChunkPartition } from '../../src/js/streamConstants.js';
 
@@ -198,6 +203,58 @@ describe('window builders', () => {
         const wins = buildMissingWindows(noTs, [1], 5, 6);
         expect(wins).toHaveLength(9);
     });
+
+    it('sequentialWindows tiles the full range: start, end, then the middle in order', () => {
+        const fromT = meta.firstChunkTs - 30000, toT = meta.lastChunkTs + 60000;
+        const wins = sequentialWindows(meta, fromT, toT, 36);
+        const slices = [];
+        for (let i = 0; i < wins.length; i += 9) slices.push({ from: wins[i].from, to: wins[i].to });
+        expect(slices[0].from).toBe(fromT);
+        expect(slices[1].to).toBe(toT);
+        const tiled = [slices[0], ...slices.slice(2), slices[1]];
+        for (let k = 1; k < tiled.length; k++) expect(tiled[k].from).toBe(tiled[k - 1].to);
+        expect(wins.slice(0, 9).map(w => w.partition)).toEqual(chunkWindowsFor(meta, 0, 1).map(w => w.partition));
+    });
+
+    it('chunkPartitionsFor uses only the partitions the stream has', () => {
+        expect(chunkPartitionsFor(12, 3)).toBe(9);
+        expect(chunkPartitionsFor(11, 3)).toBe(8);
+        expect(chunkPartitionsFor(13, 4)).toBe(9);
+        expect(chunkPartitionsFor(20, 3)).toBe(9);
+        expect(chunkPartitionsFor(3, 3)).toBe(0);
+        expect(chunkPartitionsFor(null, 3)).toBe(9);
+    });
+
+    const drain = (p) => { const out = []; for (let w; (w = p.next());) out.push(w); return out; };
+
+    it('windowPicker hands out every window once, in order, with no player waiting', () => {
+        const wins = [0, 1, 2, 3].map(k => ({ partition: 3, from: k * 10, to: k * 10 + 10 }));
+        expect(drain(windowPicker(wins))).toEqual(wins);
+    });
+
+    it('windowPicker serves a waiting player from its time on, then fills what lies behind', () => {
+        const slices = [[0, 10], [40, 50], [10, 20], [20, 30], [30, 40]];
+        const wins = slices.flatMap(([from, to]) => [{ partition: 3, from, to }, { partition: 4, from, to }]);
+        let wanted = null;
+        const picker = windowPicker(wins, () => wanted);
+        expect(picker.next()).toBe(wins[0]);
+        wanted = 25;
+        const rest = drain(picker);
+        expect(rest.map(w => w.from)).toEqual([20, 20, 30, 30, 40, 40, 0, 10, 10]);
+        expect(new Set([wins[0], ...rest])).toEqual(new Set(wins));
+    });
+
+    it('wantedTime sits one round of partitions before the chunk', () => {
+        const m = { firstChunkTs: 1000, lastChunkTs: 1990, totalChunks: 100, chunkPartitions: 9 };
+        expect(wantedTime(m, 100)).toBe(1000 + 91 * 10);
+        expect(wantedTime(m, undefined)).toBeNull();
+        expect(wantedTime({ ...m, firstChunkTs: null }, 5)).toBeNull();
+    });
+
+    it('sequentialWindows falls back to full ranges without chunk timestamps', () => {
+        const noTs = { ...meta, firstChunkTs: null, lastChunkTs: null };
+        expect(sequentialWindows(noTs, 5, 6, 36)).toEqual(chunkWindowsFor(noTs, 5, 6));
+    });
 });
 
 describe('makeFaststartSource', () => {
@@ -266,6 +323,79 @@ describe('makeFaststartSource', () => {
     it.skipIf(!blobSupported)('bails on non-MP4 garbage without throwing', async () => {
         const file = new Blob([new Uint8Array(64).fill(0xab)]);
         const res = await makeFaststartSource(file);
+        expect(res.changed).toBe(false);
+        expect(res.blob).toBe(file);
+    });
+});
+
+describe('addSegmentIndex', () => {
+    const box = (type, ...parts) => {
+        const len = parts.reduce((s, p) => s + p.length, 0);
+        const out = new Uint8Array(8 + len);
+        new DataView(out.buffer).setUint32(0, out.length, false);
+        for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+        let o = 8; for (const p of parts) { out.set(p, o); o += p.length; }
+        return out;
+    };
+    const u32s = (...xs) => {
+        const out = new Uint8Array(xs.length * 4);
+        xs.forEach((x, i) => new DataView(out.buffer).setUint32(i * 4, x, false));
+        return out;
+    };
+    const TRACK = 1, TIMESCALE = 1000;
+    const moov = box('moov',
+        box('trak',
+            box('tkhd', u32s(0, 0, 0, TRACK, 0)),
+            box('mdia', box('mdhd', u32s(0, 0, 0, TIMESCALE, 0)))),
+        box('mvex', box('trex', u32s(0, TRACK, 1, 0, 0, 0))));
+    const fragment = (tfhd, ...rest) => box('moof', box('mfhd', u32s(0, 1)), box('traf', tfhd, ...rest));
+    // Per-sample durations in trun; then a default duration in tfhd.
+    const moof1 = fragment(box('tfhd', u32s(0x020000, TRACK)), box('tfdt', u32s(0x01000000, 0, 1000)),
+        box('trun', u32s(0x100, 2, 100, 150)));
+    const moof2 = fragment(box('tfhd', u32s(0x020008, TRACK, 200)), box('trun', u32s(0, 3)));
+    const mdat1 = box('mdat', new Uint8Array(20)), mdat2 = box('mdat', new Uint8Array(10));
+    const ftyp = box('ftyp', new Uint8Array(8)), free = box('free', new Uint8Array(4));
+    const mfra = box('mfra', new Uint8Array(16));
+    const blobSupported = typeof new Blob([new Uint8Array(1)]).arrayBuffer === 'function';
+
+    it.skipIf(!blobSupported)('inserts a sidx after the moov describing each fragment', async () => {
+        const file = new Blob([ftyp, moov, free, moof1, mdat1, moof2, mdat2, mfra], { type: 'video/mp4' });
+        const res = await addSegmentIndex(file);
+        expect(res.changed).toBe(true);
+
+        const out = new Uint8Array(await res.blob.arrayBuffer());
+        const at = ftyp.length + moov.length;
+        const v = new DataView(out.buffer, at);
+        const type = String.fromCharCode(...out.slice(at + 4, at + 8));
+        expect(type).toBe('sidx');
+        expect(res.blob.size).toBe(file.size + v.getUint32(0, false));
+        expect(v.getUint32(12, false)).toBe(TRACK);
+        expect(v.getUint32(16, false)).toBe(TIMESCALE);
+        expect(v.getUint32(24, false)).toBe(1000); // earliest presentation time
+        expect(v.getUint32(32, false)).toBe(free.length); // first_offset
+        expect(v.getUint16(38, false)).toBe(2);
+        expect([v.getUint32(40, false), v.getUint32(44, false)]).toEqual([moof1.length + mdat1.length, 250]);
+        expect([v.getUint32(52, false), v.getUint32(56, false)]).toEqual([moof2.length + mdat2.length, 600]);
+        expect(out.slice(at + v.getUint32(0, false))).toEqual(new Uint8Array(await file.slice(at).arrayBuffer()));
+    });
+
+    it.skipIf(!blobSupported)('leaves a progressive MP4 untouched', async () => {
+        const file = new Blob([ftyp, moov, mdat1], { type: 'video/mp4' });
+        const res = await addSegmentIndex(file);
+        expect(res.changed).toBe(false);
+        expect(res.blob).toBe(file);
+    });
+
+    it.skipIf(!blobSupported)('leaves an already indexed file untouched', async () => {
+        const file = new Blob([ftyp, moov, box('sidx', new Uint8Array(24)), moof1, mdat1], { type: 'video/mp4' });
+        const res = await addSegmentIndex(file);
+        expect(res.changed).toBe(false);
+        expect(res.reason).toMatch(/already indexed/);
+    });
+
+    it.skipIf(!blobSupported)('bails on garbage without throwing', async () => {
+        const file = new Blob([new Uint8Array(64).fill(0xab)]);
+        const res = await addSegmentIndex(file);
         expect(res.changed).toBe(false);
         expect(res.blob).toBe(file);
     });

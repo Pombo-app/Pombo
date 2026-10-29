@@ -31,9 +31,11 @@ class JoinChannelUI {
         modalManager.showJoinChannelModal(
             this.elements.joinChannelModal,
             this.elements.joinStreamIdInput,
-            this.elements.joinPasswordInput,
-            this.elements.joinPasswordField
+            this.elements.joinPasswordInput
         );
+        this.setJoinClassification('personal');
+        this.elements.joinBtn?.setAttribute('disabled', '');
+        this.elements.joinStreamIdInput?.focus();
     }
 
     /**
@@ -44,23 +46,42 @@ class JoinChannelUI {
     }
 
     /**
-     * Handle quick join
+     * Personal/Community selection of the join dialog
+     * @param {string} classification - 'personal' or 'community'
+     */
+    setJoinClassification(classification) {
+        this.joinClassification = classification;
+        document.querySelectorAll('.join-id-classification-tab').forEach(tab => {
+            const isActive = tab.dataset.joinIdClassification === classification;
+            tab.classList.toggle('bg-overlay-10', isActive);
+            tab.classList.toggle('text-primary', isActive);
+            tab.classList.toggle('border-overlay-10', isActive);
+            tab.classList.toggle('bg-overlay-5', !isActive);
+            tab.classList.toggle('text-overlay-50', !isActive);
+            tab.classList.toggle('border-overlay-5', !isActive);
+        });
+    }
+
+    /**
+     * Handle join channel from modal: ID, optional password, optional local
+     * name and the Personal/Community classification in one step.
      * @param {Function} showNotification - Notification callback
      * @param {Function} renderChannelList - Channel list render callback
-     * @param {string} streamId - Channel stream ID to join
+     * @param {Function} selectChannel - Opens the joined channel
      */
-    async handleQuickJoin(showNotification, renderChannelList, streamId) {
-        
+    async handleJoinChannel(showNotification, renderChannelList, selectChannel) {
+        const streamId = this.elements.joinStreamIdInput?.value.trim();
+        const password = this.elements.joinPasswordInput?.value || null;
+        const localName = document.getElementById('join-local-name-input')?.value.trim() || null;
+        const classification = this.joinClassification || 'personal';
+
         if (!streamId) {
             showNotification('Please enter a channel ID', 'error');
             return;
         }
 
-        // First check cache (from ExploreUI), then query The Graph for channel info
         let channelInfo = exploreUI.cachedPublicChannels?.find(ch => ch.streamId === streamId);
-        
         if (!channelInfo) {
-            // Not in cache - query The Graph
             notificationUI.showLoading('Checking channel...');
             try {
                 channelInfo = await graphAPI.getChannelInfo(streamId);
@@ -70,125 +91,55 @@ class JoinChannelUI {
                 notificationUI.hideLoading();
             }
         }
-        
-        // If we know it's a password-protected channel, show password modal
-        if (channelInfo?.type === 'password') {
-            const displayName = channelInfo.name || channelInfo.displayName || 'this channel';
-            const password = await this.showPasswordInputModal('Join Password Channel', 
-                `Enter password for "${displayName}":`);
-            
-            if (!password) {
-                return; // User cancelled
-            }
-            
+
+        if (channelInfo?.type === 'password' && !password) {
+            showNotification('This channel requires a password', 'error');
+            this.elements.joinPasswordInput?.focus();
+            return;
+        }
+
+        // The on-chain name is authoritative; the local name only fills the
+        // channels that have none.
+        const name = channelInfo?.name || localName || undefined;
+        const attempt = async () => {
             try {
                 notificationUI.showLoadingToast('Joining channel...', 'This may take a moment');
                 await channelManager.joinChannel(streamId, password, {
-                    name: channelInfo.name,
-                    type: 'password'
+                    name,
+                    named: !!localName,
+                    type: channelInfo?.type,
+                    classification,
+                    readOnly: channelInfo?.readOnly || false,
+                    createdBy: channelInfo?.createdBy,
+                    wireIdentity: channelInfo?.wireIdentity || undefined
                 });
-                
                 renderChannelList();
                 showNotification('Joined channel successfully!', 'success');
-            } catch (error) {
-                showNotification('Failed to join: ' + error.message, 'error');
             } finally {
                 notificationUI.hideLoadingToast();
             }
-            return;
-        }
-        
-        // Closed-style channels without an on-chain name need a local name +
-        // classification. A gated channel WITH an on-chain name (visible
-        // token/paid) joins like a public channel — the owner named it.
-        if (channelInfo?.type === 'gated' && !channelInfo?.name) {
-            channelModalsUI.showJoinClosedModal(streamId, channelInfo);
-            return;
-        }
-        
-        // For hidden channels without a name, ask user for a local name
-        // This applies to any channel type with exposure: hidden and name: null
-        if (channelInfo && !channelInfo.name) {
-            channelModalsUI.showJoinHiddenModal(streamId, channelInfo);
-            return;
-        }
-
-        // For unknown channels (no channelInfo), show modal to get name
-        if (!channelInfo) {
-            channelModalsUI.showJoinHiddenModal(streamId, null);
-            return;
-        }
-
-        // For channels with on-chain name, join directly - name is immutable
-        try {
-            notificationUI.showLoadingToast('Joining channel...', 'This may take a moment');
-            await channelManager.joinChannel(streamId, null, {
-                name: channelInfo.name,
-                type: channelInfo.type,
-                readOnly: channelInfo.readOnly || false,
-                createdBy: channelInfo.createdBy
-            });
-
-            renderChannelList();
-            showNotification('Joined channel successfully!', 'success');
-        } catch (error) {
-            if (error.code === 'GATE_ACCESS_DENIED') {
-                channelModalsUI.showGateEntryModal({
-                    streamId,
-                    gateAddress: error.gateAddress,
-                    name: channelInfo.name,
-                    retry: () => this.handleQuickJoin(showNotification, renderChannelList, streamId)
-                });
-            } else {
-                showNotification('Failed to join: ' + error.message, 'error');
-            }
-        } finally {
-            notificationUI.hideLoadingToast();
-        }
-    }
-
-    /**
-     * Handle join channel from modal
-     * @param {Function} showNotification - Notification callback
-     * @param {Function} renderChannelList - Channel list render callback
-     */
-    async handleJoinChannel(showNotification, renderChannelList) {
-        const streamId = this.elements.joinStreamIdInput?.value.trim();
-        const password = this.elements.joinPasswordInput?.value || null;
-
-        if (!streamId) {
-            showNotification('Please enter a Stream ID', 'error');
-            return;
-        }
+        };
 
         try {
-            notificationUI.showLoadingToast('Joining channel...', 'This may take a moment');
-            await channelManager.joinChannel(streamId, password);
+            await attempt();
             this.hideJoinChannelModal();
-            renderChannelList();
-            showNotification('Joined channel successfully!', 'success');
+            await modalManager.historySettled();
+            await selectChannel(streamId);
         } catch (error) {
             if (error.code === 'GATE_ACCESS_DENIED') {
                 this.hideJoinChannelModal();
                 channelModalsUI.showGateEntryModal({
                     streamId,
                     gateAddress: error.gateAddress,
+                    name,
                     retry: async () => {
-                        try {
-                            notificationUI.showLoadingToast('Joining channel...', 'This may take a moment');
-                            await channelManager.joinChannel(streamId, password);
-                            renderChannelList();
-                            showNotification('Joined channel successfully!', 'success');
-                        } finally {
-                            notificationUI.hideLoadingToast();
-                        }
+                        await attempt();
+                        await selectChannel(streamId);
                     }
                 });
             } else {
                 showNotification('Failed to join: ' + error.message, 'error');
             }
-        } finally {
-            notificationUI.hideLoadingToast();
         }
     }
 
@@ -274,15 +225,15 @@ class JoinChannelUI {
             const safeTitle = this._escapeHtml(title);
             const safeMessage = this._escapeHtml(message);
             modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-white/[0.06]">
-                    <h3 class="text-[15px] font-medium mb-2 text-white">${safeTitle}</h3>
-                    <p class="text-[12px] text-white/50 mb-4">${safeMessage}</p>
+                <div class="bg-surface rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
+                    <h3 class="text-[15px] font-medium mb-2 text-primary">${safeTitle}</h3>
+                    <p class="text-[12px] text-overlay-50 mb-4">${safeMessage}</p>
                     <div class="relative mb-4">
                         <input type="password" id="browse-password-input" placeholder="Enter password..." 
-                            class="w-full bg-white/[0.05] border border-white/[0.08] text-white px-3 py-2.5 pr-10 rounded-xl text-[13px] focus:outline-none focus:border-white/[0.15] transition"
+                            class="w-full bg-overlay-5 border border-overlay-8 text-primary px-3 py-2.5 pr-10 rounded-xl text-[13px] focus:outline-none focus:border-overlay-15 transition"
                             autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-form-type="other" spellcheck="false"
                             style="-webkit-text-security: disc; text-security: disc;">
-                        <button type="button" id="browse-pw-toggle" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white transition">
+                        <button type="button" id="browse-pw-toggle" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-overlay-25 hover:text-primary transition">
                             <svg class="w-4 h-4" id="browse-pw-eye-open" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -293,7 +244,7 @@ class JoinChannelUI {
                         </button>
                     </div>
                     <div class="flex gap-2">
-                        <button id="cancel-pw-btn" class="flex-1 bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 text-[13px] font-medium py-2.5 rounded-xl transition">
+                        <button id="cancel-pw-btn" class="flex-1 bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-50 text-[13px] font-medium py-2.5 rounded-xl transition">
                             Cancel
                         </button>
                         <button id="confirm-pw-btn" class="flex-1 bg-white hover:bg-[#f0f0f0] text-black text-[13px] font-medium py-2.5 rounded-lg transition">
@@ -358,10 +309,10 @@ class JoinChannelUI {
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50';
             modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl p-5 border border-white/[0.06]">
-                    <h3 class="text-[15px] font-medium mb-4 text-white">Invite QR Code</h3>
+                <div class="bg-surface rounded-2xl p-5 border border-overlay-6">
+                    <h3 class="text-[15px] font-medium mb-4 text-primary">Invite QR Code</h3>
                     <div id="qr-container" class="bg-white p-3 rounded-lg flex items-center justify-center"></div>
-                    <button class="mt-4 w-full bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] text-white/50 text-[13px] font-medium px-4 py-2.5 rounded-xl transition">Close</button>
+                    <button class="mt-4 w-full bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-50 text-[13px] font-medium px-4 py-2.5 rounded-xl transition">Close</button>
                 </div>
             `;
             

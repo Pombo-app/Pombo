@@ -1,5 +1,5 @@
 /**
- * Join channel flows: quick join, normal join and closed channels.
+ * Join channel flows: join by ID and closed channels.
  */
 
 import { channelModalsUI } from '../ChannelModalsUI.js';
@@ -8,33 +8,38 @@ import { channelModalsUI } from '../ChannelModalsUI.js';
  * @param {Object} ui - the UI controller singleton
  */
 export function attachJoinFlows(ui) {
-    // Quick Join modal (mobile pill) - Enter to join
-    const quickJoinModalInput = document.getElementById('quick-join-modal-input');
-    const quickJoinModal = document.getElementById('quick-join-modal');
-    quickJoinModalInput?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            ui._handleQuickJoinModal();
-        }
+    // Join by ID from the Explore header (mobile and desktop)
+    for (const id of ['header-join-id-btn', 'explore-join-id-btn']) {
+        document.getElementById(id)?.addEventListener('click', () => {
+            ui.showJoinChannelModal();
+        });
+    }
+
+    const joinModal = ui.elements.joinChannelModal;
+    const joinBtn = ui.elements.joinBtn;
+    const join = () => {
+        if (!joinBtn?.disabled) ui.handleJoinChannel();
+    };
+    joinBtn?.addEventListener('click', join);
+    ui.elements.joinStreamIdInput?.addEventListener('input', (e) => {
+        joinBtn?.toggleAttribute('disabled', !e.target.value.trim());
     });
-    document.getElementById('confirm-quick-join-modal')?.addEventListener('click', () => {
-        ui._handleQuickJoinModal();
+    joinModal?.querySelectorAll('input').forEach(input => {
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') join();
+        });
     });
-    document.getElementById('cancel-quick-join-modal')?.addEventListener('click', () => {
-        quickJoinModal?.classList.add('hidden');
-    });
-    // Close on backdrop click
-    quickJoinModal?.addEventListener('click', (e) => {
-        if (e.target === quickJoinModal) quickJoinModal.classList.add('hidden');
+    joinModal?.querySelectorAll('.join-id-classification-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            ui.joinChannelUI.setJoinClassification(tab.dataset.joinIdClassification);
+        });
     });
 
-    // Join channel (in modal)
-    ui.elements.joinBtn?.addEventListener('click', () => {
-        ui.handleJoinChannel();
-    });
-
-    // Cancel join
     ui.elements.cancelJoinBtn?.addEventListener('click', () => {
         ui.hideJoinChannelModal();
+    });
+    joinModal?.addEventListener('click', (e) => {
+        if (e.target === joinModal) ui.hideJoinChannelModal();
     });
 
     // Join Closed Channel modal buttons
@@ -43,19 +48,6 @@ export function attachJoinFlows(ui) {
     });
     document.getElementById('cancel-join-closed-btn')?.addEventListener('click', () => {
         channelModalsUI.hideJoinClosedModal();
-    });
-    
-    // Switch from normal join to closed join modal
-    document.getElementById('switch-to-closed-join-btn')?.addEventListener('click', () => {
-        const streamId = ui.elements.joinStreamIdInput?.value.trim() || '';
-        ui.hideJoinChannelModal();
-        channelModalsUI.showJoinClosedModal(streamId);
-    });
-
-    // Join password toggle
-    const joinHasPassword = document.getElementById('join-has-password');
-    joinHasPassword?.addEventListener('change', (e) => {
-        ui.elements.joinPasswordField?.classList.toggle('hidden', !e.target.checked);
     });
 
     // Join password visibility toggle (eye icon)

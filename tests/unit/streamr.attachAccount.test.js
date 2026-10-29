@@ -134,5 +134,21 @@ describe('attachAccount (D10)', () => {
             streamrController.attachAccount(data, account.address);
             expect(data.account).toBe(account.address);
         });
+
+        it('marks the account proven only when a proof recovered it', () => {
+            data.proof = createPublisherProof(account.privateKey, ephemeral.address);
+            streamrController.attachAccount(data, ephemeral.address);
+            expect(data._accountProven).toBe(true);
+
+            const legacy = { type: 'text', text: 'old' };
+            streamrController.attachAccount(legacy, account.address);
+            expect(legacy._accountProven).toBe(false);
+        });
+
+        it('never takes the proven mark from the wire', () => {
+            const forged = { type: 'text', text: 'hi', _accountProven: true };
+            streamrController.attachAccount(forged, ephemeral.address);
+            expect(forged._accountProven).toBe(false);
+        });
     });
 });

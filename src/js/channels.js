@@ -2760,7 +2760,7 @@ class ChannelManager {
         const channel = this.channels.get(streamId);
         if (channel?.type === 'dm') return dmManager.canPurge(streamId, targetId);
         const msg = channel?.messages?.find((m) => m.id === targetId);
-        return !!(msg && this.overrides.ownPurgeSigner(channel, msg));
+        return !!(msg && this.overrides.ownPurgePlan(channel, msg));
     }
     /**
      * Erase everything an author wrote from the storage providers that can:
@@ -3456,8 +3456,10 @@ class ChannelManager {
                 channelsMap.set(ch.streamId, ch);
             }
             Logger.debug(`Found ${graphChannels.length} public channels from The Graph`);
+            this.publicDirectoryFailed = false;
         } catch (error) {
             Logger.warn('Failed to fetch from The Graph:', error.message);
+            this.publicDirectoryFailed = true;
         }
 
         // 2. Add own public channels (in case Graph hasn't indexed them yet)

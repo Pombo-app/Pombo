@@ -27,6 +27,30 @@ import { epochKeyManager } from '../epochKeyManager.js';
  * resolve later — only the *UI* state is released.
  */
 const PAGINATION_WATCHDOG_MS = 15000;
+const LOADING_SLOW_MS = 30000;
+
+// What each author badge claims, shown when it is tapped. Mirrored verbatim in
+// the Android client (AuthorBadge.kt).
+export const AUTHOR_BADGE_TEXT = {
+    verified: {
+        title: 'Verified author',
+        body: 'This message carries a proof bound to the account shown. No one can post under someone else\'s account.'
+    },
+    ens: {
+        title: 'Verified author · ENS',
+        body: 'This message carries a proof bound to the account shown, and the name is that account\'s ENS name. No one can post under someone else\'s account.'
+    },
+    contact: {
+        title: 'Verified author · Trusted contact',
+        body: 'This message carries a proof bound to the account shown, which you marked as a trusted contact. No one can post under someone else\'s account.'
+    },
+    failed: {
+        title: 'Could not verify',
+        body: 'This message is dated more than 5 minutes ahead of your clock. It may be replayed, or the sender\'s clock is wrong.'
+    }
+};
+
+const CONTACT_BADGE_SVG = '<svg class="inline-block" style="vertical-align: -1px" width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3.2l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.5l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" style="stroke:var(--pombo-success)" stroke-width="2" stroke-linejoin="round"/></svg>';
 
 class ChatAreaUI {
     constructor() {
@@ -181,6 +205,75 @@ class ChatAreaUI {
         this.messageInput = elements.messageInput;
         this._wireAdminStateHandler();
         this._wireRetryHandler();
+        this._wireAuthorBadgeHandler();
+        this._wireVideoPlay();
+    }
+
+    /**
+     * Play on a video not yet here starts its download (the button carries
+     * the transfer's download class) and asks for playback once it lands.
+     * Capture phase: the download handler stops propagation.
+     * @private
+     */
+    _wireVideoPlay() {
+        if (!this.messagesArea || this._videoWiredArea === this.messagesArea) return;
+        this.messagesArea.addEventListener('click', (e) => {
+            const btn = e.target.closest?.('[data-video-play]');
+            if (!btn || btn.disabled) return;
+            messageRenderer.videoAutoplay.add(btn.dataset.fileId);
+            btn.querySelector('.download-play-icon')?.classList.add('hidden');
+            btn.querySelector('.download-loading-icon')?.classList.remove('hidden');
+        }, true);
+        this._videoWiredArea = this.messagesArea;
+    }
+
+    /**
+     * Delegated: a tap on an author badge explains what it vouches for.
+     * @private
+     */
+    _wireAuthorBadgeHandler() {
+        if (!this.messagesArea || this._badgeWiredArea === this.messagesArea) return;
+        this.messagesArea.addEventListener('click', (e) => {
+            const btn = e.target.closest?.('.verification-badge');
+            if (!btn || !this.messagesArea.contains(btn)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            this._showAuthorBadgePopover(btn);
+        });
+        this._badgeWiredArea = this.messagesArea;
+    }
+
+    /** @private */
+    _showAuthorBadgePopover(anchor) {
+        const text = AUTHOR_BADGE_TEXT[anchor.dataset.badge];
+        if (!text) return;
+        document.getElementById('author-badge-popover')?.remove();
+        const pop = document.createElement('div');
+        pop.id = 'author-badge-popover';
+        pop.setAttribute('role', 'dialog');
+        const title = document.createElement('strong');
+        title.textContent = text.title;
+        pop.append(title, text.body);
+        document.body.appendChild(pop);
+
+        const r = anchor.getBoundingClientRect();
+        const margin = 10;
+        const left = Math.min(Math.max(margin, r.left - 8), window.innerWidth - pop.offsetWidth - margin);
+        const below = r.bottom + 6;
+        const top = below + pop.offsetHeight + margin <= window.innerHeight ? below : r.top - 6 - pop.offsetHeight;
+        pop.style.left = `${left}px`;
+        pop.style.top = `${Math.max(margin, top)}px`;
+
+        const close = () => {
+            pop.remove();
+            document.removeEventListener('pointerdown', onDown, true);
+            this.messagesArea?.removeEventListener('scroll', close);
+        };
+        const onDown = (ev) => { if (!pop.contains(ev.target)) close(); };
+        setTimeout(() => {
+            document.addEventListener('pointerdown', onDown, true);
+            this.messagesArea?.addEventListener('scroll', close, { once: true });
+        }, 0);
     }
 
     /**
@@ -405,7 +498,7 @@ class ChatAreaUI {
             ? 'flex h-full items-center justify-center cursor-pointer group'
             : 'flex justify-center py-3 cursor-pointer group';
         banner.innerHTML = `
-            <div class="flex items-center gap-2 text-white/30 text-sm group-hover:text-white/60 transition-colors">
+            <div class="flex items-center gap-2 text-overlay-30 text-sm group-hover:text-overlay-60 transition-colors">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
@@ -581,6 +674,26 @@ class ChatAreaUI {
      * @param {Array} messages - Array of message objects
      * @param {Function} onRenderComplete - Callback after render (for attaching listeners)
      */
+    /** Loading past LOADING_SLOW_MS: say so, without claiming the channel is empty. */
+    _renderSlowLoading(canRetry) {
+        this.messagesArea.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
+                <span class="text-sm">Taking longer than usual</span>
+                ${canRetry ? '<button id="messages-retry-btn" class="px-4 py-2 rounded-xl text-sm bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-70 transition">Try again</button>' : ''}
+            </div>
+        `;
+        this.messagesArea.querySelector('#messages-retry-btn')?.addEventListener('click', () => {
+            this._loadingSince = null;
+            this.messagesArea.innerHTML = `
+                <div id="messages-loading" class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
+                    <div class="spinner" style="width: 24px; height: 24px;"></div>
+                    <span class="text-sm">Loading messages...</span>
+                </div>
+            `;
+            Promise.resolve(this.deps.reopenChannel?.()).catch((e) => this.deps.Logger?.warn('Reopen failed:', e?.message));
+        });
+    }
+
     renderMessages(messages, onRenderComplete = null) {
         const { channelManager, authManager, getActiveChannel } = this.deps;
         
@@ -674,26 +787,26 @@ class ChatAreaUI {
                     const { title, detail } = this._historyErrorText(
                         historyError, !!previewChannel, subscriptionBannerUI.hasAccess(effectiveChannel?.streamId));
                     this.messagesArea.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                    <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
                         <span class="text-sm">${title}</span>
-                        <span class="text-xs text-white/25">${detail}</span>
+                        <span class="text-xs text-overlay-25">${detail}</span>
                     </div>
                 `;
                 } else if (banned) {
                     this.messagesArea.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
-                        <svg class="w-6 h-6 text-white/25" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
+                        <svg class="w-6 h-6 text-overlay-25" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M1 21h12v2H1zM5.245 8.07l2.83-2.827 14.14 14.142-2.828 2.828zM12.317 1l5.657 5.656-2.83 2.83-5.654-5.66zM3.825 9.485l5.657 5.657-2.828 2.828-5.657-5.657z"/>
                         </svg>
                         <span class="text-sm">You no longer have access to this channel</span>
-                        <span class="text-xs text-white/25">A moderator removed you</span>
+                        <span class="text-xs text-overlay-25">A moderator removed you</span>
                     </div>
                 `;
                 } else if (expired || unsubscribed) {
                     this.messagesArea.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                    <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
                         <span class="text-sm">${expired ? 'Your subscription has expired' : 'No active subscription'}</span>
-                        <span class="text-xs text-white/25">${expired
+                        <span class="text-xs text-overlay-25">${expired
         ? 'Messages stay locked until you renew'
         : 'Messages stay locked until you subscribe'}</span>
                         <button id="empty-state-renew-btn" class="subscription-banner-renew">${expired ? 'Renew subscription' : 'Subscribe'}</button>
@@ -703,33 +816,63 @@ class ChatAreaUI {
                         ?.addEventListener('click', () => subscriptionBannerUI.renewCurrent());
                 } else if (effectiveChannel?.historyReadFailed) {
                     this.messagesArea.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                    <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
                         <span class="text-sm">Channel history could not be loaded</span>
-                        <span class="text-xs text-white/25">Check your connection and reopen the channel</span>
+                        <span class="text-xs text-overlay-25">Check your connection and reopen the channel</span>
                     </div>
                 `;
                 } else {
                     this.messagesArea.innerHTML = waitingForKeys
                         ? `
-                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                    <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
                         <div class="spinner" style="width: 24px; height: 24px;"></div>
                         <span class="text-sm">Waiting for channel keys…</span>
-                        <span class="text-xs text-white/25">Requested from the channel, this can take a moment</span>
+                        <span class="text-xs text-overlay-25">Requested from the channel, this can take a moment</span>
                     </div>
                 `
-                        : `
-                    <div class="flex items-center justify-center h-full text-white/40">
+                        : effectiveChannel?.type === 'dm' && !previewChannel
+                            ? `
+                    <div class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
+                        <span class="text-sm">No messages yet</span>
+                        <button id="dm-say-hello-btn" class="px-4 py-2 rounded-xl text-sm bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-70 transition">Say hello</button>
+                    </div>
+                `
+                            : `
+                    <div class="flex items-center justify-center h-full text-overlay-40">
                         No messages yet. Start the conversation!
                     </div>
                 `;
+                    this.messagesArea.querySelector('#dm-say-hello-btn')?.addEventListener('click', () => {
+                        if (!this.messageInput) return;
+                        this.messageInput.textContent = 'Hello 👋';
+                        this.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        this.messageInput.focus();
+                        const range = document.createRange();
+                        range.selectNodeContents(this.messageInput);
+                        range.collapse(false);
+                        const selection = window.getSelection();
+                        selection?.removeAllRanges();
+                        selection?.addRange(range);
+                    });
                 }
             } else {
-                this.messagesArea.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full text-white/40 gap-3">
+                const key = `${effectiveChannel?.streamId}:${channelManager?.switchGeneration}`;
+                if (this._loadingSince?.key !== key) this._loadingSince = { key, at: Date.now() };
+                const left = LOADING_SLOW_MS - (Date.now() - this._loadingSince.at);
+                if (left <= 0) {
+                    this._renderSlowLoading(!previewChannel);
+                } else {
+                    this.messagesArea.innerHTML = `
+                    <div id="messages-loading" class="flex flex-col items-center justify-center h-full text-overlay-40 gap-3">
                         <div class="spinner" style="width: 24px; height: 24px;"></div>
                         <span class="text-sm">Loading messages...</span>
                     </div>
                 `;
+                    this._loadingTimeoutId = setTimeout(() => {
+                        this._loadingTimeoutId = null;
+                        if (document.getElementById('messages-loading')) this._renderSlowLoading(!previewChannel);
+                    }, left);
+                }
             }
             // Still trigger auto-load — initial history may have been all reactions
             if (!this.isLoadingMore) {
@@ -747,7 +890,7 @@ class ChatAreaUI {
             && effectiveChannel?.historyRetrying !== true) {
             historyStartIndicator = `
                 <div class="flex justify-center py-4">
-                    <div class="text-white/[0.12] text-xs">
+                    <div class="text-overlay-12 text-xs">
                         — beginning of conversation —
                     </div>
                 </div>
@@ -764,7 +907,7 @@ class ChatAreaUI {
                 effectiveChannel.historyError, !!previewChannel, subscriptionBannerUI.hasAccess(effectiveChannel.streamId));
             historyErrorBanner = `
                 <div id="history-error-banner" class="flex flex-col items-center gap-1 py-3 px-4 text-center">
-                    <span class="text-sm text-white/40">${escapeHtml(title)}</span>
+                    <span class="text-sm text-overlay-40">${escapeHtml(title)}</span>
                 </div>
             `;
         }
@@ -772,7 +915,7 @@ class ChatAreaUI {
         if (effectiveChannel?.overridesOwed) {
             overridesBanner = `
                 <div id="overrides-owed-banner" class="flex flex-col items-center gap-1 py-3 px-4 text-center">
-                    <span class="text-sm text-white/40">${effectiveChannel.historyReadFailed
+                    <span class="text-sm text-overlay-40">${effectiveChannel.historyReadFailed
         ? 'Edits and deletions could not be loaded. Reopen the channel'
         : 'Loading edits and deletions…'}</span>
                 </div>
@@ -1503,12 +1646,12 @@ class ChatAreaUI {
         
         if (hasUnread) {
             countEl.textContent = unreadCount >= 30 ? '+30' : unreadCount;
-            countEl.classList.remove('hidden', 'text-white/30', 'bg-white/[0.04]');
-            countEl.classList.add('text-white', 'bg-[#F6851B]/20');
+            countEl.classList.remove('hidden', 'text-overlay-30', 'bg-overlay-4');
+            countEl.classList.add('text-primary', 'bg-[#F6851B]/20');
         } else {
             countEl.classList.add('hidden');
-            countEl.classList.remove('text-white', 'bg-[#F6851B]/20');
-            countEl.classList.add('text-white/30', 'bg-white/[0.04]');
+            countEl.classList.remove('text-primary', 'bg-[#F6851B]/20');
+            countEl.classList.add('text-overlay-30', 'bg-overlay-4');
         }
     }
 
@@ -1516,96 +1659,38 @@ class ChatAreaUI {
      * Get verification badge HTML for a message
      * @param {Object} msg - Message object
      * @param {boolean} isOwn - Whether this is the user's own message
-     * @returns {Object} - { html, textColor, bgColor, border }
+     * @returns {Object} - { html }, empty when the author is not vouched for
      */
     getVerificationBadge(msg, isOwn = false) {
-        const trustLevel = msg.verified?.trustLevel ?? 0;
+        const none = { html: '' };
+        const badge = (kind, inner) => ({
+            html: `<button type="button" class="verification-badge" data-badge="${kind}" aria-label="${AUTHOR_BADGE_TEXT[kind].title}">${inner}</button>`
+        });
+
+        // A clock check failed on a current-format message. Legacy messages
+        // (with `signature`) are attributed to their address and never flagged.
+        if (!msg.signature && msg.verified?.valid === false) {
+            return badge('failed', '<span class="text-danger">❌</span>');
+        }
+
+        // Anti-spoofing: the author is only vouched for when a proof bound the
+        // publisher to the account and the message passed its checks. Our own
+        // current-format messages carry our proof by construction.
+        const proven = isOwn
+            ? !msg.signature
+            : msg._accountProven === true && msg.verified?.valid === true;
+        if (!proven) return none;
+
         // Cache-first so the badge upgrades once ENS lands, instead of being
         // frozen at whatever the cache held when the message was verified.
         const ensName = identityManager.getCachedENS?.(msg.sender) || msg.verified?.ensName;
-        // A known ENS name alone is enough (parity with Android's
-        // `trustLevel == 1 || ensName != null`). Gating on trustLevel >= 1
-        // meant a received message whose sender's ENS resolved only AFTER
-        // verification (the usual order) kept a plain ✓ forever, because
-        // trustLevel was snapshotted at 0 — the name showed but the badge
-        // never upgraded.
-        const hasENS = trustLevel === 1 || !!ensName;
-
-        // ENS verified badge — green checkmark inside organic circle
-        const ensBadgeSvg = `<svg class="inline-block" style="vertical-align: -1px" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="#4ade80" stroke-width="2" fill="none"/><path d="M7.5 12.5l3 3 6-6.5" stroke="#4ade80" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
-
-        // Own messages
-        if (isOwn) {
-            if (hasENS) {
-                return {
-                    html: `<span title="ENS verified">${ensBadgeSvg}</span>`,
-                    textColor: 'text-green-400',
-                    bgColor: '',
-                    border: ''
-                };
-            }
-            return {
-                html: '<span class="text-green-400" title="Your message">✓</span>',
-                textColor: 'text-green-400',
-                bgColor: '',
-                border: ''
-            };
+        if (msg.verified?.trustLevel === 1 || ensName) {
+            return badge('ens', `<svg class="inline-block" style="vertical-align: -1px" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" style="stroke:var(--pombo-success)" stroke-width="2"/><path d="M7.5 12.5l3 3 6-6.5" style="stroke:var(--pombo-success)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`);
         }
-
-        // Signed but verification FAILED → red impersonation flag.
-        if (msg.signature && msg.verified && !msg.verified.valid) {
-            return {
-                html: '<span class="text-red-500" title="⚠️ Invalid signature - may be impersonation!">❌</span>',
-                textColor: 'text-red-400',
-                bgColor: 'bg-red-900/20',
-                border: 'border border-red-500/50'
-            };
+        if (!isOwn && msg.verified?.trustLevel === 2) {
+            return badge('contact', CONTACT_BADGE_SVG);
         }
-
-        // Unsigned = the CURRENT format (D6). Identity is established by the
-        // proof at INGEST (attachAccount → msg.account), NOT by the async
-        // verifyMessage — so show the badge optimistically, exactly as a
-        // signed message showed ✓ before its async check returned. Waiting on
-        // `verified.valid` left every received (unsigned) message with NO
-        // badge until batch verification happened to re-render, which is why
-        // only own messages (rendered via the isOwn branch) ever showed one.
-        // The only unsigned case that gets no badge is an EXPLICIT failure
-        // (replay guard / no account) — and never a red ❌, matching the old
-        // "unsigned = no flag, not a failure" rule.
-        if (!msg.signature && msg.verified && msg.verified.valid === false) {
-            return {
-                html: '',
-                textColor: 'text-white/30',
-                bgColor: 'bg-white/10',
-                border: ''
-            };
-        }
-
-        // Valid signature - ENS badge overrides all other badges
-        if (hasENS) {
-            return {
-                html: `<span title="ENS verified">${ensBadgeSvg}</span>`,
-                textColor: 'text-green-400',
-                bgColor: '',
-                border: ''
-            };
-        }
-
-        const trustedStarSvg = `<svg class="inline-block" style="vertical-align: -1px" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2.5l2.9 5.8 6.4.9-4.6 4.5 1.1 6.4L12 17.3l-5.8 3.8 1.1-6.4-4.6-4.5 6.4-.9z" fill="#d4a544" opacity="0.85" stroke="#d4a544" stroke-width="0.5" stroke-linejoin="round"/></svg>`;
-
-        const badges = {
-            0: { icon: '✓', color: 'text-green-400', label: 'Valid signature' },
-            2: { icon: trustedStarSvg, color: 'text-amber-400/70', label: 'Trusted contact' }
-        };
-        
-        const badge = badges[trustLevel] || badges[0];
-
-        return {
-            html: trustLevel === 2 ? `<span title="${badge.label}">${badge.icon}</span>` : `<span class="${badge.color}" title="${badge.label}">${badge.icon}</span>`,
-            textColor: badge.color,
-            bgColor: '',
-            border: ''
-        };
+        return badge('verified', '<span class="text-success">✓</span>');
     }
 
     /**
@@ -1624,7 +1709,7 @@ class ChatAreaUI {
     showEmptyState(message = 'Select a channel to start chatting') {
         if (this.messagesArea) {
             this.messagesArea.innerHTML = `
-                <div class="flex items-center justify-center h-full text-white/40">
+                <div class="flex items-center justify-center h-full text-overlay-40">
                     ${escapeHtml(message)}
                 </div>
             `;

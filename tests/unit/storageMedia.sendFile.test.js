@@ -23,7 +23,8 @@ const H = vi.hoisted(() => {
         failPublish: null,         // (index) => bool
         announceVisible: true,
         nextTs: 1700000000000,
-        bases: []
+        bases: [],
+        partitionCount: null       // the stream's partitions; null = lookup gave nothing
     };
     // Wire-format reader: [4B metaLen][meta][4B totalChunks][4B chunkIndex][data]
     state.indexOf = (p) => {
@@ -50,7 +51,7 @@ vi.mock('../../src/js/identity.js', () => ({
         username: 'tester',
         generateMessageId: vi.fn(() => 'msg-1'),
         getTrustLevel: vi.fn(async () => 0),
-        createSignedStorageFileManifest: vi.fn(async ({ channelId, metadata, id }) => ({
+        createStorageFileManifest: vi.fn(async ({ channelId, metadata, id }) => ({
             type: 'storage_file_announce', v: 1, id,
             sender: H.accountAddress, senderName: 'tester',
             timestamp: Date.now(), channelId, metadata,
@@ -75,6 +76,7 @@ vi.mock('../../src/js/streamr.js', () => ({
     streamrController: {
         client: null,
         getDMInboxId: vi.fn((addr) => `inbox/${addr}`),
+        getStreamPartitionCount: vi.fn(async () => H.partitionCount),
         publishStorageChunk: vi.fn(async (streamId, partition, payload, identity) => {
             // The warm-up ping is the 1-byte publish; a sealed chunk hides its
             // header, so index stays null there.
@@ -102,12 +104,14 @@ vi.mock('../../src/js/channels.js', () => ({
     channelManager: {
         getChannel: vi.fn(() => H.channel),
         notifyHandlers: vi.fn(),
-        usesAccountPublish: vi.fn(() => false)
+        usesAccountPublish: vi.fn(() => false),
+        sendDelete: vi.fn(async () => null)
     }
 }));
 vi.mock('../../src/js/channelIdentity.js', () => ({
     getChannelIdentity: vi.fn(() => ({
-        identity: { __addr: H.ephemeralAddress, getUserId: async () => H.ephemeralAddress }
+        identity: { __addr: H.ephemeralAddress, getUserId: async () => H.ephemeralAddress },
+        wallet: { address: H.ephemeralAddress, signMessage: async () => '0xpseudosig' }
     }))
 }));
 vi.mock('../../src/js/dm.js', () => ({
@@ -200,12 +204,13 @@ beforeEach(() => {
     cfgSnapshot = { ...SM };
     Object.assign(SM, {
         chunkKB: 1, throttleMs: 0, parallel: 1, autotune: false,
-        verify: false, secondChance: false, warmUpWaitMs: 0, faststart: true
+        verify: false, secondChance: false, warmUpWaitMs: 0, faststart: true, verifyQuietMs: 0
     });
     H.publishes = []; H.messages = []; H.dmPublishes = []; H.sentLocally = []; H.rows = [];
     H.channel = { messageStreamId: SID, type: 'public', messages: [] };
     H.P0 = MESSAGE_STREAM.MESSAGES;
     H.publisherOverride = null;
+    H.partitionCount = null;
     H.storeChunk = null;
     H.failPublish = null;
     H.announceVisible = true;
@@ -291,6 +296,16 @@ describe('sendFile — chunking', () => {
         }
         expect(seen).toBe(original.length);
         expect(rebuilt).toEqual(original);
+    });
+
+    it('keeps the chunks inside a stream created with fewer partitions, and says so in the announce', async () => {
+        H.partitionCount = 11;
+        const { metadata } = await storageMediaController.sendFile(SID, fileOfSize(20000));
+
+        expect(metadata.chunkPartitions).toBe(8);
+        const parts = new Set(chunkPublishes().map(c => c.partition));
+        expect(Math.max(...parts)).toBe(10);
+        expect(parts.size).toBe(8);
     });
 
     it('pings every chunk partition once before the first real publish', async () => {
@@ -561,7 +576,7 @@ describe('sendFile — the optimistic bubble', () => {
     it('drops the bubble and reports the error when the transfer fails', async () => {
         const onError = vi.fn();
         storageMediaController.onFileError(onError);
-        identityManager.createSignedStorageFileManifest.mockRejectedValueOnce(new Error('signing failed'));
+        identityManager.createStorageFileManifest.mockRejectedValueOnce(new Error('signing failed'));
 
         await expect(storageMediaController.sendFile(SID, fileOfSize(500))).rejects.toThrow('signing failed');
 
@@ -569,5 +584,37 @@ describe('sendFile — the optimistic bubble', () => {
         expect(onError).toHaveBeenCalledWith(expect.any(String), 'signing failed');
         expect(storageMediaController.uploads.size).toBe(0);
         storageMediaController.onFileError(null);
+    });
+});
+
+describe('retryUpload — an upload announced with gaps', () => {
+    it('sends the file again before deleting the incomplete copy', async () => {
+        const { channelManager } = await import('../../src/js/channels.js');
+        const order = [];
+        const send = vi.spyOn(storageMediaController, 'sendFile').mockImplementation(async () => { order.push('send'); return { messageId: 'new' }; });
+        channelManager.sendDelete.mockImplementation(async () => { order.push('delete'); return null; });
+        const file = fileOfSize(100);
+        storageMediaController.retryable.set('t1', { streamId: SID, file, password: null, messageId: 'old' });
+
+        await storageMediaController.retryUpload('t1');
+
+        expect(send).toHaveBeenCalledWith(SID, file, null);
+        expect(channelManager.sendDelete).toHaveBeenCalledWith(SID, 'old');
+        expect(order).toEqual(['send', 'delete']);
+        expect(storageMediaController.canRetryUpload('t1')).toBe(false);
+        send.mockRestore();
+    });
+
+    it('keeps the incomplete copy and the retry when sending again fails', async () => {
+        const { channelManager } = await import('../../src/js/channels.js');
+        channelManager.sendDelete.mockClear();
+        const send = vi.spyOn(storageMediaController, 'sendFile').mockRejectedValue(new Error('offline'));
+        storageMediaController.retryable.set('t2', { streamId: SID, file: fileOfSize(100), password: null, messageId: 'old' });
+
+        await expect(storageMediaController.retryUpload('t2')).rejects.toThrow('offline');
+
+        expect(channelManager.sendDelete).not.toHaveBeenCalled();
+        expect(storageMediaController.canRetryUpload('t2')).toBe(true);
+        send.mockRestore();
     });
 });

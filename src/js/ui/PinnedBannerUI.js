@@ -6,13 +6,12 @@
  *
  * Behaviour:
  *  - Reads `channel.adminState.pins` from the active channel (or preview
- *    channel) and shows the most recently pinned message.
- *  - Click on the banner → scroll to the pinned message in the timeline.
- *  - A "+N" counter shows how many older pins a dismissal would reveal.
- *  - Close (×) button → dismiss locally for the current session, revealing
- *    the pin before it, or hiding the banner once they run out. Tracked
- *    per-channel; resets when a new pin arrives or the user reopens the
- *    channel via the "Pinned" channel-menu action.
+ *    channel) and opens on the most recently pinned message.
+ *  - Click on the banner → scroll to the shown pin, then show the one before
+ *    it (wrapping). A "k/N" counter says which pin is shown.
+ *  - Close (×) → hide the banner until a newer pin arrives. Remembered per
+ *    account and channel on this device; the "Pinned" channel-menu action
+ *    brings it back.
  *  - DOMPurify-safe: text rendered via `textContent` only.
  */
 
@@ -20,19 +19,23 @@ import { previewModeUI } from './PreviewModeUI.js';
 import { formatAddress } from './utils.js';
 import { identityManager } from '../identity.js';
 import { subscriptionBannerUI } from './SubscriptionBannerUI.js';
+import { CONFIG } from '../config.js';
 
 class PinnedBannerUI {
     constructor() {
         this.deps = {};
         this.elements = null;
-        // Map<streamId, Set<targetId>> of pins dismissed by the user this session
-        this._dismissed = new Map();
+        // streamId → targetId of the newest pin when the banner was closed
+        this._hidden = {};
+        this._hiddenFor = undefined;
+        // streamId → index (newest first) of the pin on show
+        this._cursor = new Map();
         // Tracks the pin currently shown so click handlers know what to scroll to
         this._currentPin = null;
         this._currentStreamId = null;
     }
 
-    /** @param {Object} deps - { channelManager, chatAreaUI, getActiveChannel, Logger } */
+    /** @param {Object} deps - { channelManager, chatAreaUI, getActiveChannel, getAccount, Logger } */
     setDependencies(deps) {
         this.deps = { ...this.deps, ...deps };
     }
@@ -44,17 +47,19 @@ class PinnedBannerUI {
         this.elements = elements;
         if (!elements?.banner) return;
 
-        // Click anywhere on banner (except close button) → scroll to pinned msg
         elements.banner.addEventListener('click', (e) => {
             if (e.target.closest('#pinned-banner-close')) return;
-            this.scrollToCurrent();
+            this.jumpAndAdvance();
         });
         elements.banner.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                this.scrollToCurrent();
+                this.jumpAndAdvance();
             }
         });
+        if (typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(() => this._reserveSpace()).observe(elements.banner);
+        }
 
         if (elements.closeBtn) {
             elements.closeBtn.addEventListener('click', (e) => {
@@ -74,21 +79,55 @@ class PinnedBannerUI {
             if (event !== 'admin_state_updated') return;
             const ch = this._resolveChannel();
             if (!ch || ch.streamId !== data?.streamId) return;
-            // A new pin invalidates any previous dismissal for that target
+            this._cursor.delete(ch.streamId);
             this._reconcileDismissals(ch);
             this.update();
         });
     }
 
-    /** If a pin was unpinned and re-pinned, clear its dismissal so it shows again. */
+    /** A closed banner reopens once the pin it was closed on is unpinned. */
     _reconcileDismissals(channel) {
         if (!channel) return;
-        const set = this._dismissed.get(channel.streamId);
-        if (!set || set.size === 0) return;
-        const liveIds = new Set((channel.adminState?.pins || []).map(p => p.targetId));
-        // Drop dismissals for pins that no longer exist (so re-pin shows again)
-        for (const id of Array.from(set)) {
-            if (!liveIds.has(id)) set.delete(id);
+        const hidden = this._hiddenMap();
+        const id = hidden[channel.streamId];
+        if (!id) return;
+        if (!(channel.adminState?.pins || []).some(p => p.targetId === id)) {
+            delete hidden[channel.streamId];
+            this._saveHidden();
+        }
+    }
+
+    _hiddenMap() {
+        const account = this.deps.getAccount?.()?.toLowerCase() || null;
+        if (account !== this._hiddenFor) {
+            this._hiddenFor = account;
+            this._hidden = {};
+            if (account) {
+                try {
+                    this._hidden = JSON.parse(localStorage.getItem(CONFIG.storageKeys.pinsHidden(account))) || {};
+                } catch { /* unreadable → nothing hidden */ }
+            }
+        }
+        return this._hidden;
+    }
+
+    _saveHidden() {
+        if (!this._hiddenFor) return;
+        try {
+            localStorage.setItem(CONFIG.storageKeys.pinsHidden(this._hiddenFor), JSON.stringify(this._hidden));
+        } catch { /* best effort */ }
+    }
+
+    /** Messages start below the floating banner, whatever its height. */
+    _reserveSpace() {
+        const banner = this.elements?.banner;
+        const area = document.getElementById('messages-area');
+        if (!banner || !area) return;
+        if (banner.classList.contains('hidden')) {
+            area.style.removeProperty('--pinned-banner-space');
+        } else {
+            const below = banner.getBoundingClientRect().bottom - area.getBoundingClientRect().top;
+            area.style.setProperty('--pinned-banner-space', `${Math.max(0, Math.ceil(below))}px`);
         }
     }
 
@@ -127,50 +166,42 @@ class PinnedBannerUI {
         const settled = !channel.initialLoadInProgress && !this._accessLost(channel.streamId);
         const pins = settled && Array.isArray(channel.adminState?.pins)
             ? channel.adminState.pins : [];
-        if (pins.length === 0) {
-            banner.classList.add('hidden');
-            this._renderCount(0);
-            this._currentPin = null;
-            this._currentStreamId = channel.streamId;
-            return;
-        }
-
         // Ordered by array position, not pinnedAt: Android restamps every pin
         // on each ADMIN_STATE republish. Both clients append new pins last.
         const newestFirst = [...pins].reverse();
-        const dismissed = this._dismissed.get(channel.streamId) || new Set();
-        const undismissed = newestFirst.filter(p => !dismissed.has(p.targetId));
-        const visible = undismissed[0];
-
-        if (!visible) {
+        this._currentStreamId = channel.streamId;
+        if (pins.length === 0 || this._hiddenMap()[channel.streamId] === newestFirst[0].targetId) {
             banner.classList.add('hidden');
-            this._renderCount(0);
+            this._renderCount(0, 0);
             this._currentPin = null;
-            this._currentStreamId = channel.streamId;
+            this._reserveSpace();
             return;
         }
 
+        const index = (this._cursor.get(channel.streamId) || 0) % newestFirst.length;
+        const visible = newestFirst[index];
         this._currentPin = visible;
-        this._currentStreamId = channel.streamId;
 
         // Resolve sender label + body separately (sender goes on its own line)
         const { senderLabel, body } = this._buildPreviewParts(visible, channel);
         if (this.elements.name) this.elements.name.textContent = senderLabel || '';
         if (this.elements.text) this.elements.text.textContent = body;
-        this._renderCount(undismissed.length - 1);
+        this._renderCount(index + 1, newestFirst.length);
 
         banner.classList.remove('hidden');
+        this._reserveSpace();
     }
 
     /**
-     * @param {number} remaining - Pins a dismissal would still reveal
+     * @param {number} position - 1-based, newest first
+     * @param {number} total
      */
-    _renderCount(remaining) {
+    _renderCount(position, total) {
         const el = this.elements?.count;
         if (!el) return;
-        if (remaining > 0) {
-            el.textContent = `+${remaining}`;
-            el.title = `${remaining} more pinned message${remaining === 1 ? '' : 's'}`;
+        if (total > 1) {
+            el.textContent = `${position}/${total}`;
+            el.title = `Pinned message ${position} of ${total}`;
             el.classList.remove('hidden');
         } else {
             el.textContent = '';
@@ -221,29 +252,40 @@ class PinnedBannerUI {
         chatAreaUI?.scrollToMessage?.(this._currentPin.targetId);
     }
 
+    /** Banner tap: go to the shown pin, then show the one before it. */
+    jumpAndAdvance() {
+        if (!this._currentPin || !this._currentStreamId) return;
+        this.scrollToCurrent();
+        const streamId = this._currentStreamId;
+        this._cursor.set(streamId, (this._cursor.get(streamId) || 0) + 1);
+        this.update();
+    }
+
     /**
-     * Re-show banner (clearing any local dismissal) for the current channel and
-     * scroll to the most recent pin. Invoked from the channel-menu "Pinned"
-     * action.
+     * Re-show the banner on the newest pin and scroll to it. Invoked from the
+     * channel-menu "Pinned" action.
      */
     showAndScroll() {
         const channel = this._resolveChannel();
         if (!channel) return;
-        // Clear dismissals so the latest pin is visible
-        this._dismissed.delete(channel.streamId);
+        const hidden = this._hiddenMap();
+        if (channel.streamId in hidden) {
+            delete hidden[channel.streamId];
+            this._saveHidden();
+        }
+        this._cursor.delete(channel.streamId);
         this.update();
         this.scrollToCurrent();
     }
 
-    /** Dismiss the currently shown pin (banner-only — does not unpin). */
+    /** Close the banner until a newer pin arrives (banner-only — does not unpin). */
     dismissCurrent() {
-        if (!this._currentPin || !this._currentStreamId) return;
-        let set = this._dismissed.get(this._currentStreamId);
-        if (!set) {
-            set = new Set();
-            this._dismissed.set(this._currentStreamId, set);
-        }
-        set.add(this._currentPin.targetId);
+        const channel = this._resolveChannel();
+        const pins = channel?.adminState?.pins;
+        if (!this._currentPin || !pins?.length) return;
+        this._hiddenMap()[channel.streamId] = pins[pins.length - 1].targetId;
+        this._saveHidden();
+        this._cursor.delete(channel.streamId);
         this.update();
     }
 

@@ -34,10 +34,6 @@ vi.mock('../../src/js/logger.js', () => ({
     Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }));
 
-vi.mock('../../src/js/workers/cryptoWorkerPool.js', () => ({
-    cryptoWorkerPool: { execute: vi.fn() }
-}));
-
 const mockLookupAddress = vi.fn(() => Promise.resolve(null));
 
 let decoyCounter = 0;
@@ -56,7 +52,6 @@ const mockEthers = {
 globalThis.ethers = mockEthers;
 
 import { identityManager } from '../../src/js/identity.js';
-import { cryptoWorkerPool } from '../../src/js/workers/cryptoWorkerPool.js';
 import { CONFIG } from '../../src/js/config.js';
 import { secureStorage } from '../../src/js/secureStorage.js';
 
@@ -87,11 +82,10 @@ describe('identity — ENS privacy', () => {
     describe('verifyMessage never touches the network', () => {
         const message = {
             id: 'm1', text: 'hi', sender: '0xSender',
-            timestamp: Date.now(), channelId: 'c1', signature: '0xSig'
+            timestamp: Date.now(), channelId: 'c1', account: '0xsender'
         };
 
         it('issues no lookup for an address that is not cached', async () => {
-            cryptoWorkerPool.execute.mockResolvedValue({ valid: true, recoveredAddress: '0xSender' });
 
             const result = await identityManager.verifyMessage(message);
 
@@ -102,7 +96,6 @@ describe('identity — ENS privacy', () => {
 
         it('still serves a cached name without a lookup', async () => {
             identityManager.ensCache.set('0xsender', { name: 'sender.eth', timestamp: Date.now() });
-            cryptoWorkerPool.execute.mockResolvedValue({ valid: true, recoveredAddress: '0xSender' });
 
             const result = await identityManager.verifyMessage(message);
 
@@ -116,7 +109,6 @@ describe('identity — ENS privacy', () => {
                 name: 'old.eth',
                 timestamp: Date.now() - (CONFIG.identity.ensCacheDurationMs + 1000)
             });
-            cryptoWorkerPool.execute.mockResolvedValue({ valid: true, recoveredAddress: '0xSender' });
 
             const result = await identityManager.verifyMessage(message);
 

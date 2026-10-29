@@ -29,7 +29,7 @@ export function attachMeshImages(ui) {
                      class="max-w-full max-h-60 rounded-lg cursor-pointer object-contain lightbox-trigger" 
                      data-media-id="${mediaId}"
                      alt="Image"/>
-                <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white p-1 rounded transition opacity-0 group-hover:opacity-100 lightbox-trigger"
+                <button class="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-primary p-1 rounded transition opacity-0 group-hover:opacity-100 lightbox-trigger"
                         data-media-id="${mediaId}"
                         title="Maximize">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -71,7 +71,7 @@ export function attachMeshImages(ui) {
                     if (placeholders.length === 0) continue;
                     for (const el of placeholders) {
                         el.innerHTML = `
-                            <div class="flex flex-col items-center gap-2 text-white/40 text-sm p-3">
+                            <div class="flex flex-col items-center gap-2 text-overlay-40 text-sm p-3">
                                 <div class="flex items-center gap-2">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -79,7 +79,7 @@ export function attachMeshImages(ui) {
                                     </svg>
                                     <span>Image unavailable</span>
                                 </div>
-                                <button type="button" class="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs" data-retry-image-id="${_escapeAttr(imageId)}">Retry</button>
+                                <button type="button" class="px-2 py-1 rounded bg-overlay-10 hover:bg-overlay-20 text-overlay-80 text-xs" data-retry-image-id="${_escapeAttr(imageId)}">Retry</button>
                             </div>
                         `;
                         const btn = el.querySelector(`[data-retry-image-id="${CSS.escape(imageId)}"]`);
@@ -90,8 +90,8 @@ export function attachMeshImages(ui) {
                                 // Reset to spinner state
                                 try {
                                     el.innerHTML = `
-                                        <div class="flex items-center gap-2 text-white/40 text-sm">
-                                            <div class="w-4 h-4 border-2 border-white/30 border-t-white/80 rounded-full animate-spin" aria-hidden="true"></div>
+                                        <div class="flex items-center gap-2 text-overlay-40 text-sm">
+                                            <div class="w-4 h-4 border-2 border-overlay-30 border-t-overlay-80 rounded-full animate-spin" aria-hidden="true"></div>
                                             <span>Loading\u2026</span>
                                         </div>
                                     `;

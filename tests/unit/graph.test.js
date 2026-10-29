@@ -933,13 +933,18 @@ describe('GraphAPI', () => {
             expect(callBody.query).toContain('skip: 50');
         });
 
-        it('should return empty array on error', async () => {
+        it('throws on error and caches nothing, so a retry reads again', async () => {
             globalThis.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
 
             graphAPI.clearCache();
-            const result = await graphAPI.getPublicPomboChannels();
+            await expect(graphAPI.getPublicPomboChannels()).rejects.toThrow('Network error');
 
-            expect(result).toEqual([]);
+            globalThis.fetch = vi.fn().mockResolvedValue({
+                ok: true,
+                json: () => Promise.resolve({ data: { streams: [] } })
+            });
+            await graphAPI.getPublicPomboChannels();
+            expect(globalThis.fetch).toHaveBeenCalledTimes(1);
         });
 
         it('should cache results', async () => {

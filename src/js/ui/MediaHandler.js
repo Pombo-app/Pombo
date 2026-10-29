@@ -190,6 +190,7 @@ class MediaHandler {
             videoEl.src = src;
             videoEl.classList.remove('hidden');
         }
+        document.getElementById('lightbox-save-btn')?.classList.toggle('hidden', type !== 'image');
         
         modal.classList.remove('hidden');
 
@@ -373,6 +374,22 @@ class MediaHandler {
      * ordering — listeners run in registration order. Registering early
      * lets us `stopImmediatePropagation()` before historyManager navigates.
      */
+    /**
+     * Save the image shown in the lightbox as a download. A link, not a fetch:
+     * the CSP's connect-src does not allow reading data:/blob: URLs.
+     * @param {string} src - URL of the image (a data: URL for chat images)
+     */
+    saveImage(src) {
+        const mime = /^data:(image\/[\w.+-]+)/.exec(src)?.[1];
+        const ext = { 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }[mime] || 'jpg';
+        const a = document.createElement('a');
+        a.href = src;
+        a.download = `pombo_${Date.now()}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+
     initLightboxModal() {
         // Attach popstate handler once — it self-gates on _historyEntryPending.
         if (!this._popstateAttached) {
@@ -397,6 +414,11 @@ class MediaHandler {
                 this.closeLightbox();
             });
         }
+
+        document.getElementById('lightbox-save-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (imageEl?.src) this.saveImage(imageEl.src);
+        });
 
         // Close on Escape key
         document.addEventListener('keydown', (e) => {

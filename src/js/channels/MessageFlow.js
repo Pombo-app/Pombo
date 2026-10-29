@@ -315,10 +315,6 @@ export class MessageFlow {
                 if (verification.actualSigner) {
                     Logger.warn('   Actual signer:', verification.actualSigner);
                 }
-            } else if (verification.pendingVerification) {
-                Logger.debug('Message signature valid, identity pending:', data.sender);
-            } else if (verification.verifiedViaSession) {
-                Logger.debug('Message verified via session key:', verification.ensName || data.sender);
             } else {
                 Logger.debug('Message verified from:', verification.ensName || data.sender);
             }
@@ -571,7 +567,7 @@ export class MessageFlow {
             await this._assertMayPublish(channel, messageStreamId);
 
             // DEDUPLICATION: Use content-based key to block duplicate sends synchronously
-            // This key is created BEFORE the async createSignedMessage to prevent
+            // This key is created BEFORE the async createMessage to prevent
             // two rapid clicks from both passing the check before either adds to the Set
             sendKey = `${messageStreamId}:${text}:${replyTo || ''}`;
             if (this.sendingMessages.has(sendKey)) {
@@ -581,7 +577,7 @@ export class MessageFlow {
             this.sendingMessages.add(sendKey);
 
             // Create signed message using identity manager
-            message = await identityManager.createSignedMessage(text, messageStreamId, replyTo);
+            message = await identityManager.createMessage(text, messageStreamId, replyTo);
 
             // Add verification info for local display (includes ENS for badge + display name)
             message.verified = {

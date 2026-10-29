@@ -28,7 +28,7 @@ vi.mock('../../src/js/identity.js', () => ({
         username: 'tester',
         generateMessageId: vi.fn(() => 'msg-1'),
         getTrustLevel: vi.fn(async () => 0),
-        createSignedStorageFileManifest: vi.fn()
+        createStorageFileManifest: vi.fn()
     }
 }));
 vi.mock('../../src/js/secureStorage.js', () => ({ secureStorage: { addSentMessage: vi.fn() } }));
@@ -469,7 +469,7 @@ describe('downloadFile — incomplete', () => {
         const transfer = storageMediaController.downloads.get('tid-1');
         expect(transfer.status).toBe('error');
         expect(transfer.chunks.size).toBe(total - 1);
-        expect(onError).toHaveBeenCalledWith('tid-1', expect.stringMatching(/Storage incomplete/));
+        expect(onError).toHaveBeenCalledWith('tid-1', `Incomplete on storage (${total - 1}/${total})`);
         expect(storageMediaController.completedFiles.has('tid-1')).toBe(false);
     }, 20000);
 });

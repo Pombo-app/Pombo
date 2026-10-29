@@ -5,6 +5,7 @@
 
 import { Logger } from '../logger.js';
 import { sanitizeText } from './sanitizer.js';
+import { placeMessageMeta } from './MessageRenderer.js';
 
 // Default emojis for emoji picker
 const DEFAULT_EMOJIS = [
@@ -199,6 +200,7 @@ class ReactionManager {
                 }
             }
         }
+        placeMessageMeta(container.closest('.message-entry'));
     }
 
     /**

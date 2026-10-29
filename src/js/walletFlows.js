@@ -136,24 +136,65 @@ class WalletFlows {
             const selectedAddress = await this.showWalletSelector(otherWallets);
             if (!selectedAddress) return;
 
-            // Get password to unlock new wallet
+            await this.switchToWallet(selectedAddress);
+        } catch (error) {
+            uiController.showNotification(error.message || 'Failed to switch account', 'error');
+        }
+    }
+
+    /**
+     * Unlock a saved account and make it the current one.
+     * @param {string} address
+     */
+    async switchToWallet(address) {
+        try {
             const password = await this.showSecureInput(
                 'Unlock Account',
                 'Enter password to unlock account:',
                 'password',
-                { walletAddress: selectedAddress.toLowerCase() }
+                { walletAddress: address.toLowerCase() }
             );
             if (!password) return;
 
             // Disconnect current wallet first (skip fallback to guest since we're switching)
             await this._disconnectWallet({ skipFallback: true });
 
-            // Load selected wallet
-            await this.loadWalletWithProgress(password, selectedAddress);
+            await this.loadWalletWithProgress(password, address);
             uiController.showNotification('Account switched!', 'success');
         } catch (error) {
             uiController.showNotification(error.message || 'Failed to switch account', 'error');
         }
+        if (!authManager.getAddress()) {
+            await this._fallbackToGuest('Continuing as Guest');
+        }
+    }
+
+    /**
+     * Create, import or restore another account. The current session stays
+     * up until the new account is ready, so cancelling changes nothing.
+     */
+    async addAccount() {
+        document.body.classList.add('wallet-flow-open');
+        try {
+            await this.showCreateWalletModal();
+        } catch (error) {
+            if (error.message !== 'cancelled') {
+                uiController.showNotification('Failed to add account: ' + error.message, 'error');
+            }
+        } finally {
+            document.body.classList.remove('wallet-flow-open');
+        }
+        if (!authManager.getAddress()) {
+            await this._fallbackToGuest('Continuing as Guest');
+        }
+    }
+
+    /**
+     * Lock the current account: end the session and ask for an unlock.
+     */
+    async lock() {
+        await this._disconnectWallet({ skipFallback: true });
+        await this.connectWallet();
     }
 
     /**
@@ -186,12 +227,12 @@ class WalletFlows {
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50 animate-fadeIn';
             modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl w-[360px] max-w-[calc(100%-2rem)] overflow-hidden shadow-2xl border border-white/[0.06] animate-slideUp">
+                <div class="bg-surface rounded-2xl w-[360px] max-w-[calc(100%-2rem)] overflow-hidden shadow-2xl border border-overlay-6 animate-slideUp">
                     <!-- Header -->
                     <div class="px-5 pt-5 pb-3">
                         <div class="flex items-center justify-between">
-                            <h3 class="text-[15px] font-medium text-white">Unlock Account</h3>
-                            <button id="close-modal" class="text-white/30 hover:text-white transition p-1 -mr-1">
+                            <h3 class="text-[15px] font-medium text-primary">Unlock Account</h3>
+                            <button id="close-modal" class="text-overlay-30 hover:text-primary transition p-1 -mr-1">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
                                 </svg>
@@ -202,12 +243,12 @@ class WalletFlows {
                     ${singleWallet ? `
                     <!-- Single Wallet Display -->
                     <div class="px-5 pb-4">
-                        <div class="bg-white/[0.05] rounded-xl p-3 border border-white/[0.08]">
+                        <div class="bg-overlay-5 rounded-xl p-3 border border-overlay-8">
                             <div class="flex items-center gap-3">
                                 <div class="w-14 h-14 rounded-full overflow-hidden flex-shrink-0">${getAvatarHtml(wallet.address, 56, 0.5, getENSAvatarUrl(wallet))}</div>
                                 <div class="flex-1 min-w-0">
-                                    <div class="text-[13px] font-medium text-white truncate flex items-center gap-1.5">${hasENS(wallet) ? '<svg class="flex-shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#4ade80" stroke-width="2" fill="none"/><path d="M7.5 12.5l3 3 6-6.5" stroke="#4ade80" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>' : ''}${escapeAttr(getDisplayName(wallet, 0))}</div>
-                                    <div class="text-[11px] text-white/50 font-mono">${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}</div>
+                                    <div class="text-[13px] font-medium text-primary truncate flex items-center gap-1.5">${hasENS(wallet) ? '<svg class="flex-shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" style="stroke:var(--pombo-success)" stroke-width="2" fill="none"/><path d="M7.5 12.5l3 3 6-6.5" style="stroke:var(--pombo-success)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>' : ''}${escapeAttr(getDisplayName(wallet, 0))}</div>
+                                    <div class="text-[11px] text-overlay-50 font-mono">${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}</div>
                                 </div>
                             </div>
                         </div>
@@ -217,14 +258,14 @@ class WalletFlows {
                     <div class="px-5 pb-4">
                         <div class="space-y-2 max-h-52 overflow-y-auto scrollbar-thin">
                             ${wallets.map((w, i) => `
-                                <button class="wallet-item w-full bg-white/[0.05] hover:bg-white/[0.08] rounded-xl p-3 border border-white/[0.08] hover:border-white/[0.12] transition-all text-left ${i === 0 ? 'selected border-white/[0.12]' : ''}" data-address="${escapeAttr(w.address)}" data-name="${escapeAttr(w.name)}">
+                                <button class="wallet-item w-full bg-overlay-5 hover:bg-overlay-8 rounded-xl p-3 border border-overlay-8 hover:border-overlay-12 transition-all text-left ${i === 0 ? 'selected border-overlay-12' : ''}" data-address="${escapeAttr(w.address)}" data-name="${escapeAttr(w.name)}">
                                     <div class="flex items-center gap-3">
                                         <div class="w-14 h-14 rounded-full overflow-hidden flex-shrink-0">${getAvatarHtml(w.address, 56, 0.5, getENSAvatarUrl(w))}</div>
                                         <div class="flex-1 min-w-0">
-                                            <div class="text-[13px] font-medium text-white truncate flex items-center gap-1">${hasENS(w) ? '<svg class="flex-shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#4ade80" stroke-width="2" fill="none"/><path d="M7.5 12.5l3 3 6-6.5" stroke="#4ade80" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>' : ''}${escapeAttr(getDisplayName(w, i))}</div>
-                                            <div class="text-[11px] text-white/50 font-mono">${w.address.slice(0, 6)}...${w.address.slice(-4)}</div>
+                                            <div class="text-[13px] font-medium text-primary truncate flex items-center gap-1">${hasENS(w) ? '<svg class="flex-shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" style="stroke:var(--pombo-success)" stroke-width="2" fill="none"/><path d="M7.5 12.5l3 3 6-6.5" style="stroke:var(--pombo-success)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>' : ''}${escapeAttr(getDisplayName(w, i))}</div>
+                                            <div class="text-[11px] text-overlay-50 font-mono">${w.address.slice(0, 6)}...${w.address.slice(-4)}</div>
                                         </div>
-                                        <div class="w-4 h-4 rounded-full border border-white/[0.12] group-[.selected]:bg-white flex items-center justify-center">
+                                        <div class="w-4 h-4 rounded-full border border-overlay-12 group-[.selected]:bg-white flex items-center justify-center">
                                             <div class="w-2 h-2 rounded-full bg-white opacity-0 selected-dot"></div>
                                         </div>
                                     </div>
@@ -245,9 +286,9 @@ class WalletFlows {
                         <div class="relative">
                             <input type="password" id="wallet-password" name="password"
                                 placeholder="Password"
-                                class="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-2.5 text-[13px] text-white placeholder-white/25 focus:outline-none focus:border-white/[0.15] transition"
+                                class="w-full bg-overlay-5 border border-overlay-8 rounded-xl px-3 py-2.5 text-[13px] text-primary placeholder-overlay-25 focus:outline-none focus:border-overlay-15 transition"
                                 autocomplete="current-password">
-                            <button type="button" id="toggle-password" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white transition">
+                            <button type="button" id="toggle-password" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-overlay-25 hover:text-primary transition">
                                 <svg id="eye-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -265,11 +306,11 @@ class WalletFlows {
                     </form>
                     
                     <!-- Footer -->
-                    <div class="border-t border-white/[0.06] px-5 py-3 bg-[#09090b]">
+                    <div class="border-t border-overlay-6 px-5 py-3 bg-surface-1">
                         <div class="flex items-center justify-center gap-3 text-[12px]">
-                            <button id="create-new-btn" class="text-white/30 hover:text-white transition">New account</button>
-                            <span class="text-white/15">·</span>
-                            <button id="import-btn" class="text-white/30 hover:text-white transition">Import</button>
+                            <button id="create-new-btn" class="text-overlay-30 hover:text-primary transition">New account</button>
+                            <span class="text-overlay-15">·</span>
+                            <button id="import-btn" class="text-overlay-30 hover:text-primary transition">Import</button>
                         </div>
                     </div>
                 </div>
@@ -297,8 +338,8 @@ class WalletFlows {
             // Wallet selection
             walletItems.forEach(item => {
                 item.addEventListener('click', () => {
-                    walletItems.forEach(w => w.classList.remove('selected', 'border-white/[0.12]'));
-                    item.classList.add('selected', 'border-white/[0.12]');
+                    walletItems.forEach(w => w.classList.remove('selected', 'border-overlay-12'));
+                    item.classList.add('selected', 'border-overlay-12');
                     selectedAddress = item.dataset.address;
                     selectedName = item.dataset.name;
                     // Update hidden username field for password manager (lowercase for consistency)
@@ -505,12 +546,13 @@ class WalletFlows {
                 localStorage.setItem(CONFIG.storageKeys.keystores, JSON.stringify(wallets));
             }
 
-            // Upgrading from Guest: tear the guest session down first, same as
-            // connectLocal/importPrivateKey — onWalletConnected must not
-            // re-enter over a live guest client, or the header never leaves
-            // guest state (body.guest-mode keeps "Create Account" visible).
-            if (authManager.isGuestMode()) {
-                await this._disconnectWallet();
+            // Tear any live session down first (guest, or the account being
+            // left by Add account), same as connectLocal/importPrivateKey —
+            // onWalletConnected must not re-enter over a live client, or the
+            // header never leaves guest state (body.guest-mode keeps
+            // "Create Account" visible).
+            if (authManager.getAddress()) {
+                await this._disconnectWallet({ skipFallback: true });
             }
 
             // Now unlock the wallet with the same password
@@ -631,14 +673,20 @@ class WalletFlows {
 
             // Show modal where user picks an avatar (= picks a wallet)
             const setupResult = await this.showNewAccountSetupModal();
-            
-            // User cancelled - connect as guest instead
+
+            // User cancelled - connect as guest instead (an account still
+            // signed in from Add account simply stays)
             if (setupResult === 'cancelled') {
-                await this._fallbackToGuest('Continuing as Guest - your data won\'t be saved');
+                if (!authManager.getAddress()) {
+                    await this._fallbackToGuest('Continuing as Guest - your data won\'t be saved');
+                }
                 return;
             }
-            
+
             if (setupResult) {
+                if (authManager.getAddress()) {
+                    await this._disconnectWallet({ skipFallback: true });
+                }
                 // Set the chosen wallet in authManager
                 const importResult = authManager.importPrivateKey(setupResult.privateKey);
 
@@ -686,20 +734,20 @@ class WalletFlows {
             modal.className = 'fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4';
             modal.innerHTML = `
                 <style>#avatar-grid .avatar-option svg{width:100%;height:100%;display:block}</style>
-                <div class="bg-[#111113] rounded-2xl shadow-2xl border border-white/[0.06] flex flex-col overflow-hidden" style="width:100%;max-width:420px;max-height:calc(100vh - 1.5rem)">
+                <div class="bg-surface rounded-2xl shadow-2xl border border-overlay-6 flex flex-col overflow-hidden" style="width:100%;max-width:420px;max-height:calc(100vh - 1.5rem)">
                     <!-- Step 1: Choose Avatar -->
                     <div id="step-avatar" class="flex flex-col min-h-0 h-full">
                         <!-- Header (fixed) -->
-                        <div class="flex items-center border-b border-white/5 flex-shrink-0" style="padding:16px 20px;justify-content:space-between">
+                        <div class="flex items-center border-b border-overlay-5 flex-shrink-0" style="padding:16px 20px;justify-content:space-between">
                             <div class="flex items-center gap-3">
                                 <div class="rounded-xl bg-[#1a2f1a] flex items-center justify-center flex-shrink-0" style="width:36px;height:36px">
-                                    <svg class="w-4 h-4 text-[#4ade80]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4.5 12.75l6 6 9-13.5"/>
                                     </svg>
                                 </div>
-                                <h3 class="font-medium text-white/90" style="font-size:1.1rem">Choose Your Avatar</h3>
+                                <h3 class="font-medium text-overlay-90" style="font-size:1.1rem">Choose Your Avatar</h3>
                             </div>
-                            <button id="shuffle-avatars" class="text-white/40 hover:text-white/80 transition rounded-lg hover:bg-white/[0.06]" style="padding:8px" title="Show more avatars">
+                            <button id="shuffle-avatars" class="text-overlay-40 hover:text-overlay-80 transition rounded-lg hover:bg-overlay-6" style="padding:8px" title="Show more avatars">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M20.016 4.66v4.993"/>
                                 </svg>
@@ -710,7 +758,7 @@ class WalletFlows {
                         <div class="flex-1 overflow-y-auto min-h-0" style="padding:20px">
                             <div id="avatar-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.625rem">
                                 ${wallets.map((w, i) => `
-                                    <button class="avatar-option group relative rounded-xl border-2 transition-all duration-150 ${i === 0 ? 'border-white/40 bg-white/[0.08]' : 'border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/[0.12]'}" data-index="${i}" style="aspect-ratio:1;padding:10px">
+                                    <button class="avatar-option group relative rounded-xl border-2 transition-all duration-150 ${i === 0 ? 'border-overlay-40 bg-overlay-8' : 'border-overlay-6 bg-overlay-3 hover:bg-overlay-6 hover:border-overlay-12'}" data-index="${i}" style="aspect-ratio:1;padding:10px">
                                         <div class="rounded-full overflow-hidden" style="width:100%;height:100%">${generateAvatar(w.address, 64, 0.5)}</div>
                                         <div class="avatar-check absolute w-5 h-5 rounded-full bg-white flex items-center justify-center ${i === 0 ? '' : 'hidden'}" style="top:6px;right:6px">
                                             <svg class="w-3 h-3 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -722,15 +770,15 @@ class WalletFlows {
                             </div>
                             
                             <!-- Info text -->
-                            <p class="text-xs text-white/50 text-center" style="margin-top:14px">Your avatar is a unique visual identifier tied to your account.</p>
+                            <p class="text-xs text-overlay-50 text-center" style="margin-top:14px">Your avatar is a unique visual identifier tied to your account.</p>
                         </div>
 
                         <!-- Footer (fixed) -->
-                        <div class="border-t border-white/5 flex gap-3 flex-shrink-0" style="padding:14px 20px">
-                            <button id="avatar-cancel-btn" class="flex-1 bg-white/5 hover:bg-white/10 text-white/70 text-sm font-medium py-3 rounded-xl transition border border-white/10">
+                        <div class="border-t border-overlay-5 flex gap-3 flex-shrink-0" style="padding:14px 20px">
+                            <button id="avatar-cancel-btn" class="flex-1 bg-overlay-5 hover:bg-overlay-10 text-overlay-70 text-sm font-medium py-3 rounded-xl transition border border-overlay-10">
                                 Cancel
                             </button>
-                            <button id="avatar-continue-btn" class="flex-1 bg-[#F6851B] hover:bg-[#e5780f] text-white text-sm font-medium py-3 rounded-xl transition">
+                            <button id="avatar-continue-btn" class="flex-1 bg-[#F6851B] hover:bg-[#e5780f] text-primary text-sm font-medium py-3 rounded-xl transition">
                                 Continue
                             </button>
                         </div>
@@ -739,12 +787,12 @@ class WalletFlows {
                     <!-- Step 2: Account Details + Password -->
                     <div id="step-details" class="hidden flex-col min-h-0 h-full">
                         <!-- Header (fixed) -->
-                        <div class="flex items-center border-b border-white/5 flex-shrink-0" style="padding:16px 20px">
+                        <div class="flex items-center border-b border-overlay-5 flex-shrink-0" style="padding:16px 20px">
                             <div class="flex items-center gap-3">
                                 <div id="selected-avatar-preview" class="rounded-full overflow-hidden flex-shrink-0" style="width:38px;height:38px"></div>
                                 <div>
-                                    <h3 class="font-medium text-white/90" style="font-size:1.1rem">Set Up Account</h3>
-                                    <p class="text-xs text-white/40">Secure your account with a password</p>
+                                    <h3 class="font-medium text-overlay-90" style="font-size:1.1rem">Set Up Account</h3>
+                                    <p class="text-xs text-overlay-40">Secure your account with a password</p>
                                 </div>
                             </div>
                         </div>
@@ -753,20 +801,20 @@ class WalletFlows {
                         <div class="flex-1 overflow-y-auto min-h-0 space-y-4" style="padding:20px">
                             <!-- Display Name -->
                             <div>
-                                <label class="block text-xs font-medium text-white/40 uppercase tracking-wider mb-2">Display Name</label>
+                                <label class="block text-xs font-medium text-overlay-40 uppercase tracking-wider mb-2">Display Name</label>
                                 <input type="text" id="display-name-input" 
-                                    class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20"
+                                    class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition placeholder:text-overlay-20"
                                     placeholder="Your name (optional)" maxlength="32" autocomplete="off">
                             </div>
                             
                             <!-- Password -->
                             <div>
-                                <label class="block text-xs font-medium text-white/40 uppercase tracking-wider mb-2">Password</label>
+                                <label class="block text-xs font-medium text-overlay-40 uppercase tracking-wider mb-2">Password</label>
                                 <div class="relative">
                                     <input type="password" id="password-input" 
-                                        class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20" style="padding-right:2.75rem"
+                                        class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition placeholder:text-overlay-20" style="padding-right:2.75rem"
                                         placeholder="Min 12 chars, upper, lower, number" autocomplete="new-password">
-                                    <button id="toggle-password" class="absolute top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition" style="right:12px">
+                                    <button id="toggle-password" class="absolute top-1/2 -translate-y-1/2 text-overlay-40 hover:text-overlay-80 transition" style="right:12px">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -779,25 +827,25 @@ class WalletFlows {
 
                             <!-- Address -->
                             <div>
-                                <label class="block text-xs font-medium text-white/40 uppercase tracking-wider mb-2">Address</label>
-                                <div id="address-display" class="bg-white/5 border border-white/10 rounded-xl px-4 py-3 font-mono text-sm text-white/60 break-all">
+                                <label class="block text-xs font-medium text-overlay-40 uppercase tracking-wider mb-2">Address</label>
+                                <div id="address-display" class="bg-overlay-5 border border-overlay-10 rounded-xl px-4 py-3 font-mono text-sm text-overlay-60 break-all">
                                 </div>
                             </div>
                             
                             <!-- Private Key -->
                             <div>
-                                <label class="block text-xs font-medium text-white/40 uppercase tracking-wider mb-2">Private Key</label>
-                                <div class="bg-white/5 border border-white/10 rounded-xl px-4 py-3 relative">
-                                    <div id="pk-hidden" class="font-mono text-sm text-white/30 select-none" style="padding-right:2rem">••••••••••••••••••••••••••••••••••••</div>
-                                    <div id="pk-revealed" class="font-mono text-sm text-white/60 break-all hidden" style="padding-right:2rem"></div>
-                                    <button id="toggle-pk" class="absolute top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition" style="right:12px">
+                                <label class="block text-xs font-medium text-overlay-40 uppercase tracking-wider mb-2">Private Key</label>
+                                <div class="bg-overlay-5 border border-overlay-10 rounded-xl px-4 py-3 relative">
+                                    <div id="pk-hidden" class="font-mono text-sm text-overlay-30 select-none" style="padding-right:2rem">••••••••••••••••••••••••••••••••••••</div>
+                                    <div id="pk-revealed" class="font-mono text-sm text-overlay-60 break-all hidden" style="padding-right:2rem"></div>
+                                    <button id="toggle-pk" class="absolute top-1/2 -translate-y-1/2 text-overlay-40 hover:text-overlay-80 transition" style="right:12px">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                         </svg>
                                     </button>
                                 </div>
-                                <button id="copy-pk" class="mt-2 w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 text-sm font-medium py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                                <button id="copy-pk" class="mt-2 w-full bg-overlay-5 hover:bg-overlay-10 border border-overlay-10 text-overlay-70 text-sm font-medium py-2.5 rounded-xl transition flex items-center justify-center gap-2">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"/>
                                     </svg>
@@ -820,11 +868,11 @@ class WalletFlows {
                         </div>
                         
                         <!-- Footer (fixed) -->
-                        <div class="border-t border-white/5 flex gap-3 flex-shrink-0" style="padding:14px 20px">
-                            <button id="details-back-btn" class="flex-1 bg-white/5 hover:bg-white/10 text-white/70 text-sm font-medium py-3 rounded-xl transition border border-white/10">
+                        <div class="border-t border-overlay-5 flex gap-3 flex-shrink-0" style="padding:14px 20px">
+                            <button id="details-back-btn" class="flex-1 bg-overlay-5 hover:bg-overlay-10 text-overlay-70 text-sm font-medium py-3 rounded-xl transition border border-overlay-10">
                                 Back
                             </button>
-                            <button id="details-continue-btn" disabled class="flex-1 bg-white/10 text-white/30 text-sm font-medium py-3 rounded-xl transition cursor-not-allowed">
+                            <button id="details-continue-btn" disabled class="flex-1 bg-overlay-10 text-overlay-30 text-sm font-medium py-3 rounded-xl transition cursor-not-allowed">
                                 Continue
                             </button>
                         </div>
@@ -833,10 +881,10 @@ class WalletFlows {
                     <!-- Step 3: Confirm Password -->
                     <div id="step-confirm" class="hidden flex-col min-h-0 h-full">
                         <!-- Header (fixed) -->
-                        <div class="flex items-center border-b border-white/5 flex-shrink-0" style="padding:16px 20px">
+                        <div class="flex items-center border-b border-overlay-5 flex-shrink-0" style="padding:16px 20px">
                             <div>
-                                <h3 class="font-medium text-white/90" style="font-size:1.1rem">Confirm Password</h3>
-                                <p class="text-xs text-white/40 mt-0.5">Re-enter your password to confirm</p>
+                                <h3 class="font-medium text-overlay-90" style="font-size:1.1rem">Confirm Password</h3>
+                                <p class="text-xs text-overlay-40 mt-0.5">Re-enter your password to confirm</p>
                             </div>
                         </div>
                         
@@ -851,24 +899,24 @@ class WalletFlows {
                             <div class="flex-1 overflow-y-auto min-h-0" style="padding:20px">
                                 <div class="relative">
                                     <input type="password" id="confirm-password-input" name="password"
-                                        class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20" style="padding-right:2.75rem"
+                                        class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition placeholder:text-overlay-20" style="padding-right:2.75rem"
                                         placeholder="Re-enter password" autocomplete="new-password">
-                                    <button type="button" id="toggle-confirm-password" class="absolute top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition" style="right:12px">
+                                    <button type="button" id="toggle-confirm-password" class="absolute top-1/2 -translate-y-1/2 text-overlay-40 hover:text-overlay-80 transition" style="right:12px">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                         </svg>
                                     </button>
                                 </div>
-                                <p id="password-error" class="hidden text-xs text-red-400 mt-2">Passwords don't match</p>
+                                <p id="password-error" class="hidden text-xs text-danger mt-2">Passwords don't match</p>
                             </div>
                             
                             <!-- Footer (fixed) -->
-                            <div class="border-t border-white/5 flex gap-3 flex-shrink-0" style="padding:14px 20px">
-                                <button type="button" id="confirm-back-btn" class="flex-1 bg-white/5 hover:bg-white/10 text-white/70 text-sm font-medium py-3 rounded-xl transition border border-white/10">
+                            <div class="border-t border-overlay-5 flex gap-3 flex-shrink-0" style="padding:14px 20px">
+                                <button type="button" id="confirm-back-btn" class="flex-1 bg-overlay-5 hover:bg-overlay-10 text-overlay-70 text-sm font-medium py-3 rounded-xl transition border border-overlay-10">
                                     Back
                                 </button>
-                                <button type="submit" id="confirm-btn" class="flex-1 bg-[#F6851B] hover:bg-[#e5780f] text-white text-sm font-medium py-3 rounded-xl transition">
+                                <button type="submit" id="confirm-btn" class="flex-1 bg-[#F6851B] hover:bg-[#e5780f] text-primary text-sm font-medium py-3 rounded-xl transition">
                                     Create Account
                                 </button>
                             </div>
@@ -915,7 +963,7 @@ class WalletFlows {
             // ===== Avatar Grid Logic =====
             const updateAvatarGrid = () => {
                 avatarGrid.innerHTML = wallets.map((w, i) => `
-                    <button class="avatar-option group relative rounded-xl border-2 transition-all duration-150 ${i === selectedIndex ? 'border-white/40 bg-white/[0.08]' : 'border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/[0.12]'}" data-index="${i}" style="aspect-ratio:1;padding:10px">
+                    <button class="avatar-option group relative rounded-xl border-2 transition-all duration-150 ${i === selectedIndex ? 'border-overlay-40 bg-overlay-8' : 'border-overlay-6 bg-overlay-3 hover:bg-overlay-6 hover:border-overlay-12'}" data-index="${i}" style="aspect-ratio:1;padding:10px">
                         <div class="rounded-full overflow-hidden" style="width:100%;height:100%">${generateAvatar(w.address, 64, 0.5)}</div>
                         <div class="avatar-check absolute w-5 h-5 rounded-full bg-white flex items-center justify-center ${i === selectedIndex ? '' : 'hidden'}" style="top:6px;right:6px">
                             <svg class="w-3 h-3 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -934,7 +982,7 @@ class WalletFlows {
                         // Update visual selection
                         avatarGrid.querySelectorAll('.avatar-option').forEach((b, i) => {
                             const isSelected = i === selectedIndex;
-                            b.className = `avatar-option group relative flex items-center justify-center rounded-xl border-2 transition-all duration-150 ${isSelected ? 'border-white/40 bg-white/[0.08]' : 'border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/[0.12]'}`;
+                            b.className = `avatar-option group relative flex items-center justify-center rounded-xl border-2 transition-all duration-150 ${isSelected ? 'border-overlay-40 bg-overlay-8' : 'border-overlay-6 bg-overlay-3 hover:bg-overlay-6 hover:border-overlay-12'}`;
                             const check = b.querySelector('.avatar-check');
                             if (check) check.classList.toggle('hidden', !isSelected);
                         });
@@ -980,8 +1028,8 @@ class WalletFlows {
             setupPasswordStrengthValidation(passwordInput, modal, (isValid) => {
                 detailsContinueBtn.disabled = !isValid;
                 detailsContinueBtn.className = isValid 
-                    ? 'flex-1 bg-[#F6851B] hover:bg-[#e5780f] text-white text-sm font-medium py-3 rounded-xl transition'
-                    : 'flex-1 bg-white/10 text-white/30 text-sm font-medium py-3 rounded-xl transition cursor-not-allowed';
+                    ? 'flex-1 bg-[#F6851B] hover:bg-[#e5780f] text-primary text-sm font-medium py-3 rounded-xl transition'
+                    : 'flex-1 bg-overlay-10 text-overlay-30 text-sm font-medium py-3 rounded-xl transition cursor-not-allowed';
             });
 
             // Back to avatar step
@@ -1102,11 +1150,11 @@ class WalletFlows {
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4';
             modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl w-[420px] max-w-[95vw] shadow-2xl border border-white/[0.06] overflow-hidden">
+                <div class="bg-surface rounded-2xl w-[420px] max-w-[95vw] shadow-2xl border border-overlay-6 overflow-hidden">
                     <!-- Step 1: Import Private Key -->
                     <div id="step-1">
                         <!-- Header -->
-                        <div class="flex items-center justify-between px-6 py-4 border-b border-white/5">
+                        <div class="flex items-center justify-between px-6 py-4 border-b border-overlay-5">
                             <div class="flex items-center gap-3">
                                 <div class="w-9 h-9 rounded-xl bg-[#1a1f2e] flex items-center justify-center">
                                     <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1114,11 +1162,11 @@ class WalletFlows {
                                     </svg>
                                 </div>
                                 <div>
-                                    <h3 class="text-lg font-medium text-white/90">Import Private Key</h3>
-                                    <p class="text-xs text-white/40">Restore your account</p>
+                                    <h3 class="text-lg font-medium text-overlay-90">Import Private Key</h3>
+                                    <p class="text-xs text-overlay-40">Restore your account</p>
                                 </div>
                             </div>
-                            <button id="close-btn" class="text-white/40 hover:text-white/80 transition p-1">
+                            <button id="close-btn" class="text-overlay-40 hover:text-overlay-80 transition p-1">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
                                 </svg>
@@ -1129,34 +1177,34 @@ class WalletFlows {
                         <div class="p-6 space-y-4">
                             <!-- Private Key Input -->
                             <div>
-                                <label class="block text-xs font-medium text-white/40 uppercase tracking-wider mb-2">Private Key</label>
+                                <label class="block text-xs font-medium text-overlay-40 uppercase tracking-wider mb-2">Private Key</label>
                                 <div class="relative">
                                     <input type="password" id="private-key-input" 
-                                        class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm font-mono focus:outline-none focus:border-white/30 transition placeholder:text-white/20 pr-11"
+                                        class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm font-mono focus:outline-none focus:border-overlay-30 transition placeholder:text-overlay-20 pr-11"
                                         placeholder="64 hex characters (with or without 0x)" autocomplete="off" spellcheck="false">
-                                    <button id="toggle-pk" class="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition">
+                                    <button id="toggle-pk" class="absolute right-3 top-1/2 -translate-y-1/2 text-overlay-40 hover:text-overlay-80 transition">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                         </svg>
                                     </button>
                                 </div>
-                                <p id="pk-error" class="hidden text-xs text-red-400 mt-2">Invalid format - must be 64 hex characters</p>
+                                <p id="pk-error" class="hidden text-xs text-danger mt-2">Invalid format - must be 64 hex characters</p>
                             </div>
                             
                             <!-- Divider -->
-                            <div class="border-t border-white/5 pt-4">
-                                <p class="text-xs text-white/40 mb-3">Set a password to save this account locally</p>
+                            <div class="border-t border-overlay-5 pt-4">
+                                <p class="text-xs text-overlay-40 mb-3">Set a password to save this account locally</p>
                             </div>
                             
                             <!-- Password -->
                             <div>
-                                <label class="block text-xs font-medium text-white/40 uppercase tracking-wider mb-2">Password</label>
+                                <label class="block text-xs font-medium text-overlay-40 uppercase tracking-wider mb-2">Password</label>
                                 <div class="relative">
                                     <input type="password" id="password-input" 
-                                        class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20 pr-11"
+                                        class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition placeholder:text-overlay-20 pr-11"
                                         placeholder="Min 12 chars, upper, lower, number" autocomplete="new-password">
-                                    <button id="toggle-password" class="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition">
+                                    <button id="toggle-password" class="absolute right-3 top-1/2 -translate-y-1/2 text-overlay-40 hover:text-overlay-80 transition">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -1169,11 +1217,11 @@ class WalletFlows {
                         </div>
                         
                         <!-- Footer -->
-                        <div class="px-6 py-4 border-t border-white/5 flex gap-3">
-                            <button id="skip-btn" class="flex-1 bg-white/5 hover:bg-white/10 text-white/70 text-sm font-medium py-3 rounded-xl transition border border-white/10">
+                        <div class="px-6 py-4 border-t border-overlay-5 flex gap-3">
+                            <button id="skip-btn" class="flex-1 bg-overlay-5 hover:bg-overlay-10 text-overlay-70 text-sm font-medium py-3 rounded-xl transition border border-overlay-10">
                                 Continue without saving
                             </button>
-                            <button id="save-btn" disabled class="flex-1 bg-white/10 text-white/30 text-sm font-medium py-3 rounded-xl transition cursor-not-allowed">
+                            <button id="save-btn" disabled class="flex-1 bg-overlay-10 text-overlay-30 text-sm font-medium py-3 rounded-xl transition cursor-not-allowed">
                                 Save
                             </button>
                         </div>
@@ -1182,10 +1230,10 @@ class WalletFlows {
                     <!-- Step 2: Confirm Password -->
                     <div id="step-2" class="hidden">
                         <!-- Header -->
-                        <div class="flex items-center justify-between px-6 py-4 border-b border-white/5">
+                        <div class="flex items-center justify-between px-6 py-4 border-b border-overlay-5">
                             <div>
-                                <h3 class="text-lg font-medium text-white/90">Confirm Password</h3>
-                                <p class="text-xs text-white/40 mt-0.5">Re-enter your password to confirm</p>
+                                <h3 class="text-lg font-medium text-overlay-90">Confirm Password</h3>
+                                <p class="text-xs text-overlay-40 mt-0.5">Re-enter your password to confirm</p>
                             </div>
                         </div>
                         
@@ -1200,24 +1248,24 @@ class WalletFlows {
                             <div class="p-6">
                                 <div class="relative">
                                     <input type="password" id="confirm-password-input" name="password"
-                                        class="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-white/30 transition placeholder:text-white/20 pr-11"
+                                        class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition placeholder:text-overlay-20 pr-11"
                                         placeholder="Re-enter password" autocomplete="new-password">
-                                    <button type="button" id="toggle-confirm-password" class="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition">
+                                    <button type="button" id="toggle-confirm-password" class="absolute right-3 top-1/2 -translate-y-1/2 text-overlay-40 hover:text-overlay-80 transition">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                         </svg>
                                     </button>
                                 </div>
-                                <p id="password-error" class="hidden text-xs text-red-400 mt-2">Passwords don't match</p>
+                                <p id="password-error" class="hidden text-xs text-danger mt-2">Passwords don't match</p>
                             </div>
                             
                             <!-- Footer -->
-                            <div class="px-6 py-4 border-t border-white/5 flex gap-3">
-                                <button type="button" id="back-btn" class="flex-1 bg-white/5 hover:bg-white/10 text-white/70 text-sm font-medium py-3 rounded-xl transition border border-white/10">
+                            <div class="px-6 py-4 border-t border-overlay-5 flex gap-3">
+                                <button type="button" id="back-btn" class="flex-1 bg-overlay-5 hover:bg-overlay-10 text-overlay-70 text-sm font-medium py-3 rounded-xl transition border border-overlay-10">
                                     Back
                                 </button>
-                                <button type="submit" id="confirm-btn" class="flex-1 bg-[#F6851B] hover:bg-[#e5780f] text-white text-sm font-medium py-3 rounded-xl transition">
+                                <button type="submit" id="confirm-btn" class="flex-1 bg-[#F6851B] hover:bg-[#e5780f] text-primary text-sm font-medium py-3 rounded-xl transition">
                                     Save
                                 </button>
                             </div>
@@ -1273,8 +1321,8 @@ class WalletFlows {
                 const allValid = isPkValid && passwordValid;
                 saveBtn.disabled = !allValid;
                 saveBtn.className = allValid 
-                    ? 'flex-1 bg-[#F6851B] hover:bg-[#e5780f] text-white text-sm font-medium py-3 rounded-xl transition'
-                    : 'flex-1 bg-white/10 text-white/30 text-sm font-medium py-3 rounded-xl transition cursor-not-allowed';
+                    ? 'flex-1 bg-[#F6851B] hover:bg-[#e5780f] text-primary text-sm font-medium py-3 rounded-xl transition'
+                    : 'flex-1 bg-overlay-10 text-overlay-30 text-sm font-medium py-3 rounded-xl transition cursor-not-allowed';
             };
 
             // Setup password strength validation with callback
@@ -1286,8 +1334,8 @@ class WalletFlows {
             const updateSkipButton = () => {
                 skipBtn.disabled = !isPkValid;
                 skipBtn.className = isPkValid 
-                    ? 'flex-1 bg-white/5 hover:bg-white/10 text-white/70 text-sm font-medium py-3 rounded-xl transition border border-white/10'
-                    : 'flex-1 bg-white/5 text-white/30 text-sm font-medium py-3 rounded-xl transition border border-white/10 cursor-not-allowed';
+                    ? 'flex-1 bg-overlay-5 hover:bg-overlay-10 text-overlay-70 text-sm font-medium py-3 rounded-xl transition border border-overlay-10'
+                    : 'flex-1 bg-overlay-5 text-overlay-30 text-sm font-medium py-3 rounded-xl transition border border-overlay-10 cursor-not-allowed';
             };
 
             // Close button - return null
@@ -1513,12 +1561,12 @@ class WalletFlows {
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50 animate-fadeIn';
             modal.innerHTML = `
-                <div class="bg-[#111113] rounded-2xl w-[360px] max-w-[calc(100%-2rem)] overflow-hidden shadow-2xl border border-white/[0.06] animate-slideUp">
+                <div class="bg-surface rounded-2xl w-[360px] max-w-[calc(100%-2rem)] overflow-hidden shadow-2xl border border-overlay-6 animate-slideUp">
                     <!-- Header -->
                     <div class="px-5 pt-5 pb-3">
                         <div class="flex items-center justify-between">
-                            <h3 class="text-[15px] font-medium text-white">Select Account</h3>
-                            <button id="close-modal" class="text-white/30 hover:text-white transition p-1 -mr-1">
+                            <h3 class="text-[15px] font-medium text-primary">Select Account</h3>
+                            <button id="close-modal" class="text-overlay-30 hover:text-primary transition p-1 -mr-1">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
                                 </svg>
@@ -1530,12 +1578,12 @@ class WalletFlows {
                     <div class="px-5 pb-5">
                         <div class="space-y-2 max-h-60 overflow-y-auto scrollbar-thin">
                             ${wallets.map((w, i) => `
-                                <button class="account-option w-full bg-white/[0.05] hover:bg-white/[0.08] rounded-xl p-3 border border-white/[0.08] hover:border-white/[0.12] transition-all text-left" data-address="${escapeAttr(w.address)}">
+                                <button class="account-option w-full bg-overlay-5 hover:bg-overlay-8 rounded-xl p-3 border border-overlay-8 hover:border-overlay-12 transition-all text-left" data-address="${escapeAttr(w.address)}">
                                     <div class="flex items-center gap-3">
                                         <div class="w-14 h-14 rounded-full overflow-hidden flex-shrink-0">${getAvatarHtml(w.address, 56, 0.5, getENSAvatarUrl(w))}</div>
                                         <div class="flex-1 min-w-0">
-                                            <div class="text-[13px] font-medium text-white truncate flex items-center gap-1.5">${hasENS(w) ? '<svg class="flex-shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="#4ade80" stroke-width="2" fill="none"/><path d="M7.5 12.5l3 3 6-6.5" stroke="#4ade80" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>' : ''}${escapeAttr(getDisplayName(w, i))}</div>
-                                            <div class="text-[11px] text-white/50 font-mono">${w.address.slice(0, 6)}...${w.address.slice(-4)}</div>
+                                            <div class="text-[13px] font-medium text-primary truncate flex items-center gap-1.5">${hasENS(w) ? '<svg class="flex-shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" style="stroke:var(--pombo-success)" stroke-width="2" fill="none"/><path d="M7.5 12.5l3 3 6-6.5" style="stroke:var(--pombo-success)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>' : ''}${escapeAttr(getDisplayName(w, i))}</div>
+                                            <div class="text-[11px] text-overlay-50 font-mono">${w.address.slice(0, 6)}...${w.address.slice(-4)}</div>
                                         </div>
                                     </div>
                                 </button>
@@ -1580,11 +1628,11 @@ class WalletFlows {
 
             const { privateKey, password } = importResult;
 
-            // If upgrading from Guest, disconnect first to cleanup client
-            // Do this AFTER getting the private key so user doesn't get disconnected if they cancel
-            const wasGuest = authManager.isGuestMode();
-            if (wasGuest) {
-                await this._disconnectWallet();
+            // Disconnect the live session (guest, or the account being left by
+            // Add account) to cleanup the client. Do this AFTER getting the
+            // private key so user doesn't get disconnected if they cancel
+            if (authManager.getAddress()) {
+                await this._disconnectWallet({ skipFallback: true });
             }
 
             const result = authManager.importPrivateKey(privateKey);

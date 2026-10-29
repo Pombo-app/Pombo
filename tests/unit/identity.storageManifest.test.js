@@ -1,7 +1,5 @@
 /**
- * Tests for identity.js — storage_file_announce manifest signing/hashing.
- * The canonical JSON string is the cross-client contract: field ORDER and
- * null-defaults must never drift (Android will reproduce it byte for byte).
+ * Tests for identity.js — the storage_file_announce manifest builder.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -29,17 +27,8 @@ vi.mock('../../src/js/logger.js', () => ({
     Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }));
 
-vi.mock('../../src/js/workers/cryptoWorkerPool.js', () => ({
-    cryptoWorkerPool: { execute: vi.fn() }
-}));
-
-// Capture what gets hashed — keccak256 input IS the canonical form
-const hashedInputs = [];
 globalThis.ethers = {
-    keccak256: vi.fn((bytes) => {
-        hashedInputs.push(new TextDecoder().decode(bytes));
-        return '0xMockHash';
-    }),
+    keccak256: vi.fn(() => '0xMockHash'),
     toUtf8Bytes: vi.fn((str) => new TextEncoder().encode(str)),
     Network: { from: vi.fn(() => ({ name: 'mainnet', chainId: 1n })) },
     JsonRpcProvider: vi.fn().mockImplementation(() => ({
@@ -68,52 +57,9 @@ const METADATA = {
     encSalt: 'c2FsdHNhbHRzYWx0c2E='
 };
 
-describe('createStorageFileManifestHash', () => {
-    beforeEach(() => { hashedInputs.length = 0; });
-
-    it('produces the canonical field order (cross-client contract)', () => {
-        identityManager.createStorageFileManifestHash({
-            id: 'msg1', sender: '0xABCDEF', timestamp: 42, channelId: '0xchan/x-1', metadata: METADATA
-        });
-        const parsed = JSON.parse(hashedInputs[0]);
-        expect(Object.keys(parsed)).toEqual([
-            'protocol', 'version', 'type', 'id', 'sender', 'timestamp', 'channelId',
-            'transferId', 'fileName', 'fileType', 'originalSize', 'compressedSize',
-            'compression', 'totalChunks', 'chunkDataSize', 'chunkPartitions',
-            'firstChunkPartition', 'firstChunkTs', 'lastChunkTs', 'storedChunks', 'encSalt'
-        ]);
-        expect(parsed.protocol).toBe('POMBO');
-        expect(parsed.version).toBe(1);
-        expect(parsed.type).toBe('storage_file_announce');
-        expect(parsed.sender).toBe('0xabcdef'); // lowercased
-    });
-
-    it('missing metadata fields hash as null, not undefined', () => {
-        identityManager.createStorageFileManifestHash({
-            id: 'msg1', sender: '0xA', timestamp: 1, channelId: 'c', metadata: { transferId: 't' }
-        });
-        const parsed = JSON.parse(hashedInputs[0]);
-        expect(parsed.fileName).toBeNull();
-        expect(parsed.storedChunks).toBeNull();
-        expect(parsed.encSalt).toBeNull();
-    });
-
-    it('is deterministic and sensitive to metadata changes', () => {
-        const input = { id: 'msg1', sender: '0xA', timestamp: 1, channelId: 'c', metadata: METADATA };
-        identityManager.createStorageFileManifestHash(input);
-        identityManager.createStorageFileManifestHash(input);
-        expect(hashedInputs[0]).toBe(hashedInputs[1]);
-
-        identityManager.createStorageFileManifestHash({
-            ...input, metadata: { ...METADATA, totalChunks: 13 }
-        });
-        expect(hashedInputs[2]).not.toBe(hashedInputs[0]);
-    });
-});
-
-describe('createSignedStorageFileManifest', () => {
+describe('createStorageFileManifest', () => {
     it('returns the announce shape, unsigned (D6)', async () => {
-        const msg = await identityManager.createSignedStorageFileManifest({
+        const msg = await identityManager.createStorageFileManifest({
             channelId: '0xchan/x-1', metadata: METADATA
         });
         expect(msg.type).toBe('storage_file_announce');
@@ -128,7 +74,7 @@ describe('createSignedStorageFileManifest', () => {
     });
 
     it('reuses a caller-provided id (optimistic bubble dedupe)', async () => {
-        const msg = await identityManager.createSignedStorageFileManifest({
+        const msg = await identityManager.createStorageFileManifest({
             channelId: 'c', metadata: METADATA, id: 'preset-id-123'
         });
         expect(msg.id).toBe('preset-id-123');

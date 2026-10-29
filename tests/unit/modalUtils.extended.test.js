@@ -393,7 +393,7 @@ describe('modalUtils.js extended', () => {
             input.dispatchEvent(new Event('input'));
 
             const checkLength = container.querySelector('#check-length');
-            expect(checkLength.className).toContain('text-white/30');
+            expect(checkLength.className).toContain('text-overlay-30');
         });
 
         it('should work without onValidChange callback', () => {

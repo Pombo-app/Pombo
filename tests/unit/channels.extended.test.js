@@ -80,7 +80,7 @@ vi.mock('../../src/js/identity.js', () => ({
         getCurrentIdentity: vi.fn().mockReturnValue({ nickname: 'TestUser', address: '0xmyaddress' }),
         generateSignature: vi.fn().mockResolvedValue('sig123'),
         verifyMessage: vi.fn().mockResolvedValue({ valid: true, trustLevel: 1 }),
-        createSignedMessage: vi.fn().mockResolvedValue({ id: 'msg_signed', text: 'hello', sender: '0xmyaddress', timestamp: Date.now() }),
+        createMessage: vi.fn().mockResolvedValue({ id: 'msg_signed', text: 'hello', sender: '0xmyaddress', timestamp: Date.now() }),
         getTrustLevel: vi.fn().mockResolvedValue(1)
     }
 }));

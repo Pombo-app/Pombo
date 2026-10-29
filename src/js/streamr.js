@@ -64,6 +64,7 @@ const REGISTRY_READ_TIMEOUT_MS = 10_000;
 
 // === STREAM CONFIG (DUAL-STREAM ARCHITECTURE) ===
 import { STREAM_CONFIG } from './streamConfig.js';
+import { rememberPublished, clearChannelSentRows } from './channelSentRows.js';
 import { History } from './streamr/History.js';
 import { MessagePipeline } from './streamr/MessagePipeline.js';
 import { storageFetch } from './storageFetch.js';
@@ -2217,8 +2218,8 @@ class StreamrController {
      */
     attachAccount(data, publisherId) {
         if (!data || typeof data !== 'object' || !publisherId) return data;
-        const account = (data.proof && recoverPublisherAccount(publisherId, data.proof))
-            || publisherId;
+        const proven = (data.proof && recoverPublisherAccount(publisherId, data.proof)) || null;
+        const account = proven || publisherId;
 
         // `sender` no longer travels on the wire (D6) — it duplicated the proof
         // in the clear. It stays as a DERIVED alias because ~85 call sites read
@@ -2229,7 +2230,7 @@ class StreamrController {
         //
         // Legacy messages carry their own `sender`; overwriting it is a no-op,
         // since back then publisherId WAS the wallet.
-        return applyAccount(dropLocalState(data), account);
+        return applyAccount(dropLocalState(data), account, !!proven);
     }
 
     /**
@@ -2497,7 +2498,7 @@ class StreamrController {
             return this.publish(streamId, partition, stripLocalFields(data), password);
         }
 
-        const { identity, proof } = getChannelIdentity(streamId);
+        const { identity, proof, wallet } = getChannelIdentity(streamId);
 
         const payload = { ...stripLocalFields(data), proof };
 
@@ -2505,7 +2506,9 @@ class StreamrController {
             ? await cryptoManager.encryptJSON(payload, password)
             : payload;
 
-        return this.publishAs(identity, streamId, partition, content);
+        const published = await this.publishAs(identity, streamId, partition, content);
+        rememberPublished(streamId, data, published, partition, { address: wallet.address, sign: (m) => wallet.signMessage(m) });
+        return published;
     }
 
     /**
@@ -2605,13 +2608,16 @@ class StreamrController {
         //
         // Best-effort: on timeout we publish anyway. The smoke test showed a
         // message still reaching the storage node from a cold node, so giving
-        // up here would be worse than trying.
+        // up here would be worse than trying. With `requireNeighbour` it fails
+        // instead: a broadcast with no neighbour reaches nobody, and a storage
+        // chunk must be retried rather than counted as sent.
         try {
             await node.join(streamPartId, {
                 minCount: STREAM_CONFIG.PUBLISH_MIN_NEIGHBORS,
                 timeout: STREAM_CONFIG.PUBLISH_NEIGHBOR_TIMEOUT_MS
             });
         } catch (error) {
+            if (options.requireNeighbour) throw new Error(`no neighbours on ${streamPartId} (${error.message})`);
             Logger.debug(`publishAs: no neighbours on ${streamPartId} yet (${error.message}) — publishing anyway`);
         }
 
@@ -3429,7 +3435,7 @@ class StreamrController {
         // window), so a key per chunk would buy nothing and cost thousands of
         // signatures.
         if (identity) {
-            const msg = await this.publishAs(identity, messageStreamId, partition, data);
+            const msg = await this.publishAs(identity, messageStreamId, partition, data, { requireNeighbour: true });
             // Normalise to client.publish()'s shape. Callers read `.timestamp`
             // to record the chunk's position, and the download path locates
             // chunks by that timestamp window — a StreamMessage has no such
@@ -3459,12 +3465,12 @@ class StreamrController {
                             `No publish key for ${channel.messageStreamId} — cannot upload on a Sealed channel without one`);
                     }
                     const msg = await this.publishAs(
-                        this._sharedPublishIdentity(pubKey), messageStreamId, partition, data);
+                        this._sharedPublishIdentity(pubKey), messageStreamId, partition, data, { requireNeighbour: true });
                     return { timestamp: msg.messageId.timestamp, message: msg };
                 }
                 const msg = await this.publishAs(
                     this._accountIdentity, messageStreamId, partition, data,
-                    this._gateTransportOptions(channel));
+                    { ...this._gateTransportOptions(channel), requireNeighbour: true });
                 return { timestamp: msg.messageId.timestamp, message: msg };
             }
         }
@@ -4321,6 +4327,7 @@ class StreamrController {
         // Pseudonyms must never outlive a session, or yesterday's can be tied
         // to today's (D2).
         clearChannelIdentities();
+        clearChannelSentRows();
     }
 
     /**

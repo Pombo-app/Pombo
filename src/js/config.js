@@ -282,6 +282,9 @@ export const CONFIG = {
         writeBackpressureDesktopMB: 48,
         writeBackpressureMobileMB: 12,
         downloadRetryPasses: 3,
+        verifyQuietMs: 30000,          // Upload verify repairs only after this long with no new chunk confirmed
+        stallChaseMs: 6000,            // A player waiting this long on a missing chunk makes the download fetch it directly
+        videoSliceChunks: 36,          // Video downloads read the file front to back in slices of this many chunks
         resendIdleTimeoutMs: 20000,    // SDK-resend fallback inactivity cutoff
         directFetchTimeoutMs: 120000,  // Direct HTTP read inactivity watchdog
         // A stored message whose declared timestamp is later than the node's
@@ -421,6 +424,7 @@ export const CONFIG = {
         syncMode: (addr) => `pombo_sync_mode_${addr.toLowerCase()}`,
         syncAppliedTs: (addr) => `pombo_sync_applied_ts_${addr.toLowerCase()}`,
         syncConfirmed: (addr) => `pombo_sync_confirmed_${addr.toLowerCase()}`,
+        pinsHidden: (addr) => `pombo_pins_hidden_${addr.toLowerCase()}`,
 
         // Per-stream keys
         channelAccess: (streamId) => `pombo_channel_access_${streamId}`

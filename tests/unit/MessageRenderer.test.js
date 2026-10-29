@@ -302,7 +302,7 @@ describe('MessageRenderer', () => {
             expect(result).not.toContain('A'.repeat(100));
         });
         
-        it('should show [Message] for empty text', () => {
+        it('should show [Media] for empty text', () => {
             const replyTo = {
                 id: 'reply-123',
                 sender: '0x123',
@@ -311,7 +311,7 @@ describe('MessageRenderer', () => {
             };
             
             const result = messageRenderer.renderReplyPreview(replyTo);
-            expect(result).toContain('[Message]');
+            expect(result).toContain('[Media]');
         });
         
         it('should sanitize display name', () => {
@@ -526,7 +526,7 @@ describe('MessageRenderer', () => {
             expect(failed).toContain(' message-failed"');
             expect(failed).toContain('Not sent');
             expect(failed).toContain('title="No epoch key"');
-            expect(failed).toContain('class="message-retry text-xs text-red-400" data-msg-id="msg-state"');
+            expect(failed).toContain('class="message-retry text-xs text-danger" data-msg-id="msg-state"');
             expect(failed).not.toContain('sending…');
 
             const sent = messageRenderer.buildMessageHTML(base, true, '12:00', { html: '' }, 'Alice');
@@ -540,7 +540,7 @@ describe('MessageRenderer', () => {
             );
             expect(undelivered).toContain(' message-failed"');
             expect(undelivered).toContain('>Not delivered</span>');
-            expect(undelivered).toContain('class="message-retry text-xs text-red-400" data-msg-id="msg-state"');
+            expect(undelivered).toContain('class="message-retry text-xs text-danger" data-msg-id="msg-state"');
 
             const delivered = messageRenderer.buildMessageHTML({ ...base, delivered: true }, true, '12:00', { html: '' }, 'Alice');
             expect(delivered).toContain(' message-delivered"');
@@ -634,20 +634,28 @@ describe('MessageRenderer', () => {
             expect(result).toContain('data-emoji-only="true"');
         });
         
-        it('should show invalid signature warning', () => {
-            const msg = {
-                id: 'msg-6',
-                sender: '0x1',
-                text: 'Suspicious',
-                verified: { valid: false },
-                signature: 'invalid-sig'
-            };
-            
+        it('warns and tints a current-format message that failed its check', () => {
+            const msg = { id: 'msg-6', sender: '0x1', text: 'Suspicious', verified: { valid: false } };
+
             const result = messageRenderer.buildMessageHTML(
                 msg, false, '17:00', { html: '' }, 'User'
             );
-            
-            expect(result).toContain('Invalid signature');
+
+            expect(result).toContain('Could not verify');
+            expect(result).toContain('message-unverified');
+        });
+
+        it('never flags a legacy signed message', () => {
+            const msg = {
+                id: 'msg-6b', sender: '0x1', text: 'Old', verified: { valid: false }, signature: 'invalid-sig'
+            };
+
+            const result = messageRenderer.buildMessageHTML(
+                msg, false, '17:00', { html: '' }, 'User'
+            );
+
+            expect(result).not.toContain('Could not verify');
+            expect(result).not.toContain('message-unverified');
         });
         
         it('should include reply preview when present', () => {
@@ -730,6 +738,30 @@ describe('MessageRenderer', () => {
 
             expect(result).not.toContain('(edited)');
             expect(result).not.toContain('message-edited');
+        });
+
+        const render = (msg) => {
+            const host = document.createElement('div');
+            host.innerHTML = messageRenderer.buildMessageHTML(
+                { id: 'm', sender: '0x1', ...msg }, false, '22:00', { html: '' }, 'User'
+            );
+            return host;
+        };
+
+        it('puts the time at the end of the text, reactions below it', () => {
+            const host = render({ text: 'hello' });
+            const meta = host.querySelector('.message-content > .message-meta');
+            expect(meta.textContent).toContain('22:00');
+            expect(host.querySelector('.message-content--meta-over')).toBeNull();
+            expect(host.querySelector('.message-footer .message-time')).toBeNull();
+            expect(host.querySelector('.message-footer .reactions-container')).not.toBeNull();
+        });
+
+        it('lays the time over images and emoji-only messages', () => {
+            for (const msg of [{ type: 'image', imageData: 'data:image/png;base64,AA==' }, { text: '🔥' }]) {
+                const host = render(msg);
+                expect(host.querySelector('.message-content--meta-over > .message-meta')).not.toBeNull();
+            }
         });
     });
 
@@ -821,7 +853,7 @@ describe('MessageRenderer', () => {
 
             const result = messageRenderer.renderVideoContent(pdf());
 
-            expect(result).toContain('text-green-400/70');
+            expect(result).toContain('text-success/70');
             expect(result).toContain('seeding...');
         });
 
@@ -832,7 +864,7 @@ describe('MessageRenderer', () => {
 
             const result = messageRenderer.renderVideoContent(pdf());
 
-            expect(result).not.toContain('text-green-400/70');
+            expect(result).not.toContain('text-success/70');
             expect(result).not.toContain('seeding...');
         });
 
@@ -929,12 +961,49 @@ describe('MessageRenderer', () => {
                 }
             });
 
-            expect(result).toContain('not on this device');
+            expect(result).toContain('Not on this device');
             expect(result).toContain('holiday.mp4');
             expect(result).toContain('data-file-id="file-lean-1"');
             // Must not offer an action that could only fail
             expect(result).not.toContain('download-file-btn');
-            expect(result).not.toContain('data-progress-overlay');
+            expect(result).not.toContain('data-video-play');
+        });
+
+        it('should say a stored video is incomplete and not offer to play it', () => {
+            messageRenderer.setDependencies({
+                getStorageFileUrl: () => null,
+                getCurrentAddress: () => '0xreader',
+                getCurrentChannel: () => ({ type: 'public' })
+            });
+
+            const result = messageRenderer.renderStorageFileBubble({
+                id: 'msg-gaps',
+                sender: '0xsender',
+                type: 'storage_file_announce',
+                metadata: { transferId: 't-gaps', fileName: 'clip.mp4', fileType: 'video/mp4', originalSize: 1000, totalChunks: 362, storedChunks: 322 }
+            });
+
+            expect(result).toContain('Incomplete on storage (322/362)');
+            expect(result).not.toContain('data-video-play');
+        });
+
+        it('keeps a download that stopped short on the tile, with play to try again', () => {
+            messageRenderer.setDependencies({
+                getStorageFileUrl: () => null,
+                getCurrentAddress: () => '0xreader',
+                getCurrentChannel: () => ({ type: 'dm' }),
+                getStorageDownloadError: () => 'Incomplete on storage (68/77)'
+            });
+
+            const result = messageRenderer.renderStorageFileBubble({
+                id: 'msg-short',
+                sender: '0xsender',
+                type: 'storage_file_announce',
+                metadata: { transferId: 't-short', fileName: 'clip.mp4', fileType: 'video/mp4', originalSize: 1000, totalChunks: 77, storedChunks: 77 }
+            });
+
+            expect(result).toContain('>Incomplete on storage (68/77)</span>');
+            expect(result).toContain('data-video-play');
         });
 
         // Non-video types go to the file bubble in every state, including this one —
@@ -1051,20 +1120,12 @@ describe('MessageRenderer', () => {
             };
             
             const result = messageRenderer.renderVideoContent(msg);
-            // Progress overlay should be visible (no 'hidden' class)
-            expect(result).not.toMatch(/data-progress-overlay="file-dl-1"[^>]*class="hidden/);
-            // Should show percentage
-            expect(result).toContain('45%');
-            // Progress bar should reflect percentage
+            expect(result).toMatch(/video-tile-bar"[^>]*data-progress-overlay="file-dl-1"/);
             expect(result).toContain('width: 45%');
-            // Download button should be disabled
             expect(result).toContain('disabled');
-            expect(result).toContain('cursor-not-allowed');
-            // Play icon hidden, loading icon visible
             expect(result).toMatch(/download-play-icon[^"]*hidden/);
             expect(result).not.toMatch(/download-loading-icon[^"]*hidden/);
-            // Should show MB progress
-            expect(result).toContain('/ 10.0 MB');
+            expect(result).toContain('4.50 MB of 10.00 MB');
         });
 
         it('should show idle state when not downloading and no URL', () => {
@@ -1088,14 +1149,32 @@ describe('MessageRenderer', () => {
             };
             
             const result = messageRenderer.renderVideoContent(msg);
-            // Progress overlay should be hidden
-            expect(result).toMatch(/data-progress-overlay="file-idle-1"[^>]*class="hidden/);
-            // Button should NOT be disabled
+            expect(result).toMatch(/video-tile-bar hidden"[^>]*data-progress-overlay="file-idle-1"/);
             expect(result).not.toContain('disabled');
+            // The size waits on the poster until play is pressed
+            expect(result).toContain('>1.95 MB</span>');
             // Play icon visible
             expect(result).not.toMatch(/download-play-icon[^"]*hidden/);
             // Loading icon hidden
             expect(result).toMatch(/download-loading-icon[^"]*hidden/);
+        });
+
+        it('shows the announce thumbnail behind play, and only plain bounded base64', () => {
+            messageRenderer.setDependencies({
+                getFileUrl: () => null,
+                getCurrentAddress: () => '0x123',
+                isSeeding: () => false,
+                isDownloading: () => false,
+                getDownloadProgress: () => null
+            });
+            const tile = (thumbnail) => messageRenderer.renderVideoContent({
+                type: 'file_announce',
+                metadata: { fileId: 'file-thumb-1', pieceHashes: ['h0'], fileName: 'clip.mp4', fileType: 'video/mp4', fileSize: 2048, thumbnail }
+            });
+            expect(tile('/9j/4AAQSkZJRg==')).toContain('<img class="video-tile-thumb" src="data:image/jpeg;base64,/9j/4AAQSkZJRg=="');
+            expect(tile('" onerror="alert(1)')).not.toContain('video-tile-thumb');
+            expect(tile('A'.repeat(40001))).not.toContain('video-tile-thumb');
+            expect(tile(undefined)).not.toContain('video-tile-thumb');
         });
 
         it('should fallback gracefully when isDownloading dep is not wired', () => {
@@ -1119,8 +1198,38 @@ describe('MessageRenderer', () => {
             
             const result = messageRenderer.renderVideoContent(msg);
             // Should render normal idle state (backward compatible)
-            expect(result).toMatch(/data-progress-overlay="file-compat-1"[^>]*class="hidden/);
+            expect(result).toMatch(/video-tile-bar hidden"[^>]*data-progress-overlay="file-compat-1"/);
             expect(result).not.toContain('disabled');
+        });
+
+        it('should autoplay only the render that follows a play press', () => {
+            messageRenderer.setDependencies({
+                getFileUrl: () => 'blob:v',
+                getCurrentAddress: () => '0x123',
+                isVideoPlayable: () => true
+            });
+            const msg = { type: 'file_announce', metadata: { fileId: 'file-ap-1', fileName: 'a.mp4', fileType: 'video/mp4', fileSize: 10 } };
+
+            messageRenderer.videoAutoplay.add('file-ap-1');
+            expect(messageRenderer.renderVideoContent(msg)).toContain(' autoplay');
+            expect(messageRenderer.renderVideoContent(msg)).not.toContain(' autoplay');
+        });
+
+        it('should keep Save but no player for a format the browser cannot play', () => {
+            messageRenderer.setDependencies({
+                getFileUrl: () => 'blob:v',
+                getCurrentAddress: () => '0x123',
+                isVideoPlayable: () => false
+            });
+
+            const result = messageRenderer.renderVideoContent({
+                type: 'file_announce',
+                metadata: { fileId: 'file-mkv-1', fileName: 'a.mkv', fileType: 'video/x-matroska', fileSize: 10 }
+            });
+
+            expect(result).not.toContain('<video');
+            expect(result).toContain("can't play here");
+            expect(result).toContain('download="a.mkv"');
         });
     });
 });

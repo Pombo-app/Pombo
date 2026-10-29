@@ -10,14 +10,11 @@ import { identityManager } from '../identity.js';
 import { channelImageManager } from '../channelImageManager.js';
 import { deriveAdminId } from '../streamConstants.js';
 import { escapeAttr } from './utils.js';
-import { positionPillDropdown } from './pillDropdown.js';
 
 class HeaderUI {
     constructor() {
         this.deps = {};
-        this._profileDropdownOpen = false;
         this._desktopDropdownOpen = false;
-        this._boundCloseDropdown = null;
         this._boundCloseDesktopDropdown = null;
         this._currentAddress = null;
         this._currentDisplayName = null;
@@ -135,9 +132,6 @@ class HeaderUI {
                 if (pill.profileBtn) {
                     pill.profileBtn.innerHTML = generateAvatar(address, 32, 0.5);
                 }
-                if (pill.profileAddress) {
-                    pill.profileAddress.textContent = `${address.slice(0, 6)}...${address.slice(-4)}`;
-                }
             } else {
                 this._currentAddress = address;
                 const short = `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -173,10 +167,6 @@ class HeaderUI {
                 if (pill.profileBtn) {
                     const ensAvatar = identityManager.getCachedENSAvatar(address);
                     pill.profileBtn.innerHTML = getAvatarHtml(address, 38, 0.5, ensAvatar);
-                }
-                // Update profile address in dropdown (always show address)
-                if (pill.profileAddress) {
-                    pill.profileAddress.textContent = short;
                 }
             }
             // Show settings button
@@ -247,6 +237,12 @@ class HeaderUI {
     /** The dot on the logo and "Connecting…" in place of the online count. */
     setNetworkDown(down) {
         document.body.classList.toggle('network-down', !!down);
+    }
+
+    /** The offline banner and "Offline" in place of the online count. */
+    setOffline(offline) {
+        document.body.classList.toggle('network-offline', !!offline);
+        document.getElementById('offline-banner')?.classList.toggle('hidden', !offline);
     }
 
     /**
@@ -370,7 +366,7 @@ class HeaderUI {
         const sizePx = 38;
         const sizeStyle = 'width:38px;height:38px';
         const radiusCls = 'rounded-full';
-        const spinnerHtml = `<div class="${radiusCls} flex items-center justify-center bg-white/[0.04]" style="${sizeStyle}"><div class="thumb-spinner" style="width:18px;height:18px"></div></div>`;
+        const spinnerHtml = `<div class="${radiusCls} flex items-center justify-center bg-overlay-4" style="${sizeStyle}"><div class="thumb-spinner" style="width:18px;height:18px"></div></div>`;
         const avatarHtml = (seed, ensUrl) => `<div class="${radiusCls} overflow-hidden" style="${sizeStyle}">${getAvatarHtml(seed, sizePx, 0.5, ensUrl)}</div>`;
         const fallbackHtml = (seed) => avatarHtml(seed, null);
         const imgHtml = (url) => `<img class="${radiusCls} object-cover" alt="" src="${escapeAttr(url)}" style="${sizeStyle}" />`;
@@ -468,7 +464,7 @@ class HeaderUI {
      */
     getChannelTypeLabel(type, readOnly = false, showLabel = false) {
         // Megaphone icon for read-only/announcements indicator (header only)
-        const roIcon = readOnly && !showLabel ? '<svg class="w-3 h-3 md:w-4 md:h-4 ml-1 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>' : '';
+        const roIcon = readOnly && !showLabel ? '<svg class="w-3 h-3 md:w-4 md:h-4 ml-1 text-overlay-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>' : '';
 
         if (showLabel) {
             // Vertical layout for Channel Details modal: [icon][label] per line
@@ -528,14 +524,7 @@ class HeaderUI {
                 pillNav: document.getElementById('mobile-pill-nav'),
                 pillChatsBtn: document.getElementById('pill-chats-btn'),
                 pillExploreBtn: document.getElementById('pill-explore-btn'),
-                pillExploreDropdown: document.getElementById('pill-explore-dropdown'),
-                pillExploreThreadsBtn: document.getElementById('pill-explore-threads-btn'),
-                pillJoinIdBtn: document.getElementById('pill-join-id-btn'),
-                profileBtn: document.getElementById('pill-profile-btn'),
-                profileDropdown: document.getElementById('pill-profile-dropdown'),
-                profileAddress: document.getElementById('pill-profile-address'),
-                profileAccounts: document.getElementById('pill-profile-accounts'),
-                disconnectBtn: document.getElementById('pill-disconnect-btn')
+                profileBtn: document.getElementById('pill-profile-btn')
             };
         }
         return this._pillElements;
@@ -545,7 +534,7 @@ class HeaderUI {
      * Initialize mobile pill nav event handlers
      * Called from app.js after DOM is ready
      */
-    initPillNav({ onConnect, onDisconnect, onSwitchWallet, onChatsTab, onExploreTab, onJoinWithId, onCreateChannel }) {
+    initPillNav({ onConnect, onChatsTab, onExploreTab, onProfileTab, onCreateChannel }) {
         const pill = this._getPillElements();
 
         // Floating connect button triggers same action as header connect
@@ -553,24 +542,9 @@ class HeaderUI {
             onConnect?.();
         });
 
-        // Explore pill tab opens a dropdown (Threads / Live Streams), mirroring Settings
-        pill.pillExploreBtn?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this._toggleExploreDropdown();
-        });
-
-        pill.pillExploreThreadsBtn?.addEventListener('click', () => {
-            this._closeExploreDropdown();
+        pill.pillExploreBtn?.addEventListener('click', () => {
             this._setActivePillTab('explore');
             onExploreTab?.();
-        });
-
-        // Close explore dropdown on outside click
-        document.addEventListener('click', (e) => {
-            if (!pill.pillExploreDropdown || pill.pillExploreDropdown.classList.contains('hidden')) return;
-            if (!pill.pillExploreBtn?.contains(e.target) && !pill.pillExploreDropdown.contains(e.target)) {
-                this._closeExploreDropdown();
-            }
         });
 
         // Create Channel from header button (explore view)
@@ -579,27 +553,9 @@ class HeaderUI {
             onCreateChannel?.();
         });
 
-        // Join with ID from profile dropdown
-        pill.pillJoinIdBtn?.addEventListener('click', () => {
-            this._closeProfileDropdown();
-            onJoinWithId?.();
+        pill.profileBtn?.addEventListener('click', () => {
+            onProfileTab?.();
         });
-
-        // Profile avatar toggles dropdown
-        pill.profileBtn?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this._toggleProfileDropdown();
-        });
-
-        // Disconnect from dropdown
-        pill.disconnectBtn?.addEventListener('click', () => {
-            this._closeProfileDropdown();
-            onDisconnect?.();
-        });
-
-        // Close dropdown on outside click
-        this._boundCloseDropdown = () => this._closeProfileDropdown();
-        document.addEventListener('click', this._boundCloseDropdown);
 
         // Pill tabs: chats tab closes any open modal and returns to channel list
         pill.pillChatsBtn?.addEventListener('click', () => {
@@ -621,69 +577,6 @@ class HeaderUI {
                 document.dispatchEvent(new CustomEvent('pombo:open-settings'));
             });
         }
-    }
-
-    /**
-     * Toggle profile dropdown
-     */
-    _toggleProfileDropdown() {
-        const pill = this._getPillElements();
-        if (!pill.profileDropdown) return;
-
-        if (this._profileDropdownOpen) {
-            this._closeProfileDropdown();
-        } else {
-            // Close other pill dropdowns if open
-            document.getElementById('pill-settings-dropdown')?.classList.add('hidden');
-            this._closeExploreDropdown();
-            positionPillDropdown(pill.profileDropdown);
-            pill.profileDropdown.classList.remove('hidden');
-            this._profileDropdownOpen = true;
-        }
-    }
-
-    /**
-     * Close profile dropdown
-     */
-    _closeProfileDropdown() {
-        const pill = this._getPillElements();
-        if (!pill.profileDropdown) return;
-        pill.profileDropdown.classList.add('hidden');
-        this._profileDropdownOpen = false;
-    }
-
-    /**
-     * Toggle the Explore pill dropdown (Threads / Live Streams)
-     */
-    _toggleExploreDropdown() {
-        const pill = this._getPillElements();
-        if (!pill.pillExploreDropdown) return;
-
-        if (this._exploreDropdownOpen) {
-            this._closeExploreDropdown();
-        } else {
-            // Close other pill dropdowns if open
-            document.getElementById('pill-settings-dropdown')?.classList.add('hidden');
-            this._closeProfileDropdown();
-            positionPillDropdown(pill.pillExploreDropdown);
-            // Where you are is what the pill says: body.explore-open outlives
-            // a jump to Settings or Contacts, which left Threads lit from
-            // another tab.
-            const activePill = document.querySelector('.pill-nav-item[data-pill-tab].active');
-            pill.pillExploreThreadsBtn?.classList.toggle('active-tab', activePill?.dataset.pillTab === 'explore');
-            pill.pillExploreDropdown.classList.remove('hidden');
-            this._exploreDropdownOpen = true;
-        }
-    }
-
-    /**
-     * Close the Explore pill dropdown
-     */
-    _closeExploreDropdown() {
-        const pill = this._getPillElements();
-        if (!pill.pillExploreDropdown) return;
-        pill.pillExploreDropdown.classList.add('hidden');
-        this._exploreDropdownOpen = false;
     }
 
     /**
@@ -732,41 +625,6 @@ class HeaderUI {
      */
     setActivePillTab(tab) {
         this._setActivePillTab(tab);
-    }
-
-    /**
-     * Update available accounts in profile dropdown
-     * @param {Array} wallets - Array of { address } objects
-     * @param {string} currentAddress - Currently active address
-     * @param {Function} onSwitch - Callback when switching wallets
-     */
-    updatePillAccounts(wallets, currentAddress, onSwitch) {
-        const pill = this._getPillElements();
-        if (!pill.profileAccounts) return;
-
-        const others = wallets.filter(w => w.address !== currentAddress);
-        if (others.length === 0) {
-            pill.profileAccounts.innerHTML = '';
-            return;
-        }
-
-        pill.profileAccounts.innerHTML = others.map(w => {
-            const short = `${w.address.slice(0, 6)}...${w.address.slice(-4)}`;
-            return `<button class="pill-dropdown-item" data-switch-address="${escapeHtml(w.address)}">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
-                </svg>
-                ${escapeHtml(short)}
-            </button>`;
-        }).join('');
-
-        // Bind click handlers for switch buttons
-        pill.profileAccounts.querySelectorAll('[data-switch-address]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this._closeProfileDropdown();
-                onSwitch?.(btn.dataset.switchAddress);
-            });
-        });
     }
 }
 

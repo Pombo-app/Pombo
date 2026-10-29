@@ -20,7 +20,7 @@ import { openUnjoinedChannel } from '../channelEntry.js';
 // the top row, so the vertical centering is true; a hairline divider gives
 // it price-column structure; pointer-events pass through to the card tap),
 // centered under the content on mobile. Tailwind scans these literals.
-const EXPLORE_ACCESS_D_CLS = 'explore-gate-access-d hidden md:flex absolute inset-y-3 left-1/2 right-10 items-center justify-center border-l border-white/[0.06] pointer-events-none';
+const EXPLORE_ACCESS_D_CLS = 'explore-gate-access-d hidden md:flex absolute inset-y-3 left-1/2 right-10 items-center justify-center border-l border-overlay-6 pointer-events-none';
 const EXPLORE_ACCESS_M_CLS = 'explore-gate-access-m md:hidden mt-2 flex justify-center';
 
 /** Travel in one direction before the header answers. Anything less is a
@@ -45,7 +45,7 @@ function authorVisibilityHtml(wireIdentity) {
     if (!wireIdentity) return '';
     const spec = wireIdentitySpec(wireIdentity);
     const title = `${spec.name} — ${spec.audience}`;
-    return `<span class="inline-flex text-white/50" title="${title}">${wireIdentityIcon(wireIdentity)}</span>`;
+    return `<span class="inline-flex text-overlay-50" title="${title}">${wireIdentityIcon(wireIdentity)}</span>`;
 }
 
 /**
@@ -57,12 +57,12 @@ function authorVisibilityHtml(wireIdentity) {
  */
 function gateAccessHtml(info) {
     if (!info?.verb) return '';
-    const verbColor = info.mode === GATE_MODE.PAID ? 'text-[#F6851B]/70' : 'text-white/40';
+    const verbColor = info.mode === GATE_MODE.PAID ? 'text-[#F6851B]/70' : 'text-overlay-40';
     return `
         <div class="flex flex-col items-center leading-tight text-center">
             <span class="text-[10px] uppercase tracking-[0.08em] font-medium ${verbColor}">${escapeHtml(info.verb)}</span>
-            <span class="text-[15px] font-semibold text-white/90 mt-0.5">${escapeHtml(info.value)}</span>
-            <span class="text-[11px] text-white/40 mt-0.5">${escapeHtml(info.qualifier)}</span>
+            <span class="text-[15px] font-semibold text-overlay-90 mt-0.5">${escapeHtml(info.value)}</span>
+            <span class="text-[11px] text-overlay-40 mt-0.5">${escapeHtml(info.qualifier)}</span>
         </div>`;
 }
 
@@ -170,7 +170,7 @@ class ExploreUI {
      * @returns {string} HTML template
      */
     getTemplate(nsfwEnabled = false) {
-        const chipClass = 'explore-category-chip px-2.5 py-1 rounded-md text-xs font-medium transition bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80';
+        const chipClass = 'explore-category-chip px-2.5 py-1 rounded-md text-xs font-medium transition bg-overlay-5 text-overlay-60 hover:bg-overlay-10 hover:text-overlay-80';
         const orderedCategoryChips = [
             { category: '', label: 'All', active: true },
             { category: 'general', label: 'General' },
@@ -206,19 +206,19 @@ class ExploreUI {
             ['other', 'Other']
         ];
         const languageMenuItems = languageOptions.map(([value, label]) => `
-            <button type="button" data-language="${value}" class="explore-language-option w-full text-left px-3 py-2 rounded-lg text-[13px] text-white/70 hover:bg-white/[0.06] transition">${escapeHtml(label)}</button>
+            <button type="button" data-language="${value}" class="explore-language-option w-full text-left px-3 py-2 rounded-lg text-[13px] text-overlay-70 hover:bg-overlay-6 transition">${escapeHtml(label)}</button>
         `).join('');
         const accessMarkersHtml = `
             <div class="flex items-center gap-1 text-sm flex-shrink-0">
                 ${['open', 'gated', 'paid'].map((t, i) => `
-                    ${i > 0 ? '<span class="text-white/15 px-1">|</span>' : ''}
-                    <button type="button" data-access="${t}" class="explore-access-marker px-2 py-1 rounded-md transition text-white/50 hover:text-white/80">
+                    ${i > 0 ? '<span class="text-overlay-15 px-1">|</span>' : ''}
+                    <button type="button" data-access="${t}" class="explore-access-marker px-2 py-1 rounded-md transition text-overlay-50 hover:text-overlay-80">
                         ${t[0].toUpperCase() + t.slice(1)}
                     </button>`).join('')}
             </div>`;
 
         return `
-            <div class="explore-view flex flex-col h-full bg-[#0f0f12]">
+            <div class="explore-view flex flex-col h-full bg-surface-5">
                 <!-- Filters Section -->
                 <div class="px-4 pt-3 pb-3 space-y-3">
                     <!-- Access filters left, search + language icons right
@@ -230,12 +230,12 @@ class ExploreUI {
                     <div class="flex items-center gap-2">
                         ${accessMarkersHtml}
                         <div class="flex-1 flex items-center justify-end min-w-0">
-                            <button type="button" id="explore-search-toggle-btn" aria-label="Search channels" class="flex-shrink-0 w-[38px] h-[38px] flex items-center justify-center bg-white/5 border border-white/10 rounded-xl text-white/50 hover:text-white/80 transition">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <button type="button" id="explore-search-toggle-btn" aria-label="Search channels" class="flex-shrink-0 w-12 h-12 -my-[5px] flex items-center justify-center rounded-full text-overlay-50 hover:text-overlay-80 hover:bg-overlay-5 active:bg-overlay-12 transition">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
                                 </svg>
                             </button>
-                            <div class="hidden items-center gap-2 bg-white/[0.06] border border-[#F6851B]/40 rounded-xl px-3 h-[38px] w-full" id="explore-search-expanded-row">
+                            <div class="hidden items-center gap-2 bg-overlay-6 border border-[#F6851B]/40 rounded-xl px-3 h-[38px] w-full" id="explore-search-expanded-row">
                                 <svg class="w-4 h-4 text-[#F6851B] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
                                 </svg>
@@ -248,21 +248,21 @@ class ExploreUI {
                                     data-lpignore="true"
                                     data-1p-ignore="true"
                                     data-form-type="other"
-                                    class="flex-1 min-w-0 bg-transparent text-white text-sm focus:outline-none placeholder:text-white/30"
+                                    class="flex-1 min-w-0 bg-transparent text-primary text-sm focus:outline-none placeholder:text-overlay-30"
                                 />
-                                <button type="button" id="explore-search-close-btn" aria-label="Close search" class="flex-shrink-0 text-white/40 hover:text-white/70 transition">
+                                <button type="button" id="explore-search-close-btn" aria-label="Close search" class="flex-shrink-0 text-overlay-40 hover:text-overlay-70 transition">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 6l12 12M18 6L6 18"/></svg>
                                 </button>
                             </div>
                         </div>
                         <div class="relative flex-shrink-0">
-                            <button type="button" id="explore-language-toggle-btn" aria-label="Language filter" class="w-[38px] h-[38px] flex items-center justify-center bg-white/5 border border-white/10 rounded-xl text-white/50 hover:text-white/80 transition">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <button type="button" id="explore-language-toggle-btn" aria-label="Language filter" class="w-12 h-12 -my-[5px] flex items-center justify-center rounded-full text-overlay-50 hover:text-overlay-80 hover:bg-overlay-5 active:bg-overlay-12 transition">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <circle cx="12" cy="12" r="9"/>
                                     <path stroke-linecap="round" d="M3 12h18M12 3c2.4 2.4 3.8 5.7 3.8 9s-1.4 6.6-3.8 9c-2.4-2.4-3.8-5.7-3.8-9s1.4-6.6 3.8-9z"/>
                                 </svg>
                             </button>
-                            <div id="explore-language-dropdown" class="hidden absolute top-full right-0 mt-1.5 w-44 max-h-72 overflow-y-auto bg-[#16161b] border border-white/[0.1] rounded-xl p-1.5 shadow-2xl z-30">
+                            <div id="explore-language-dropdown" class="hidden absolute top-full right-0 mt-1.5 w-44 max-h-72 overflow-y-auto bg-surface-raised border border-overlay-10 rounded-xl p-1.5 shadow-2xl z-30">
                                 ${languageMenuItems}
                             </div>
                         </div>
@@ -273,13 +273,13 @@ class ExploreUI {
                         <div class="explore-category-rail" data-overflow="false" data-scroll-start="true" data-scroll-end="true">
                             <div id="explore-category-chips" class="explore-category-chips flex gap-1.5 transition-all duration-200" data-expanded="false">
                                 ${categoryChips}
-                                <button type="button" id="explore-private-chip" class="explore-private-chip px-2.5 py-1 rounded-md text-xs font-medium transition bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80 flex items-center gap-1">
+                                <button type="button" id="explore-private-chip" class="explore-private-chip px-2.5 py-1 rounded-md text-xs font-medium transition bg-overlay-5 text-overlay-60 hover:bg-overlay-10 hover:text-overlay-80 flex items-center gap-1">
                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
                                     Private
                                 </button>
                             </div>
                         </div>
-                        <button id="explore-toggle-categories-btn" type="button" aria-controls="explore-category-chips" aria-expanded="false" class="explore-toggle-categories-btn hidden items-center justify-center text-white/40 hover:text-white/60 transition">
+                        <button id="explore-toggle-categories-btn" type="button" aria-controls="explore-category-chips" aria-expanded="false" class="explore-toggle-categories-btn hidden items-center justify-center text-overlay-40 hover:text-overlay-60 transition">
                             <svg id="explore-toggle-categories-icon" class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7"/>
                             </svg>
@@ -288,11 +288,11 @@ class ExploreUI {
                 </div>
 
                 <!-- Subtle separator -->
-                <div class="mx-4 border-t border-white/[0.06]"></div>
+                <div class="mx-4 border-t border-overlay-6"></div>
 
                 <!-- Channel List -->
                 <div id="explore-channels-list" class="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-                    <div class="flex flex-col items-center justify-center py-12 text-white/40">
+                    <div class="flex flex-col items-center justify-center py-12 text-overlay-40">
                         <div class="spinner mb-3" style="width: 28px; height: 28px;"></div>
                         <p class="text-sm">Loading channels...</p>
                     </div>
@@ -419,14 +419,12 @@ class ExploreUI {
         const btn = document.getElementById('explore-language-toggle-btn');
         const active = !!this.browseLanguageFilterValue;
         btn?.classList.toggle('text-[#F6851B]', active);
-        btn?.classList.toggle('border-[#F6851B]/50', active);
-        btn?.classList.toggle('text-white/50', !active);
-        btn?.classList.toggle('border-white/10', !active);
+        btn?.classList.toggle('text-overlay-50', !active);
         document.querySelectorAll('.explore-language-option').forEach(opt => {
             const picked = opt.dataset.language === this.browseLanguageFilterValue;
-            opt.classList.toggle('text-white', picked);
-            opt.classList.toggle('bg-white/[0.06]', picked);
-            opt.classList.toggle('text-white/70', !picked);
+            opt.classList.toggle('text-primary', picked);
+            opt.classList.toggle('bg-overlay-6', picked);
+            opt.classList.toggle('text-overlay-70', !picked);
         });
     }
 
@@ -460,7 +458,7 @@ class ExploreUI {
         this._explorePreviewRefreshStarted = new Set();
 
         listEl.innerHTML = `
-            <div class="flex flex-col items-center justify-center py-12 text-white/40">
+            <div class="flex flex-col items-center justify-center py-12 text-overlay-40">
                 <div class="spinner mb-3" style="width: 28px; height: 28px;"></div>
                 <p class="text-sm">Loading channels...</p>
             </div>
@@ -485,16 +483,24 @@ class ExploreUI {
             this.filterChannels('');
         } catch (error) {
             console.error('Failed to load explore channels:', error);
-            listEl.innerHTML = `
-                <div class="flex flex-col items-center justify-center py-12 text-white/40">
-                    <svg class="w-12 h-12 mb-3 text-red-400/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
-                    </svg>
-                    <p class="text-sm">Failed to load channels</p>
-                    <p class="text-xs text-white/30 mt-1">${escapeHtml(error.message)}</p>
-                </div>
-            `;
+            this._renderLoadError(error.message);
         }
+    }
+
+    _renderLoadError(detail = "Couldn't reach the channel directory") {
+        const listEl = document.getElementById('explore-channels-list');
+        if (!listEl) return;
+        listEl.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-12 text-overlay-40">
+                <svg class="w-12 h-12 mb-3 text-danger/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
+                </svg>
+                <p class="text-sm">Failed to load channels</p>
+                <p class="text-xs text-overlay-30 mt-1">${escapeHtml(detail)}</p>
+                <button id="explore-retry-btn" class="mt-3 px-4 py-2 rounded-xl text-sm bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-70 transition">Try again</button>
+            </div>
+        `;
+        listEl.querySelector('#explore-retry-btn')?.addEventListener('click', () => this.loadChannels());
     }
 
     /**
@@ -568,16 +574,31 @@ class ExploreUI {
         const listEl = document.getElementById('explore-channels-list');
         if (!listEl) return;
 
+        if (channels.length === 0 && this.deps.publicDirectoryFailed?.()) {
+            this._renderLoadError();
+            return;
+        }
         if (channels.length === 0) {
+            const searchInput = document.getElementById('explore-search-input');
+            const narrowed = !!searchInput?.value.trim()
+                || this.browseTypeFilter !== 'public'
+                || !!this.browseCategoryFilter
+                || !!this.browseLanguageFilterValue
+                || this.browseAccessFilter !== 'open';
             listEl.innerHTML = `
-                <div class="flex flex-col items-center justify-center py-12 text-white/40">
-                    <svg class="w-12 h-12 mb-3 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="flex flex-col items-center justify-center py-12 text-overlay-40">
+                    <svg class="w-12 h-12 mb-3 text-overlay-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
                     </svg>
                     <p class="text-sm">No channels found</p>
-                    <p class="text-xs text-white/30 mt-1">Try adjusting your filters</p>
+                    ${narrowed ? '<button id="explore-clear-filters-btn" class="mt-3 px-4 py-2 rounded-xl text-sm bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-70 transition">Clear filters</button>' : ''}
                 </div>
             `;
+            listEl.querySelector('#explore-clear-filters-btn')?.addEventListener('click', () => {
+                if (searchInput) searchInput.value = '';
+                this.resetFilters();
+                this.filterChannels('');
+            });
             return;
         }
         
@@ -595,10 +616,10 @@ class ExploreUI {
 
         listEl.innerHTML = channels.map(ch => {
             const readOnlyBadge = ch.readOnly 
-                ? '<svg class="w-3.5 h-3.5 md:w-5 md:h-5 text-white/60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>' 
+                ? '<svg class="w-3.5 h-3.5 md:w-5 md:h-5 text-overlay-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>' 
                 : '';
             const categoryBadge = ch.category && ch.category !== 'general'
-                ? `<span class="px-1.5 py-1 bg-white/5 text-white/50 text-[11px] font-medium rounded">${escapeHtml(categoryNames[ch.category] || ch.category)}</span>`
+                ? `<span class="px-1.5 py-1 bg-overlay-5 text-overlay-50 text-[11px] font-medium rounded">${escapeHtml(categoryNames[ch.category] || ch.category)}</span>`
                 : '';
             // Access info (N-D): the 3-line stack — right half on desktop,
             // centered under the content on mobile. Rendered inline when the
@@ -616,7 +637,7 @@ class ExploreUI {
                 ? `<div ${accessAttr} class="${accessHtml ? EXPLORE_ACCESS_M_CLS : 'explore-gate-access-m hidden'}">${accessHtml}</div>`
                 : '';
             const languageBadge = ch.language
-                ? `<span class="px-1.5 py-1 bg-white/5 text-white/50 text-[11px] font-medium rounded">${escapeHtml(languageNames[ch.language] || ch.language.toUpperCase())}</span>`
+                ? `<span class="px-1.5 py-1 bg-overlay-5 text-overlay-50 text-[11px] font-medium rounded">${escapeHtml(languageNames[ch.language] || ch.language.toUpperCase())}</span>`
                 : '';
             // Every card caps description/preview at 55% on desktop (two
             // lines max) — uniform layout, and gated cards never run under
@@ -624,7 +645,7 @@ class ExploreUI {
             const halfCap = ' md:max-w-[55%]';
             // Defense-in-depth: sanitize user-provided content before escaping
             const description = ch.description
-                ? `<p class="text-base text-white/40 mt-1 line-clamp-2${halfCap}">${escapeHtml(sanitizeText(ch.description))}</p>`
+                ? `<p class="text-base text-overlay-40 mt-1 line-clamp-2${halfCap}">${escapeHtml(sanitizeText(ch.description))}</p>`
                 : '';
 
             // Latest message preview (sidebar/Explore share the same source).
@@ -662,20 +683,20 @@ class ExploreUI {
             if (cachedImage?.dataUrl) {
                 thumb = `<img class="rounded-full object-cover flex-shrink-0" alt="" src="${escapeAttr(cachedImage.dataUrl)}" data-channel-thumb="${escapeAttr(adminStreamId)}" style="width:56px;height:56px" />`;
             } else if (adminStreamId && !this._exploreResolvedImages.has(adminStreamId)) {
-                thumb = `<div class="rounded-full flex items-center justify-center flex-shrink-0 bg-white/[0.04]" data-channel-thumb="${escapeAttr(adminStreamId)}" style="width:56px;height:56px"><div class="thumb-spinner" style="width:20px;height:20px"></div></div>`;
+                thumb = `<div class="rounded-full flex items-center justify-center flex-shrink-0 bg-overlay-4" data-channel-thumb="${escapeAttr(adminStreamId)}" style="width:56px;height:56px"><div class="thumb-spinner" style="width:20px;height:20px"></div></div>`;
             } else {
                 thumb = `<div class="rounded-full overflow-hidden flex-shrink-0" data-channel-thumb="${escapeAttr(adminStreamId || '')}" style="width:56px;height:56px">${getAvatarHtml(ch.streamId, 56, 0.5, null)}</div>`;
             }
 
             return `
-            <div class="relative p-4 md:w-[70%] md:mx-auto bg-white/[0.03] border border-white/[0.05] rounded-2xl hover:bg-white/[0.06] hover:border-white/[0.1] transition-all duration-200 cursor-pointer explore-channel-item group" data-stream-id="${escapeAttr(ch.streamId)}" data-type="${escapeAttr(ch.type || 'public')}">
+            <div class="relative p-4 md:w-[70%] md:mx-auto bg-overlay-3 border border-overlay-5 rounded-2xl hover:bg-overlay-6 hover:border-overlay-10 transition-all duration-200 cursor-pointer explore-channel-item group" data-stream-id="${escapeAttr(ch.streamId)}" data-type="${escapeAttr(ch.type || 'public')}">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex items-start gap-3 flex-1 min-w-0">
                         ${thumb}
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 flex-wrap">
                                 ${readOnlyBadge}
-                                <h4 class="text-base font-large text-white/90 truncate">${escapeHtml(sanitizeText(ch.name || ch.displayName || 'Unknown'))}</h4>
+                                <h4 class="text-base font-large text-overlay-90 truncate">${escapeHtml(sanitizeText(ch.name || ch.displayName || 'Unknown'))}</h4>
                             </div>
                             ${description}
                             ${previewLine}
@@ -702,6 +723,15 @@ class ExploreUI {
             </div>
             `;
         }).join('');
+        if (this.deps.publicDirectoryFailed?.()) {
+            listEl.insertAdjacentHTML('afterbegin', `
+                <div class="flex items-center justify-between gap-3 px-3 py-2 mb-2 rounded-xl bg-overlay-3 border border-overlay-6 text-xs text-overlay-50">
+                    <span>Couldn't reach the channel directory</span>
+                    <button id="explore-retry-btn" class="px-3 py-1 rounded-lg bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-70 transition">Try again</button>
+                </div>
+            `);
+            listEl.querySelector('#explore-retry-btn')?.addEventListener('click', () => this.loadChannels());
+        }
 
         // Resolve gate modes/labels for cards that missed the cache
         this._resolveGateAccess(channels);
@@ -906,8 +936,8 @@ class ExploreUI {
             btn.classList.toggle('bg-white', active);
             btn.classList.toggle('text-black', active);
             btn.classList.toggle('font-medium', active);
-            btn.classList.toggle('text-white/50', !active);
-            btn.classList.toggle('hover:text-white/80', !active);
+            btn.classList.toggle('text-overlay-50', !active);
+            btn.classList.toggle('hover:text-overlay-80', !active);
         });
     }
 
@@ -920,10 +950,10 @@ class ExploreUI {
         const isActive = this.browseTypeFilter === 'password';
         if (isActive) {
             chip.classList.add('bg-white', 'text-black');
-            chip.classList.remove('bg-white/5', 'text-white/60', 'hover:bg-white/10', 'hover:text-white/80');
+            chip.classList.remove('bg-overlay-5', 'text-overlay-60', 'hover:bg-overlay-10', 'hover:text-overlay-80');
         } else {
             chip.classList.remove('bg-white', 'text-black');
-            chip.classList.add('bg-white/5', 'text-white/60', 'hover:bg-white/10', 'hover:text-white/80');
+            chip.classList.add('bg-overlay-5', 'text-overlay-60', 'hover:bg-overlay-10', 'hover:text-overlay-80');
         }
     }
 
@@ -935,10 +965,10 @@ class ExploreUI {
             const isActive = chip.dataset.category === this.browseCategoryFilter;
             if (isActive) {
                 chip.classList.add('bg-white', 'text-black');
-                chip.classList.remove('bg-white/5', 'text-white/60', 'hover:bg-white/10', 'hover:text-white/80');
+                chip.classList.remove('bg-overlay-5', 'text-overlay-60', 'hover:bg-overlay-10', 'hover:text-overlay-80');
             } else {
                 chip.classList.remove('bg-white', 'text-black');
-                chip.classList.add('bg-white/5', 'text-white/60', 'hover:bg-white/10', 'hover:text-white/80');
+                chip.classList.add('bg-overlay-5', 'text-overlay-60', 'hover:bg-overlay-10', 'hover:text-overlay-80');
             }
         });
     }
