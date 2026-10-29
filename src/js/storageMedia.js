@@ -1612,7 +1612,7 @@ class StorageMediaController {
                 compPct = Math.round(p * 100);
                 if (doneCount === 0) {
                     emitPhase(`Processing… ${compPct}%`, 'processing');
-                    emitProgress(compPct, 0, 1, null);
+                    emitProgress(0, 0, 1, null);
                 }
             };
 
