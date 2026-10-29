@@ -47,7 +47,8 @@ import {
     sequentialWindows,
     chunkPartitionsFor,
     partitionOfChunk,
-    makeFaststartSource
+    makeFaststartSource,
+    addSegmentIndex
 } from '../../src/js/storageMedia.js';
 import { STORAGE_FILE, MESSAGE_STREAM, storageChunkPartition } from '../../src/js/streamConstants.js';
 
@@ -294,6 +295,79 @@ describe('makeFaststartSource', () => {
     it.skipIf(!blobSupported)('bails on non-MP4 garbage without throwing', async () => {
         const file = new Blob([new Uint8Array(64).fill(0xab)]);
         const res = await makeFaststartSource(file);
+        expect(res.changed).toBe(false);
+        expect(res.blob).toBe(file);
+    });
+});
+
+describe('addSegmentIndex', () => {
+    const box = (type, ...parts) => {
+        const len = parts.reduce((s, p) => s + p.length, 0);
+        const out = new Uint8Array(8 + len);
+        new DataView(out.buffer).setUint32(0, out.length, false);
+        for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+        let o = 8; for (const p of parts) { out.set(p, o); o += p.length; }
+        return out;
+    };
+    const u32s = (...xs) => {
+        const out = new Uint8Array(xs.length * 4);
+        xs.forEach((x, i) => new DataView(out.buffer).setUint32(i * 4, x, false));
+        return out;
+    };
+    const TRACK = 1, TIMESCALE = 1000;
+    const moov = box('moov',
+        box('trak',
+            box('tkhd', u32s(0, 0, 0, TRACK, 0)),
+            box('mdia', box('mdhd', u32s(0, 0, 0, TIMESCALE, 0)))),
+        box('mvex', box('trex', u32s(0, TRACK, 1, 0, 0, 0))));
+    const fragment = (tfhd, ...rest) => box('moof', box('mfhd', u32s(0, 1)), box('traf', tfhd, ...rest));
+    // Per-sample durations in trun; then a default duration in tfhd.
+    const moof1 = fragment(box('tfhd', u32s(0x020000, TRACK)), box('tfdt', u32s(0x01000000, 0, 1000)),
+        box('trun', u32s(0x100, 2, 100, 150)));
+    const moof2 = fragment(box('tfhd', u32s(0x020008, TRACK, 200)), box('trun', u32s(0, 3)));
+    const mdat1 = box('mdat', new Uint8Array(20)), mdat2 = box('mdat', new Uint8Array(10));
+    const ftyp = box('ftyp', new Uint8Array(8)), free = box('free', new Uint8Array(4));
+    const mfra = box('mfra', new Uint8Array(16));
+    const blobSupported = typeof new Blob([new Uint8Array(1)]).arrayBuffer === 'function';
+
+    it.skipIf(!blobSupported)('inserts a sidx after the moov describing each fragment', async () => {
+        const file = new Blob([ftyp, moov, free, moof1, mdat1, moof2, mdat2, mfra], { type: 'video/mp4' });
+        const res = await addSegmentIndex(file);
+        expect(res.changed).toBe(true);
+
+        const out = new Uint8Array(await res.blob.arrayBuffer());
+        const at = ftyp.length + moov.length;
+        const v = new DataView(out.buffer, at);
+        const type = String.fromCharCode(...out.slice(at + 4, at + 8));
+        expect(type).toBe('sidx');
+        expect(res.blob.size).toBe(file.size + v.getUint32(0, false));
+        expect(v.getUint32(12, false)).toBe(TRACK);
+        expect(v.getUint32(16, false)).toBe(TIMESCALE);
+        expect(v.getUint32(24, false)).toBe(1000); // earliest presentation time
+        expect(v.getUint32(32, false)).toBe(free.length); // first_offset
+        expect(v.getUint16(38, false)).toBe(2);
+        expect([v.getUint32(40, false), v.getUint32(44, false)]).toEqual([moof1.length + mdat1.length, 250]);
+        expect([v.getUint32(52, false), v.getUint32(56, false)]).toEqual([moof2.length + mdat2.length, 600]);
+        expect(out.slice(at + v.getUint32(0, false))).toEqual(new Uint8Array(await file.slice(at).arrayBuffer()));
+    });
+
+    it.skipIf(!blobSupported)('leaves a progressive MP4 untouched', async () => {
+        const file = new Blob([ftyp, moov, mdat1], { type: 'video/mp4' });
+        const res = await addSegmentIndex(file);
+        expect(res.changed).toBe(false);
+        expect(res.blob).toBe(file);
+    });
+
+    it.skipIf(!blobSupported)('leaves an already indexed file untouched', async () => {
+        const file = new Blob([ftyp, moov, box('sidx', new Uint8Array(24)), moof1, mdat1], { type: 'video/mp4' });
+        const res = await addSegmentIndex(file);
+        expect(res.changed).toBe(false);
+        expect(res.reason).toMatch(/already indexed/);
+    });
+
+    it.skipIf(!blobSupported)('bails on garbage without throwing', async () => {
+        const file = new Blob([new Uint8Array(64).fill(0xab)]);
+        const res = await addSegmentIndex(file);
         expect(res.changed).toBe(false);
         expect(res.blob).toBe(file);
     });

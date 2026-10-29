@@ -363,6 +363,126 @@ export async function makeFaststartSource(file) {
     }
 }
 
+/**
+ * Gives a fragmented MP4 (what a browser's MediaRecorder writes) a segment
+ * index right after its moov. Without one a player finds the fragments by
+ * walking the file from moof to moof, which a file still downloading cannot
+ * answer, and does not know the duration. Fragment data offsets are relative
+ * to their moof, so inserting a box before them moves nothing they point at.
+ * Returns { blob, changed, reason }; the file unchanged on any doubt.
+ * @param {Blob|File} file
+ */
+export async function addSegmentIndex(file) {
+    const bail = (reason) => ({ blob: file, changed: false, reason });
+    try {
+        const bytes = async (pos, len) => new DataView(await file.slice(pos, pos + len).arrayBuffer());
+        const typeAt = (dv, at) => String.fromCharCode(dv.getUint8(at), dv.getUint8(at + 1), dv.getUint8(at + 2), dv.getUint8(at + 3));
+        const boxes = [];
+        let pos = 0;
+        while (pos + 8 <= file.size) {
+            const hdr = await bytes(pos, Math.min(16, file.size - pos));
+            let size = hdr.getUint32(0, false);
+            const type = typeAt(hdr, 4);
+            if (size === 1) size = hdr.getUint32(8, false) * 4294967296 + hdr.getUint32(12, false);
+            else if (size === 0) size = file.size - pos;
+            if (size < 8 || pos + size > file.size) return bail(`invalid box '${type}'`);
+            boxes.push({ type, pos, size });
+            pos += size;
+        }
+        if (boxes.some(b => b.type === 'sidx')) return bail('already indexed');
+        const moov = boxes.find(b => b.type === 'moov');
+        const moofs = boxes.filter(b => b.type === 'moof');
+        if (!moov || !moofs.length || moov.pos > moofs[0].pos) return bail('not a fragmented MP4');
+
+        const children = (dv, start, end) => {
+            const out = [];
+            for (let p = start; p + 8 <= end;) {
+                const size = dv.getUint32(p, false);
+                if (size < 8 || p + size > end) break;
+                out.push({ type: typeAt(dv, p + 4), pos: p, size });
+                p += size;
+            }
+            return out;
+        };
+        const mv = await bytes(moov.pos, moov.size);
+        const mvKids = children(mv, 8, moov.size);
+        const trak = mvKids.find(b => b.type === 'trak');
+        const mvex = mvKids.find(b => b.type === 'mvex');
+        if (!trak || !mvex) return bail('no track or mvex');
+        const tkhd = children(mv, trak.pos + 8, trak.pos + trak.size).find(b => b.type === 'tkhd');
+        const mdia = children(mv, trak.pos + 8, trak.pos + trak.size).find(b => b.type === 'mdia');
+        const mdhd = mdia && children(mv, mdia.pos + 8, mdia.pos + mdia.size).find(b => b.type === 'mdhd');
+        if (!tkhd || !mdhd) return bail('no tkhd/mdhd');
+        const trackId = mv.getUint32(tkhd.pos + (mv.getUint8(tkhd.pos + 8) === 1 ? 28 : 20), false);
+        const timescale = mv.getUint32(mdhd.pos + (mv.getUint8(mdhd.pos + 8) === 1 ? 28 : 20), false);
+        const trex = children(mv, mvex.pos + 8, mvex.pos + mvex.size).find(b => b.type === 'trex' && mv.getUint32(b.pos + 12, false) === trackId);
+        const trexDuration = trex ? mv.getUint32(trex.pos + 20, false) : 0;
+
+        const refs = [];
+        let earliest = null;
+        for (let i = 0; i < moofs.length; i++) {
+            const m = moofs[i];
+            let k = boxes.indexOf(m) + 1;
+            while (k < boxes.length && boxes[k].type === 'mdat') k++;
+            const end = boxes[k - 1].pos + boxes[k - 1].size;
+            if (i + 1 < moofs.length && end !== moofs[i + 1].pos) return bail('fragments are not contiguous');
+            const dv = await bytes(m.pos, m.size);
+            const traf = children(dv, 8, m.size).filter(b => b.type === 'traf')
+                .find(t => { const h = children(dv, t.pos + 8, t.pos + t.size).find(b => b.type === 'tfhd'); return h && dv.getUint32(h.pos + 12, false) === trackId; });
+            if (!traf) return bail('a fragment without the indexed track');
+            const parts = children(dv, traf.pos + 8, traf.pos + traf.size);
+            const tfhd = parts.find(b => b.type === 'tfhd');
+            const tfhdFlags = dv.getUint32(tfhd.pos + 8, false) & 0xffffff;
+            let o = tfhd.pos + 16;
+            if (tfhdFlags & 0x1) o += 8;
+            if (tfhdFlags & 0x2) o += 4;
+            const defaultDuration = (tfhdFlags & 0x8) ? dv.getUint32(o, false) : trexDuration;
+            const tfdt = parts.find(b => b.type === 'tfdt');
+            if (tfdt && earliest === null) {
+                earliest = dv.getUint8(tfdt.pos + 8) === 1
+                    ? dv.getUint32(tfdt.pos + 12, false) * 4294967296 + dv.getUint32(tfdt.pos + 16, false)
+                    : dv.getUint32(tfdt.pos + 12, false);
+            }
+            let duration = 0;
+            for (const trun of parts.filter(b => b.type === 'trun')) {
+                const flags = dv.getUint32(trun.pos + 8, false) & 0xffffff;
+                const count = dv.getUint32(trun.pos + 12, false);
+                let q = trun.pos + 16 + ((flags & 0x1) ? 4 : 0) + ((flags & 0x4) ? 4 : 0);
+                const stride = ((flags & 0x100) ? 4 : 0) + ((flags & 0x200) ? 4 : 0) + ((flags & 0x400) ? 4 : 0) + ((flags & 0x800) ? 4 : 0);
+                if (flags & 0x100) {
+                    for (let s = 0; s < count; s++, q += stride) duration += dv.getUint32(q, false);
+                } else {
+                    duration += count * defaultDuration;
+                }
+            }
+            if (!duration) return bail('a fragment with no duration');
+            refs.push({ size: end - m.pos, duration });
+        }
+
+        if (refs.length > 0xffff) return bail('too many fragments for a segment index');
+        const sidx = new DataView(new ArrayBuffer(40 + refs.length * 12));
+        let w = 0;
+        const u32 = (x) => { sidx.setUint32(w, x, false); w += 4; };
+        u32(sidx.byteLength); u32(0x73696478); u32(0x01000000);
+        u32(trackId); u32(timescale);
+        u32(Math.floor((earliest || 0) / 4294967296)); u32((earliest || 0) % 4294967296);
+        u32(0); u32(moofs[0].pos - (moov.pos + moov.size));
+        sidx.setUint16(w, 0, false); sidx.setUint16(w + 2, refs.length, false); w += 4;
+        for (const r of refs) {
+            if (r.size > 0x7fffffff) return bail('fragment too large for a segment index');
+            u32(r.size); u32(r.duration); u32(0x90000000);
+        }
+        const cut = moov.pos + moov.size;
+        return {
+            blob: new Blob([file.slice(0, cut), sidx.buffer, file.slice(cut)], { type: file.type || 'video/mp4' }),
+            changed: true,
+            reason: `segment index over ${refs.length} fragment(s) added`
+        };
+    } catch (e) {
+        return bail(`parse error: ${e.message}`);
+    }
+}
+
 const isMp4Like = (file) =>
     /\.(mp4|m4v|mov)$/i.test(file.name || '') || /video\/(mp4|quicktime)/i.test(file.type || '');
 
@@ -1655,6 +1775,11 @@ class StorageMediaController {
                     } else {
                         const already = /already faststart/.test(fs.reason);
                         Logger[already ? 'info' : 'warn'](`Faststart: no conversion (${fs.reason})`);
+                    }
+                    const indexed = await addSegmentIndex(compFile);
+                    if (indexed.changed) {
+                        compFile = indexed.blob;
+                        Logger.info(`Segment index: ${indexed.reason}`);
                     }
                 }
                 compSize = compFile.size;
