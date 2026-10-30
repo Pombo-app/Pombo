@@ -128,7 +128,7 @@ export class History {
                     // Skip overrides for the preview path
                     if (t === 'edit' || t === 'delete') continue;
                     // Only accept known preview-renderable types
-                    if (t !== 'text' && t !== 'image' && t !== 'file_announce' && t !== 'storage_file_announce' && t !== 'reaction') {
+                    if (t !== 'text' && t !== 'image' && t !== 'audio' && t !== 'file_announce' && t !== 'storage_file_announce' && t !== 'reaction') {
                         continue;
                     }
 
@@ -198,6 +198,7 @@ export class History {
             if (msg?.id && msg?.text && msg?.sender && msg?.timestamp && !msg?.type) return true;
             if (msg?.type === 'reaction') return true;
             if (msg?.type === 'image' && msg?.imageId) return true;
+            if (msg?.type === 'audio' && msg?.imageId) return true;
             if (msg?.type === 'image_chunk' && msg?.imageId && Number.isInteger(msg?.chunkIndex) && typeof msg?.data === 'string') return true;
             if (msg?.type === 'file_announce' && msg?.metadata) return true;
             if (msg?.type === 'storage_file_announce' && msg?.metadata) return true;
@@ -620,7 +621,7 @@ export class History {
             const isReaction = (msg) => msg?.type === 'reaction';
             
             // Helper to check if message is an image
-            const isImageMessage = (msg) => msg?.type === 'image' && msg?.imageId;
+            const isImageMessage = (msg) => (msg?.type === 'image' || msg?.type === 'audio') && msg?.imageId;
 
             // Helper to check if message is a stored image chunk
             const isImageChunkMessage = (msg) => {

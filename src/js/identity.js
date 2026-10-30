@@ -33,6 +33,8 @@ const PROVIDER_COOLDOWN_MS = CONFIG.identity.providerCooldownMs;
 // Gap between background queue lookups — keeps a busy channel from bursting
 const ENS_QUEUE_GAP_MS = CONFIG.identity.ensQueueGapMs;
 
+export const AUDIO_FALLBACK_TEXT = '🎤 Voice message';
+
 class IdentityManager {
     constructor() {
         this.ensCache = new Map();
@@ -210,6 +212,34 @@ class IdentityManager {
             preservedOriginal: !!preservedOriginal,
             convertedTo: convertedTo || null,
             qualityUsed: Number.isFinite(qualityUsed) ? qualityUsed : null
+        }, authManager.getAddress());
+    }
+
+    // `text` is for clients without voice messages; aware clients dispatch on `type` first.
+    async createAudioManifest({
+        imageId,
+        finalMime,
+        finalSizeBytes,
+        durationMs,
+        chunkCount,
+        chunkHashes,
+        assembledSha256
+    }) {
+        return applyAccount({
+            type: 'audio',
+            transport: 'chunked',
+            v: 2,
+            id: this.generateMessageId(),
+            imageId,
+            text: AUDIO_FALLBACK_TEXT,
+            senderName: this.username || null,
+            timestamp: Date.now(),
+            finalMime,
+            finalSizeBytes,
+            durationMs: Math.round(durationMs),
+            chunkCount,
+            chunkHashes,
+            assembledSha256
         }, authManager.getAddress());
     }
 

@@ -1847,7 +1847,8 @@ body.cannot-write #context-menu-reply-btn {
 }
 
 /* ----- Send Button ----- */
-#send-message-btn {
+#send-message-btn,
+#record-audio-btn {
     background-color: transparent;
     color: var(--pombo-accent);
     width: 2.25rem;
@@ -1860,17 +1861,30 @@ body.cannot-write #context-menu-reply-btn {
     transition: background-color 0.12s, color 0.12s, transform 0.08s;
 }
 
-#send-message-btn svg {
+#send-message-btn svg,
+#record-audio-btn svg {
     display: block;
 }
 
-#send-message-btn:hover {
+#send-message-btn:hover,
+#record-audio-btn:hover {
     color: var(--pombo-accent-hover);
     background-color: rgba(255, 92, 0, 0.08);
 }
 
 #send-message-btn:active {
     transform: translateY(1px);
+}
+
+#send-message-btn.hidden,
+#record-audio-btn.hidden {
+    display: none;
+}
+
+#record-audio-btn.recording {
+    color: var(--pombo-danger);
+    background-color: var(--pombo-overlay-8);
+    transform: scale(1.15);
 }
 
 /* ----- Toast Notifications ----- */

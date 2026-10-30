@@ -8,6 +8,11 @@ import { GroupPosition, shouldShowSenderName } from './MessageGrouper.js';
 import { getAvatar, getAvatarHtml } from './AvatarGenerator.js';
 import { sanitizeMessageHtml, sanitizeText } from './sanitizer.js';
 
+export function formatAudioTime(ms) {
+    const total = Math.max(0, Math.round((Number(ms) || 0) / 1000));
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
 class MessageRenderer {
     constructor() {
         this.deps = {};
@@ -209,6 +214,46 @@ class MessageRenderer {
                 </div>
             `;
         }
+    }
+
+    renderAudioContent(msg) {
+        if (msg?.verified?.valid === false) {
+            return `<div class="text-danger text-sm">Voice message failed verification</div>`;
+        }
+        if (this.deps.getImage?.(msg.imageId)) {
+            return this.renderAudioPlayer(msg);
+        }
+        this.deps.loadImageFromLedger?.(msg.imageId);
+        this.deps.recoverImage?.(msg.imageId);
+        const channelId = this.deps.getCurrentChannel?.()?.streamId || '';
+        return `
+            <div data-audio-id="${escapeAttr(msg.imageId)}" data-channel-id="${escapeAttr(channelId)}" data-mime="${escapeAttr(msg.finalMime)}" data-duration="${escapeAttr(String(msg.durationMs))}" class="audio-message flex items-center gap-2 min-w-[200px] text-overlay-40 text-sm py-1">
+                <div class="animate-spin w-4 h-4 border-2 border-overlay-20 border-t-white rounded-full"></div>
+                <span>Loading voice message...</span>
+            </div>
+        `;
+    }
+
+    renderAudioPlayer({ imageId, finalMime, durationMs }) {
+        return `
+            <div class="audio-message audio-player flex items-center gap-3 min-w-[200px] py-1" data-audio-player-id="${escapeAttr(imageId)}" data-mime="${escapeAttr(finalMime)}" data-duration="${escapeAttr(String(durationMs))}">
+                <button type="button" class="audio-play w-8 h-8 flex-shrink-0 rounded-full bg-overlay-10 hover:bg-overlay-20 text-primary flex items-center justify-center transition" aria-label="Play voice message">
+                    ${this.iconPlay('w-4 h-4 audio-icon-play')}${this.iconPause('w-4 h-4 audio-icon-pause hidden')}
+                </button>
+                <div class="audio-track relative flex-1 h-1 rounded-full bg-overlay-15 cursor-pointer" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <div class="audio-progress absolute inset-y-0 left-0 rounded-full bg-overlay-60" style="width:0%"></div>
+                </div>
+                <span class="audio-time text-xs text-overlay-40 tabular-nums">${formatAudioTime(durationMs)}</span>
+            </div>
+        `;
+    }
+
+    iconPlay(cls) {
+        return `<svg class="${cls}" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg>`;
+    }
+
+    iconPause(cls) {
+        return `<svg class="${cls}" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>`;
     }
 
     /**
@@ -728,7 +773,10 @@ class MessageRenderer {
         switch (type) {
             case 'image':
                 return this.renderImageContent(msg);
-                
+
+            case 'audio':
+                return this.renderAudioContent(msg);
+
             case 'file_announce':
                 return this.renderVideoContent(msg);
 

@@ -204,6 +204,10 @@ export const CONFIG = {
         imageChunkInitialRawBytes: 150 * 1024,            // Starting raw chunk size before payload measurement
         imageChunkMinRawBytes: 16 * 1024,                 // Smallest raw chunk size before failing
         imageAssemblyTtlMs: 10 * 60 * 1000,               // Keep partial image chunk assemblies for 10 minutes
+        audioMaxDurationMs: 4 * 60 * 1000,                // Voice message length cap (same on Android)
+        audioMaxAssembledBytes: 1 * 1024 * 1024,          // Byte guard under the duration cap
+        audioBitsPerSecond: 24000,
+        audioMinDurationMs: 500,                          // Shorter holds are discarded, not sent
         // Chunked-image recovery (paginate to fill manifests whose chunks
         // fell outside the initial resend window). See
         // channels.recoverIncompleteImages / preview equivalent.

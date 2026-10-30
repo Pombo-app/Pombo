@@ -7,6 +7,11 @@
 import { modalManager } from './ModalManager.js';
 import { sanitizeText } from './sanitizer.js';
 import { escapeHtml } from './utils.js';
+import { formatAudioTime } from './MessageRenderer.js';
+import { VoiceRecorder, canRecordAudio } from '../audioRecorder.js';
+import { CONFIG } from '../config.js';
+
+const SLIDE_TO_CANCEL_PX = 100;
 
 class InputUI {
     constructor() {
@@ -49,6 +54,118 @@ class InputUI {
 
         // Watch for keyboard-injected <img> elements (Android Gboard / Tenor)
         this.setupKeyboardImageObserver();
+
+        this.initVoiceRecorder();
+    }
+
+    initVoiceRecorder() {
+        this.recordBtn = document.getElementById('record-audio-btn');
+        this.recordingBar = document.getElementById('voice-recording-bar');
+        if (!this.recordBtn || !this.recordingBar || !canRecordAudio()) return;
+
+        const limit = document.getElementById('voice-recording-limit');
+        if (limit) limit.textContent = `/ ${formatAudioTime(CONFIG.media.audioMaxDurationMs)}`;
+
+        this.messageInput?.addEventListener('input', () => this.updateSendOrRecord());
+        this.updateSendOrRecord();
+
+        this.recordBtn.addEventListener('pointerdown', (e) => this._onRecordPointerDown(e));
+        this.recordBtn.addEventListener('pointermove', (e) => this._onRecordPointerMove(e));
+        this.recordBtn.addEventListener('pointerup', () => this._finishRecording('release'));
+        this.recordBtn.addEventListener('pointercancel', () => this._finishRecording('cancel'));
+        this.recordBtn.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+
+    updateSendOrRecord() {
+        if (!this.recordBtn) return;
+        const showMic = !!this.voice || !this.getValue();
+        this.recordBtn.classList.toggle('hidden', !showMic);
+        this.sendMessageBtn?.classList.toggle('hidden', showMic);
+    }
+
+    async _onRecordPointerDown(e) {
+        if (e.button !== 0 || this.voice) return;
+        e.preventDefault();
+        this.recordBtn.setPointerCapture?.(e.pointerId);
+        const session = {
+            startX: e.clientX,
+            released: false,
+            finishing: false,
+            started: false,
+            recorder: new VoiceRecorder({
+                onTick: (ms) => this._paintRecording(ms),
+                onLimit: () => this._finishRecording('limit')
+            })
+        };
+        this.voice = session;
+        try {
+            await session.recorder.start();
+        } catch (error) {
+            session.recorder.cancel();
+            if (this.voice === session) this.voice = null;
+            this.updateSendOrRecord();
+            const denied = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
+            this.deps.showNotification?.(
+                denied ? 'Microphone access denied' : 'Could not start recording: ' + error.message,
+                'error'
+            );
+            return;
+        }
+        session.started = true;
+        if (session.released) {
+            session.recorder.cancel();
+            if (this.voice === session) this.voice = null;
+            this.updateSendOrRecord();
+            this.deps.showNotification?.('Hold to record, release to send', 'info');
+            return;
+        }
+        this._showRecording(true);
+    }
+
+    _onRecordPointerMove(e) {
+        const session = this.voice;
+        if (!session?.started || session.finishing) return;
+        const dx = Math.max(0, session.startX - e.clientX);
+        const hint = document.getElementById('voice-recording-hint');
+        if (hint) hint.style.transform = `translateX(${-Math.min(dx, SLIDE_TO_CANCEL_PX)}px)`;
+        if (dx >= SLIDE_TO_CANCEL_PX) this._finishRecording('cancel');
+    }
+
+    async _finishRecording(reason) {
+        const session = this.voice;
+        if (!session || session.finishing) return;
+        if (!session.started) {
+            session.released = true;
+            return;
+        }
+        session.finishing = true;
+        this.voice = null;
+        this._showRecording(false);
+        this.updateSendOrRecord();
+
+        if (reason === 'cancel') {
+            session.recorder.cancel();
+            return;
+        }
+        const result = await session.recorder.stop();
+        if (result.durationMs < CONFIG.media.audioMinDurationMs || !result.blob.size) {
+            this.deps.showNotification?.('Hold to record, release to send', 'info');
+            return;
+        }
+        await this.deps.onSendAudio?.(result);
+    }
+
+    _showRecording(on) {
+        this.recordingBar?.classList.toggle('hidden', !on);
+        this.recordBtn?.classList.toggle('recording', on);
+        const hint = document.getElementById('voice-recording-hint');
+        if (hint) hint.style.transform = '';
+        this._paintRecording(0);
+    }
+
+    _paintRecording(ms) {
+        const time = document.getElementById('voice-recording-time');
+        if (time) time.textContent = formatAudioTime(ms);
     }
 
     /**

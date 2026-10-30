@@ -289,7 +289,7 @@ class ChannelLatestMessageManager {
             ? raw.senderName.trim()
             : null;
 
-        if (t === 'text') {
+        if (t === 'text' || t === 'audio') {
             return {
                 id: raw.id || null,
                 ts,
@@ -356,7 +356,7 @@ class ChannelLatestMessageManager {
     setFromLocal(messageStreamId, message) {
         if (!messageStreamId || !message || typeof message !== 'object') return null;
         const t = message.type;
-        if (t !== 'text' && t !== 'image' && t !== 'file_announce' && t !== 'storage_file_announce' && t !== 'reaction') {
+        if (t !== 'text' && t !== 'audio' && t !== 'image' && t !== 'file_announce' && t !== 'storage_file_announce' && t !== 'reaction') {
             return null;
         }
         // Reaction removals never enter the preview — see _normalizeRemoteEntry.
@@ -369,7 +369,7 @@ class ChannelLatestMessageManager {
             : null;
 
         let entry;
-        if (t === 'text') {
+        if (t === 'text' || t === 'audio') {
             entry = {
                 id: message.id || null,
                 ts,

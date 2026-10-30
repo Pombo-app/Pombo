@@ -64,6 +64,7 @@ import { attachChannelHeader } from './ui/wiring/channelHeader.js';
 import { attachChannelSettings } from './ui/wiring/channelSettings.js';
 import { attachContactModals } from './ui/wiring/contactModals.js';
 import { attachMeshImages } from './ui/wiring/meshImages.js';
+import { attachAudioPlayback } from './ui/wiring/audioPlayback.js';
 import { attachMeshProgress } from './ui/wiring/meshProgress.js';
 import { attachMeshComplete } from './ui/wiring/meshComplete.js';
 import { attachMeshServing } from './ui/wiring/meshServing.js';
@@ -567,7 +568,8 @@ class UIController {
             Logger,
             showNotification: (msg, type) => this.showNotification(msg, type),
             showLoading: (msg) => this.showLoading(msg),
-            hideLoading: () => this.hideLoading()
+            hideLoading: () => this.hideLoading(),
+            onSendAudio: (recording) => this.handleSendAudio(recording)
         });
         inputUI.init({
             messageInput: this.elements.messageInput,
@@ -1341,6 +1343,7 @@ class UIController {
      */
     setupMediaHandlers() {
         attachMeshImages(this);
+        attachAudioPlayback(this);
         attachMeshProgress(this);
         attachMeshComplete(this);
         attachMeshServing(this);
@@ -1399,10 +1402,29 @@ class UIController {
         const currentChannel = channelManager.getCurrentChannel();
         if (!currentChannel || !msgId) return;
         try {
+            if (currentChannel.messages?.some(m => m.id === msgId && m.type === 'audio')) {
+                await mediaController.resendAudio(currentChannel.streamId, msgId);
+                return;
+            }
             await channelManager.resendMessage(currentChannel.streamId, msgId);
         } catch (error) {
             if (!(await this._offerEpochRotation(currentChannel, error))) {
                 this.showNotification('Failed to send message: ' + error.message, 'error');
+            }
+        }
+    }
+
+    async handleSendAudio({ blob, mime, durationMs }) {
+        const currentChannel = channelManager.getCurrentChannel();
+        if (!currentChannel || previewModeUI.isInPreviewMode()) {
+            this.showNotification('Join the channel to send voice messages', 'error');
+            return;
+        }
+        try {
+            await mediaController.sendAudio(currentChannel.streamId, blob, { mime, durationMs });
+        } catch (error) {
+            if (!(await this._offerEpochRotation(currentChannel, error))) {
+                this.showNotification('Failed to send voice message: ' + error.message, 'error');
             }
         }
     }

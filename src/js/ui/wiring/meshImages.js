@@ -6,6 +6,7 @@ import { channelManager } from '../../channels.js';
 import { mediaController } from '../../media.js';
 import { Logger } from '../../logger.js';
 import { mediaHandler } from '../MediaHandler.js';
+import { messageRenderer } from '../MessageRenderer.js';
 import { escapeAttr as _escapeAttr } from '../utils.js';
 
 /**
@@ -14,12 +15,22 @@ import { escapeAttr as _escapeAttr } from '../utils.js';
 export function attachMeshImages(ui) {
     // Image received - update image placeholders
     mediaController.onImageReceived((imageId, base64Data) => {
+        const currentChannel = ui.getActiveChannel();
+        for (const placeholder of document.querySelectorAll(`[data-audio-id="${CSS.escape(imageId)}"]`)) {
+            const placeholderChannelId = placeholder.getAttribute('data-channel-id');
+            if (placeholderChannelId && currentChannel && placeholderChannelId !== currentChannel.streamId) continue;
+            placeholder.outerHTML = messageRenderer.renderAudioPlayer({
+                imageId,
+                finalMime: placeholder.getAttribute('data-mime'),
+                durationMs: Number(placeholder.getAttribute('data-duration'))
+            });
+        }
+
         // Replace ALL placeholders for this imageId — re-shares produce
         // multiple placeholders, and `recoverImage` relies on this fan-out.
         const placeholders = document.querySelectorAll(`[data-image-id="${CSS.escape(imageId)}"]`);
         if (placeholders.length === 0) return;
 
-        const currentChannel = ui.getActiveChannel();
         const mediaId = mediaHandler.registerMedia(base64Data, 'image');
         if (!mediaId) return;
 
@@ -67,9 +78,11 @@ export function attachMeshImages(ui) {
             if (ids.length === 0) return;
             for (const imageId of ids) {
                 try {
-                    const placeholders = document.querySelectorAll(`[data-image-id="${CSS.escape(imageId)}"]`);
+                    const placeholders = document.querySelectorAll(
+                        `[data-image-id="${CSS.escape(imageId)}"], [data-audio-id="${CSS.escape(imageId)}"]`);
                     if (placeholders.length === 0) continue;
                     for (const el of placeholders) {
+                        const unavailable = el.hasAttribute('data-audio-id') ? 'Voice message unavailable' : 'Image unavailable';
                         el.innerHTML = `
                             <div class="flex flex-col items-center gap-2 text-overlay-40 text-sm p-3">
                                 <div class="flex items-center gap-2">
@@ -77,7 +90,7 @@ export function attachMeshImages(ui) {
                                         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                                         <line x1="3" y1="3" x2="21" y2="21"></line>
                                     </svg>
-                                    <span>Image unavailable</span>
+                                    <span>${unavailable}</span>
                                 </div>
                                 <button type="button" class="px-2 py-1 rounded bg-overlay-10 hover:bg-overlay-20 text-overlay-80 text-xs" data-retry-image-id="${_escapeAttr(imageId)}">Retry</button>
                             </div>

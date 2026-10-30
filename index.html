@@ -610,6 +610,19 @@
                         class="flex-1 bg-overlay-5 text-primary px-4 py-3 rounded-2xl focus:outline-none focus:ring-1 focus:ring-overlay-10 border border-overlay-8 text-sm transition-all duration-200 overflow-y-auto min-h-[44px] max-h-[120px] leading-5 break-words whitespace-pre-wrap"
                     ></div>
                     
+                    <div id="voice-recording-bar" class="hidden absolute inset-y-0 left-0 right-11 z-10 flex items-center gap-2 px-4 rounded-2xl bg-surface-3 text-sm select-none" aria-live="polite">
+                        <span class="w-2.5 h-2.5 rounded-full bg-danger animate-pulse" aria-hidden="true"></span>
+                        <span id="voice-recording-time" class="tabular-nums text-primary">0:00</span>
+                        <span id="voice-recording-limit" class="tabular-nums text-overlay-40">/ 4:00</span>
+                        <span id="voice-recording-hint" class="ml-auto text-overlay-40 transition-transform">‹ Slide to cancel</span>
+                    </div>
+
+                    <button id="record-audio-btn" class="hidden bg-transparent w-9 h-9 transition flex items-center justify-center p-0 touch-none select-none" aria-label="Hold to record a voice message" title="Hold to record">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+                        </svg>
+                    </button>
+
                     <!-- Send Button: transparent, dark-orange arrow icon -->
                     <button id="send-message-btn" class="bg-transparent w-9 h-9 transition flex items-center justify-center p-0" aria-label="Send message">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6.5 w-6.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
