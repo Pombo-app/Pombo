@@ -62,6 +62,17 @@ describe('channelLatestMessageManager', () => {
         expect(e2.senderName).toBeNull();
     });
 
+    it('setFromLocal drops a write started under the previous account', () => {
+        const started = channelLatestMessageManager.generation;
+        channelLatestMessageManager.setAccount('0xnext');
+
+        const stored = channelLatestMessageManager.setFromLocal(sid,
+            { type: 'text', id: 'm1', text: 'the last account\'s secret', sender: '0xa', timestamp: 10 }, started);
+
+        expect(stored).toBeNull();
+        expect(channelLatestMessageManager.getCached(sid)).toBeNull();
+    });
+
     it('setFromLocal rejects unknown message types', () => {
         const entry = channelLatestMessageManager.setFromLocal(sid, {
             type: 'edit', targetId: 'm1', text: 'x', timestamp: 1

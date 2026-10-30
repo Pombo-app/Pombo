@@ -109,6 +109,11 @@ class ChannelLatestMessageManager {
         return key ? this.init() : Promise.resolve();
     }
 
+    /** Changes on every account switch; a write carrying an older one is dropped. */
+    get generation() {
+        return this._generation;
+    }
+
     /**
      * Delete an account's preview database (account deletion).
      * @param {string} address
@@ -427,9 +432,11 @@ class ChannelLatestMessageManager {
      *
      * @param {string} messageStreamId
      * @param {Object} message - app-shape message
+     * @param {number} [generation] - the account generation the caller started under
      * @returns {Object|null} stored entry (or null if rejected)
      */
-    setFromLocal(messageStreamId, message) {
+    setFromLocal(messageStreamId, message, generation = this._generation) {
+        if (generation !== this._generation) return null;
         if (!messageStreamId || !message || typeof message !== 'object') return null;
         const t = message.type;
         if (t !== 'text' && t !== 'audio' && t !== 'image' && t !== 'file_announce' && t !== 'storage_file_announce'

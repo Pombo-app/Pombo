@@ -1028,6 +1028,8 @@ class SubscriptionManager {
         // Use messageStreamId as the identifier (multiple-stream)
         const messageStreamId = channel.messageStreamId || channel.streamId;
         const password = channel.password || null;
+        // The read below spans an account switch as easily as anything else.
+        const previewGeneration = channelLatestMessageManager.generation;
 
         // Get current activity state
         // If no state exists, use current time as baseline to avoid false positives
@@ -1122,7 +1124,7 @@ class SubscriptionManager {
                         || previewFrom._publisherId
                         || null,
                     timestamp: messageTime(previewFrom) || latestTime
-                });
+                }, previewGeneration);
             }
 
             // Notify handlers if new messages detected
