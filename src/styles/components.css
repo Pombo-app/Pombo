@@ -2220,6 +2220,35 @@ body.cannot-write #context-menu-reply-btn {
     }
 }
 
+input[type="radio"]:not(.sr-only) {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    flex-shrink: 0;
+    border: 2px solid var(--pombo-overlay-30);
+    border-radius: 50%;
+    display: inline-grid;
+    place-content: center;
+    cursor: pointer;
+}
+input[type="radio"]:not(.sr-only)::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #F6851B;
+    transform: scale(0);
+    transition: transform 0.12s ease;
+}
+input[type="radio"]:not(.sr-only):checked {
+    border-color: #F6851B;
+}
+input[type="radio"]:not(.sr-only):checked::before {
+    transform: scale(1);
+}
+
 #explore-search-input::-webkit-search-cancel-button {
     -webkit-appearance: none;
     display: none;
@@ -3397,6 +3426,11 @@ body.explore-open #explore-channels-list {
         margin: 0 !important;
         padding: 1rem 14px 7rem 14px !important;
         border: none !important;
+    }
+    #settings-panel-profile > .space-y-6 {
+        padding: 1.25rem;
+        border: 1px solid var(--pombo-overlay-8);
+        border-radius: 1rem;
     }
     #contacts-modal .contacts-mobile-header {
         display: flex;
