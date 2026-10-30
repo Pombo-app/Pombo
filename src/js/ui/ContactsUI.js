@@ -170,14 +170,15 @@ class ContactsUI {
         this.elements.contactsList.innerHTML = contacts.map(contact => {
             const avatarUrl = identityManager.getCachedENSAvatar(contact.address);
             const avatarHtml = getAvatarHtml(contact.address, 42, 0.5, avatarUrl);
-            const displayName = sanitizeText(contact.nickname) || formatAddress(contact.address);
+            const displayName = identityManager.getCachedENS(contact.address)
+                || sanitizeText(contact.nickname) || formatAddress(contact.address);
 
             return `
                 <div class="flex items-center justify-between p-3 bg-overlay-5 border border-overlay-8 rounded-xl">
                     <div class="flex items-center gap-3 flex-1 min-w-0">
                         <div class="flex-shrink-0" style="width:42px;height:42px;border-radius:9999px;overflow:hidden;">${avatarHtml}</div>
                         <div class="flex-1 min-w-0">
-                            <span class="text-[13px] font-medium text-primary truncate block">${escapeHtml(displayName)}</span>
+                            <span class="text-[13px] font-medium text-primary truncate block" data-contact-name="${escapeAttr(contact.address.toLowerCase())}">${escapeHtml(displayName)}</span>
                             <div class="text-[10px] text-overlay-30 font-mono truncate mt-0.5">${escapeHtml(contact.address)}</div>
                         </div>
                     </div>
@@ -193,6 +194,15 @@ class ContactsUI {
                 </div>
             `;
         }).join('');
+
+        for (const contact of contacts) {
+            if (identityManager.getCachedENS(contact.address)) continue;
+            identityManager.resolveENS(contact.address).then((name) => {
+                if (!name) return;
+                const el = this.elements.contactsList.querySelector(`[data-contact-name="${contact.address.toLowerCase()}"]`);
+                if (el) el.textContent = name;
+            }).catch(() => {});
+        }
 
         this.elements.contactsList.querySelectorAll('.contact-menu-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
