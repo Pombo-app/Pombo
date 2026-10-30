@@ -2220,6 +2220,11 @@ body.cannot-write #context-menu-reply-btn {
     }
 }
 
+#explore-search-input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    display: none;
+}
+
 /* ----- Spinner ----- */
 .spinner {
     width: 48px;
