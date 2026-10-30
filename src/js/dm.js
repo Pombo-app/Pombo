@@ -28,8 +28,10 @@ import { relayManager } from './relayManager.js';
 import { dmCrypto } from './dmCrypto.js';
 import { mediaController } from './media.js';
 import { storageEndpoints } from './storageEndpoints.js';
-import { storageFetch } from './storageFetch.js';
-import { purgeGroups, eraseMessage, keySigner } from './storagePurge.js';
+import { storageFetch, envelopeSequenceNumber } from './storageFetch.js';
+import { purgeGroups, eraseMessage, keySigner, chunkGroupsByOpener } from './storagePurge.js';
+import { STORAGE_FILE } from './streamConstants.js';
+import { channelLatestMessageManager } from './channelLatestMessageManager.js';
 
 const SENT_ROWS_MAX = 2000;
 
@@ -558,6 +560,93 @@ class DMManager {
             channelManager.notifyHandlers('message_deleted', { streamId: channelStreamId, targetId: messageId });
         }
         return outcome;
+    }
+
+    /**
+     * Erase what blocked accounts left in the own inbox, as its owner: their
+     * messages and invites, and the chunks of the files they sent, on every
+     * provider that purges. The inbox is read back from storage, so rows this
+     * device never loaded are reached too; chunks are recognised by opening
+     * with each blocked pair's key, so a file whose announce never went out is
+     * found as well. Blocking already left their conversations; their stored
+     * previews go here.
+     * @param {Object} [options]
+     * @param {(found: {messages: number, files: number}) => void} [options.onErasing] - Called once the rows are located, before the purge
+     * @returns {Promise<Object|null>} purgeGroups outcome plus `messages`, `files`
+     *   and `skippedFiles`; null when nobody is blocked
+     */
+    async eraseBlockedData({ onErasing = null } = {}) {
+        const blocked = new Set(secureStorage.getBlockedPeers());
+        if (blocked.size === 0) return null;
+        if (!this.inboxMessageStreamId || !streamrController.client) throw new Error('Inbox not initialized');
+        const inbox = this.inboxMessageStreamId;
+
+        const rows = new Map();
+        let messages = 0;
+        for (const partition of [STREAM_CONFIG.MESSAGE_STREAM.NOTIFICATIONS, STREAM_CONFIG.MESSAGE_STREAM.MESSAGES]) {
+            const startedAt = Date.now();
+            const resend = await streamrController.client.resend(
+                { streamId: inbox, partition },
+                { from: { timestamp: 0 }, raw: true }
+            );
+            const iterator = resend[Symbol.asyncIterator]();
+            for (;;) {
+                let message;
+                try {
+                    const result = await iterator.next();
+                    if (result.done) break;
+                    message = result.value;
+                } catch {
+                    continue;
+                }
+                let data;
+                try {
+                    data = await this.openDMEnvelope(message.content ?? message);
+                } catch {
+                    continue;
+                }
+                const sender = data?.account?.toLowerCase();
+                if (!sender || !blocked.has(sender)) continue;
+                const timestamp = typeof message.getTimestamp === 'function' ? message.getTimestamp() : message.timestamp;
+                if (!Number.isFinite(timestamp)) continue;
+                const targets = rows.get(partition) || [];
+                targets.push({ timestamp, sequenceNumber: envelopeSequenceNumber(message) ?? 0 });
+                rows.set(partition, targets);
+                messages++;
+            }
+            // A refused read drains as empty; it must not pass for an inbox with nothing to erase.
+            const readError = storageFetch.lastReadError(inbox, partition);
+            if (readError && readError.at >= startedAt) throw new Error(`Could not read your inbox: HTTP ${readError.status}`);
+        }
+
+        const { storageMediaController } = await import('./storageMedia.js');
+        const openers = [];
+        for (const peer of blocked) {
+            try {
+                openers.push((await storageMediaController.makeSealer({ type: 'dm', peerAddress: peer }, null)).open);
+            } catch (e) {
+                Logger.warn(`DM: no pair key for ${peer}, their files cannot be recognised:`, e.message);
+            }
+        }
+        const first = STORAGE_FILE.DM_FIRST_CHUNK_PARTITION;
+        const chunkPartitions = Array.from({ length: STORAGE_FILE.CHUNK_PARTITIONS }, (_, i) => first + i);
+        const { groups: chunks, files, unchecked: skippedFiles } = openers.length
+            ? await chunkGroupsByOpener(inbox, chunkPartitions, openers)
+            : { groups: [], files: 0, unchecked: 0 };
+
+        for (const peer of blocked) channelLatestMessageManager.clear(streamrController.getDMInboxId(peer));
+
+        if (messages === 0 && files === 0) return { providers: 0, erasedOn: 0, forbiddenOn: 0, unreachable: 0, targets: 0, messages, files, skippedFiles };
+        // Chunks before the announces that point at them, as in messageGroups.
+        const groups = [
+            ...chunks,
+            ...[...rows].sort(([a], [b]) => Number(a === STREAM_CONFIG.MESSAGE_STREAM.MESSAGES) - Number(b === STREAM_CONFIG.MESSAGE_STREAM.MESSAGES))
+                .map(([partition, targets]) => ({ partition, targets }))
+        ];
+        const signer = { address: authManager.getAddress(), sign: (m) => authManager.signMessage(m) };
+        onErasing?.({ messages, files });
+        const outcome = await purgeGroups(inbox, groups, signer);
+        return { ...outcome, messages, files, skippedFiles };
     }
 
     /**

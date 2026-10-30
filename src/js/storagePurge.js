@@ -307,6 +307,72 @@ export async function fileChunkGroups(streamId, meta, fetchImpl = fetch, openChu
 }
 
 /**
+ * The chunk rows of every file whose chunks open with one of `openers`,
+ * found by content instead of through announces, so chunks whose announce
+ * never went out are found too. A transfer writes all its chunks under one
+ * key, so one row per publisher decides for the rest.
+ * @param {string} streamId
+ * @param {number[]} partitions - The chunk partitions to sweep
+ * @param {Array<(bytes: Uint8Array, timestamp: number) => Promise<Uint8Array>>} openers
+ * @param {typeof fetch} [fetchImpl]
+ * @returns {Promise<{groups: Array<{partition: number, targets: Array}>, files: number, unchecked: number}>}
+ *   `files` the transfers that opened; `unchecked` those whose probe row could not be read
+ */
+export async function chunkGroupsByOpener(streamId, partitions, openers, fetchImpl = fetch) {
+    const urls = (await storageEndpoints.providersWith(streamId, 'purge')).flatMap((p) => p.urls);
+    if (urls.length === 0) throw new Error('No storage provider can identify the chunks');
+    const read = async (path) => {
+        for (const url of urls) {
+            try {
+                const resp = await fetchImpl(`${url}/streams/${encodeURIComponent(streamId)}/data/partitions/${path}`);
+                if (!resp.ok) continue;
+                const body = await resp.json();
+                if (Array.isArray(body)) return body;
+            } catch (e) {
+                Logger.debug(`Chunk sweep on ${url} failed: ${e.message}`);
+            }
+        }
+        return null;
+    };
+    const publisherOf = (r) => String(r?.publisherId || '').toLowerCase();
+
+    const byPublisher = new Map();
+    for (const partition of partitions) {
+        const rows = await read(`${partition}/from?fromTimestamp=0&format=metadata`);
+        if (!rows) throw new Error(`Could not read the chunks on partition ${partition}`);
+        for (const r of rows) {
+            if (!Number.isFinite(Number(r.timestamp))) continue;
+            const key = publisherOf(r);
+            if (!byPublisher.has(key)) byPublisher.set(key, []);
+            byPublisher.get(key).push({ partition, timestamp: Number(r.timestamp), sequenceNumber: Number(r.sequenceNumber ?? 0) });
+        }
+    }
+
+    const byPartition = new Map();
+    let files = 0, unchecked = 0;
+    for (const [publisher, rows] of byPublisher) {
+        const probe = rows[0];
+        const page = await read(`${probe.partition}/range?fromTimestamp=${probe.timestamp}&toTimestamp=${probe.timestamp}`);
+        const row = page?.find((r) => publisherOf(r) === publisher && Number(r.contentType) === 1);
+        const sealed = row ? hexToBytes(row.content) : null;
+        if (!sealed) { unchecked++; continue; }
+        let theirs = false;
+        for (const open of openers) {
+            try {
+                if (chunkTransferId(await open(sealed, probe.timestamp))) { theirs = true; break; }
+            } catch { /* not sealed for this pair */ }
+        }
+        if (!theirs) continue;
+        files++;
+        for (const r of rows) {
+            if (!byPartition.has(r.partition)) byPartition.set(r.partition, []);
+            byPartition.get(r.partition).push({ timestamp: r.timestamp, sequenceNumber: r.sequenceNumber });
+        }
+    }
+    return { groups: [...byPartition].map(([partition, targets]) => ({ partition, targets })), files, unchecked };
+}
+
+/**
  * The envelope coordinates of a message on the storage node. Messages read
  * from storage or live carry `_timestamp` and `_seq`; anything else is
  * looked up by its envelope time on a provider's metadata read (the fetch

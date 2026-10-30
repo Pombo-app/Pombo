@@ -14,6 +14,25 @@ import { MESSAGE_STREAM } from '../streamConstants.js';
 import { importBackupData } from '../backupImport.js';
 import { channelLatestMessageManager } from '../channelLatestMessageManager.js';
 
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/**
+ * The toast for an erase of blocked users' data.
+ * @param {Object|null} outcome - dmManager.eraseBlockedData() result
+ * @returns {{text: string, type: string}}
+ */
+export function describeBlockedErase(outcome) {
+    if (!outcome || (outcome.messages === 0 && !outcome.files)) return { text: 'Nothing from blocked users in your inbox storage', type: 'info' };
+    const what = [outcome.messages && plural(outcome.messages, 'message'), outcome.files && plural(outcome.files, 'file')].filter(Boolean).join(' and ');
+    const missed = outcome.skippedFiles ? `; ${plural(outcome.skippedFiles, 'file')} could not be checked` : '';
+    if (outcome.providers === 0) return { text: `No storage provider of your inbox can erase ${what}`, type: 'warning' };
+    const where = `on ${outcome.erasedOn} of ${plural(outcome.providers, 'storage provider')}`;
+    return {
+        text: `Erased ${what} ${where}${missed}`,
+        type: outcome.erasedOn === outcome.providers && !outcome.skippedFiles ? 'success' : 'warning'
+    };
+}
+
 /**
  * Settings UI Manager
  * Handles all settings modal functionality
@@ -791,7 +810,7 @@ class SettingsUI {
         const noticeText = document.getElementById('sync-mode-no-inbox-text');
         if (noticeText) {
             noticeText.textContent = isGuest
-                ? 'Sync belongs to a real account. Connect a wallet to move your state between devices.'
+                ? 'You need an account with DM inbox to move your state between devices.'
                 : 'Sync travels through your own DM inbox. Create it first to turn these options on.';
         }
         notice?.classList.toggle('hidden', available);
@@ -1060,6 +1079,7 @@ class SettingsUI {
 
         // Render blocked peers list when privacy tab is selected
         if (tabName === 'privacy') {
+            this._wireEraseBlocked();
             this.renderBlockedPeersList();
         }
 
@@ -1097,6 +1117,44 @@ class SettingsUI {
         if (scroller) scroller.scrollTop = 0;
     }
 
+    /** The Blocked Users erase: hold, then report what each storage provider let go. */
+    _wireEraseBlocked() {
+        const button = document.getElementById('erase-blocked-btn');
+        const label = document.getElementById('erase-blocked-text');
+        if (!button || button.dataset.wired) return;
+        button.dataset.wired = '1';
+        const idle = label?.textContent;
+        let running = false;
+        holdToConfirm(button, {
+            label,
+            progress: document.getElementById('erase-blocked-progress'),
+            canStart: () => !running && !button.disabled,
+            onConfirm: async () => {
+                running = true;
+                button.disabled = true;
+                if (label) label.textContent = 'Erasing...';
+                this.notificationUI?.showLoadingToast('Erasing from storage…', 'Locating their messages and files');
+                try {
+                    const outcome = await this.dmManager?.eraseBlockedData({
+                        onErasing: ({ messages, files }) => this.notificationUI?.showLoadingToast(
+                            'Erasing from storage…',
+                            'Erasing ' + [messages && plural(messages, 'message'), files && plural(files, 'file')].filter(Boolean).join(' and '))
+                    });
+                    this.notificationUI?.hideLoadingToast();
+                    const { text, type } = describeBlockedErase(outcome);
+                    this.showNotification(text, type);
+                } catch (e) {
+                    this.notificationUI?.hideLoadingToast();
+                    this.showNotification('Erase failed: ' + (e?.message || e), 'error');
+                } finally {
+                    running = false;
+                    button.disabled = false;
+                    if (label) label.textContent = idle;
+                }
+            }
+        });
+    }
+
     /**
      * Render the blocked peers list in the Privacy panel
      */
@@ -1105,6 +1163,7 @@ class SettingsUI {
         if (!container) return;
 
         const blockedPeers = this.secureStorage.getBlockedPeers?.() || [];
+        document.getElementById('erase-blocked-section')?.classList.toggle('hidden', blockedPeers.length === 0);
 
         if (blockedPeers.length === 0) {
             container.innerHTML = '<p class="text-xs text-overlay-30 py-4 text-center">No blocked users</p>';

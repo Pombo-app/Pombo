@@ -14,7 +14,7 @@
  * @param {number} [opts.ms]
  */
 export function holdToConfirm(button, { label, progress, canStart = () => true, onConfirm, ms = 2000 }) {
-    const HOLDING = 'Keep holding...';
+    const HOLDING = 'Hold (2s)';
     const idleText = label?.textContent;
     let timer = null;
 
