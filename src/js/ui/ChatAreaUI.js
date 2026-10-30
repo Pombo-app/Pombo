@@ -1469,6 +1469,17 @@ class ChatAreaUI {
     }
 
     /**
+     * Show a saved reply again, without looking the message up.
+     * @param {Object} replyTo - { id, text, sender, senderName }
+     */
+    restoreReply(replyTo) {
+        this.replyingTo = replyTo;
+        if (this.replyToName) this.replyToName.textContent = replyTo.senderName || '';
+        if (this.replyToText) this.replyToText.textContent = replyTo.text || '[Media]';
+        this.replyBar?.classList.add('active');
+    }
+
+    /**
      * Get current reply state
      * @returns {Object|null} - Reply state or null
      */
@@ -1529,6 +1540,16 @@ class ChatAreaUI {
             sel?.removeAllRanges();
             sel?.addRange(range);
         }
+    }
+
+    /**
+     * Show a saved edit again; the caller puts the edited text back.
+     * @param {Object} editing - { id, originalText, streamId }
+     */
+    restoreEdit(editing) {
+        this.cancelReply();
+        this.editingMessage = editing;
+        document.getElementById('edit-bar')?.classList.add('active');
     }
 
     /**

@@ -28,6 +28,8 @@ import { settingsUI } from './ui/SettingsUI.js';
 import { contactsUI } from './ui/ContactsUI.js';
 import { accountsUI } from './ui/AccountsUI.js';
 import { chatAreaUI } from './ui/ChatAreaUI.js';
+import { channelViewUI } from './ui/ChannelViewUI.js';
+import { composerDrafts } from './composerDrafts.js';
 import { previewModeUI } from './ui/PreviewModeUI.js';
 import { reactionManager } from './ui/ReactionManager.js';
 import { mediaHandler } from './ui/MediaHandler.js';
@@ -406,6 +408,9 @@ class App {
     async disconnectWallet(options = {}) {
         const { skipFallback = false } = options;
         const wasGuest = authManager.isGuestMode();
+        if (skipFallback) channelViewUI.stashComposer();
+        else composerDrafts.forgetAccount(authManager.getAddress());
+        channelViewUI.clearComposer();
         
         try {
             channelManager.stopPresenceTracking();

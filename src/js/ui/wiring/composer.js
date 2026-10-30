@@ -73,7 +73,9 @@ export function attachComposer(ui) {
     // Typing indicator - send signal while typing
     let typingTimeout;
     let lastTypingSent = 0;
-    ui.elements.messageInput.addEventListener('input', () => {
+    ui.elements.messageInput.addEventListener('input', (e) => {
+        // Restoring a draft or clearing after a send dispatch input too; only a person typing is typing.
+        if (!e.isTrusted) return;
         const now = Date.now();
         // Send typing signal every 2 seconds while typing
         if (now - lastTypingSent > 2000) {

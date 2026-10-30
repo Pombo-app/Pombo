@@ -530,6 +530,7 @@ class UIController {
             stopAccessHeartbeat: () => this.stopAccessHeartbeat(),
             startAccessHeartbeat: (streamId) => this.startAccessHeartbeat(streamId),
             setReplyingTo: (val) => { this.replyingTo = val; },
+            getAccount: () => authManager.getAddress(),
             updateReadOnlyUI: (channel) => this.updateReadOnlyUI(channel),
             attachReactionListeners: () => this.attachReactionListeners(),
             renderChannelList: () => this.renderChannelList(),

@@ -1655,9 +1655,11 @@ body.cannot-write #context-menu-reply-btn {
 
 /* ----- Reply Bar ----- */
 .reply-bar {
-    background: var(--pombo-overlay-3);
-    padding: 8px 12px;
-    border-top: 1px solid var(--pombo-overlay-6);
+    background: var(--pombo-overlay-5);
+    margin: 8px 16px 0;
+    padding: 8px 6px 8px 14px;
+    border: 1px solid var(--pombo-overlay-8);
+    border-radius: 16px;
     display: none;
     align-items: center;
     justify-content: space-between;
@@ -1766,8 +1768,8 @@ body.cannot-write #context-menu-reply-btn {
 /* ----- Emoji Picker ----- */
 .emoji-picker {
     position: absolute;
-    bottom: 50px;
-    left: 10px;
+    bottom: calc(100% + 8px);
+    left: 0;
     background-color: var(--pombo-surface-raised);
     border: 1px solid var(--pombo-overlay-8);
     border-radius: 0.75rem;
@@ -1858,6 +1860,43 @@ body.cannot-write #context-menu-reply-btn {
 
 .input-button:hover {
     background-color: transparent;
+}
+
+/* ----- Composer Capsule ----- */
+#composer-capsule {
+    --composer-btn: 2.5rem;
+    padding: 3px;
+    border-radius: 24px;
+    background-color: var(--pombo-overlay-5);
+    border: 1px solid var(--pombo-overlay-8);
+    transition: border-color 0.2s;
+}
+
+#composer-capsule:focus-within {
+    border-color: var(--pombo-overlay-15);
+}
+
+#composer-capsule #message-input {
+    min-height: var(--composer-btn);
+    max-height: calc(var(--composer-btn) + 5rem);
+    padding-top: calc((var(--composer-btn) - 1.25rem) / 2);
+    padding-bottom: calc((var(--composer-btn) - 1.25rem) / 2);
+}
+
+#composer-capsule .input-button,
+#composer-capsule #send-message-btn,
+#composer-capsule #record-audio-btn {
+    width: var(--composer-btn);
+    height: var(--composer-btn);
+    flex-shrink: 0;
+}
+
+#composer-capsule #voice-recording-bar {
+    right: var(--composer-btn);
+}
+
+#composer-capsule:has(> #voice-recording-bar:not(.hidden)) > :is(.input-btn-wrapper, #message-input) {
+    visibility: hidden;
 }
 
 /* ----- Send Button ----- */
@@ -3310,8 +3349,17 @@ body.explore-open #explore-channels-list {
     
     /* Message input area - flush at bottom */
     #message-input-container {
-        padding: 0.5rem;
-        padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+        padding: 12px;
+        padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    }
+
+    #composer-capsule {
+        --composer-btn: 2.75rem;
+        border-radius: 26px;
+    }
+
+    .reply-bar {
+        margin: 8px 12px 0;
     }
     
     /* Safe area padding utility */
