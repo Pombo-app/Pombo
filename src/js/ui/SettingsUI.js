@@ -29,7 +29,7 @@ class SettingsUI {
             notifications: 'Notifications',
             api: 'Networks',
             linkpreviews: 'Content',
-            privacy: 'Privacy',
+            privacy: 'Blocked Users',
             security: 'Security',
             repair: 'DM Inbox',
             about: 'About'
