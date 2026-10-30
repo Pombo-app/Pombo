@@ -4170,7 +4170,7 @@ body.guest-mode #pill-wallet-btn {
 }
 
 #contacts-btn-wrapper,
-#transfers-btn-wrapper {
+body.guest-mode #transfers-btn-wrapper {
     display: none;
 }
 
@@ -4238,6 +4238,7 @@ body.guest-mode #pill-wallet-btn {
     }
     #contacts-btn-wrapper,
     #transfers-btn-wrapper {
+        display: none;
         position: absolute;
         top: 50%;
         transform: translateY(-50%);

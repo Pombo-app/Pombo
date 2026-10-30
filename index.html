@@ -127,7 +127,16 @@
                     </svg>
                 </button>
             </div>
-            <!-- Transfers: mobile header only, always shown; desktop keeps them in the bell. -->
+            <!-- Wallet: the token balances of this account. Sits beside the
+                 bell and follows the same visibility rules. -->
+            <div id="wallet-btn-wrapper" class="hidden relative">
+                <button id="wallet-btn" class="w-12 h-12 hover:bg-overlay-5 active:bg-overlay-12 rounded-full flex items-center justify-center transition" title="Wallet">
+                    <svg class="w-6 h-6 text-overlay-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3"/>
+                    </svg>
+                </button>
+            </div>
+            <!-- Transfers: always shown beside the bell, which keeps the invites. -->
             <div id="transfers-btn-wrapper" class="relative">
                 <button id="transfers-btn" class="relative w-12 h-12 hover:bg-overlay-5 active:bg-overlay-12 rounded-full flex items-center justify-center transition" title="Transfers">
                     <svg id="transfers-ring" class="transfers-ring hidden" viewBox="0 0 36 36" aria-hidden="true">
@@ -140,16 +149,7 @@
                     <span id="transfers-badge" class="hidden absolute top-[7px] right-[7px] min-w-[16px] h-4 px-1 bg-[#F6851B] rounded-full text-[9px] font-bold text-primary flex items-center justify-center">0</span>
                 </button>
             </div>
-            <!-- Wallet: the token balances of this account. Sits beside the
-                 bell and follows the same visibility rules. -->
-            <div id="wallet-btn-wrapper" class="hidden relative">
-                <button id="wallet-btn" class="w-12 h-12 hover:bg-overlay-5 active:bg-overlay-12 rounded-full flex items-center justify-center transition" title="Wallet">
-                    <svg class="w-6 h-6 text-overlay-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3"/>
-                    </svg>
-                </button>
-            </div>
-            <!-- Notification bell: channel invites + active transfers.
+            <!-- Notification bell: channel invites.
                  Desktop: beside the account button. Mobile: the header slot
                  Create Channel uses in Explore, but shown in the Chats view
                  instead (components.css owns the visibility rules). -->
