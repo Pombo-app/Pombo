@@ -2215,23 +2215,7 @@ body.cannot-write #context-menu-reply-btn {
     }
 }
 
-/* ----- Loading Spinner Overlay ----- */
-.loading-overlay {
-    position: fixed;
-    inset: 0;
-    background-color: rgba(0, 0, 0, 0.7);
-    z-index: 9998;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.loading-overlay.active {
-    display: flex;
-}
-
+/* ----- Spinner ----- */
 .spinner {
     width: 48px;
     height: 48px;
@@ -2254,11 +2238,6 @@ body.cannot-write #context-menu-reply-btn {
     to {
         transform: rotate(360deg);
     }
-}
-
-.loading-text {
-    color: var(--pombo-overlay-87);
-    font-size: 0.9rem;
 }
 
 /* ----- Scrollbar ----- */

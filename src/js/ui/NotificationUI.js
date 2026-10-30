@@ -145,35 +145,28 @@ class NotificationUI {
     }
 
     /**
-     * Show loading indicator with spinner overlay
+     * Show a loading toast for an action in progress
      * @param {string} message - Loading message
      */
     showLoading(message) {
-        const overlay = document.getElementById('loading-overlay');
-        const textEl = document.getElementById('loading-text');
-        if (overlay && textEl) {
-            textEl.textContent = message || 'Loading...';
-            overlay.classList.add('active');
-        }
+        this._actionToast = this.showLoadingToast(message || 'Loading…', '');
     }
 
     /**
-     * Hide loading indicator
+     * Hide the loading toast shown by showLoading
      */
     hideLoading() {
-        const overlay = document.getElementById('loading-overlay');
-        if (overlay) {
-            overlay.classList.remove('active');
-        }
+        if (this._actionToast) this.hideLoadingToast(this._actionToast);
+        this._actionToast = null;
     }
 
     /**
      * Show toast notification
      * @param {string} message - Notification message
      * @param {string} type - Notification type (success, error, info, warning)
-     * @param {number} duration - Duration in ms (default 3000)
+     * @param {number} duration - Duration in ms (default 5000 for errors, 3000 otherwise)
      */
-    showNotification(message, type = 'info', duration = 3000) {
+    showNotification(message, type = 'info', duration = type === 'error' ? 5000 : 3000) {
         const container = document.getElementById('toast-container');
         if (!container) {
             Logger.debug(`[${type}] ${message}`);
@@ -322,7 +315,7 @@ class NotificationUI {
      *   the chat bubble otherwise.
      * @returns {HTMLElement} - Toast element (call hideLoadingToast to dismiss)
      */
-    showLoadingToast(message, subtitle = 'This may take a moment...', options = {}) {
+    showLoadingToast(message, subtitle = 'This may take a moment…', options = {}) {
         const container = document.getElementById('toast-container');
         if (!container) {
             Logger.debug(`[loading] ${message}`);

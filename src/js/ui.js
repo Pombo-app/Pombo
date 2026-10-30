@@ -1226,7 +1226,7 @@ class UIController {
             case 'copy-stream-id':
                 try {
                     await navigator.clipboard.writeText(currentChannel.streamId);
-                    this.showNotification('Channel ID copied!', 'success');
+                    this.showNotification('Channel ID copied', 'success');
                 } catch {
                     this.showNotification('Failed to copy', 'error');
                 }
@@ -1254,7 +1254,7 @@ class UIController {
             case 'copy-address':
                 try {
                     await navigator.clipboard.writeText(address);
-                    this.showNotification('Address copied!', 'success');
+                    this.showNotification('Address copied', 'success');
                 } catch {
                     this.showNotification('Failed to copy', 'error');
                 }
@@ -1901,7 +1901,7 @@ class UIController {
     /**
      * Show toast notification (delegates to NotificationUI)
      */
-    showNotification(message, type = 'info', duration = 3000) {
+    showNotification(message, type = 'info', duration) {
         notificationUI.showNotification(message, type, duration);
     }
 
