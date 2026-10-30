@@ -257,9 +257,8 @@ class ExploreUI {
                         </div>
                         <div class="relative flex-shrink-0">
                             <button type="button" id="explore-language-toggle-btn" aria-label="Language filter" class="w-12 h-12 -my-[5px] flex items-center justify-center rounded-full text-overlay-50 hover:text-overlay-80 hover:bg-overlay-5 active:bg-overlay-12 transition">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <circle cx="12" cy="12" r="9"/>
-                                    <path stroke-linecap="round" d="M3 12h18M12 3c2.4 2.4 3.8 5.7 3.8 9s-1.4 6.6-3.8 9c-2.4-2.4-3.8-5.7-3.8-9s1.4-6.6 3.8-9z"/>
+                                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
                                 </svg>
                             </button>
                             <div id="explore-language-dropdown" class="hidden absolute top-full right-0 mt-1.5 w-44 max-h-72 overflow-y-auto bg-surface-raised border border-overlay-10 rounded-xl p-1.5 shadow-2xl z-30">
