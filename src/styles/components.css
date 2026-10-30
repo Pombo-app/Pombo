@@ -1312,6 +1312,30 @@ body.network-offline {
     color: rgba(255, 255, 255, 0.85);
 }
 
+.message-entry[data-type="image"] .message-content--meta-over {
+    width: fit-content;
+    line-height: 0;
+}
+
+.message-entry[data-type="image"] .message-content--meta-over .message-meta {
+    right: 8px;
+    bottom: 8px;
+    padding: 2px 8px;
+}
+
+.message-entry[data-emoji-only] .message-content--meta-over .message-meta {
+    position: static;
+    vertical-align: bottom;
+    margin-left: 8px;
+    padding: 0;
+    background: none;
+    border-radius: 0;
+}
+
+.message-entry[data-emoji-only] .message-content--meta-over .message-meta .message-time {
+    color: var(--pombo-overlay-35);
+}
+
 .message-pending .message-bubble {
     opacity: 0.6;
 }
