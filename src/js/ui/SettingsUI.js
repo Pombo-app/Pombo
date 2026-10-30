@@ -884,7 +884,7 @@ class SettingsUI {
 
             // Update address field
             if (this.elements.settingsAddress) {
-                this.elements.settingsAddress.value = address || '';
+                this.elements.settingsAddress.textContent = address || '';
             }
 
             // Channel invites mute toggle
