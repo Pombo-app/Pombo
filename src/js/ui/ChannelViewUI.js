@@ -107,16 +107,14 @@ class ChannelViewUI {
         // Stop heartbeat for previous channel
         this.deps.stopAccessHeartbeat();
         
-        // Clear typing indicator, reply state, and any stuck loading indicator
+        // Clear typing indicator and any stuck loading indicator; the reply belongs to the draft
         chatAreaUI.hideTypingIndicator();
-        chatAreaUI.cancelReply();
         // Cancels any in-flight pagination op (clears watchdog + indicator).
         // Setting `isLoadingMore = false` invokes the cancellation path on
         // ChatAreaUI.
         chatAreaUI.isLoadingMore = false;
         chatAreaUI._cancelPendingAutoLoad?.();
         chatAreaUI.hideLoadingMoreIndicator();
-        this.deps.setReplyingTo(null);
         
         // Exit preview mode if active
         if (previewModeUI.isInPreviewMode()) {
