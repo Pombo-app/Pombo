@@ -7,6 +7,7 @@ import { GATE_MODE } from '../gate.js';
 import { escapeHtml, escapeAttr } from './utils.js';
 import { modalManager } from './ModalManager.js';
 import { renderExploreDetails } from './exploreDetails.js';
+import { readStreamRetention } from '../streamRetention.js';
 import { sanitizeText } from './sanitizer.js';
 import { loadCurationManifest, applyCuration } from '../exploreCuration.js';
 import { channelImageManager } from '../channelImageManager.js';
@@ -21,9 +22,9 @@ import { openUnjoinedChannel } from '../channelEntry.js';
 // centered in the card's right half on desktop (anchored to the CARD, not
 // the top row, so the vertical centering is true; a hairline divider gives
 // it price-column structure; pointer-events pass through to the card tap),
-// centered under a hairline on mobile. Tailwind scans these literals.
+// on the left under a hairline on mobile. Tailwind scans these literals.
 const EXPLORE_ACCESS_D_CLS = 'explore-gate-access-d hidden md:flex absolute inset-y-3 left-1/2 right-10 items-center justify-center border-l border-overlay-6 pointer-events-none';
-const EXPLORE_ACCESS_M_CLS = 'explore-gate-access-m md:hidden min-w-0 flex justify-center border-t border-overlay-5 pt-3';
+const EXPLORE_ACCESS_M_CLS = 'explore-gate-access-m md:hidden min-w-0 flex';
 
 /** Travel in one direction before the header answers. Anything less is a
  *  trackpad nudge or the reflow retracting causes, and toggling on those
@@ -59,7 +60,7 @@ function gateAccessInlineHtml(info) {
     if (!info?.verb) return '';
     const verbColor = info.mode === GATE_MODE.PAID ? 'text-[#F6851B]/70' : 'text-overlay-40';
     return `
-        <div class="flex flex-col items-center leading-tight min-w-0">
+        <div class="flex flex-col leading-tight min-w-0">
             <span class="text-[11px] uppercase tracking-[0.08em] font-medium ${verbColor}">${escapeHtml(info.verb)}</span>
             <span class="mt-0.5 flex items-baseline gap-1.5 min-w-0">
                 <span class="text-[15px] font-semibold text-overlay-90 whitespace-nowrap">${escapeHtml(info.value)}</span>
@@ -708,9 +709,9 @@ class ExploreUI {
                 <button type="button" class="explore-details-btn absolute top-2 right-2 w-9 h-9 flex items-center justify-center rounded-full text-overlay-40 hover:text-primary hover:bg-overlay-6 transition" title="Channel details" aria-label="Channel details">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>
                 </button>
-                <div class="mt-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between md:gap-3">
+                <div class="mt-3 flex items-end justify-between gap-3${accessAttr ? ' border-t border-overlay-5 pt-3 md:border-t-0 md:pt-0' : ''}">
                     ${accessMobile}
-                    <div class="flex items-end justify-end gap-1.5 md:ml-auto flex-shrink-0">
+                    <div class="flex items-end justify-end gap-1.5 ml-auto flex-shrink-0">
                         ${categoryBadge}${languageBadge}
                     </div>
                 </div>
@@ -935,18 +936,22 @@ class ExploreUI {
         const gate = ch.gateAddress ? this._gateCardInfo.get(ch.gateAddress) : null;
         const gateInfo = gate && gate !== 'pending' ? gate : null;
         const owner = String(ch.streamId).split('/')[0].toLowerCase();
-        const render = (ownerName) => {
-            body.innerHTML = renderExploreDetails(ch, { thumbHtml, gateInfo, ownerName });
+        const state = { ownerName: identityManager.ensCache?.get(owner)?.name || null, storageDays: null };
+        const render = () => {
+            if (this._detailsStreamId !== ch.streamId) return;
+            body.innerHTML = renderExploreDetails(ch, { thumbHtml, gateInfo, ...state });
         };
-        const cachedName = identityManager.ensCache?.get(owner)?.name || null;
         this._detailsStreamId = ch.streamId;
-        render(cachedName);
+        render();
         modalManager.show('explore-details-modal');
-        if (!cachedName && owner) {
+        if (!state.ownerName && owner) {
             identityManager.resolveENS?.(owner)
-                ?.then(name => { if (name && this._detailsStreamId === ch.streamId) render(name); })
+                ?.then(name => { if (name) { state.ownerName = name; render(); } })
                 ?.catch(() => {});
         }
+        readStreamRetention(ch.streamId).then(days => {
+            if (days) { state.storageDays = days; render(); }
+        });
     }
 
     _patchGateAccess(gateAddress, info) {
