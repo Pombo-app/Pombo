@@ -14,7 +14,7 @@ describe('holdToConfirm', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         document.body.innerHTML = `
-            <button id="b"><span id="l">Hold to Delete (2s)</span><div id="p" class="-translate-x-full"></div></button>`;
+            <button id="b"><span id="l">Delete</span><div id="p" class="-translate-x-full"></div></button>`;
         button = document.getElementById('b');
         label = document.getElementById('l');
         progress = document.getElementById('p');
@@ -26,13 +26,13 @@ describe('holdToConfirm', () => {
     it('runs onConfirm only after the full hold', async () => {
         holdToConfirm(button, { label, progress, onConfirm });
         press(button, 'pointerdown');
-        expect(label.textContent).toBe('Keep holding...');
+        expect(label.textContent).toBe('Hold (2s)');
         expect(progress.classList.contains('translate-x-0')).toBe(true);
         await vi.advanceTimersByTimeAsync(1999);
         expect(onConfirm).not.toHaveBeenCalled();
         await vi.advanceTimersByTimeAsync(1);
         expect(onConfirm).toHaveBeenCalledTimes(1);
-        expect(label.textContent).toBe('Hold to Delete (2s)');
+        expect(label.textContent).toBe('Delete');
         expect(progress.classList.contains('-translate-x-full')).toBe(true);
     });
 
@@ -43,7 +43,7 @@ describe('holdToConfirm', () => {
         press(button, type);
         await vi.advanceTimersByTimeAsync(5000);
         expect(onConfirm).not.toHaveBeenCalled();
-        expect(label.textContent).toBe('Hold to Delete (2s)');
+        expect(label.textContent).toBe('Delete');
         expect(progress.classList.contains('-translate-x-full')).toBe(true);
     });
 
