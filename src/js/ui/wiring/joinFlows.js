@@ -44,7 +44,7 @@ export function attachJoinFlows(ui) {
 
     // Join Closed Channel modal buttons
     document.getElementById('join-closed-btn')?.addEventListener('click', () => {
-        channelModalsUI.handleJoinClosedChannel();
+        channelModalsUI.saveLocalIdentity();
     });
     document.getElementById('cancel-join-closed-btn')?.addEventListener('click', () => {
         channelModalsUI.hideJoinClosedModal();
