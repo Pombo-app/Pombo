@@ -32,6 +32,12 @@ function isFutureForged(payloadTs, envelopeTs) {
     return false;
 }
 
+// A signed envelope dated past the wall clock: the publisher chose that time,
+// so it is no more trustworthy than a forged payload.
+function isEnvelopeAhead(envelopeTs) {
+    return Number.isFinite(envelopeTs) && envelopeTs > Date.now() + (CONFIG.gate?.timestampSkewMs ?? 0);
+}
+
 export class History {
     /**
      * Calls back into `controller` on purpose: while the controller is still
@@ -144,6 +150,8 @@ export class History {
                     }
 
                     if (isFutureForged(content.timestamp, timestamp)) continue;
+                    if (isEnvelopeAhead(timestamp)) continue;
+                    if (storageFetch.judgeMessage(messageStreamId, 0, message).forwardDated) continue;
 
                     entries.push({
                         ...content,
@@ -715,7 +723,8 @@ export class History {
                     // Epoch envelope (gated): unknown kid → skip, not error (§7.9)
                     let innerAuthor = null;
                     const judged = storageFetch.judgeMessage(streamId, partition, message);
-                    if (judged.forwardDated) {
+                    if (judged.forwardDated || isEnvelopeAhead(historyTimestamp)
+                        || isFutureForged(content?.timestamp, historyTimestamp)) {
                         skippedCount++;
                         continue;
                     }

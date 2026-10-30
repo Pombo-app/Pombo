@@ -44,6 +44,10 @@ import { Logger } from './logger.js';
 import { streamrController } from './streamr.js';
 import { isMessageStream } from './streamConstants.js';
 import { CONFIG } from './config.js';
+import { messageTime } from './utils/messageTime.js';
+
+/** A preview dated past the wall clock (plus skew) is forged; it never shows or wins. */
+const isAhead = (ts) => (Number(ts) || 0) > Date.now() + (CONFIG.gate?.timestampSkewMs ?? 0);
 
 /** How long a preview may be newer than storage before it stops being an echo. */
 const PREVIEW_ECHO_GRACE_MS = 5 * 60 * 1000;
@@ -172,6 +176,7 @@ class ChannelLatestMessageManager {
                 // was stored with.
                 if (row.entry.type === 'reaction'
                     && !row.messageStreamId.endsWith(`/${CONFIG.dm.streamPrefix}-1`)) continue;
+                if (isAhead(row.entry.ts)) continue;
                 const prev = this.cache.get(row.messageStreamId);
                 if (prev) {
                     // Stale guard — never let an IDB row clobber a
@@ -294,7 +299,7 @@ class ChannelLatestMessageManager {
             // echo storage has not caught up with — a message the readers
             // refuse (a stranger's post on a read-only channel) is newer than
             // every real one too, and that used to pin it here for good.
-            if (prev && (prev.ts || 0) > (normalized.ts || 0)) {
+            if (prev && !isAhead(prev.ts) && (prev.ts || 0) > (normalized.ts || 0)) {
                 const inWindow = !!prev.id && entries.some((e) => e?.id === prev.id);
                 const couldBeLocalEcho = Date.now() - (prev.ts || 0) < PREVIEW_ECHO_GRACE_MS;
                 if (inWindow || couldBeLocalEcho) return prev;
@@ -336,7 +341,8 @@ class ChannelLatestMessageManager {
         const skew = CONFIG.gate.timestampSkewMs;
         if (payloadTs && (payloadTs > Date.now() + skew
             || (envTs && payloadTs > envTs + skew))) return null;
-        const ts = Number(raw._timestamp || raw.timestamp || 0) || Date.now();
+        const ts = messageTime(raw) || Date.now();
+        if (isAhead(ts)) return null;
         // Reactions carry no `sender`; use the publisher injected by streamr.js
         const sender = (raw.sender || raw._publisherId || null);
         const senderText = sender ? String(sender) : null;
@@ -418,7 +424,8 @@ class ChannelLatestMessageManager {
         }
         // Reaction removals never enter the preview — see _normalizeRemoteEntry.
         if (t === 'reaction' && message.action === 'remove') return null;
-        const ts = Number(message.timestamp || message._timestamp || Date.now()) || Date.now();
+        const ts = messageTime(message) || Date.now();
+        if (isAhead(ts)) return this.cache.get(messageStreamId) || null;
         const sender = message.sender || message._publisherId || null;
         const senderText = sender ? String(sender) : null;
         const senderName = typeof message.senderName === 'string' && message.senderName.trim()
@@ -454,7 +461,7 @@ class ChannelLatestMessageManager {
 
         const prev = this.cache.get(messageStreamId);
         // Stale guard: don't overwrite with an older entry
-        if (prev && (prev.ts || 0) > entry.ts) return prev;
+        if (prev && !isAhead(prev.ts) && (prev.ts || 0) > entry.ts) return prev;
         // Same id + same type → no-op (prevents re-render flicker),
         // unless the new entry enriches metadata that was missing
         // (e.g. senderName arriving on a re-publish path).

@@ -21,6 +21,7 @@ import { identityManager } from './identity.js';
 import { mediaController } from './media.js';
 import { Logger } from './logger.js';
 import { CONFIG } from './config.js';
+import { messageTime } from './utils/messageTime.js';
 
 class SubscriptionManager {
     constructor() {
@@ -1074,9 +1075,13 @@ class SubscriptionManager {
             let latestTime = currentActivity.lastMessageTime;
             let latestPreviewCandidate = null;
 
+            const latestAllowed = Date.now() + (CONFIG.gate?.timestampSkewMs ?? 0);
             for (const msg of messages) {
-                const msgTimestamp = Number(msg?.timestamp || msg?._timestamp || 0) || 0;
-                if (!msgTimestamp || msgTimestamp <= currentActivity.lastMessageTime) {
+                const msgTimestamp = messageTime(msg);
+                // A future-dated message would push the watermark ahead and
+                // hide every real message after it.
+                if (!msgTimestamp || msgTimestamp > latestAllowed
+                    || msgTimestamp <= currentActivity.lastMessageTime) {
                     continue;
                 }
 
@@ -1087,7 +1092,7 @@ class SubscriptionManager {
 
                 if (isContentMessage(msg)) {
                     newCount++;
-                    if (!latestPreviewCandidate || msgTimestamp > (Number(latestPreviewCandidate.timestamp || latestPreviewCandidate._timestamp || 0) || 0)) {
+                    if (!latestPreviewCandidate || msgTimestamp > messageTime(latestPreviewCandidate)) {
                         latestPreviewCandidate = msg;
                     }
                 }
@@ -1110,9 +1115,7 @@ class SubscriptionManager {
                             || latestPreviewCandidate.account
                             || latestPreviewCandidate._publisherId
                             || null,
-                        timestamp: latestPreviewCandidate.timestamp
-                            || latestPreviewCandidate._timestamp
-                            || latestTime
+                        timestamp: messageTime(latestPreviewCandidate) || latestTime
                     });
                 }
                 Logger.debug('New activity detected:', messageStreamId, newCount, 'messages');

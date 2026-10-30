@@ -3230,6 +3230,7 @@ class ChannelManager {
         if (!channel) return;
 
         if (event === 'message' && data.message) {
+            if (data.message.verified?.valid === false) return;
             channelLatestMessageManager.setFromLocal(streamId, data.message);
             return;
         }

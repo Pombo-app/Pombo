@@ -205,6 +205,45 @@ describe('channelLatestMessageManager', () => {
         expect(channelLatestMessageManager.getCached(sid).text).toBe('new');
     });
 
+    describe('future-dated messages', () => {
+        const DAY = 86400000;
+
+        it('never become the preview', () => {
+            const now = Date.now();
+            channelLatestMessageManager.setFromLocal(sid, { type: 'text', id: 'real', text: 'real', sender: '0xa', timestamp: now - 1000 });
+            channelLatestMessageManager.setFromLocal(sid, { type: 'text', id: 'attack', text: 'attack', sender: '0xb', timestamp: now + 30 * DAY, _timestamp: now + 30 * DAY });
+            expect(channelLatestMessageManager.getCached(sid).id).toBe('real');
+        });
+
+        it('a pinned future entry gives way to the first real message', () => {
+            const now = Date.now();
+            channelLatestMessageManager.cache.set(sid, { id: 'attack', ts: now + 30 * DAY, type: 'text', sender: '0xb', text: 'attack' });
+            channelLatestMessageManager.setFromLocal(sid, { type: 'text', id: 'real', text: 'real', sender: '0xa', timestamp: now - 1000 });
+            expect(channelLatestMessageManager.getCached(sid).id).toBe('real');
+        });
+
+        it('are dropped when the cache is loaded from IndexedDB', async () => {
+            await channelLatestMessageManager.init();
+            await channelLatestMessageManager._persistToIDB(sid, { id: 'attack', ts: Date.now() + 30 * DAY, type: 'text', sender: '0xb', text: 'attack' });
+            channelLatestMessageManager.cache.clear();
+            channelLatestMessageManager.db = null;
+            channelLatestMessageManager._initPromise = null;
+
+            await channelLatestMessageManager.init();
+            expect(channelLatestMessageManager.getCached(sid)).toBeNull();
+        });
+
+        it('are skipped on the resend even when only the envelope is ahead', async () => {
+            const now = Date.now();
+            resendMock.mockResolvedValueOnce([
+                { type: 'text', id: 'attack', text: 'attack', sender: '0xb', _timestamp: now + 30 * DAY },
+                { type: 'text', id: 'real', text: 'real', sender: '0xa', timestamp: now - 1000, _timestamp: now - 1000 }
+            ]);
+            await channelLatestMessageManager.get(sid, { force: true });
+            expect(channelLatestMessageManager.getCached(sid).id).toBe('real');
+        });
+    });
+
     describe('per-account scope', () => {
         const entry = (text) => ({ type: 'text', id: text, text, sender: '0xa', timestamp: Date.now() - 60000 });
 
