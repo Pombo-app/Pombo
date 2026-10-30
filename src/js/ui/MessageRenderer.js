@@ -7,6 +7,7 @@ import { escapeHtml, escapeAttr, formatAddress, addressToColor, linkify, embedYo
 import { GroupPosition, shouldShowSenderName } from './MessageGrouper.js';
 import { getAvatar, getAvatarHtml } from './AvatarGenerator.js';
 import { sanitizeMessageHtml, sanitizeText } from './sanitizer.js';
+import { audioWaveSvg } from './audioWave.js';
 
 export function formatAudioTime(ms) {
     const total = Math.max(0, Math.round((Number(ms) || 0) / 1000));
@@ -236,14 +237,18 @@ class MessageRenderer {
 
     renderAudioPlayer({ imageId, finalMime, durationMs }) {
         return `
-            <div class="audio-message audio-player flex items-center gap-3 min-w-[200px] py-1" data-audio-player-id="${escapeAttr(imageId)}" data-mime="${escapeAttr(finalMime)}" data-duration="${escapeAttr(String(durationMs))}">
-                <button type="button" class="audio-play w-8 h-8 flex-shrink-0 rounded-full bg-overlay-10 hover:bg-overlay-20 text-primary flex items-center justify-center transition" aria-label="Play voice message">
-                    ${this.iconPlay('w-4 h-4 audio-icon-play')}${this.iconPause('w-4 h-4 audio-icon-pause hidden')}
+            <div class="audio-message audio-player flex items-center gap-2.5 min-w-[210px]" data-audio-player-id="${escapeAttr(imageId)}" data-mime="${escapeAttr(finalMime)}" data-duration="${escapeAttr(String(durationMs))}">
+                <button type="button" class="audio-play w-8 h-8 flex-shrink-0 rounded-full bg-accent/15 hover:bg-accent/25 border border-accent/30 text-white flex items-center justify-center transition" aria-label="Play voice message">
+                    ${this.iconPlay('block w-5 h-5 audio-icon-play')}${this.iconPause('block w-5 h-5 audio-icon-pause hidden')}
                 </button>
-                <div class="audio-track relative flex-1 h-1 rounded-full bg-overlay-15 cursor-pointer" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                    <div class="audio-progress absolute inset-y-0 left-0 rounded-full bg-overlay-60" style="width:0%"></div>
+                <div class="flex-1 min-w-0">
+                    ${audioWaveSvg('block w-full h-5 text-primary')}
+                    <div class="audio-track relative h-[3px] rounded-full bg-overlay-15 cursor-pointer touch-none" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <div class="audio-progress absolute inset-y-0 left-0 rounded-full bg-overlay-60" style="width:0%"></div>
+                        <div class="audio-knob hidden absolute top-1/2 w-2.5 h-2.5 -mt-[5px] -ml-[5px] rounded-full bg-primary" style="left:0%"></div>
+                    </div>
+                    <span class="audio-time block mt-1 text-[11px] leading-4 text-overlay-40 tabular-nums">${formatAudioTime(durationMs)}</span>
                 </div>
-                <span class="audio-time text-xs text-overlay-40 tabular-nums">${formatAudioTime(durationMs)}</span>
             </div>
         `;
     }

@@ -3,6 +3,7 @@
  */
 
 import { CONFIG } from './config.js';
+import { createVoiceAnalyser, readVoiceBands } from './ui/audioWave.js';
 
 // Always requested explicitly: left to choose, a browser may pick its own container and report none.
 const MIME_PREFERENCE = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'];
@@ -31,6 +32,8 @@ export class VoiceRecorder {
         this.startedAt = 0;
         this.timer = null;
         this.limitHit = false;
+        this.ctx = null;
+        this.voice = null;
     }
 
     async start() {
@@ -50,11 +53,23 @@ export class VoiceRecorder {
         };
         this.recorder.start(TIMESLICE_MS);
         this.startedAt = performance.now();
+        // Analysed only, never connected to the speakers: the user would hear themselves.
+        try {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            this.voice = createVoiceAnalyser(this.ctx);
+            this.ctx.createMediaStreamSource(this.stream).connect(this.voice.analyser);
+        } catch {
+            this.voice = null;
+        }
         this.timer = setInterval(() => {
             const elapsed = this.elapsedMs();
             this.onTick?.(elapsed);
             if (elapsed >= CONFIG.media.audioMaxDurationMs) this._hitLimit();
         }, 200);
+    }
+
+    levels() {
+        return readVoiceBands(this.voice?.analyser, this.voice?.bins);
     }
 
     elapsedMs() {
@@ -94,5 +109,8 @@ export class VoiceRecorder {
         this.timer = null;
         this.stream?.getTracks().forEach(track => track.stop());
         this.stream = null;
+        this.ctx?.close().catch(() => {});
+        this.ctx = null;
+        this.voice = null;
     }
 }
