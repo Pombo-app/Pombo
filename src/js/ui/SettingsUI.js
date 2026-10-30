@@ -24,13 +24,13 @@ class SettingsUI {
         this.deps = {};
         this.elements = {};
         this.sectionTitles = {
-            profile: 'Account',
+            profile: 'Profile',
             devicesync: 'Device Sync',
             notifications: 'Notifications',
             api: 'Networks',
             linkpreviews: 'Content',
             privacy: 'Blocked Users',
-            security: 'Security',
+            security: 'Account',
             repair: 'DM Inbox',
             about: 'About'
         };
