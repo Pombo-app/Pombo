@@ -74,6 +74,7 @@ vi.mock('../../src/js/secureStorage.js', () => ({
         getTrustedContacts: vi.fn().mockReturnValue({}),
         getSentReactions: vi.fn().mockReturnValue({}),
         isBlocked: vi.fn().mockReturnValue(false),
+        getBlockedPeers: vi.fn().mockReturnValue([]),
         getDMLeftAt: vi.fn().mockReturnValue(null),
         clearDMLeftAt: vi.fn().mockResolvedValue(undefined),
         updateSentMessage: vi.fn().mockResolvedValue(undefined),
@@ -187,10 +188,18 @@ vi.mock('../../src/js/storageEndpoints.js', () => ({
 }));
 const purgeGroupsMock = vi.fn();
 const eraseMessageMock = vi.fn();
+const chunkGroupsByOpenerMock = vi.fn();
 vi.mock('../../src/js/storagePurge.js', () => ({
     purgeGroups: (...a) => purgeGroupsMock(...a),
     eraseMessage: (...a) => eraseMessageMock(...a),
+    chunkGroupsByOpener: (...a) => chunkGroupsByOpenerMock(...a),
     keySigner: (privateKey) => ({ address: `signer:${privateKey}`, sign: async () => '0xsig' })
+}));
+vi.mock('../../src/js/channelLatestMessageManager.js', () => ({
+    channelLatestMessageManager: { clear: vi.fn() }
+}));
+vi.mock('../../src/js/storageMedia.js', () => ({
+    storageMediaController: { makeSealer: vi.fn().mockResolvedValue({ open: async (b) => b }) }
 }));
 
 vi.mock('../../src/js/notifications.js', () => ({
@@ -2341,6 +2350,105 @@ describe('DMManager', () => {
             await dmManager.routeInboxMessage({ v: 2, epk: '0x02eph', ct: 'c', iv: 'i', e: 'aes-256-gcm', _timestamp: 800, _seq: 1 });
             const ch = channelManager.channels.get(streamId);
             expect(ch.messages.find((m) => m.id === 'r-2')).toMatchObject({ _timestamp: 800, _seq: 1, _dmReceived: true });
+        });
+
+        describe('eraseBlockedData', () => {
+            const blockedAddr = '0xb10cked1111111111111111111111111111111';
+            const row = (timestamp, seq, from, msg) => ({ content: { from, msg }, getTimestamp: () => timestamp, getSequenceNumber: () => seq });
+            const resendOf = (byPartition) => vi.fn(async ({ partition }) => (async function* () { yield* (byPartition[partition] || []); })());
+            let openImpl;
+
+            beforeEach(() => {
+                chunkGroupsByOpenerMock.mockReset();
+                chunkGroupsByOpenerMock.mockResolvedValue({ groups: [], files: 0, unchecked: 0 });
+                openImpl = dmCrypto.open.getMockImplementation();
+                dmCrypto.isSealed.mockReturnValue(true);
+                dmCrypto.open.mockImplementation(async (env) => ({ sender: env.from, message: env.msg }));
+            });
+
+            afterEach(() => {
+                dmCrypto.isSealed.mockReturnValue(false);
+                dmCrypto.open.mockImplementation(openImpl);
+                secureStorage.getBlockedPeers.mockReturnValue([]);
+                delete streamrController.client.resend;
+            });
+
+            it('purges the rows blocked senders left in the own inbox, chunks first and messages last, as its owner', async () => {
+                const { channelLatestMessageManager } = await import('../../src/js/channelLatestMessageManager.js');
+                secureStorage.getBlockedPeers.mockReturnValue([blockedAddr]);
+                streamrController.client.resend = resendOf({
+                    3: [row(100, 0, blockedAddr, { type: 'CHANNEL_INVITE' }), row(101, 0, peerAddress, { type: 'CHANNEL_INVITE' })],
+                    0: [
+                        row(200, 0, blockedAddr, { id: 'a', type: 'text' }),
+                        row(201, 1, blockedAddr, { id: 'f', type: 'storage_file_announce', metadata: { transferId: 't' } }),
+                        row(202, 0, peerAddress, { id: 'p', type: 'text' })
+                    ]
+                });
+                chunkGroupsByOpenerMock.mockResolvedValue({ groups: [{ partition: 4, targets: [{ timestamp: 199, sequenceNumber: 0 }] }], files: 1, unchecked: 0 });
+                purgeGroupsMock.mockResolvedValue({ providers: 1, erasedOn: 1, forbiddenOn: 0, unreachable: 0, targets: 4 });
+
+                const onErasing = vi.fn();
+                const outcome = await dmManager.eraseBlockedData({ onErasing });
+
+                expect(onErasing).toHaveBeenCalledWith({ messages: 3, files: 1 });
+                const [chunkStream, partitions, openers] = chunkGroupsByOpenerMock.mock.calls[0];
+                expect(chunkStream).toBe(`${me}/Pombo-DM-1`);
+                expect(partitions).toEqual([4, 5, 6, 7, 8, 9, 10, 11, 12]);
+                expect(openers).toHaveLength(1);
+                expect(outcome).toMatchObject({ erasedOn: 1, messages: 3, files: 1, skippedFiles: 0 });
+                const [sid, groups, signer] = purgeGroupsMock.mock.calls[0];
+                expect(sid).toBe(`${me}/Pombo-DM-1`);
+                expect(signer.address).toBe(me);
+                expect(groups.map((g) => [g.partition, g.targets])).toEqual([
+                    [4, [{ timestamp: 199, sequenceNumber: 0 }]],
+                    [3, [{ timestamp: 100, sequenceNumber: 0 }]],
+                    [0, [{ timestamp: 200, sequenceNumber: 0 }, { timestamp: 201, sequenceNumber: 1 }]]
+                ]);
+                expect(channelLatestMessageManager.clear).toHaveBeenCalledWith(`${blockedAddr}/Pombo-DM-1`);
+            });
+
+            it('erases the chunks of a file whose announce is gone, and counts the transfers it could not check', async () => {
+                secureStorage.getBlockedPeers.mockReturnValue([blockedAddr]);
+                streamrController.client.resend = resendOf({ 0: [row(202, 0, peerAddress, { id: 'p', type: 'text' })] });
+                chunkGroupsByOpenerMock.mockResolvedValue({ groups: [{ partition: 5, targets: [{ timestamp: 300, sequenceNumber: 0 }] }], files: 1, unchecked: 2 });
+                purgeGroupsMock.mockResolvedValue({ providers: 1, erasedOn: 1, forbiddenOn: 0, unreachable: 0, targets: 1 });
+
+                const outcome = await dmManager.eraseBlockedData();
+
+                expect(outcome).toMatchObject({ messages: 0, files: 1, skippedFiles: 2 });
+                expect(purgeGroupsMock.mock.calls[0][1]).toEqual([{ partition: 5, targets: [{ timestamp: 300, sequenceNumber: 0 }] }]);
+            });
+
+            it('does not purge when no blocked sender left anything', async () => {
+                secureStorage.getBlockedPeers.mockReturnValue([blockedAddr]);
+                streamrController.client.resend = resendOf({ 0: [row(202, 0, peerAddress, { id: 'p', type: 'text' })] });
+
+                const outcome = await dmManager.eraseBlockedData();
+
+                expect(outcome).toMatchObject({ messages: 0, erasedOn: 0 });
+                expect(purgeGroupsMock).not.toHaveBeenCalled();
+            });
+
+            it('returns null without reading the inbox when nobody is blocked', async () => {
+                streamrController.client.resend = resendOf({});
+                expect(await dmManager.eraseBlockedData()).toBeNull();
+                expect(streamrController.client.resend).not.toHaveBeenCalled();
+            });
+
+            it('fails instead of reporting an empty inbox when the read was refused', async () => {
+                const { storageFetch } = await import('../../src/js/storageFetch.js');
+                secureStorage.getBlockedPeers.mockReturnValue([blockedAddr]);
+                streamrController.client.resend = vi.fn(async () => {
+                    storageFetch.lastErrors.set(`${me}/Pombo-DM-1|3`, { status: 403, signed: false, at: Date.now() });
+                    return (async function* () {})();
+                });
+                try {
+                    await expect(dmManager.eraseBlockedData()).rejects.toThrow('HTTP 403');
+                    expect(purgeGroupsMock).not.toHaveBeenCalled();
+                } finally {
+                    storageFetch.lastErrors.delete(`${me}/Pombo-DM-1|3`);
+                }
+            });
         });
     });
 

@@ -29,6 +29,7 @@ import {
     purgeGroups,
     chunkTransferId,
     fileChunkGroups,
+    chunkGroupsByOpener,
     resolveTarget,
     eraseMessage,
     eraseAuthorMessages,
@@ -370,5 +371,64 @@ describe('chunkTransferId / fileChunkGroups', () => {
         const all = await eraseAuthorMessages(channel, '0xAUTHOR', signer, { fetchImpl: fetchMock });
         expect(all).toMatchObject({ providers: 1, erasedOn: 1, targets: 3, messages: 2, skipped: 0 });
         expect(purges).toEqual([{ partition: 4, n: 1 }, { partition: 0, n: 2 }]);
+    });
+});
+
+describe('chunkGroupsByOpener', () => {
+    beforeEach(() => providersWith.mockReset());
+
+    const chunkHex = (transferId) => {
+        const meta = Buffer.from(JSON.stringify({ type: 'binary_file_chunked', version: 2, transferId }), 'utf8');
+        return meta.length.toString(16).padStart(8, '0') + meta.toString('hex') + '00000003' + '00000000' + 'abcd';
+    };
+    // 'ff' = sealed for the blocked pair, 'ee' = someone else's.
+    const rowsOn = {
+        4: [
+            { timestamp: 10, sequenceNumber: 0, publisherId: '0xT1', contentType: 1, content: 'ff' + chunkHex('t1') },
+            { timestamp: 20, sequenceNumber: 0, publisherId: '0xT2', contentType: 1, content: 'ee' + chunkHex('t2') }
+        ],
+        5: [
+            { timestamp: 11, sequenceNumber: 0, publisherId: '0xT1', contentType: 1, content: 'ff' + chunkHex('t1') },
+            { timestamp: 30, sequenceNumber: 0, publisherId: '0xT3', contentType: 1, content: 'ff' + chunkHex('t3') }
+        ]
+    };
+    const fetchFor = (gone = new Set()) => vi.fn(async (url) => {
+        const p = Number(url.match(/partitions\/(\d+)\//)[1]);
+        const rows = rowsOn[p] || [];
+        if (url.includes('/from?')) return jsonResponse(200, rows.map(({ content, ...meta }) => meta));
+        const ts = Number(url.match(/fromTimestamp=(\d+)/)[1]);
+        return jsonResponse(200, rows.filter((r) => r.timestamp === ts && !gone.has(r.publisherId)));
+    });
+    const opener = async (bytes) => {
+        if (bytes[0] !== 0xff) throw new Error('not this pair');
+        return bytes.subarray(1);
+    };
+
+    it('takes every row of a transfer whose probe opens, and leaves the rest', async () => {
+        providersWith.mockResolvedValue([{ nodeAddress: '0xa', urls: ['https://a.example'] }]);
+        const fetchMock = fetchFor();
+        const found = await chunkGroupsByOpener(STREAM, [4, 5], [opener], fetchMock);
+        expect(found).toEqual({
+            groups: [
+                { partition: 4, targets: [{ timestamp: 10, sequenceNumber: 0 }] },
+                { partition: 5, targets: [{ timestamp: 11, sequenceNumber: 0 }, { timestamp: 30, sequenceNumber: 0 }] }
+            ],
+            files: 2,
+            unchecked: 0
+        });
+        expect(fetchMock.mock.calls.filter(([u]) => u.includes('/range?'))).toHaveLength(3);
+    });
+
+    it('counts a transfer whose probe row cannot be read as unchecked', async () => {
+        providersWith.mockResolvedValue([{ nodeAddress: '0xa', urls: ['https://a.example'] }]);
+        const found = await chunkGroupsByOpener(STREAM, [4, 5], [opener], fetchFor(new Set(['0xT3'])));
+        expect(found.files).toBe(1);
+        expect(found.unchecked).toBe(1);
+    });
+
+    it('fails when a chunk partition cannot be read', async () => {
+        providersWith.mockResolvedValue([{ nodeAddress: '0xa', urls: ['https://a.example'] }]);
+        await expect(chunkGroupsByOpener(STREAM, [4], [opener], vi.fn(async () => jsonResponse(503, {}))))
+            .rejects.toThrow('Could not read the chunks on partition 4');
     });
 });
