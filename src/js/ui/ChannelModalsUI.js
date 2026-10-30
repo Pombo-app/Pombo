@@ -363,25 +363,7 @@ class ChannelModalsUI {
         if (!toggle) return;
         
         toggle.dataset.enabled = visible ? 'true' : 'false';
-        const knob = toggle.querySelector('span');
-        
-        if (visible) {
-            toggle.classList.remove('bg-overlay-10');
-            toggle.classList.add('bg-[#F6851B]');
-            if (knob) {
-                knob.classList.remove('left-0.5', 'bg-overlay-30');
-                knob.classList.add('left-4', 'bg-white');
-            }
-            this.elements.visibleFields?.classList.remove('hidden');
-        } else {
-            toggle.classList.remove('bg-[#F6851B]');
-            toggle.classList.add('bg-overlay-10');
-            if (knob) {
-                knob.classList.remove('left-4', 'bg-white');
-                knob.classList.add('left-0.5', 'bg-overlay-30');
-            }
-            this.elements.visibleFields?.classList.add('hidden');
-        }
+        this.elements.visibleFields?.classList.toggle('hidden', !visible);
         
         this.currentExposure = visible ? 'visible' : 'hidden';
     }
@@ -459,23 +441,6 @@ class ChannelModalsUI {
         if (!toggle) return;
         
         toggle.dataset.enabled = enabled ? 'true' : 'false';
-        const knob = toggle.querySelector('span');
-        
-        if (enabled) {
-            toggle.classList.remove('bg-overlay-10');
-            toggle.classList.add('bg-[#F6851B]');
-            if (knob) {
-                knob.classList.remove('left-0.5', 'bg-overlay-30');
-                knob.classList.add('left-4', 'bg-white');
-            }
-        } else {
-            toggle.classList.remove('bg-[#F6851B]');
-            toggle.classList.add('bg-overlay-10');
-            if (knob) {
-                knob.classList.remove('left-4', 'bg-white');
-                knob.classList.add('left-0.5', 'bg-overlay-30');
-            }
-        }
         
         this.currentReadOnly = enabled;
     }
