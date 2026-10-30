@@ -47,6 +47,31 @@ class ModalManager {
         
         // Initialize popstate listener (capture phase to intercept before historyManager)
         this._initHistoryListener();
+        this._initDismissListeners();
+    }
+
+    /**
+     * Escape and a click on the backdrop close the top modal of the stack.
+     * Overlays that close themselves on Escape (confirm dialog, lightbox,
+     * modalUtils modals) sit above the stack and take the key instead.
+     * @private
+     */
+    _initDismissListeners() {
+        const shown = (id) => {
+            const el = document.getElementById(id);
+            return !!el && !el.classList.contains('hidden');
+        };
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape' || e.defaultPrevented) return;
+            if (shown('confirm-dialog-modal') || shown('media-lightbox-modal')) return;
+            if (document.querySelector('[data-own-escape]')) return;
+            const top = this.modalStack[this.modalStack.length - 1];
+            if (top) this.hide(top);
+        });
+        document.addEventListener('click', (e) => {
+            const top = this.modalStack[this.modalStack.length - 1];
+            if (top && e.target.id === top) this.hide(top);
+        });
     }
 
     /**

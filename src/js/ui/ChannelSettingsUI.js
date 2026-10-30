@@ -2165,6 +2165,7 @@ class ChannelSettingsUI {
                     e.preventDefault();
                     this.saveChannelName();
                 } else if (e.key === 'Escape') {
+                    e.stopPropagation();
                     this.cancelEditingName();
                 }
             });
@@ -2174,6 +2175,7 @@ class ChannelSettingsUI {
         if (this.elements.channelSettingsDescriptionInput) {
             this.elements.channelSettingsDescriptionInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
+                    e.stopPropagation();
                     this.cancelEditingName();
                 }
             });

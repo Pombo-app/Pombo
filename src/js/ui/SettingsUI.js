@@ -1565,7 +1565,7 @@ class SettingsUI {
 
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') input.blur();
-            if (e.key === 'Escape') { input.value = ''; input.blur(); }
+            if (e.key === 'Escape') { e.stopPropagation(); input.value = ''; input.blur(); }
         });
 
         input.addEventListener('blur', () => {

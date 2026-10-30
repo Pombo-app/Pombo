@@ -117,7 +117,7 @@ class WalletUI {
         });
         document.getElementById('wallet-add-input')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') this.addToken(e.target.value);
-            if (e.key === 'Escape') this._closeAddRow();
+            if (e.key === 'Escape') { e.stopPropagation(); this._closeAddRow(); }
         });
 
         document.getElementById('wallet-address-copy')?.addEventListener('click', () => this.copyAddress());
