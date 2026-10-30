@@ -199,17 +199,17 @@ class ChannelListUI {
                 for (const ch of all) {
                     if (!ch) continue;
                     if (ch.type === 'dm') {
-                        // DMs never hit the resend path — only live messages
-                        // populate the preview. Subscribe so the row patches
-                        // when a message arrives, but do NOT mark resolved
-                        // (would cause a render-signature flip on the next
-                        // render). The slot stays as a spinner placeholder
-                        // until the first message lands.
+                        // DMs never hit the resend path: the stored entry is
+                        // all there is until a live message lands.
                         if (!this._previewSubs.has(ch.streamId)) {
                             const unsub = channelLatestMessageManager.subscribe(ch.streamId, () => {
                                 this._refreshSinglePreview(ch.streamId);
                             });
                             this._previewSubs.set(ch.streamId, unsub);
+                            channelLatestMessageManager.init().finally(() => {
+                                this._resolvedPreviews.add(ch.streamId);
+                                this._refreshSinglePreview(ch.streamId);
+                            });
                         }
                         continue;
                     }
