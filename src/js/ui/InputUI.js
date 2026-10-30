@@ -48,6 +48,13 @@ class InputUI {
         // Enter handling for contenteditable (insert plain '\n' instead of <div>/<br>)
         this.setupEnterKey();
 
+        // The placeholder is :empty::before; deleting everything leaves a <br> behind.
+        this.messageInput?.addEventListener('input', () => {
+            if (!this.messageInput.textContent && this.messageInput.innerHTML) {
+                this.messageInput.innerHTML = '';
+            }
+        });
+
         // Setup paste / drag-and-drop image insertion
         this.setupImagePaste();
         this.setupImageDrop();
