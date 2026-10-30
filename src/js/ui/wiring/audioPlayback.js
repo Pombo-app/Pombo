@@ -28,10 +28,14 @@ export function attachAudioPlayback(ui) {
     const findPlayers = (imageId) =>
         document.querySelectorAll(`[data-audio-player-id="${CSS.escape(imageId)}"]`);
 
+    // The manifest's duration can differ from the file's; it only stands in until the player knows.
+    // A WebM straight from MediaRecorder reports Infinity here.
     const durationOf = (el) => {
+        if (el?.dataset.audioPlayerId === currentId && Number.isFinite(player.duration) && player.duration > 0) {
+            return player.duration * 1000;
+        }
         const fromManifest = Number(el?.dataset.duration);
-        if (Number.isFinite(fromManifest) && fromManifest > 0) return fromManifest;
-        return Number.isFinite(player.duration) ? player.duration * 1000 : 0;
+        return Number.isFinite(fromManifest) && fromManifest > 0 ? fromManifest : 0;
     };
 
     const paint = (imageId, { playing, positionMs }) => {
@@ -136,7 +140,9 @@ export function attachAudioPlayback(ui) {
         const track = el.querySelector('.audio-track');
         const rect = track.getBoundingClientRect();
         const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-        player.currentTime = (durationOf(el) / 1000) * ratio;
+        const total = durationOf(el);
+        if (!player.seekable.length || total <= 0) return;
+        player.currentTime = (total / 1000) * ratio;
         paint(currentId, { playing: !player.paused, positionMs: player.currentTime * 1000 });
     };
 
