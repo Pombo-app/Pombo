@@ -113,6 +113,6 @@ describe('SettingsUI Device Sync panel', () => {
         settingsUI.updateSyncModeDisplay();
 
         expect(radios().every(r => r.disabled)).toBe(true);
-        expect(document.getElementById('sync-mode-no-inbox-text').textContent).toContain('Connect a wallet');
+        expect(document.getElementById('sync-mode-no-inbox-text').textContent).toContain('You need an account with DM inbox');
     });
 });
