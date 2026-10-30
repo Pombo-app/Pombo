@@ -64,5 +64,7 @@ describe('renderExploreDetails', () => {
         expect(channelTypeLabel(gated, { mode: GATE_MODE.NONE })).toBe('Closed');
         expect(channelTypeLabel(gated, { mode: GATE_MODE.TOKEN_BALANCE })).toBe('Gated');
         expect(channelTypeLabel(gated, null)).toBe('Gated');
+        expect(channelTypeLabel({ type: 'public', readOnly: true })).toBe('Open · Read-Only');
+        expect(channelTypeLabel({ ...gated, readOnly: true }, { mode: GATE_MODE.PAID })).toBe('Paid · Read-Only');
     });
 });
