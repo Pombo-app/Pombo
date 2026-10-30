@@ -9,11 +9,12 @@ import { sanitizeText } from './sanitizer.js';
 
 /** The type a reader recognises: the gate mode decides for gated channels. */
 export function channelTypeLabel(ch, gateInfo) {
-    if (ch?.type === 'password') return 'Password';
-    if (ch?.type !== 'gated') return 'Open';
-    if (gateInfo?.mode === GATE_MODE.PAID) return 'Paid';
-    if (gateInfo?.mode === GATE_MODE.NONE) return 'Closed';
-    return 'Gated';
+    const base = ch?.type === 'password' ? 'Password'
+        : ch?.type !== 'gated' ? 'Open'
+        : gateInfo?.mode === GATE_MODE.PAID ? 'Paid'
+        : gateInfo?.mode === GATE_MODE.NONE ? 'Closed'
+        : 'Gated';
+    return ch?.readOnly ? `${base} · Read-Only` : base;
 }
 
 const row = (label, valueHtml) => `
