@@ -198,7 +198,8 @@ class UIController {
             publicDirectoryFailed: () => channelManager.publicDirectoryFailed === true,
             joinPublicChannel: (streamId, channelInfo) => this.joinPublicChannel(streamId, channelInfo),
             enterPreviewMode: (streamId, channelInfo) => previewModeUI.enterPreviewMode(streamId, channelInfo),
-            getNsfwEnabled: () => secureStorage.getNsfwEnabled()
+            getNsfwEnabled: () => secureStorage.getNsfwEnabled(),
+            showNotification: (msg, type, duration) => this.showNotification(msg, type, duration)
         });
         
         // ChannelSettingsUI

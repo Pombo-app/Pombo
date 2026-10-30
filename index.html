@@ -1384,6 +1384,19 @@
         </div>
     </div>
 
+    <div id="explore-details-modal" class="hidden fixed inset-0 bg-black/80 flex items-end md:items-center justify-center z-[110]" role="dialog" aria-modal="true" aria-label="Channel details">
+        <div class="bg-surface w-full md:w-[420px] max-h-[85vh] overflow-y-auto rounded-t-2xl md:rounded-2xl border border-overlay-6 p-5 pb-8 md:pb-5">
+            <div class="flex justify-end -mt-1 -mr-1.5">
+                <button type="button" id="explore-details-close" class="w-8 h-8 flex items-center justify-center rounded-full text-overlay-50 hover:text-primary hover:bg-overlay-6 transition" title="Close">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div id="explore-details-body"></div>
+        </div>
+    </div>
+
     <div id="join-channel-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[110]">
         <div class="bg-surface rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
             <div class="flex items-center justify-between mb-4">

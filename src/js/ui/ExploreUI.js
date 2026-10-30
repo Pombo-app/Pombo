@@ -4,7 +4,9 @@
  */
 
 import { GATE_MODE } from '../gate.js';
-import { escapeHtml, escapeAttr, wireIdentitySpec, wireIdentityIcon } from './utils.js';
+import { escapeHtml, escapeAttr } from './utils.js';
+import { modalManager } from './ModalManager.js';
+import { renderExploreDetails } from './exploreDetails.js';
 import { sanitizeText } from './sanitizer.js';
 import { loadCurationManifest, applyCuration } from '../exploreCuration.js';
 import { channelImageManager } from '../channelImageManager.js';
@@ -19,9 +21,9 @@ import { openUnjoinedChannel } from '../channelEntry.js';
 // centered in the card's right half on desktop (anchored to the CARD, not
 // the top row, so the vertical centering is true; a hairline divider gives
 // it price-column structure; pointer-events pass through to the card tap),
-// one line under the text on mobile. Tailwind scans these literals.
+// centered under a hairline on mobile. Tailwind scans these literals.
 const EXPLORE_ACCESS_D_CLS = 'explore-gate-access-d hidden md:flex absolute inset-y-3 left-1/2 right-10 items-center justify-center border-l border-overlay-6 pointer-events-none';
-const EXPLORE_ACCESS_M_CLS = 'explore-gate-access-m md:hidden ml-[68px] min-w-0 flex';
+const EXPLORE_ACCESS_M_CLS = 'explore-gate-access-m md:hidden min-w-0 flex justify-center border-t border-overlay-5 pt-3';
 
 /** Travel in one direction before the header answers. Anything less is a
  *  trackpad nudge or the reflow retracting causes, and toggling on those
@@ -33,20 +35,6 @@ const EXPLORE_HEADER_RETRACT_AFTER = 72;
 /** Room that must remain below before retracting is safe — see the comment
  *  in _evaluateExploreHeader. Comfortably over the header's own 64px. */
 const EXPLORE_HEADER_BOTTOM_SLACK = 96;
-
-/**
- * Audience icon for the author-visibility mode: WHO can see who wrote each
- * message — group (members only) or globe (everyone; amber, because
- * "publicly attributable forever" is what a buyer must notice). Never an
- * identity glyph: both modes guarantee authorship to participants, what
- * changes is the audience.
- */
-function authorVisibilityHtml(wireIdentity) {
-    if (!wireIdentity) return '';
-    const spec = wireIdentitySpec(wireIdentity);
-    const title = `${spec.name} — ${spec.audience}`;
-    return `<span class="inline-flex text-overlay-50" title="${title}">${wireIdentityIcon(wireIdentity)}</span>`;
-}
 
 /**
  * The 3-line access stack: VERB / VALUE / QUALIFIER. The verb carries the
@@ -71,10 +59,12 @@ function gateAccessInlineHtml(info) {
     if (!info?.verb) return '';
     const verbColor = info.mode === GATE_MODE.PAID ? 'text-[#F6851B]/70' : 'text-overlay-40';
     return `
-        <div class="flex items-baseline gap-1.5 leading-tight min-w-0">
-            <span class="text-[10px] uppercase tracking-[0.08em] font-medium ${verbColor}">${escapeHtml(info.verb)}</span>
-            <span class="text-[13px] font-semibold text-overlay-90 whitespace-nowrap">${escapeHtml(info.value)}</span>
-            <span class="text-[11px] text-overlay-40 truncate">${escapeHtml(info.qualifier)}</span>
+        <div class="flex flex-col items-center leading-tight min-w-0">
+            <span class="text-[11px] uppercase tracking-[0.08em] font-medium ${verbColor}">${escapeHtml(info.verb)}</span>
+            <span class="mt-0.5 flex items-baseline gap-1.5 min-w-0">
+                <span class="text-[15px] font-semibold text-overlay-90 whitespace-nowrap">${escapeHtml(info.value)}</span>
+                <span class="text-[13px] text-overlay-50 truncate">${escapeHtml(info.qualifier)}</span>
+            </span>
         </div>`;
 }
 
@@ -630,7 +620,7 @@ class ExploreUI {
                 ? '<svg class="w-3.5 h-3.5 md:w-5 md:h-5 text-overlay-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>' 
                 : '';
             const categoryBadge = ch.category && ch.category !== 'general'
-                ? `<span class="px-1.5 py-1 bg-overlay-5 text-overlay-50 text-[11px] font-medium rounded">${escapeHtml(categoryNames[ch.category] || ch.category)}</span>`
+                ? `<span class="px-1.5 py-0.5 bg-overlay-5 text-overlay-50 text-[10px] font-medium rounded">${escapeHtml(categoryNames[ch.category] || ch.category)}</span>`
                 : '';
             // Access info (N-D): the 3-line stack — right half on desktop,
             // centered under the content on mobile. Rendered inline when the
@@ -650,7 +640,7 @@ class ExploreUI {
                 ? `<div ${accessAttr} class="${accessInline ? EXPLORE_ACCESS_M_CLS : 'explore-gate-access-m hidden'}">${accessInline}</div>`
                 : '';
             const languageBadge = ch.language
-                ? `<span class="px-1.5 py-1 bg-overlay-5 text-overlay-50 text-[11px] font-medium rounded">${escapeHtml(languageNames[ch.language] || ch.language.toUpperCase())}</span>`
+                ? `<span class="px-1.5 py-0.5 bg-overlay-5 text-overlay-50 text-[10px] font-medium rounded">${escapeHtml(languageNames[ch.language] || ch.language.toUpperCase())}</span>`
                 : '';
             // Every card caps description/preview at 55% on desktop (two
             // lines max) — uniform layout, and gated cards never run under
@@ -704,7 +694,7 @@ class ExploreUI {
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex items-start gap-3 flex-1 min-w-0">
                         ${thumb}
-                        <div class="flex-1 min-w-0">
+                        <div class="flex-1 min-w-0 pr-7">
                             <div class="flex items-center gap-2 flex-wrap">
                                 ${readOnlyBadge}
                                 <h4 class="text-base font-large text-overlay-90 truncate">${escapeHtml(sanitizeText(ch.name || ch.displayName || 'Unknown'))}</h4>
@@ -715,20 +705,13 @@ class ExploreUI {
                     </div>
                     ${accessDesktop}
                 </div>
-                <div class="flex items-end justify-between gap-3 mt-3">
+                <button type="button" class="explore-details-btn absolute top-2 right-2 w-9 h-9 flex items-center justify-center rounded-full text-overlay-40 hover:text-primary hover:bg-overlay-6 transition" title="Channel details" aria-label="Channel details">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>
+                </button>
+                <div class="mt-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between md:gap-3">
                     ${accessMobile}
-                    <div class="flex items-end justify-end gap-1.5 ml-auto flex-shrink-0">
-                        ${(() => {
-                            // The audience icon centers over the LAST tag
-                            // (language when present), not over the group.
-                            const icon = ch.type === 'gated'
-                                ? authorVisibilityHtml(ch.wireIdentity || 'visible') : '';
-                            const badges = [categoryBadge, languageBadge].filter(Boolean);
-                            if (!icon) return badges.join('');
-                            if (!badges.length) return icon;
-                            const last = badges.pop();
-                            return `${badges.join('')}<div class="flex flex-col items-center gap-1">${icon}${last}</div>`;
-                        })()}
+                    <div class="flex items-end justify-end gap-1.5 md:ml-auto flex-shrink-0">
+                        ${categoryBadge}${languageBadge}
                     </div>
                 </div>
             </div>
@@ -829,11 +812,15 @@ class ExploreUI {
 
         // Add click listeners
         listEl.querySelectorAll('.explore-channel-item').forEach(item => {
-            item.addEventListener('click', async () => {
+            item.addEventListener('click', async (e) => {
                 const streamId = item.dataset.streamId;
                 const channelType = item.dataset.type;
                 
                 if (!streamId) return;
+                if (e.target.closest('.explore-details-btn')) {
+                    this._openDetails(channels.find(ch => ch.streamId === streamId));
+                    return;
+                }
                 
                 // The card's own type stands in when the cache has no entry
                 // for this row, so routing never falls back to public.
@@ -918,6 +905,47 @@ class ExploreUI {
                     }
                 })
                 .catch(() => this._gateCardInfo.delete(ch.gateAddress));  // retried next render
+        }
+    }
+
+    /** The details sheet of one card. */
+    _openDetails(ch) {
+        const body = document.getElementById('explore-details-body');
+        if (!body || !ch) return;
+        if (!this._detailsBound) {
+            this._detailsBound = true;
+            document.getElementById('explore-details-close')
+                ?.addEventListener('click', () => modalManager.hide('explore-details-modal'));
+            body.addEventListener('click', async (e) => {
+                const btn = e.target.closest('.explore-details-copy');
+                if (!btn) return;
+                try {
+                    await navigator.clipboard.writeText(btn.dataset.copy);
+                    this.deps.showNotification?.(`${btn.dataset.copyWhat} copied`, 'success');
+                } catch {
+                    this.deps.showNotification?.('Failed to copy', 'error');
+                }
+            });
+        }
+        const adminStreamId = deriveAdminId(ch.streamId);
+        const image = adminStreamId ? channelImageManager.getCached(adminStreamId) : null;
+        const thumbHtml = image?.dataUrl
+            ? `<img class="rounded-full object-cover" alt="" src="${escapeAttr(image.dataUrl)}" style="width:88px;height:88px" />`
+            : `<div class="rounded-full overflow-hidden" style="width:88px;height:88px">${getAvatarHtml(ch.streamId, 88, 0.5, null)}</div>`;
+        const gate = ch.gateAddress ? this._gateCardInfo.get(ch.gateAddress) : null;
+        const gateInfo = gate && gate !== 'pending' ? gate : null;
+        const owner = String(ch.streamId).split('/')[0].toLowerCase();
+        const render = (ownerName) => {
+            body.innerHTML = renderExploreDetails(ch, { thumbHtml, gateInfo, ownerName });
+        };
+        const cachedName = identityManager.ensCache?.get(owner)?.name || null;
+        this._detailsStreamId = ch.streamId;
+        render(cachedName);
+        modalManager.show('explore-details-modal');
+        if (!cachedName && owner) {
+            identityManager.resolveENS?.(owner)
+                ?.then(name => { if (name && this._detailsStreamId === ch.streamId) render(name); })
+                ?.catch(() => {});
         }
     }
 
