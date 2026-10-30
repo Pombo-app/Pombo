@@ -37,9 +37,14 @@ describe('channelPreviewFormatter', () => {
             .toBe('Tom &amp; Jerry');
     });
 
-    it('renders [image] / [video] tags for media types', () => {
-        expect(formatPreviewBody({ type: 'image' })).toContain('[image]');
-        expect(formatPreviewBody({ type: 'file_announce' })).toContain('[video]');
+    it('labels media by what it is, not by how it travels', () => {
+        expect(formatPreviewBody({ type: 'image' })).toContain('🖼️ Image');
+        expect(formatPreviewBody({ type: 'video_announce' })).toContain('🎬 Video');
+        expect(formatPreviewBody({ type: 'file_announce', fileType: 'video/mp4' })).toContain('🎬 Video');
+        expect(formatPreviewBody({ type: 'storage_file_announce', fileType: 'video/mp4' })).toContain('🎬 Video');
+        expect(formatPreviewBody({ type: 'storage_file_announce', fileType: 'image/png' })).toContain('🖼️ Image');
+        expect(formatPreviewBody({ type: 'file_announce', fileType: 'application/pdf', fileName: 'report.pdf' })).toContain('📎 report.pdf');
+        expect(formatPreviewBody({ type: 'storage_file_announce' })).toContain('📎 File');
     });
 
     it('renders reactions with emoji and "reacted with" verb', () => {

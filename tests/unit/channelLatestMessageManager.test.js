@@ -295,6 +295,18 @@ describe('channelLatestMessageManager', () => {
         expect(channelLatestMessageManager.getCached(sid)).toMatchObject({ id: 'm1', text: 'persisted' });
     });
 
+    it('hydrate leaves out a stored preview with no author, so it is fetched again', async () => {
+        await channelLatestMessageManager.init();
+        await channelLatestMessageManager._persistToIDB(sid, { id: 'm1', ts: 50, type: 'text', sender: null, text: 'gm' });
+
+        channelLatestMessageManager.cache.clear();
+        channelLatestMessageManager.db = null;
+        channelLatestMessageManager._initPromise = null;
+
+        await channelLatestMessageManager.init();
+        expect(channelLatestMessageManager.getCached(sid)).toBeNull();
+    });
+
     /**
      * Rows written while reactions still made a preview line outlive the rule
      * that ended it: a channel with no new message never replaces its row.
@@ -346,6 +358,18 @@ describe('channelLatestMessageManager', () => {
         ]);
 
         expect((await channelLatestMessageManager._fetch(sid, null, 10)).text).toBe('just sent');
+    });
+
+    it('takes the proven author for a preview stored without one', async () => {
+        const ts = Date.now() - 24 * 3600 * 1000;
+        channelLatestMessageManager.cache.set(sid, {
+            type: 'text', id: 'same', text: 'gm', sender: null, senderName: null, ts
+        });
+        resendMock.mockResolvedValue([
+            { type: 'text', id: 'same', text: 'gm', sender: '0xowner', _timestamp: ts }
+        ]);
+
+        expect((await channelLatestMessageManager._fetch(sid, null, 10)).sender).toBe('0xowner');
     });
 
     it('keeps an older preview that the window still serves', async () => {

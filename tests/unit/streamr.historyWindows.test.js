@@ -218,6 +218,41 @@ describe('resendLatestContentMessages', () => {
         expect(out.map((e) => e.type)).toEqual(['text']);
     });
 
+    it("applies the author's own edits and deletes from the control partition", async () => {
+        const OTHER = '0x' + '33'.repeat(20);
+        streamrController.client = {
+            resend: vi.fn(async (def) => (def.partition === 1
+                ? streamOf(
+                    row(500, { type: 'delete', targetId: 'm3' }),
+                    row(510, { type: 'edit', targetId: 'm2', text: 'two, edited' }),
+                    { ...row(520, { type: 'edit', targetId: 'm1', text: 'hijacked' }), getPublisherId: () => OTHER },
+                )
+                : streamOf(
+                    row(100, { type: 'text', id: 'm1', text: 'one' }),
+                    row(200, { type: 'text', id: 'm2', text: 'two' }),
+                    row(300, { type: 'text', id: 'm3', text: 'three' }),
+                ))),
+        };
+
+        const out = await streamrController.resendLatestContentMessages(STREAM);
+
+        expect(out.map((e) => e.text)).toEqual(['two, edited', 'one']);
+    });
+
+    it('reads the author and their overrides from the SDK Message, where the publisher is a field', async () => {
+        const message = (ts, content) => ({ content, timestamp: ts, publisherId: AUTHOR });
+        streamrController.client = {
+            resend: vi.fn(async (def) => (def.partition === 1
+                ? streamOf(message(500, { type: 'edit', targetId: 'm1', text: 'one, edited' }))
+                : streamOf(message(100, { type: 'text', id: 'm1', text: 'one' })))),
+        };
+
+        const out = await streamrController.resendLatestContentMessages(STREAM);
+
+        expect(out[0].sender).toBe(AUTHOR);
+        expect(out[0].text).toBe('one, edited');
+    });
+
     it('keeps only what a preview can render', async () => {
         serve(
             row(100, { type: 'text', text: 'a' }),

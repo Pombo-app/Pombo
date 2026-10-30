@@ -46,6 +46,17 @@ import { isMessageStream } from './streamConstants.js';
 import { CONFIG } from './config.js';
 import { messageTime } from './utils/messageTime.js';
 
+/** File name and MIME type of a file announce, for its preview label. */
+const fileFields = (m) => ({
+    fileName: typeof m?.metadata?.fileName === 'string' ? m.metadata.fileName : null,
+    fileType: typeof m?.metadata?.fileType === 'string' ? m.metadata.fileType : null
+});
+
+/** Whether `next` adds what `prev` lacks, or carries a different proven author. */
+const enriches = (prev, next) => (!prev.senderName && !!next.senderName)
+    || (!prev.fileType && !!next.fileType)
+    || (!!next.sender && String(prev.sender || '').toLowerCase() !== String(next.sender).toLowerCase());
+
 /** A preview dated past the wall clock (plus skew) is forged; it never shows or wins. */
 const isAhead = (ts) => (Number(ts) || 0) > Date.now() + (CONFIG.gate?.timestampSkewMs ?? 0);
 
@@ -177,6 +188,8 @@ class ChannelLatestMessageManager {
                 if (row.entry.type === 'reaction'
                     && !row.messageStreamId.endsWith(`/${CONFIG.dm.streamPrefix}-1`)) continue;
                 if (isAhead(row.entry.ts)) continue;
+                // Every preview names its proven author; one without is fetched again.
+                if (!row.entry.sender) continue;
                 const prev = this.cache.get(row.messageStreamId);
                 if (prev) {
                     // Stale guard — never let an IDB row clobber a
@@ -311,8 +324,7 @@ class ChannelLatestMessageManager {
             // missing metadata (e.g. payloads from older sessions stored
             // without `senderName` are now arriving with it populated).
             if (prev && prev.id && prev.id === normalized.id && prev.type === normalized.type) {
-                const enriches = (!prev.senderName && normalized.senderName);
-                if (!enriches) return prev;
+                if (!enriches(prev, normalized)) return prev;
             }
 
             this.cache.set(messageStreamId, normalized);
@@ -371,13 +383,14 @@ class ChannelLatestMessageManager {
                 senderName
             };
         }
-        if (t === 'file_announce' || t === 'storage_file_announce') {
+        if (t === 'file_announce' || t === 'storage_file_announce' || t === 'video_announce') {
             return {
                 id: raw.id || null,
                 ts,
                 type: t,
                 sender: senderText,
-                senderName
+                senderName,
+                ...fileFields(raw)
             };
         }
         if (t === 'reaction') {
@@ -419,7 +432,8 @@ class ChannelLatestMessageManager {
     setFromLocal(messageStreamId, message) {
         if (!messageStreamId || !message || typeof message !== 'object') return null;
         const t = message.type;
-        if (t !== 'text' && t !== 'audio' && t !== 'image' && t !== 'file_announce' && t !== 'storage_file_announce' && t !== 'reaction') {
+        if (t !== 'text' && t !== 'audio' && t !== 'image' && t !== 'file_announce' && t !== 'storage_file_announce'
+            && t !== 'video_announce' && t !== 'reaction') {
             return null;
         }
         // Reaction removals never enter the preview — see _normalizeRemoteEntry.
@@ -444,8 +458,8 @@ class ChannelLatestMessageManager {
             };
         } else if (t === 'image') {
             entry = { id: message.id || null, ts, type: 'image', sender: senderText, senderName };
-        } else if (t === 'file_announce' || t === 'storage_file_announce') {
-            entry = { id: message.id || null, ts, type: t, sender: senderText, senderName };
+        } else if (t === 'file_announce' || t === 'storage_file_announce' || t === 'video_announce') {
+            entry = { id: message.id || null, ts, type: t, sender: senderText, senderName, ...fileFields(message) };
         } else {
             entry = {
                 id: null,
@@ -466,8 +480,7 @@ class ChannelLatestMessageManager {
         // unless the new entry enriches metadata that was missing
         // (e.g. senderName arriving on a re-publish path).
         if (prev && prev.id && entry.id && prev.id === entry.id && prev.type === entry.type) {
-            const enriches = (!prev.senderName && entry.senderName);
-            if (!enriches) return prev;
+            if (!enriches(prev, entry)) return prev;
         }
 
         this.cache.set(messageStreamId, entry);

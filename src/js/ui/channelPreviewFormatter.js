@@ -94,11 +94,16 @@ export function formatPreviewBody(entry) {
             return escapeHtml(sanitizeText(t));
         }
         case 'image':
-            return mute('[image]');
+            return mute('🖼️ Image');
+        case 'video_announce':
+            return mute('🎬 Video');
         case 'file_announce':
-            return mute('[video]');
-        case 'storage_file_announce':
-            return mute('[file]');
+        case 'storage_file_announce': {
+            const mime = entry.fileType || '';
+            if (mime.startsWith('video/')) return mute('🎬 Video');
+            if (mime.startsWith('image/')) return mute('🖼️ Image');
+            return mute(`📎 ${sanitizeText(entry.fileName || 'File')}`);
+        }
         case 'reaction': {
             // Reaction removals are filtered out upstream
             // (channelLatestMessageManager). Defensive fallthrough only.
