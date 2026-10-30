@@ -2455,6 +2455,10 @@ body.network-down .network-dot {
     line-height: 1.2;
 }
 
+#channel-list .channel-preview-line {
+    font-size: 11px;
+}
+
 /* ===========================================
    Latest-message preview line (sidebar + Explore)
    Single source of typography + color so sender,
@@ -3386,7 +3390,7 @@ body.explore-open #explore-channels-list {
         max-height: 100% !important;
         border-radius: 0 !important;
         margin: 0 !important;
-        padding: 1rem 1.25rem 7rem 1.25rem !important;
+        padding: 1rem 14px 7rem 14px !important;
         border: none !important;
     }
     

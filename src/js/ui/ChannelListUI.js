@@ -144,13 +144,13 @@ class ChannelListUI {
         if (!slot) return;
         const dataUrl = this._getCachedImageDataUrl(adminStreamId);
         if (dataUrl) {
-            slot.style.width = '44px';
-            slot.innerHTML = `<img class="channel-item-image rounded-full object-cover" alt="" src="${escapeAttr(dataUrl)}" draggable="true" style="width:44px;height:44px" />`;
+            slot.style.width = '46px';
+            slot.innerHTML = `<img class="channel-item-image rounded-full object-cover" alt="" src="${escapeAttr(dataUrl)}" draggable="true" style="width:46px;height:46px" />`;
         } else if (this._resolvedImages.has(adminStreamId)) {
             // Resolution finished without a remote image — swap spinner
             // placeholder for the deterministic fallback avatar.
-            slot.style.width = '44px';
-            slot.innerHTML = `<div class="rounded-full overflow-hidden" style="width:44px;height:44px">${getAvatarHtml(streamId, 44, 0.5, null)}</div>`;
+            slot.style.width = '46px';
+            slot.innerHTML = `<div class="rounded-full overflow-hidden" style="width:46px;height:46px">${getAvatarHtml(streamId, 46, 0.5, null)}</div>`;
         }
         // Bump signature so next reconcile doesn't replace this row
         const cached = channelImageManager.getCached(adminStreamId);
@@ -475,9 +475,9 @@ class ChannelListUI {
         const block = document.createElement('div');
         block.className = 'pending-creates space-y-1.5';
         block.innerHTML = records.map(record => `
-            <div class="pending-create mx-2 rounded-xl bg-overlay-2 border border-overlay-4 px-3 py-2.5" data-pending-base="${escapeAttr(record.basePath)}">
+            <div class="pending-create mx-2.5 rounded-xl bg-overlay-2 border border-overlay-4 px-3 py-2.5" data-pending-base="${escapeAttr(record.basePath)}">
                 <div class="flex items-center gap-1.5 min-w-0">
-                    <h3 class="text-sm font-medium text-overlay-90 truncate">${escapeHtml(sanitizeText(record.name))}</h3>
+                    <h3 class="text-[15px] font-medium text-overlay-90 truncate">${escapeHtml(sanitizeText(record.name))}</h3>
                     <span class="text-[12px] text-overlay-40 flex-shrink-0">· creation interrupted</span>
                 </div>
                 <div class="flex items-center gap-2 mt-2">
@@ -686,45 +686,45 @@ class ChannelListUI {
         // Render image / avatar / spinner. We show a spinner whenever the
         // remote lookup is still pending so the deterministic fallback
         // doesn't flash before the real image / ENS avatar arrives.
-        const spinnerSlot = `<div class="rounded-full flex items-center justify-center bg-overlay-4" style="width:44px;height:44px"><div class="thumb-spinner" style="width:16px;height:16px"></div></div>`;
+        const spinnerSlot = `<div class="rounded-full flex items-center justify-center bg-overlay-4" style="width:46px;height:46px"><div class="thumb-spinner" style="width:16px;height:16px"></div></div>`;
         let iconSlot = '';
         if (channelViewModel.type === 'dm') {
             const seed = channelViewModel.peerAddress || channelViewModel.streamId;
             if (channelViewModel.peerEnsAvatar) {
-                iconSlot = `<div class="rounded-full overflow-hidden" style="width:44px;height:44px">${getAvatarHtml(seed, 44, 0.5, channelViewModel.peerEnsAvatar)}</div>`;
+                iconSlot = `<div class="rounded-full overflow-hidden" style="width:46px;height:46px">${getAvatarHtml(seed, 46, 0.5, channelViewModel.peerEnsAvatar)}</div>`;
             } else if (channelViewModel.peerAddress && !this._resolvedDMPeers.has(channelViewModel.peerAddress)) {
                 iconSlot = spinnerSlot;
             } else {
-                iconSlot = `<div class="rounded-full overflow-hidden" style="width:44px;height:44px">${getAvatarHtml(seed, 44, 0.5, null)}</div>`;
+                iconSlot = `<div class="rounded-full overflow-hidden" style="width:46px;height:46px">${getAvatarHtml(seed, 46, 0.5, null)}</div>`;
             }
         } else {
             const dataUrl = this._getCachedImageDataUrl(channelViewModel.adminStreamId);
             if (dataUrl) {
-                iconSlot = `<img class="channel-item-image rounded-full object-cover" alt="" src="${escapeAttr(dataUrl)}" draggable="true" style="width:44px;height:44px" />`;
+                iconSlot = `<img class="channel-item-image rounded-full object-cover" alt="" src="${escapeAttr(dataUrl)}" draggable="true" style="width:46px;height:46px" />`;
             } else if (channelViewModel.adminStreamId && !this._resolvedImages.has(channelViewModel.adminStreamId)) {
                 iconSlot = spinnerSlot;
             } else {
-                iconSlot = `<div class="rounded-full overflow-hidden" style="width:44px;height:44px">${getAvatarHtml(channelViewModel.streamId, 44, 0.5, null)}</div>`;
+                iconSlot = `<div class="rounded-full overflow-hidden" style="width:46px;height:46px">${getAvatarHtml(channelViewModel.streamId, 46, 0.5, null)}</div>`;
             }
         }
         const readOnlyIcon = this._renderReadOnlyIcon(channelViewModel.readOnly);
 
         return `
             <div
-                class="channel-item mx-2 rounded-xl cursor-pointer bg-overlay-2 border border-overlay-4 hover:bg-overlay-6 hover:border-overlay-8 transition-all duration-200 group ${activeClass}"
+                class="channel-item mx-2.5 rounded-xl cursor-pointer bg-overlay-2 border border-overlay-4 hover:bg-overlay-6 hover:border-overlay-8 transition-all duration-200 group ${activeClass}"
                 data-stream-id="${escapeAttr(channelViewModel.streamId)}"
                 data-admin-stream-id="${escapeAttr(channelViewModel.adminStreamId || '')}"
                 draggable="true"
             >
                 <div class="channel-item-body flex items-center">
                     <!-- Icon / avatar slot -->
-                    <div class="channel-icon-slot flex-shrink-0 flex items-center justify-center" style="width:44px">
+                    <div class="channel-icon-slot flex-shrink-0 flex items-center justify-center" style="width:46px">
                         ${iconSlot}
                     </div>
                     <!-- Two stacked rows: name + read-only icon | preview line -->
                     <div class="channel-item-main flex-1 min-w-0">
                         <div class="flex items-center min-w-0">
-                            <h3 class="text-sm font-medium text-overlay-90 truncate">${escapeHtml(sanitizeText(channelViewModel.name))}</h3>
+                            <h3 class="text-[15px] font-medium text-overlay-90 truncate">${escapeHtml(sanitizeText(channelViewModel.name))}</h3>
                             ${readOnlyIcon ? `<div class="channel-item-readonly-icon flex items-center flex-shrink-0">${readOnlyIcon}</div>` : ''}
                         </div>
                         <div class="channel-preview-slot">
