@@ -2438,9 +2438,9 @@ body.network-down .network-dot {
 }
 
 #channel-list {
-    --channel-item-padding-top: 0.5rem;
+    --channel-item-padding-top: 0.625rem;
     --channel-item-padding-right: 0.75rem;
-    --channel-item-padding-bottom: 0.5rem;
+    --channel-item-padding-bottom: 0.625rem;
     --channel-item-padding-left: 0.75rem;
     --channel-item-main-offset: 0.75rem;
     /* Sidebar now shows only the read-only megaphone next to the name. */
@@ -2484,8 +2484,12 @@ body.network-down .network-dot {
     padding: var(--channel-item-badge-padding-y) var(--channel-item-badge-padding-x);
 }
 
+#channel-list .channel-preview-row {
+    margin-top: 0.3125rem;
+    min-height: 14px;
+}
+
 #channel-list .channel-preview-slot {
-    margin-top: 0.25rem;
     line-height: 1.2;
 }
 

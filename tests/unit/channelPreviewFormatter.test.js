@@ -20,7 +20,8 @@ import { identityManager } from '../../src/js/identity.js';
 import {
     formatPreviewBody,
     formatPreviewLine,
-    formatPreviewSender
+    formatPreviewSender,
+    formatPreviewTime
 } from '../../src/js/ui/channelPreviewFormatter.js';
 
 describe('channelPreviewFormatter', () => {
@@ -90,6 +91,18 @@ describe('channelPreviewFormatter', () => {
     it('still returns "You" for self even if senderName is provided', () => {
         authManager.getAddress.mockReturnValue('0xMyAddress');
         expect(formatPreviewSender('0xmyaddress', 'WhateverName')).toBe('You');
+    });
+
+    it('shortens the Home time as the message ages', () => {
+        const now = new Date(2026, 9, 30, 15, 0).getTime();
+        const at = (...d) => new Date(...d).getTime();
+        expect(formatPreviewTime(at(2026, 9, 30, 9, 5), now))
+            .toBe(new Date(at(2026, 9, 30, 9, 5)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        expect(formatPreviewTime(at(2026, 9, 29, 23, 59), now)).toBe('Yesterday');
+        expect(formatPreviewTime(at(2026, 9, 26, 12, 0), now)).toBe('Mon');
+        expect(formatPreviewTime(at(2026, 9, 23, 12, 0), now)).toBe('Oct 23');
+        expect(formatPreviewTime(at(2025, 6, 11, 12, 0), now)).toBe('Jul 11, 2025');
+        expect(formatPreviewTime(undefined, now)).toBe('');
     });
 
     it('returns empty for null entry in formatPreviewLine', () => {

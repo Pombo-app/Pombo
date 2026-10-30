@@ -11,7 +11,7 @@ import { channelLatestMessageManager } from '../channelLatestMessageManager.js';
 import { deriveAdminId } from '../streamConstants.js';
 import { getAvatarHtml } from './AvatarGenerator.js';
 import { identityManager } from '../identity.js';
-import { formatPreviewLine } from './channelPreviewFormatter.js';
+import { formatPreviewLine, formatPreviewTime } from './channelPreviewFormatter.js';
 
 class ChannelListUI {
     constructor() {
@@ -237,6 +237,8 @@ class ChannelListUI {
         const entry = channelLatestMessageManager.getCached(streamId);
         const channelType = this.channelManager?.getChannel?.(streamId)?.type || null;
         slot.innerHTML = this._renderPreviewSlotInner(streamId, entry, channelType);
+        const time = row.querySelector('.channel-preview-time');
+        if (time) time.textContent = formatPreviewTime(entry?.ts);
         // Bump signature so reconcile doesn't replace this row
         const sig = row.dataset.renderSignature;
         if (sig) {
@@ -726,12 +728,19 @@ class ChannelListUI {
                         <div class="flex items-center min-w-0">
                             <h3 class="text-[15px] font-medium text-overlay-90 truncate">${escapeHtml(sanitizeText(channelViewModel.name))}</h3>
                             ${readOnlyIcon ? `<div class="channel-item-readonly-icon flex items-center flex-shrink-0">${readOnlyIcon}</div>` : ''}
+                            ${channelViewModel.hasUnread 
+                                ? `<span class="channel-msg-count ml-auto flex-shrink-0 text-[10px] ${countClass} rounded-md" data-channel-count="${escapeAttr(channelViewModel.streamId)}">${channelViewModel.displayCount}</span>` 
+                                : `<span class="channel-msg-count ml-auto flex-shrink-0 text-[10px] text-overlay-30 bg-overlay-4 rounded-md hidden" data-channel-count="${escapeAttr(channelViewModel.streamId)}">0</span>`
+                            }
                         </div>
-                        <div class="channel-preview-slot">
-                            ${this._renderPreviewSlotInner(channelViewModel.streamId, channelViewModel.previewEntry, channelViewModel.type)}
+                        <div class="channel-preview-row flex items-center min-w-0">
+                            <div class="channel-preview-slot flex-1 min-w-0">
+                                ${this._renderPreviewSlotInner(channelViewModel.streamId, channelViewModel.previewEntry, channelViewModel.type)}
+                            </div>
+                            <span class="channel-preview-time pl-2 flex-shrink-0 text-[11px] text-overlay-40">${escapeHtml(formatPreviewTime(channelViewModel.previewEntry?.ts))}</span>
                         </div>
                     </div>
-                    <!-- Right side: drag handle + counter (vertically centered between the 2 rows by the body's items-center) -->
+                    <!-- Right side: drag handle -->
                     <div class="channel-item-actions flex items-center flex-shrink-0">
                         <!-- Drag handle (6 dots) - visible on hover -->
                         <div class="drag-handle cursor-grab opacity-0 group-hover:opacity-100 transition-opacity text-overlay-20 hover:text-overlay-40" title="Drag to reorder">
@@ -744,10 +753,6 @@ class ChannelListUI {
                                 <circle cx="16" cy="18" r="1.5"/>
                             </svg>
                         </div>
-                        ${channelViewModel.hasUnread 
-                            ? `<span class="channel-msg-count text-[10px] ${countClass} rounded-md" data-channel-count="${escapeAttr(channelViewModel.streamId)}">${channelViewModel.displayCount}</span>` 
-                            : `<span class="channel-msg-count text-[10px] text-overlay-30 bg-overlay-4 rounded-md hidden" data-channel-count="${escapeAttr(channelViewModel.streamId)}">0</span>`
-                        }
                     </div>
                 </div>
             </div>
