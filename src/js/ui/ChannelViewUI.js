@@ -6,6 +6,7 @@
 import { Logger } from '../logger.js';
 import { pinnedBannerUI } from './PinnedBannerUI.js';
 import { subscriptionBannerUI } from './SubscriptionBannerUI.js';
+import { composerDrafts } from '../composerDrafts.js';
 
 // Forward declarations - dependencies injected via setDependencies()
 let channelManager = null;
@@ -57,12 +58,52 @@ class ChannelViewUI {
     }
 
     /**
+     * Keep the open conversation's composer (text, reply, edit) for when it is reopened.
+     */
+    stashComposer() {
+        const streamId = channelManager?.currentChannel;
+        const account = this.deps?.getAccount?.();
+        if (!streamId || !account) return;
+        composerDrafts.stash(account, streamId, {
+            text: this.deps.inputUI?.messageInput?.textContent || '',
+            replyTo: chatAreaUI.getReplyingTo(),
+            editing: chatAreaUI.getEditingMessage()
+        });
+    }
+
+    clearComposer() {
+        if (!chatAreaUI) return;
+        chatAreaUI.cancelReply();
+        chatAreaUI.cancelEdit();
+        this.deps.inputUI?.clear();
+        this.deps.setReplyingTo(null);
+    }
+
+    _restoreComposer(streamId, channel) {
+        const draft = composerDrafts.take(this.deps.getAccount?.(), streamId, channel.messages);
+        if (!draft) return;
+        if (draft.editing) {
+            chatAreaUI.restoreEdit(draft.editing);
+        } else if (draft.replyTo) {
+            chatAreaUI.restoreReply(draft.replyTo);
+            this.deps.setReplyingTo(draft.replyTo);
+        }
+        this.deps.inputUI?.setValue(draft.text);
+    }
+
+    /**
      * Select and display a channel
      * @param {string} streamId - Stream ID
      * @param {Object} options - Selection options
      * @param {boolean} options.pushHistory - Whether to push to browser history (default: true)
      */
     async selectChannel(streamId, options = { pushHistory: true }) {
+        const switching = channelManager.currentChannel !== streamId;
+        if (switching) {
+            this.stashComposer();
+            this.clearComposer();
+        }
+
         // Stop heartbeat for previous channel
         this.deps.stopAccessHeartbeat();
         
@@ -125,6 +166,7 @@ class ChannelViewUI {
         
         // Handle read-only UI
         await this.deps.updateReadOnlyUI(channel);
+        if (switching) this._restoreComposer(streamId, channel);
         
         // Show channel buttons (hide invite for DM channels)
         if (channel.type === 'dm') {
@@ -199,6 +241,9 @@ class ChannelViewUI {
      * Deselect current channel (close it)
      */
     async deselectChannel() {
+        this.stashComposer();
+        this.clearComposer();
+
         // Stop heartbeat
         this.deps.stopAccessHeartbeat();
         

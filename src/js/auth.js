@@ -11,6 +11,7 @@
 import { Logger } from './logger.js';
 import { StorageError, ValidationError } from './utils/errors.js';
 import { CONFIG } from './config.js';
+import { composerDrafts } from './composerDrafts.js';
 
 // Storage key for wallets (keystores are NOT encrypted — they already are)
 const WALLETS_STORAGE_KEY = CONFIG.storageKeys.keystores;
@@ -397,6 +398,7 @@ class AuthManager {
         
         delete wallets[targetAddress];
         localStorage.setItem(WALLETS_STORAGE_KEY, JSON.stringify(wallets));
+        composerDrafts.forgetAccount(targetAddress);
         
         // If deleted current wallet, disconnect
         if (this.address?.toLowerCase() === targetAddress) {
