@@ -270,9 +270,7 @@ class ChannelViewUI {
         // caption, so the class and the content it styles change together.
         document.body.classList.add('explore-open');
         const isMobile = this.deps.isMobileView();
-        if (!isMobile) {
-            this.elements.currentChannelName.textContent = 'Explore Channels';
-        }
+        this.elements.currentChannelName.textContent = 'Explore Channels';
         this.elements.currentChannelInfo.textContent = '';
         this.elements.currentChannelInfo.parentElement?.classList.add('hidden');
         headerUI.clearChannelThumb();
