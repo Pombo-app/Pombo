@@ -33,9 +33,10 @@ const copyButton = (value, what) => `
  * @param {string} opts.thumbHtml - the channel image, already sized
  * @param {Object|null} [opts.gateInfo] - cached gate card info ({mode, verb, value, qualifier})
  * @param {string|null} [opts.ownerName] - the owner's ENS name, when known
+ * @param {number|null} [opts.storageDays] - the message stream's retention, when known
  * @returns {string}
  */
-export function renderExploreDetails(ch, { thumbHtml, gateInfo = null, ownerName = null }) {
+export function renderExploreDetails(ch, { thumbHtml, gateInfo = null, ownerName = null, storageDays = null }) {
     const owner = String(ch.streamId || '').split('/')[0];
     const created = ch.createdAt
         ? new Date(ch.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -46,8 +47,9 @@ export function renderExploreDetails(ch, { thumbHtml, gateInfo = null, ownerName
     }
     if (ch.type === 'gated') {
         const spec = wireIdentitySpec(ch.wireIdentity);
-        rows.push(row('Identity on the wire', `<span class="inline-flex items-center gap-1.5 justify-end">${wireIdentityIcon(ch.wireIdentity, 'w-4 h-4 text-overlay-50')}${escapeHtml(spec.name)}</span><span class="block text-[11px] text-overlay-40 mt-0.5">${escapeHtml(spec.audience)}</span>`));
+        rows.push(row('Identity on the wire', `<span class="inline-flex items-center gap-1.5 justify-end">${wireIdentityIcon(ch.wireIdentity, 'w-4 h-4 text-overlay-50')}${escapeHtml(spec.name)}</span>`));
     }
+    if (storageDays) rows.push(row('Storage', escapeHtml(storageDays === 1 ? '1 day' : `${storageDays} days`)));
     if (owner) {
         const ownerLabel = ownerName
             ? `${escapeHtml(ownerName)} <span class="text-overlay-40">${escapeHtml(formatAddress(owner))}</span>`

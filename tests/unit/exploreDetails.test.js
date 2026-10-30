@@ -40,7 +40,12 @@ describe('renderExploreDetails', () => {
         expect(html).toContain('Paid');
         expect(html).toContain('Subscribe 0.2 POL per day');
         expect(html).toContain('Sealed');
-        expect(html).toContain('authors readable by members only');
+    });
+
+    it('shows the message stream retention as Storage, and nothing when it is unknown', () => {
+        expect(renderExploreDetails(base, { thumbHtml: '', storageDays: 30 })).toContain('30 days');
+        expect(renderExploreDetails(base, { thumbHtml: '', storageDays: 1 })).toContain('1 day');
+        expect(renderExploreDetails(base, { thumbHtml: '' })).not.toContain('Storage');
     });
 
     it('names the owner by ENS when known', () => {

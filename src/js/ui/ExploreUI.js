@@ -7,6 +7,7 @@ import { GATE_MODE } from '../gate.js';
 import { escapeHtml, escapeAttr } from './utils.js';
 import { modalManager } from './ModalManager.js';
 import { renderExploreDetails } from './exploreDetails.js';
+import { readStreamRetention } from '../streamRetention.js';
 import { sanitizeText } from './sanitizer.js';
 import { loadCurationManifest, applyCuration } from '../exploreCuration.js';
 import { channelImageManager } from '../channelImageManager.js';
@@ -935,18 +936,22 @@ class ExploreUI {
         const gate = ch.gateAddress ? this._gateCardInfo.get(ch.gateAddress) : null;
         const gateInfo = gate && gate !== 'pending' ? gate : null;
         const owner = String(ch.streamId).split('/')[0].toLowerCase();
-        const render = (ownerName) => {
-            body.innerHTML = renderExploreDetails(ch, { thumbHtml, gateInfo, ownerName });
+        const state = { ownerName: identityManager.ensCache?.get(owner)?.name || null, storageDays: null };
+        const render = () => {
+            if (this._detailsStreamId !== ch.streamId) return;
+            body.innerHTML = renderExploreDetails(ch, { thumbHtml, gateInfo, ...state });
         };
-        const cachedName = identityManager.ensCache?.get(owner)?.name || null;
         this._detailsStreamId = ch.streamId;
-        render(cachedName);
+        render();
         modalManager.show('explore-details-modal');
-        if (!cachedName && owner) {
+        if (!state.ownerName && owner) {
             identityManager.resolveENS?.(owner)
-                ?.then(name => { if (name && this._detailsStreamId === ch.streamId) render(name); })
+                ?.then(name => { if (name) { state.ownerName = name; render(); } })
                 ?.catch(() => {});
         }
+        readStreamRetention(ch.streamId).then(days => {
+            if (days) { state.storageDays = days; render(); }
+        });
     }
 
     _patchGateAccess(gateAddress, info) {
