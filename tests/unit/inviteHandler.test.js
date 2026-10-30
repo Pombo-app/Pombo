@@ -177,13 +177,13 @@ describe('inviteHandler.joinChannelFromInvite', () => {
 
         await inviteHandler.joinChannelFromInvite(inviteData);
 
-        expect(uiController.showLoading).toHaveBeenCalledWith('Joining channel...');
+        expect(uiController.showLoading).toHaveBeenCalledWith('Joining channel…');
         expect(channelManager.joinChannel).toHaveBeenCalledWith('0xabc/test-1', 'pw', {
             name: 'Test',
             type: 'public'
         });
         expect(uiController.renderChannelList).toHaveBeenCalled();
-        expect(uiController.showNotification).toHaveBeenCalledWith('Joined channel successfully!', 'success');
+        expect(uiController.showNotification).toHaveBeenCalledWith('Joined channel', 'success');
         expect(uiController.hideLoading).toHaveBeenCalled();
     });
 

@@ -518,14 +518,14 @@ class WalletUI {
             const amountWei = BigInt(Math.floor(parseFloat(amount) * 1e18));
             const amountHex = '0x' + amountWei.toString(16);
 
-            showNotification?.('Confirm transaction in MetaMask...', 'info');
+            showNotification?.('Confirm transaction in MetaMask…', 'info');
 
             const txHash = await window.ethereum.request({
                 method: 'eth_sendTransaction',
                 params: [{ from: metamaskAddress, to: localAddress, value: amountHex }]
             });
 
-            showNotification?.('Transaction sent! Waiting for confirmation...', 'info');
+            showNotification?.('Transaction sent. Waiting for confirmation…', 'info');
 
             let receipt = null;
             while (!receipt) {
@@ -537,7 +537,7 @@ class WalletUI {
             }
 
             if (receipt.status === '0x1') {
-                showNotification?.(`Funded ${amount} POL successfully!`, 'success');
+                showNotification?.(`Funded ${amount} POL`, 'success');
                 this.refresh();
             } else {
                 showNotification?.('Transaction failed', 'error');

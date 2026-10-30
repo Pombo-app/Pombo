@@ -39,7 +39,7 @@ describe('removing a member', () => {
 
     it('tells the owner it is done when the key rotated', async () => {
         await channelSettingsUI.executeRemoveMember(MEMBER);
-        expect(showNotification).toHaveBeenCalledWith('Member removed successfully!', 'success');
+        expect(showNotification).toHaveBeenCalledWith('Member removed', 'success');
     });
 
     it('tells the owner the rotation is still owed', async () => {

@@ -253,7 +253,7 @@ describe('walletFlows.switchWallet', () => {
 
         expect(mockCallbacks.disconnectWallet).toHaveBeenCalledWith({ skipFallback: true });
         expect(walletFlows.loadWalletWithProgress).toHaveBeenCalledWith('password123', '0xdef');
-        expect(uiController.showNotification).toHaveBeenCalledWith('Account switched!', 'success');
+        expect(uiController.showNotification).toHaveBeenCalledWith('Account switched', 'success');
     });
 
     it('should not proceed if password prompt cancelled', async () => {

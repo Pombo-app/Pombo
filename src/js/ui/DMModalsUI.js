@@ -425,16 +425,16 @@ class DMModalsUI {
         //   + setStorageDayCount when provider supports TTL (Streamr) -> 6 total
         const totalSteps = options.storageProvider === 'streamr' ? 6 : 5;
         this.notificationUI?.showLoadingToast(
-            'Creating DM inbox...',
+            'Creating DM inbox…',
             'This may take a minute',
-            { steps: totalSteps, initialLabel: 'Creating Inbox...' }
+            { steps: totalSteps, initialLabel: 'Creating Inbox…' }
         );
 
         // [1; 2] Creating Inbox · [3; 4] Setting Permissions · [5; total] Setting Storage
         const labelForStep = (s) => {
-            if (s <= 2) return 'Creating Inbox...';
-            if (s <= 4) return 'Setting Permissions...';
-            return 'Setting Storage...';
+            if (s <= 2) return 'Creating Inbox…';
+            if (s <= 4) return 'Setting Permissions…';
+            return 'Setting Storage…';
         };
 
         let currentStep = 0;
@@ -445,7 +445,7 @@ class DMModalsUI {
 
         try {
             await this.dmManager.createInbox({ ...options, onProgress });
-            this.showNotification('DM inbox created!', 'success');
+            this.showNotification('DM inbox created', 'success');
             this.writeInboxKnown();
             await this.updateVisibility();
             document.dispatchEvent(new CustomEvent('pombo:dm-inbox-ready'));

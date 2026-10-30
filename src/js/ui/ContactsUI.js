@@ -251,7 +251,7 @@ class ContactsUI {
             
             // Resolve ENS if needed
             if (addressOrEns.endsWith('.eth')) {
-                showLoading('Resolving ENS...');
+                showLoading('Resolving ENS…');
                 isLoading = true;
                 address = await identityManager.resolveAddress(addressOrEns);
                 
@@ -270,7 +270,7 @@ class ContactsUI {
             await identityManager.addTrustedContact(address, nickname || null);
             this.renderList();
             this.deps.renderChannelList?.();
-            showNotification('Contact added!', 'success');
+            showNotification('Contact added', 'success');
 
             // Clear inputs
             this.elements.addContactAddress.value = '';
@@ -317,7 +317,7 @@ class ContactsUI {
         await identityManager.addTrustedContact(address, nickname);
         this.renderList();
         this.deps.renderChannelList?.();
-        showNotification('Contact added!', 'success');
+        showNotification('Contact added', 'success');
         this.hideAddModal();
     }
 

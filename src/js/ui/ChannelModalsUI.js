@@ -951,12 +951,12 @@ class ChannelModalsUI {
                     // the modal up: on failure it is the retry context.)
                     if (entry.renewal) this.hideGateEntryModal();
                     try {
-                        this.notificationUI?.showLoadingToast('Paying subscription...', 'Confirm may take a moment', { icon: 'payment' });
+                        this.notificationUI?.showLoadingToast('Paying subscription…', 'Confirm may take a moment', { icon: 'payment' });
                         await gateManager.pay(entry.gateAddress, (step) => {
                             this.notificationUI?.showLoadingToast(
-                                step === 'wrap' ? 'Wrapping POL...'
-                                    : step === 'approve' ? 'Approving token...'
-                                        : 'Paying subscription...',
+                                step === 'wrap' ? 'Wrapping POL…'
+                                    : step === 'approve' ? 'Approving token…'
+                                        : 'Paying subscription…',
                                 'Waiting for the transaction',
                                 { icon: 'payment' }
                             );
@@ -1240,21 +1240,21 @@ class ChannelModalsUI {
         }
 
         this.hide();
-        await this._runWithCreateProgress(isGated, members.length, 'Creating channel...',
+        await this._runWithCreateProgress(isGated, members.length, 'Creating channel…',
             (onProgress) => this.channelManager.createChannel(name, type, password, members, {
                 ...options,
                 onProgress
             }),
-            'Channel created successfully!', 'Failed to create channel: ');
+            'Channel created', 'Failed to create channel: ');
     }
 
     /** Finish an interrupted creation: only the missing transactions are sent. */
     async finishInterruptedCreate(basePath) {
         const record = this.channelManager.getInterruptedCreates().find(r => r.basePath === basePath);
         if (!record) return;
-        await this._runWithCreateProgress(record.type === 'gated', record.members?.length || 0, 'Finishing channel...',
+        await this._runWithCreateProgress(record.type === 'gated', record.members?.length || 0, 'Finishing channel…',
             (onProgress) => this.channelManager.finishPendingCreate(basePath, { onProgress }),
-            'Channel created successfully!', 'Could not finish the channel: ');
+            'Channel created', 'Could not finish the channel: ');
     }
 
     async discardInterruptedCreate(basePath) {
@@ -1293,15 +1293,15 @@ class ChannelModalsUI {
             this.notificationUI?.showLoadingToast(
                 title,
                 'This may take a minute',
-                { steps: totalSteps, initialLabel: 'Creating Channel...' }
+                { steps: totalSteps, initialLabel: 'Creating Channel…' }
             );
 
             // Map step index -> phase label.
             // [1; N] Creating Channel · [N+1; 2N] Setting Permissions · [2N+1; total] Setting Storage
             const labelForStep = (s) => {
-                if (s <= streamCount) return 'Creating Channel...';
-                if (s <= streamCount * 2) return 'Setting Permissions...';
-                return 'Setting Storage...';
+                if (s <= streamCount) return 'Creating Channel…';
+                if (s <= streamCount * 2) return 'Setting Permissions…';
+                return 'Setting Storage…';
             };
 
             let currentStep = 0;
