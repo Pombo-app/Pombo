@@ -3398,6 +3398,38 @@ body.explore-open #explore-channels-list {
         padding: 1rem 14px 7rem 14px !important;
         border: none !important;
     }
+    #contacts-modal .contacts-mobile-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+    }
+    #contacts-add-box {
+        display: none;
+    }
+    body.contacts-adding .contacts-add-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 70;
+    }
+    body.contacts-adding #contacts-add-box {
+        display: block;
+        position: fixed;
+        left: 16px;
+        right: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 71;
+        margin: 0;
+        padding: 1.25rem;
+        border-radius: 1rem;
+        background: var(--pombo-surface-raised);
+    }
+    body.contacts-adding .contacts-add-title {
+        display: block;
+    }
     
     #new-channel-modal > div,
     #settings-modal > div,
@@ -4170,7 +4202,10 @@ body.guest-mode #pill-wallet-btn {
 }
 
 #contacts-btn-wrapper,
-body.guest-mode #transfers-btn-wrapper {
+body.guest-mode #transfers-btn-wrapper,
+.contacts-mobile-header,
+.contacts-add-backdrop,
+.contacts-add-title {
     display: none;
 }
 

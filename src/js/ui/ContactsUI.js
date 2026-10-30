@@ -62,10 +62,24 @@ class ContactsUI {
         if (this.elements.closeContactsBtn) {
             this.elements.closeContactsBtn.addEventListener('click', () => this.hide());
         }
+        document.getElementById('contacts-add-open-btn')?.addEventListener('click', () => this._setAdding(true));
+        document.getElementById('contacts-add-backdrop')?.addEventListener('click', () => this._setAdding(false));
+        document.getElementById('contacts-add-box')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.body.classList.contains('contacts-adding')) {
+                e.stopPropagation();
+                this._setAdding(false);
+            }
+        });
 
         // Register onHide callback for back button and programmatic hide
         modalManager.registerOnHide('contacts-modal', () => this._cleanupOnHide());
         this.initialized = true;
+    }
+
+    /** Open or close the add-contact dialog of the mobile layout. */
+    _setAdding(open) {
+        document.body.classList.toggle('contacts-adding', open);
+        if (open) this.elements.addContactAddress?.focus();
     }
 
     /**
@@ -129,7 +143,7 @@ class ContactsUI {
      */
     _cleanupOnHide() {
         // Remove contacts-open class for mobile
-        document.body.classList.remove('contacts-open');
+        document.body.classList.remove('contacts-open', 'contacts-adding');
         // Only reset pill nav to chats if still on contacts tab
         // If pill was already switched (e.g. to explore), don't override
         const activeTab = document.querySelector('.pill-nav-item[data-pill-tab].active');
@@ -285,6 +299,7 @@ class ContactsUI {
             // Clear inputs
             this.elements.addContactAddress.value = '';
             this.elements.addContactNickname.value = '';
+            this._setAdding(false);
         } catch (error) {
             showNotification('Failed to add contact: ' + error.message, 'error');
         } finally {

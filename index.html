@@ -2982,9 +2982,21 @@
                 </svg>
                 <h3 class="text-base font-medium text-primary">Contacts</h3>
             </div>
-            
-            <!-- Add new contact -->
-            <div class="mb-4 p-3 bg-overlay-5 border border-overlay-8 rounded-xl">
+
+            <!-- Mobile header (Android ContactsScreen): logo, and + opens the add dialog -->
+            <div class="contacts-mobile-header">
+                <img src="favicon/favicon.svg" alt="Pombo" class="w-12 h-12 header-logo">
+                <button id="contacts-add-open-btn" class="px-4 py-1.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-primary border border-[#F6851B]/30 rounded-xl transition-all duration-200 flex items-center" aria-label="Add contact">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.5v15m7.5-7.5h-15"/>
+                    </svg>
+                </button>
+            </div>
+            <div id="contacts-add-backdrop" class="contacts-add-backdrop"></div>
+
+            <!-- Add new contact (a dialog on mobile) -->
+            <div id="contacts-add-box" class="mb-4 p-3 bg-overlay-5 border border-overlay-8 rounded-xl">
+                <h3 class="contacts-add-title text-base font-medium text-primary mb-3">Add contact</h3>
                 <div class="flex gap-2">
                     <input
                         type="text"
