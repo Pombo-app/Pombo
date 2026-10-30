@@ -1878,6 +1878,8 @@ class SettingsUI {
 
         diagnoseBtn?.addEventListener('click', () => this.handleRepairPrimaryAction());
         fixBtn?.addEventListener('click', () => this.runRepair());
+        document.getElementById('repair-check-again-btn')
+            ?.addEventListener('click', () => this.runDiagnosis());
 
         if (!this._repairInboxReadyListenerAttached) {
             document.addEventListener('pombo:dm-inbox-ready', () => {
@@ -2109,10 +2111,8 @@ class SettingsUI {
             return;
         }
 
-        button.className = 'flex-1 bg-overlay-5 hover:bg-overlay-10 text-overlay-70 border border-overlay-10 px-3 py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5';
-        icon.setAttribute('class', 'w-3.5 h-3.5');
-        icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>';
-        label.textContent = 'Diagnose';
+        // Diagnosis runs on its own when the panel opens; the button exists only to create.
+        button.classList.add('hidden');
     }
 
     /**
@@ -2129,6 +2129,7 @@ class SettingsUI {
 
         const hideCard = state === 'noInbox';
         card.classList.toggle('hidden', hideCard);
+        document.getElementById('repair-check-again-btn')?.classList.toggle('hidden', state !== 'error');
         if (hideCard) return;
 
         const states = {
