@@ -3704,7 +3704,7 @@ body.explore-open #explore-channels-list {
         flex-shrink: 0;
     }
 
-    .settings-index-row:not(.settings-index-action)::after {
+    .settings-index-row::after {
         content: '';
         margin-left: auto;
         width: 0.5rem;
@@ -3722,12 +3722,6 @@ body.explore-open #explore-channels-list {
         height: 1px;
         margin: 0.375rem 0.75rem;
         background: var(--pombo-overlay-6);
-    }
-
-    /* Device Sync rides inside Account on mobile, before Backup & Restore */
-    #settings-panel-devicesync.settings-panel-follows {
-        padding-top: 1.5rem;
-        border-top: 1px solid var(--pombo-overlay-5);
     }
 
     #new-channel-modal .w-40 nav button {

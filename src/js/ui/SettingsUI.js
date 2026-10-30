@@ -795,6 +795,8 @@ class SettingsUI {
                 : 'Sync travels through your own DM inbox. Create it first to turn these options on.';
         }
         notice?.classList.toggle('hidden', available);
+        const syncNow = document.getElementById('settings-sync-devices-btn');
+        if (syncNow) syncNow.disabled = !available;
         options.classList.toggle('opacity-40', !available);
 
         const mode = this.syncManager?.getSyncMode?.() || 'automatic';
@@ -1019,23 +1021,6 @@ class SettingsUI {
     }
 
     /**
-     * Mobile Account shows Device Sync between the address and Backup &
-     * Restore, as on Android; everywhere else the panel sits on its own.
-     */
-    _placeSyncPanel(insideAccount) {
-        const sync = document.getElementById('settings-panel-devicesync');
-        const profile = document.getElementById('settings-panel-profile');
-        const divider = document.getElementById('settings-backup-divider');
-        if (!sync || !profile) return;
-        sync.classList.toggle('settings-panel-follows', insideAccount);
-        if (insideAccount) {
-            divider?.before(sync);
-        } else if (sync.parentElement !== profile.parentElement) {
-            profile.after(sync);
-        }
-    }
-
-    /**
      * A section is one history step deep, so the system Back returns to the
      * list instead of closing Settings.
      */
@@ -1068,10 +1053,8 @@ class SettingsUI {
      */
     selectSettingsTab(tabName) {
         const isMobile = this.isMobileView && this.isMobileView();
-        // Mobile Account carries Device Sync below it, as on Android.
-        const withSync = isMobile && tabName === 'profile';
 
-        if (tabName === 'devicesync' || withSync) {
+        if (tabName === 'devicesync') {
             this.updateSyncModeDisplay();
         }
 
@@ -1105,10 +1088,8 @@ class SettingsUI {
 
         this.elements.settingsPanels?.forEach(panel => {
             const panelName = panel.id.replace('settings-panel-', '');
-            const show = panelName === tabName || (withSync && panelName === 'devicesync');
-            panel.classList.toggle('hidden', !show);
+            panel.classList.toggle('hidden', panelName !== tabName);
         });
-        this._placeSyncPanel(withSync);
 
         if (isMobile) this._trackSectionHistory(tabName);
 
