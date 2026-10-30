@@ -4,7 +4,7 @@
 // to have scope over all pages.
 // ================================================
 
-const SW_VERSION = '2.7.0';
+const SW_VERSION = '2.8.0';
 
 // ================================================
 // INDEXEDDB CONFIGURATION
@@ -454,7 +454,7 @@ function getMessagePreview(channel) {
         case 'file':
             return `📎 ${content.fileName || 'File'}`;
         case 'audio':
-            return '🎵 Audio message';
+            return '🎤 Voice message';
         case 'video':
             return '🎬 Video';
         case 'gif':

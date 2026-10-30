@@ -3275,7 +3275,7 @@ class ChannelManager {
                 if (!m) continue;
                 if (m._deleted) continue;
                 if (m.type === 'edit' || m.type === 'delete') continue;
-                if (m.type === 'text' || m.type === 'image' || m.type === 'file_announce' || m.type === 'storage_file_announce' || m.type === 'reaction') {
+                if (m.type === 'text' || m.type === 'image' || m.type === 'audio' || m.type === 'file_announce' || m.type === 'storage_file_announce' || m.type === 'reaction') {
                     channelLatestMessageManager.setFromLocal(streamId, m);
                     return;
                 }

@@ -7,6 +7,13 @@
 import { modalManager } from './ModalManager.js';
 import { sanitizeText } from './sanitizer.js';
 import { escapeHtml } from './utils.js';
+import { formatAudioTime } from './MessageRenderer.js';
+import { VoiceRecorder, canRecordAudio } from '../audioRecorder.js';
+import { CONFIG } from '../config.js';
+import { audioWaveSvg, WaveMotion } from './audioWave.js';
+
+const SLIDE_TO_CANCEL_PX = 100;
+const SLIDE_TO_LOCK_PX = 60;
 
 class InputUI {
     constructor() {
@@ -43,12 +50,184 @@ class InputUI {
         // Enter handling for contenteditable (insert plain '\n' instead of <div>/<br>)
         this.setupEnterKey();
 
+        // The placeholder is :empty::before; deleting everything leaves a <br> behind.
+        this.messageInput?.addEventListener('input', () => {
+            if (!this.messageInput.textContent && this.messageInput.innerHTML) {
+                this.messageInput.innerHTML = '';
+            }
+        });
+
         // Setup paste / drag-and-drop image insertion
         this.setupImagePaste();
         this.setupImageDrop();
 
         // Watch for keyboard-injected <img> elements (Android Gboard / Tenor)
         this.setupKeyboardImageObserver();
+
+        this.initVoiceRecorder();
+    }
+
+    initVoiceRecorder() {
+        this.recordBtn = document.getElementById('record-audio-btn');
+        this.recordingBar = document.getElementById('voice-recording-bar');
+        if (!this.recordBtn || !this.recordingBar || !canRecordAudio()) return;
+
+        const limit = document.getElementById('voice-recording-limit');
+        if (limit) limit.textContent = ` / ${formatAudioTime(CONFIG.media.audioMaxDurationMs)}`;
+        this.recordingWave = document.getElementById('voice-recording-wave');
+        if (this.recordingWave) this.recordingWave.innerHTML = audioWaveSvg('block w-full h-5 text-primary');
+        this.waveMotion = new WaveMotion();
+
+        this.messageInput?.addEventListener('input', () => this.updateSendOrRecord());
+        this.updateSendOrRecord();
+
+        this.recordBtn.addEventListener('pointerdown', (e) => this._onRecordPointerDown(e));
+        this.recordBtn.addEventListener('pointermove', (e) => this._onRecordPointerMove(e));
+        this.recordBtn.addEventListener('pointerup', () => {
+            if (this.voice && !this.voice.locked) this._finishRecording('release');
+        });
+        this.recordBtn.addEventListener('pointercancel', () => {
+            if (this.voice && !this.voice.locked) this._finishRecording('cancel');
+        });
+        this.recordBtn.addEventListener('contextmenu', (e) => e.preventDefault());
+        document.getElementById('voice-cancel-btn')?.addEventListener('click', () => this._finishRecording('cancel'));
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.voice?.locked) this._finishRecording('cancel');
+        });
+    }
+
+    updateSendOrRecord() {
+        if (!this.recordBtn) return;
+        const showMic = !!this.voice || !this.getValue();
+        this.recordBtn.classList.toggle('hidden', !showMic);
+        this.sendMessageBtn?.classList.toggle('hidden', showMic);
+    }
+
+    async _onRecordPointerDown(e) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        const live = this.voice;
+        if (live) {
+            if (live.locked && live.started) this._finishRecording('release');
+            return;
+        }
+        // A mouse records hands-free from one click; touch holds, and slides up to lock.
+        const locked = e.pointerType === 'mouse';
+        if (!locked) this.recordBtn.setPointerCapture?.(e.pointerId);
+        const session = {
+            startX: e.clientX,
+            startY: e.clientY,
+            locked,
+            released: false,
+            finishing: false,
+            started: false,
+            recorder: new VoiceRecorder({
+                onTick: (ms) => this._paintRecording(ms),
+                onLimit: () => this._finishRecording('limit')
+            })
+        };
+        this.voice = session;
+        try {
+            await session.recorder.start();
+        } catch (error) {
+            session.recorder.cancel();
+            if (this.voice === session) this.voice = null;
+            this.updateSendOrRecord();
+            const denied = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
+            this.deps.showNotification?.(
+                denied ? 'Microphone access denied' : 'Could not start recording: ' + error.message,
+                'error'
+            );
+            return;
+        }
+        session.started = true;
+        if (session.released) {
+            session.recorder.cancel();
+            if (this.voice === session) this.voice = null;
+            this.updateSendOrRecord();
+            this.deps.showNotification?.('Hold to record, release to send', 'info');
+            return;
+        }
+        this._showRecording(true);
+        this._animateWave(session);
+    }
+
+    _onRecordPointerMove(e) {
+        const session = this.voice;
+        if (!session?.started || session.finishing || session.locked) return;
+        const dx = Math.max(0, session.startX - e.clientX);
+        const dy = Math.max(0, session.startY - e.clientY);
+        const hint = document.getElementById('voice-recording-hint');
+        if (hint) hint.style.transform = `translateX(${-Math.min(dx, SLIDE_TO_CANCEL_PX)}px)`;
+        if (dx >= SLIDE_TO_CANCEL_PX) {
+            this._finishRecording('cancel');
+        } else if (dy >= SLIDE_TO_LOCK_PX) {
+            session.locked = true;
+            this._paintRecordingMode(session);
+        }
+    }
+
+    _animateWave(session) {
+        const frame = () => {
+            if (this.voice !== session || session.finishing) return;
+            this.waveMotion.step(session.recorder.levels());
+            this.waveMotion.paint(this.recordingWave);
+            requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+    }
+
+    _paintRecordingMode(session) {
+        const locked = !!session?.locked;
+        const recording = !!session;
+        this.recordBtn?.classList.toggle('locked', recording && locked);
+        this.recordBtn?.querySelector('.voice-icon-mic')?.classList.toggle('hidden', recording && locked);
+        this.recordBtn?.querySelector('.voice-icon-send')?.classList.toggle('hidden', !(recording && locked));
+        this.recordBtn?.setAttribute('aria-label', recording && locked ? 'Send voice message' : 'Record a voice message');
+        document.getElementById('voice-cancel-btn')?.classList.toggle('hidden', !(recording && locked));
+        document.getElementById('voice-recording-hint')?.classList.toggle('hidden', !recording || locked);
+        document.getElementById('voice-recording-limit')?.classList.toggle('hidden', !(recording && locked));
+        document.getElementById('voice-lock-hint')?.classList.toggle('hidden', !recording || locked);
+    }
+
+    async _finishRecording(reason) {
+        const session = this.voice;
+        if (!session || session.finishing) return;
+        if (!session.started) {
+            session.released = true;
+            return;
+        }
+        session.finishing = true;
+        this.voice = null;
+        this._showRecording(false);
+        this.updateSendOrRecord();
+
+        if (reason === 'cancel') {
+            session.recorder.cancel();
+            return;
+        }
+        const result = await session.recorder.stop();
+        if (result.durationMs < CONFIG.media.audioMinDurationMs || !result.blob.size) {
+            this.deps.showNotification?.(session.locked ? 'Voice message too short' : 'Hold to record, release to send', 'info');
+            return;
+        }
+        await this.deps.onSendAudio?.(result);
+    }
+
+    _showRecording(on) {
+        this.recordingBar?.classList.toggle('hidden', !on);
+        this.recordBtn?.classList.toggle('recording', on);
+        const hint = document.getElementById('voice-recording-hint');
+        if (hint) hint.style.transform = '';
+        this._paintRecordingMode(on ? this.voice : null);
+        this.waveMotion?.reset();
+        this.waveMotion?.paint(this.recordingWave, { idle: true });
+        this._paintRecording(0);
+    }
+
+    _paintRecording(ms) {
+        const time = document.getElementById('voice-recording-time');
+        if (time) time.textContent = formatAudioTime(ms);
     }
 
     /**

@@ -17,8 +17,9 @@ import { dmManager } from './dm.js';
 import { dmCrypto } from './dmCrypto.js';
 import { CONFIG as APP_CONFIG } from './config.js';
 import { getChannelIdentity } from './channelIdentity.js';
-import { recoverPublisherAccount } from './publisherProof.js';
+import { recoverPublisherAccount, dropLocalState } from './publisherProof.js';
 import { usesEpochKeys } from './epochKeyManager.js';
+import { NO_NETWORK, isOffline } from './utils/network.js';
 
 // === CONFIGURATION ===
 const CONFIG = {
@@ -33,6 +34,7 @@ const CONFIG = {
     IMAGE_CHUNK_INITIAL_RAW_BYTES: APP_CONFIG.media.imageChunkInitialRawBytes,
     IMAGE_CHUNK_MIN_RAW_BYTES: APP_CONFIG.media.imageChunkMinRawBytes,
     IMAGE_ASSEMBLY_TTL_MS: APP_CONFIG.media.imageAssemblyTtlMs,
+    AUDIO_MAX_ASSEMBLED_BYTES: APP_CONFIG.media.audioMaxAssembledBytes,
     JPEG_INITIAL_QUALITY: APP_CONFIG.media.jpegInitialQuality,
     JPEG_MIN_QUALITY: APP_CONFIG.media.jpegMinQuality,
     WEBP_INITIAL_QUALITY: APP_CONFIG.media.webpInitialQuality,
@@ -132,10 +134,23 @@ function isStoredImageChunkMessage(data) {
     );
 }
 
+// Rides the image transport (`image_chunk` by `imageId`). `durationMs` is
+// required: a recorded WebM has no duration in its header.
+function isStoredChunkedAudioManifest(data) {
+    return !!(
+        data
+        && data.type === 'audio'
+        && typeof data.finalMime === 'string'
+        && data.finalMime.startsWith('audio/')
+        && Number.isFinite(data.durationMs)
+        && data.durationMs > 0
+    );
+}
+
 function isStoredChunkedImageManifest(data) {
     return !!(
         data
-        && data.type === 'image'
+        && (data.type === 'image' || isStoredChunkedAudioManifest(data))
         && data.transport === STORED_IMAGE_TRANSPORT
         && data.v === STORED_IMAGE_PROTOCOL_VERSION
         && typeof data.imageId === 'string'
@@ -313,6 +328,7 @@ class MediaController {
         this.imageCacheBytes = 0;
         this.MAX_IMAGE_CACHE_BYTES = APP_CONFIG.media.maxImageCacheBytes;
         this.pendingImageAssemblies = new Map();
+        this.audioResends = new Set();
 
         // Tombstone set: imageIds whose owning message was deleted in this
         // session. Blocks every late-arrival path (chunk register, manifest
@@ -782,6 +798,145 @@ class MediaController {
         };
     }
 
+    // `mime` is the type requested from the recorder, never what the recorder reports.
+    async sendAudio(messageStreamId, blob, { mime, durationMs }) {
+        await channelManager.rotationRetry?.settle(messageStreamId);
+        const channel = channelManager.getChannel(messageStreamId);
+        if (!channel) {
+            throw new Error('Channel not found');
+        }
+        if (!blob?.size || blob.size > CONFIG.AUDIO_MAX_ASSEMBLED_BYTES) {
+            throw new Error('Voice message is larger than 1MB');
+        }
+        if (!String(mime || '').startsWith('audio/') || !(durationMs > 0)) {
+            throw new Error('Invalid voice message');
+        }
+
+        const audioBlob = blob.type === mime ? blob : new Blob([blob], { type: mime });
+        const imageId = crypto.randomUUID();
+        const dataUrl = await this.blobToDataURL(audioBlob);
+        const { chunkPayloads, sha256 } = await this._createAudioChunks(channel, imageId, audioBlob);
+
+        const manifest = await identityManager.createAudioManifest({
+            imageId,
+            finalMime: mime,
+            finalSizeBytes: audioBlob.size,
+            durationMs,
+            chunkCount: chunkPayloads.length,
+            chunkHashes: chunkPayloads.map(chunk => chunk.chunkHash),
+            assembledSha256: sha256
+        });
+
+        this.cacheImage(imageId, dataUrl);
+        await secureStorage.saveImageToLedger(imageId, dataUrl, messageStreamId);
+
+        const message = {
+            ...manifest,
+            pending: true,
+            verified: {
+                valid: true,
+                trustLevel: await identityManager.getTrustLevel(manifest.sender)
+            }
+        };
+        if (channel.type === 'dm') message._dmSent = true;
+        channel.messages.push(message);
+        channelManager.notifyHandlers('message', { streamId: messageStreamId, message });
+
+        await this._publishAudio(channel, message, chunkPayloads);
+        return message;
+    }
+
+    async resendAudio(messageStreamId, messageId) {
+        const channel = channelManager.getChannel(messageStreamId);
+        const message = channel?.messages.find(m => m.id === messageId && m.type === 'audio' && m.failed);
+        if (!message) return null;
+        if (this.audioResends.has(messageId)) return message;
+        this.audioResends.add(messageId);
+        try {
+            await channelManager.rotationRetry?.settle(messageStreamId);
+            message.pending = true;
+            message.failed = false;
+            delete message.failError;
+            channelManager.notifyHandlers('message_sending', { streamId: messageStreamId, messageId, message });
+            await this._publishAudio(channel, message, null);
+            return message;
+        } finally {
+            this.audioResends.delete(messageId);
+        }
+    }
+
+    async _createAudioChunks(channel, imageId, blob) {
+        const dmPeer = (channel.type === 'dm' && channel.peerAddress) ? channel.peerAddress : null;
+        const chunkPayloads = await this.createStoredImageChunkPayloads({
+            imageId,
+            blob,
+            password: channel.password || null,
+            dmPeer,
+            channel
+        });
+        const sha256 = await this.sha256(await this.blobToArrayBuffer(blob));
+        return { chunkPayloads, sha256 };
+    }
+
+    // Cut again on a retry: sealed sizes depend on keys that may have rotated since.
+    async _recreateAudioChunks(channel, message) {
+        const dataUrl = this.getImage(message.imageId) || await secureStorage.getImageBlob(message.imageId);
+        if (!dataUrl) {
+            throw new Error('Voice message data is no longer available');
+        }
+        const bytes = this.base64ToArrayBuffer(String(dataUrl).split(',')[1] || '');
+        if (!bytes) {
+            throw new Error('Voice message data is unreadable');
+        }
+        const blob = new Blob([bytes], { type: message.finalMime });
+        const { chunkPayloads, sha256 } = await this._createAudioChunks(channel, message.imageId, blob);
+        if (sha256 !== message.assembledSha256) {
+            throw new Error('Voice message data does not match its manifest');
+        }
+        message.chunkCount = chunkPayloads.length;
+        message.chunkHashes = chunkPayloads.map(chunk => chunk.chunkHash);
+        return chunkPayloads;
+    }
+
+    async _publishAudio(channel, message, chunkPayloads) {
+        const messageStreamId = channel.messageStreamId;
+        const dmPeer = (channel.type === 'dm' && channel.peerAddress) ? channel.peerAddress : null;
+        const password = channel.password || null;
+        try {
+            if (isOffline()) throw new Error(NO_NETWORK);
+            const chunks = chunkPayloads || await this._recreateAudioChunks(channel, message);
+            const manifest = dropLocalState({ ...message });
+            await this.assertStoredImagePayloadFits(manifest, password, dmPeer, 'audio manifest', channel);
+            // Chunks first: the manifest tells receivers how many to expect.
+            for (const chunk of chunks) {
+                await this.publishStoredImagePayload(messageStreamId, chunk, password, dmPeer, channel, message.id);
+            }
+            await this.publishStoredImagePayload(messageStreamId, manifest, password, dmPeer, channel, message.id);
+        } catch (error) {
+            Logger.error('Voice message send failed:', error?.message || error);
+            message.pending = false;
+            message.failed = true;
+            message.failError = error?.message || String(error);
+            channelManager.notifyHandlers('message_failed', {
+                streamId: messageStreamId, messageId: message.id, message, error: message.failError
+            });
+            await channelManager.messageFlow?.keepForRetry(messageStreamId, message);
+            throw error;
+        }
+
+        message.pending = false;
+        message.failed = false;
+        delete message.failError;
+        await secureStorage.removeFailedOutbox(messageStreamId, message.id).catch(() => {});
+        if (channel.type === 'dm' || channel.writeOnly) {
+            await secureStorage.addSentMessage(messageStreamId, message);
+        }
+        channelManager.notifyHandlers('message_confirmed', { streamId: messageStreamId, messageId: message.id, message });
+        channelManager.sendWakeSignals(messageStreamId).catch(err => {
+            Logger.debug('Voice message wake signals failed (non-critical):', err?.message);
+        });
+    }
+
     async sendLegacyInlineImage(messageStreamId, file, password = null) {
         // Validate file type
         if (!CONFIG.ALLOWED_IMAGE_TYPES.includes(file.type)) {
@@ -971,9 +1126,11 @@ class MediaController {
             totalBytes += chunkBytes.byteLength;
         }
 
-        const assembledLimit = manifest.finalMime === 'image/gif'
-            ? CONFIG.IMAGE_GIF_MAX_ASSEMBLED_BYTES
-            : CONFIG.IMAGE_MAX_ASSEMBLED_BYTES;
+        const assembledLimit = manifest.type === 'audio'
+            ? CONFIG.AUDIO_MAX_ASSEMBLED_BYTES
+            : manifest.finalMime === 'image/gif'
+                ? CONFIG.IMAGE_GIF_MAX_ASSEMBLED_BYTES
+                : CONFIG.IMAGE_MAX_ASSEMBLED_BYTES;
         if (totalBytes !== manifest.finalSizeBytes || totalBytes > assembledLimit) {
             Logger.warn('Stored image assembled size mismatch:', imageId, totalBytes, manifest.finalSizeBytes);
             return false;

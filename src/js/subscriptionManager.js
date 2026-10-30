@@ -1062,7 +1062,7 @@ class SubscriptionManager {
                 if (msg._deleted) return false;
                 const type = msg.type;
                 if (type === 'reaction' || type === 'edit' || type === 'delete') return false;
-                if (type === 'image' && msg.imageId) return true;
+                if ((type === 'image' || type === 'audio') && msg.imageId) return true;
                 if (type === 'file_announce' && msg.metadata) return true;
                 if (type === 'storage_file_announce' && msg.metadata) return true;
                 if (type === 'text' || type === 'message') return true;
