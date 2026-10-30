@@ -31,6 +31,19 @@ export function escapeAttr(str) {
 }
 
 /**
+ * A byte count with one decimal in the device's number format ("17.9 MB", "17,9 MB").
+ * @param {number} bytes
+ * @returns {string}
+ */
+export function formatBytes(bytes) {
+    const one = (n) => n.toLocaleString(globalThis.navigator?.language, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    if (bytes < 1024) return Math.round(bytes) + ' B';
+    if (bytes < 1024 * 1024) return one(bytes / 1024) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return one(bytes / (1024 * 1024)) + ' MB';
+    return one(bytes / (1024 * 1024 * 1024)) + ' GB';
+}
+
+/**
  * Format Ethereum address for display
  * @param {string} address - Full address
  * @returns {string} - Formatted address (e.g., "0x1234...abcd")

@@ -133,14 +133,14 @@ describe('MessageRenderer', () => {
         });
         
         it('should format megabytes', () => {
-            expect(messageRenderer.formatFileSize(1024 * 1024)).toBe('1.00 MB');
-            expect(messageRenderer.formatFileSize(1024 * 1024 * 5.5)).toBe('5.50 MB');
-            expect(messageRenderer.formatFileSize(1024 * 1024 * 100)).toBe('100.00 MB');
+            expect(messageRenderer.formatFileSize(1024 * 1024)).toBe('1.0 MB');
+            expect(messageRenderer.formatFileSize(1024 * 1024 * 5.5)).toBe('5.5 MB');
+            expect(messageRenderer.formatFileSize(1024 * 1024 * 100)).toBe('100.0 MB');
         });
-        
+
         it('should format gigabytes', () => {
-            expect(messageRenderer.formatFileSize(1024 * 1024 * 1024)).toBe('1.00 GB');
-            expect(messageRenderer.formatFileSize(1024 * 1024 * 1024 * 2.5)).toBe('2.50 GB');
+            expect(messageRenderer.formatFileSize(1024 * 1024 * 1024)).toBe('1.0 GB');
+            expect(messageRenderer.formatFileSize(1024 * 1024 * 1024 * 2.5)).toBe('2.5 GB');
         });
     });
 
@@ -805,7 +805,7 @@ describe('MessageRenderer', () => {
 
             const result = messageRenderer.renderVideoContent(pdf());
 
-            expect(result).toContain('2.00 MB of 5.00 MB');
+            expect(result).toContain('2.0 MB of 5.0 MB');
             expect(result).toContain('340.0 KB/s');
             expect(result).toContain('width: 40%');
             // The bar carries the busy state now: the spinner is gone and the
@@ -828,7 +828,7 @@ describe('MessageRenderer', () => {
 
             const result = messageRenderer.renderVideoContent(pdf());
 
-            expect(result).toContain('of 5.00 MB');
+            expect(result).toContain('of 5.0 MB');
             expect(result).not.toContain('B/s');
         });
 
@@ -905,7 +905,7 @@ describe('MessageRenderer', () => {
         it('scales the unit to the rate', () => {
             expect(messageRenderer.formatSpeed(512)).toBe('512 B/s');
             expect(messageRenderer.formatSpeed(2048)).toBe('2.0 KB/s');
-            expect(messageRenderer.formatSpeed(5 * 1048576)).toBe('5.00 MB/s');
+            expect(messageRenderer.formatSpeed(5 * 1048576)).toBe('5.0 MB/s');
         });
 
         it('renders nothing when there is no rate to show', () => {
@@ -1125,7 +1125,7 @@ describe('MessageRenderer', () => {
             expect(result).toContain('disabled');
             expect(result).toMatch(/download-play-icon[^"]*hidden/);
             expect(result).not.toMatch(/download-loading-icon[^"]*hidden/);
-            expect(result).toContain('4.50 MB of 10.00 MB');
+            expect(result).toContain('4.5 MB of 10.0 MB');
         });
 
         it('should show idle state when not downloading and no URL', () => {
@@ -1152,7 +1152,7 @@ describe('MessageRenderer', () => {
             expect(result).toMatch(/video-tile-bar hidden"[^>]*data-progress-overlay="file-idle-1"/);
             expect(result).not.toContain('disabled');
             // The size waits on the poster until play is pressed
-            expect(result).toContain('>1.95 MB</span>');
+            expect(result).toContain('>2.0 MB</span>');
             // Play icon visible
             expect(result).not.toMatch(/download-play-icon[^"]*hidden/);
             // Loading icon hidden

@@ -6,7 +6,7 @@
 
 import { modalManager } from './ModalManager.js';
 import { sanitizeText } from './sanitizer.js';
-import { escapeHtml } from './utils.js';
+import { escapeHtml, formatBytes } from './utils.js';
 import { formatAudioTime } from './MessageRenderer.js';
 import { VoiceRecorder, canRecordAudio } from '../audioRecorder.js';
 import { CONFIG } from '../config.js';
@@ -640,10 +640,7 @@ class InputUI {
      * @returns {string} Formatted size
      */
     formatFileSize(bytes) {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-        return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        return formatBytes(bytes);
     }
 
     /**
