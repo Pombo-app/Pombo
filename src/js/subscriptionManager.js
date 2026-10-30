@@ -1074,16 +1074,22 @@ class SubscriptionManager {
             let newCount = 0;
             let latestTime = currentActivity.lastMessageTime;
             let latestPreviewCandidate = null;
+            // The newest content message read, new or not: a row with no
+            // preview yet (gated channels never get one from the resend)
+            // shows it instead of staying blank until someone writes.
+            let latestSeenContent = null;
 
             const latestAllowed = Date.now() + (CONFIG.gate?.timestampSkewMs ?? 0);
             for (const msg of messages) {
                 const msgTimestamp = messageTime(msg);
                 // A future-dated message would push the watermark ahead and
                 // hide every real message after it.
-                if (!msgTimestamp || msgTimestamp > latestAllowed
-                    || msgTimestamp <= currentActivity.lastMessageTime) {
-                    continue;
+                if (!msgTimestamp || msgTimestamp > latestAllowed) continue;
+                if (isContentMessage(msg)
+                    && (!latestSeenContent || msgTimestamp > messageTime(latestSeenContent))) {
+                    latestSeenContent = msg;
                 }
+                if (msgTimestamp <= currentActivity.lastMessageTime) continue;
 
                 // Advance watermark for any newer observed item to avoid reprocessing loops.
                 if (msgTimestamp > latestTime) {
@@ -1106,18 +1112,21 @@ class SubscriptionManager {
             };
             this.channelActivity.set(messageStreamId, newActivity);
 
+            const previewFrom = latestPreviewCandidate
+                || (!channelLatestMessageManager.getCached(messageStreamId) ? latestSeenContent : null);
+            if (previewFrom) {
+                channelLatestMessageManager.setFromLocal(messageStreamId, {
+                    ...previewFrom,
+                    sender: previewFrom.sender
+                        || previewFrom.account
+                        || previewFrom._publisherId
+                        || null,
+                    timestamp: messageTime(previewFrom) || latestTime
+                });
+            }
+
             // Notify handlers if new messages detected
             if (newCount > 0) {
-                if (latestPreviewCandidate) {
-                    channelLatestMessageManager.setFromLocal(messageStreamId, {
-                        ...latestPreviewCandidate,
-                        sender: latestPreviewCandidate.sender
-                            || latestPreviewCandidate.account
-                            || latestPreviewCandidate._publisherId
-                            || null,
-                        timestamp: messageTime(latestPreviewCandidate) || latestTime
-                    });
-                }
                 Logger.debug('New activity detected:', messageStreamId, newCount, 'messages');
                 this.notifyActivityHandlers(messageStreamId, newActivity);
             }
