@@ -25,6 +25,7 @@ describe('channelLatestMessageManager', () => {
         channelLatestMessageManager.listeners.clear();
         channelLatestMessageManager.db = null;
         channelLatestMessageManager._initPromise = null;
+        channelLatestMessageManager.account = '0xtester';
         resendMock.mockReset();
         mayPublishAsMock.mockReset().mockResolvedValue(true);
     });
@@ -202,6 +203,44 @@ describe('channelLatestMessageManager', () => {
         await channelLatestMessageManager.init();
         expect(channelLatestMessageManager.getCached(sid).id).toBe('m-new');
         expect(channelLatestMessageManager.getCached(sid).text).toBe('new');
+    });
+
+    describe('per-account scope', () => {
+        const entry = (text) => ({ type: 'text', id: text, text, sender: '0xa', timestamp: Date.now() - 60000 });
+
+        it("an account never sees another account's previews", async () => {
+            await channelLatestMessageManager.setAccount('0xAlice');
+            channelLatestMessageManager.setFromLocal(sid, entry('alice secret'));
+            await new Promise((r) => setTimeout(r, 20));
+
+            await channelLatestMessageManager.setAccount('0xBob');
+            expect(channelLatestMessageManager.getCached(sid)).toBeNull();
+
+            await channelLatestMessageManager.setAccount('0xalice');
+            expect(channelLatestMessageManager.getCached(sid)).toMatchObject({ text: 'alice secret' });
+        });
+
+        it('a guest keeps previews in memory only', async () => {
+            await channelLatestMessageManager.setAccount('0xGuest', { guest: true });
+            channelLatestMessageManager.setFromLocal(sid, entry('guest'));
+            expect(channelLatestMessageManager.db).toBeNull();
+
+            await channelLatestMessageManager.setAccount(null);
+            expect(channelLatestMessageManager.getCached(sid)).toBeNull();
+        });
+
+        it("drops a resend that answers after the account changed", async () => {
+            await channelLatestMessageManager.setAccount('0xAlice');
+            let answer;
+            resendMock.mockReturnValueOnce(new Promise((r) => { answer = r; }));
+            const pending = channelLatestMessageManager.get(sid);
+
+            await channelLatestMessageManager.setAccount('0xBob');
+            answer([{ type: 'text', id: 'late', text: 'from alice', sender: '0xa', timestamp: Date.now() - 1000, _timestamp: Date.now() - 1000 }]);
+            await pending;
+
+            expect(channelLatestMessageManager.getCached(sid)).toBeNull();
+        });
     });
 
     it('hydrate from IDB merges entries when the cache has none', async () => {

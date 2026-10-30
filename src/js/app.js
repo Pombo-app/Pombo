@@ -33,6 +33,7 @@ import { reactionManager } from './ui/ReactionManager.js';
 import { mediaHandler } from './ui/MediaHandler.js';
 import { walletFlows } from './walletFlows.js';import { inviteHandler } from './inviteHandler.js';
 import { channelModalsUI } from './ui/ChannelModalsUI.js';
+import { channelLatestMessageManager } from './channelLatestMessageManager.js';
 
 class App {
     constructor() {
@@ -424,6 +425,7 @@ class App {
             // belongs to the disconnecting account — the next account must
             // start from its own persisted slice, never inherit this one's.
             epochKeyManager.clear();
+            channelLatestMessageManager.setAccount(null);
             await streamrController.disconnect();
             mediaController.reset();
             secureStorage.lock();
@@ -485,6 +487,7 @@ class App {
     async onWalletConnected(address, signer) {
         try {
             const isGuest = authManager.isGuestMode();
+            channelLatestMessageManager.setAccount(address, { guest: isGuest });
 
             headerUI.updateWalletInfo(address, isGuest);
             headerUI.updateNetworkStatus('Connecting to Streamr...', false);

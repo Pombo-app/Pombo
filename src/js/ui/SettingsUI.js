@@ -12,6 +12,7 @@ import {
 import { rpcHealth, describeVerdict } from '../rpcHealth.js';
 import { MESSAGE_STREAM } from '../streamConstants.js';
 import { importBackupData } from '../backupImport.js';
+import { channelLatestMessageManager } from '../channelLatestMessageManager.js';
 
 /**
  * Settings UI Manager
@@ -435,6 +436,7 @@ class SettingsUI {
 
                         // 7. Delete encrypted storage
                         await this.secureStorage.deletePersistentState(currentAddress);
+                        channelLatestMessageManager.deleteAccountData(currentAddress);
 
                         // 8. Lock secure storage
                         this.secureStorage.lock();

@@ -62,18 +62,67 @@ class ChannelLatestMessageManager {
         this.listeners = new Map();
         this.db = null;
         this._initPromise = null;
+        // Lowercased address whose database is open; null keeps everything in
+        // memory (no account yet, or a guest).
+        this.account = null;
+        // Bumped on every account change: a resend that started under the
+        // previous account must not land in the next one's cache.
+        this._generation = 0;
+        this._legacyDropped = false;
     }
 
     /**
-     * Open the IndexedDB. Idempotent.
+     * Scope the cache to an account. Previews hold decrypted DM and
+     * password-channel text, so each account gets its own database and the
+     * in-memory cache never carries over.
+     * @param {string|null} address
+     * @param {Object} [opts]
+     * @param {boolean} [opts.guest]
+     * @returns {Promise<void>}
+     */
+    setAccount(address, { guest = false } = {}) {
+        const key = !guest && address ? address.toLowerCase() : null;
+        this._generation++;
+        try { this.db?.close(); } catch {}
+        this.db = null;
+        this._initPromise = null;
+        this.cache.clear();
+        this.inflight.clear();
+        this.account = key;
+        for (const id of this.listeners.keys()) this._emit(id, null);
+        this._dropLegacyDatabase();
+        return key ? this.init() : Promise.resolve();
+    }
+
+    /**
+     * Delete an account's preview database (account deletion).
+     * @param {string} address
+     */
+    deleteAccountData(address) {
+        if (!address) return;
+        const key = address.toLowerCase();
+        if (key === this.account) this.setAccount(null);
+        try { indexedDB.deleteDatabase(`${DB_NAME}_${key}`); } catch {}
+    }
+
+    /** The pre-account database was shared by every account on the browser. */
+    _dropLegacyDatabase() {
+        if (this._legacyDropped) return;
+        this._legacyDropped = true;
+        try { indexedDB.deleteDatabase(DB_NAME); } catch {}
+    }
+
+    /**
+     * Open the account's IndexedDB. Idempotent; a no-op without an account.
      * @returns {Promise<void>}
      */
     async init() {
-        if (this.db) return;
+        if (this.db || !this.account) return;
         if (this._initPromise) return this._initPromise;
+        const generation = this._generation;
         this._initPromise = new Promise((resolve) => {
             try {
-                const req = indexedDB.open(DB_NAME, DB_VERSION);
+                const req = indexedDB.open(`${DB_NAME}_${this.account}`, DB_VERSION);
                 req.onupgradeneeded = (e) => {
                     const db = e.target.result;
                     if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -81,6 +130,11 @@ class ChannelLatestMessageManager {
                     }
                 };
                 req.onsuccess = (e) => {
+                    if (generation !== this._generation) {
+                        e.target.result.close();
+                        resolve();
+                        return;
+                    }
                     this.db = e.target.result;
                     Logger.debug('ChannelLatestMessageManager IDB opened');
                     // Block init resolution on hydrate to close the
@@ -181,12 +235,14 @@ class ChannelLatestMessageManager {
             // Defensive: callers should always pass -1 ids
             Logger.debug('ChannelLatestMessageManager.get: not a -1 id', messageStreamId);
         }
+        const generation = this._generation;
         await this.init();
+        if (generation !== this._generation) return null;
 
         const cached = this.cache.get(messageStreamId);
         if (cached && !force) {
             if (!this.inflight.has(messageStreamId)) {
-                this._fetch(messageStreamId, password, last).catch(() => {});
+                this._fetch(messageStreamId, password, last, generation).catch(() => {});
             }
             return cached;
         }
@@ -195,7 +251,7 @@ class ChannelLatestMessageManager {
             return this.inflight.get(messageStreamId);
         }
 
-        const promise = this._fetch(messageStreamId, password, last);
+        const promise = this._fetch(messageStreamId, password, last, generation);
         this.inflight.set(messageStreamId, promise);
         try {
             return await promise;
@@ -204,7 +260,7 @@ class ChannelLatestMessageManager {
         }
     }
 
-    async _fetch(messageStreamId, password, last) {
+    async _fetch(messageStreamId, password, last, generation = this._generation) {
         try {
             const entries = await streamrController.resendLatestContentMessages(
                 messageStreamId,
@@ -213,6 +269,7 @@ class ChannelLatestMessageManager {
                     password
                 }
             );
+            if (generation !== this._generation) return null;
             if (!Array.isArray(entries) || entries.length === 0) {
                 return this.cache.get(messageStreamId) || null;
             }
