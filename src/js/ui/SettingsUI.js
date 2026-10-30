@@ -24,13 +24,13 @@ class SettingsUI {
         this.deps = {};
         this.elements = {};
         this.sectionTitles = {
-            profile: 'Account',
+            profile: 'Profile',
             devicesync: 'Device Sync',
             notifications: 'Notifications',
             api: 'Networks',
             linkpreviews: 'Content',
-            privacy: 'Privacy',
-            security: 'Security',
+            privacy: 'Blocked Users',
+            security: 'Account',
             repair: 'DM Inbox',
             about: 'About'
         };
@@ -795,6 +795,8 @@ class SettingsUI {
                 : 'Sync travels through your own DM inbox. Create it first to turn these options on.';
         }
         notice?.classList.toggle('hidden', available);
+        const syncNow = document.getElementById('settings-sync-devices-btn');
+        if (syncNow) syncNow.disabled = !available;
         options.classList.toggle('opacity-40', !available);
 
         const mode = this.syncManager?.getSyncMode?.() || 'automatic';
@@ -1019,23 +1021,6 @@ class SettingsUI {
     }
 
     /**
-     * Mobile Account shows Device Sync between the address and Backup &
-     * Restore, as on Android; everywhere else the panel sits on its own.
-     */
-    _placeSyncPanel(insideAccount) {
-        const sync = document.getElementById('settings-panel-devicesync');
-        const profile = document.getElementById('settings-panel-profile');
-        const divider = document.getElementById('settings-backup-divider');
-        if (!sync || !profile) return;
-        sync.classList.toggle('settings-panel-follows', insideAccount);
-        if (insideAccount) {
-            divider?.before(sync);
-        } else if (sync.parentElement !== profile.parentElement) {
-            profile.after(sync);
-        }
-    }
-
-    /**
      * A section is one history step deep, so the system Back returns to the
      * list instead of closing Settings.
      */
@@ -1068,10 +1053,8 @@ class SettingsUI {
      */
     selectSettingsTab(tabName) {
         const isMobile = this.isMobileView && this.isMobileView();
-        // Mobile Account carries Device Sync below it, as on Android.
-        const withSync = isMobile && tabName === 'profile';
 
-        if (tabName === 'devicesync' || withSync) {
+        if (tabName === 'devicesync') {
             this.updateSyncModeDisplay();
         }
 
@@ -1105,10 +1088,8 @@ class SettingsUI {
 
         this.elements.settingsPanels?.forEach(panel => {
             const panelName = panel.id.replace('settings-panel-', '');
-            const show = panelName === tabName || (withSync && panelName === 'devicesync');
-            panel.classList.toggle('hidden', !show);
+            panel.classList.toggle('hidden', panelName !== tabName);
         });
-        this._placeSyncPanel(withSync);
 
         if (isMobile) this._trackSectionHistory(tabName);
 
@@ -1878,6 +1859,8 @@ class SettingsUI {
 
         diagnoseBtn?.addEventListener('click', () => this.handleRepairPrimaryAction());
         fixBtn?.addEventListener('click', () => this.runRepair());
+        document.getElementById('repair-check-again-btn')
+            ?.addEventListener('click', () => this.runDiagnosis());
 
         if (!this._repairInboxReadyListenerAttached) {
             document.addEventListener('pombo:dm-inbox-ready', () => {
@@ -2109,10 +2092,8 @@ class SettingsUI {
             return;
         }
 
-        button.className = 'flex-1 bg-overlay-5 hover:bg-overlay-10 text-overlay-70 border border-overlay-10 px-3 py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5';
-        icon.setAttribute('class', 'w-3.5 h-3.5');
-        icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>';
-        label.textContent = 'Diagnose';
+        // Diagnosis runs on its own when the panel opens; the button exists only to create.
+        button.classList.add('hidden');
     }
 
     /**
@@ -2129,6 +2110,7 @@ class SettingsUI {
 
         const hideCard = state === 'noInbox';
         card.classList.toggle('hidden', hideCard);
+        document.getElementById('repair-check-again-btn')?.classList.toggle('hidden', state !== 'error');
         if (hideCard) return;
 
         const states = {

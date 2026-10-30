@@ -63,7 +63,7 @@ const roundDuration = (duration) => Number(duration.toFixed(1));
 
 /**
  * How eagerly cross-device sync runs (Settings → Device Sync). These gate the
- * unprompted triggers only — the manual "Sync Devices" action runs in every
+ * unprompted triggers only — the manual "Sync Now" action runs in every
  * mode.
  */
 export const SYNC_MODES = {
