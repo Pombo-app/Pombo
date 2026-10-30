@@ -4,6 +4,7 @@
 
 import { CONFIG } from './config.js';
 import { createVoiceAnalyser, readVoiceBands } from './ui/audioWave.js';
+import { addWebmCues } from './webmCues.js';
 
 // Always requested explicitly: left to choose, a browser may pick its own container and report none.
 const MIME_PREFERENCE = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'];
@@ -106,8 +107,12 @@ export class VoiceRecorder {
             });
         }
         this._release();
-        const blob = new Blob(this.parts, { type: this.mime });
+        let blob = new Blob(this.parts, { type: this.mime });
         const measured = await measureDuration(blob);
+        if (this.mime === 'audio/webm' && measured) {
+            const seekable = addWebmCues(new Uint8Array(await blob.arrayBuffer()), measured);
+            if (seekable) blob = new Blob([seekable], { type: this.mime });
+        }
         return {
             blob,
             mime: this.mime,
