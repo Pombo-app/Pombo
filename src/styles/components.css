@@ -2521,8 +2521,7 @@ body.network-down .network-dot {
     font-style: normal;
 }
 
-/* Explore card variant: allow wrapping so users can scan more of
-   the message on mobile. Desktop keeps it concise (2 lines max). */
+/* Explore card variant: wraps, two lines at most. */
 .explore-preview-line {
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -2534,11 +2533,8 @@ body.network-down .network-dot {
     overflow-wrap: anywhere;
     font-size: 0.875rem; 
 }
-@media (max-width: 767px) {
-    .explore-preview-line {
-        line-clamp: 3;
-        -webkit-line-clamp: 3;
-    }
+.explore-preview-line:empty {
+    display: none;
 }
 
 /* Explore filter chips: keep the expand button out of the chip flow on

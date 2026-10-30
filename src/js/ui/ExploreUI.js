@@ -19,9 +19,9 @@ import { openUnjoinedChannel } from '../channelEntry.js';
 // centered in the card's right half on desktop (anchored to the CARD, not
 // the top row, so the vertical centering is true; a hairline divider gives
 // it price-column structure; pointer-events pass through to the card tap),
-// centered under the content on mobile. Tailwind scans these literals.
+// one line under the text on mobile. Tailwind scans these literals.
 const EXPLORE_ACCESS_D_CLS = 'explore-gate-access-d hidden md:flex absolute inset-y-3 left-1/2 right-10 items-center justify-center border-l border-overlay-6 pointer-events-none';
-const EXPLORE_ACCESS_M_CLS = 'explore-gate-access-m md:hidden mt-2 flex justify-center';
+const EXPLORE_ACCESS_M_CLS = 'explore-gate-access-m md:hidden ml-[68px] min-w-0 flex';
 
 /** Travel in one direction before the header answers. Anything less is a
  *  trackpad nudge or the reflow retracting causes, and toggling on those
@@ -63,6 +63,18 @@ function gateAccessHtml(info) {
             <span class="text-[10px] uppercase tracking-[0.08em] font-medium ${verbColor}">${escapeHtml(info.verb)}</span>
             <span class="text-[15px] font-semibold text-overlay-90 mt-0.5">${escapeHtml(info.value)}</span>
             <span class="text-[11px] text-overlay-40 mt-0.5">${escapeHtml(info.qualifier)}</span>
+        </div>`;
+}
+
+/** The same access info on one line, for the narrow card. */
+function gateAccessInlineHtml(info) {
+    if (!info?.verb) return '';
+    const verbColor = info.mode === GATE_MODE.PAID ? 'text-[#F6851B]/70' : 'text-overlay-40';
+    return `
+        <div class="flex items-baseline gap-1.5 leading-tight min-w-0">
+            <span class="text-[10px] uppercase tracking-[0.08em] font-medium ${verbColor}">${escapeHtml(info.verb)}</span>
+            <span class="text-[13px] font-semibold text-overlay-90 whitespace-nowrap">${escapeHtml(info.value)}</span>
+            <span class="text-[11px] text-overlay-40 truncate">${escapeHtml(info.qualifier)}</span>
         </div>`;
 }
 
@@ -632,8 +644,10 @@ class ExploreUI {
             const accessDesktop = accessAttr
                 ? `<div ${accessAttr} class="${accessHtml ? EXPLORE_ACCESS_D_CLS : 'explore-gate-access-d hidden'}">${accessHtml}</div>`
                 : '';
+            const accessInline = gateCached && gateCached !== 'pending'
+                ? gateAccessInlineHtml(gateCached) : '';
             const accessMobile = accessAttr
-                ? `<div ${accessAttr} class="${accessHtml ? EXPLORE_ACCESS_M_CLS : 'explore-gate-access-m hidden'}">${accessHtml}</div>`
+                ? `<div ${accessAttr} class="${accessInline ? EXPLORE_ACCESS_M_CLS : 'explore-gate-access-m hidden'}">${accessInline}</div>`
                 : '';
             const languageBadge = ch.language
                 ? `<span class="px-1.5 py-1 bg-overlay-5 text-overlay-50 text-[11px] font-medium rounded">${escapeHtml(languageNames[ch.language] || ch.language.toUpperCase())}</span>`
@@ -655,20 +669,18 @@ class ExploreUI {
             // (uniform muted gray) and wrapping (clamp 2 lines desktop /
             // 3 lines mobile). Drop the explicit `truncate` class — the
             // CSS rule handles overflow with multi-line clamping.
+            // A gated entry exists only for a member account: the store is per
+            // account and only the activity poller, which reads joined
+            // channels, writes one.
             let previewLine;
-            if (ch.type === 'gated') {
-                // Gated: no card previews — members-only content, and the
-                // browser-wide preview cache would leak entries a member
-                // account decrypted to every other account on this device
-                previewLine = '';
-            } else if (previewEntry) {
-                previewLine = `<p class="channel-preview-line explore-preview-line mt-3 ml-3${halfCap}" data-channel-preview="${escapeAttr(ch.streamId)}">${formatPreviewLine(previewEntry)}</p>`;
-            } else if (!this._explorePreviewResolved.has(ch.streamId)) {
-                previewLine = `<p class="channel-preview-line explore-preview-line mt-3 ml-3${halfCap}" data-channel-preview="${escapeAttr(ch.streamId)}"><span class="thumb-spinner inline-block align-middle" style="width:10px;height:10px"></span></p>`;
+            if (previewEntry) {
+                previewLine = `<p class="channel-preview-line explore-preview-line mt-3${halfCap}" data-channel-preview="${escapeAttr(ch.streamId)}">${formatPreviewLine(previewEntry)}</p>`;
+            } else if (ch.type !== 'gated' && !this._explorePreviewResolved.has(ch.streamId)) {
+                previewLine = `<p class="channel-preview-line explore-preview-line mt-3${halfCap}" data-channel-preview="${escapeAttr(ch.streamId)}"><span class="thumb-spinner inline-block align-middle" style="width:10px;height:10px"></span></p>`;
             } else {
                 // Resolved without a usable entry → leave the slot empty
                 // (avoids a permanent dead spinner on dormant channels).
-                previewLine = `<p class="channel-preview-line explore-preview-line mt-3 ml-4${halfCap}" data-channel-preview="${escapeAttr(ch.streamId)}"></p>`;
+                previewLine = `<p class="channel-preview-line explore-preview-line mt-3${halfCap}" data-channel-preview="${escapeAttr(ch.streamId)}"></p>`;
             }
 
             // Channel thumbnail: cached if available, else spinner placeholder
@@ -703,9 +715,9 @@ class ExploreUI {
                     </div>
                     ${accessDesktop}
                 </div>
-                <div class="relative">
+                <div class="flex items-end justify-between gap-3 mt-3">
                     ${accessMobile}
-                    <div class="flex items-end justify-end gap-1.5 mt-3${accessAttr ? ' absolute bottom-0 right-0 md:static' : ''}">
+                    <div class="flex items-end justify-end gap-1.5 ml-auto flex-shrink-0">
                         ${(() => {
                             // The audience icon centers over the LAST tag
                             // (language when present), not over the group.
@@ -779,11 +791,6 @@ class ExploreUI {
         if (!this._explorePreviewRefreshStarted) this._explorePreviewRefreshStarted = new Set();
         for (const ch of channels) {
             if (!ch.streamId) continue;
-            // Gated: no card previews (Android parity). The content is for
-            // members; and the preview cache is browser-wide, so an entry
-            // decrypted by a member ACCOUNT would leak to the other accounts
-            // on the same device.
-            if (ch.type === 'gated') continue;
             if (!this._explorePreviewSubs.has(ch.streamId)) {
                 const unsub = channelLatestMessageManager.subscribe(ch.streamId, (entry) => {
                     const slot = listEl.querySelector(`[data-channel-preview="${CSS.escape(ch.streamId)}"]`);
@@ -793,6 +800,8 @@ class ExploreUI {
                 });
                 this._explorePreviewSubs.set(ch.streamId, unsub);
             }
+            // The resend refuses gated channels; the activity poller feeds them.
+            if (ch.type === 'gated') continue;
             if (this._explorePreviewRefreshStarted.has(ch.streamId)) continue;
             this._explorePreviewRefreshStarted.add(ch.streamId);
             channelLatestMessageManager.get(ch.streamId, { password: null })
@@ -921,7 +930,7 @@ class ExploreUI {
             el.className = EXPLORE_ACCESS_D_CLS;
         });
         document.querySelectorAll(`.explore-gate-access-m${selector}`).forEach(el => {
-            el.innerHTML = html;
+            el.innerHTML = gateAccessInlineHtml(info);
             el.className = EXPLORE_ACCESS_M_CLS;
         });
     }
