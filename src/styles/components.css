@@ -1919,6 +1919,7 @@ body.cannot-write #context-menu-reply-btn {
     z-index: 9999;
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 0.75rem;
     max-width: 380px;
     width: calc(100% - 2rem);
@@ -1927,7 +1928,10 @@ body.cannot-write #context-menu-reply-btn {
 
 .toast {
     position: relative;
-    padding: 0.875rem 1rem;
+    width: fit-content;
+    min-width: 200px;
+    max-width: 100%;
+    padding: 0.875rem 2rem 0.875rem 1rem;
     border-radius: 0.75rem;
     color: var(--pombo-overlay-90);
     font-size: 0.8125rem;
@@ -2171,6 +2175,7 @@ body.cannot-write #context-menu-reply-btn {
     
     /* Minimized state - shows only right edge */
     .toast.toast-minimized {
+        align-self: flex-end;
         transform: translateX(calc(100% - 12px)) !important;
         opacity: 0.7;
         border-left: 3px solid currentColor;
@@ -3288,8 +3293,8 @@ body.explore-open #explore-channels-list {
         max-width: 100%;
     }
     
-    /* Toast notifications full width */
     .toast-container {
+        width: auto;
         max-width: calc(100% - 1rem);
         left: 0.5rem;
         right: 0.5rem;
