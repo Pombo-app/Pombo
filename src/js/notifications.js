@@ -294,7 +294,7 @@ class NotificationManager {
             
             // Show toast
             const { uiController } = await import('./ui.js');
-            uiController.showNotification(`Joined channel: ${invite.channel.name}!`, 'success');
+            uiController.showNotification(`Joined channel: ${invite.channel.name}`, 'success');
         } catch (error) {
             Logger.error('Failed to accept invite:', error);
             try {

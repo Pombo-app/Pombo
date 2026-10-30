@@ -99,7 +99,7 @@ class InviteHandler {
      */
     async joinChannelFromInvite(inviteData) {
         try {
-            uiController.showLoading('Joining channel...');
+            uiController.showLoading('Joining channel…');
             await channelManager.joinChannel(inviteData.streamId, inviteData.password, {
                 name: inviteData.name,
                 type: inviteData.type,
@@ -107,7 +107,7 @@ class InviteHandler {
             });
 
             uiController.renderChannelList();
-            uiController.showNotification('Joined channel successfully!', 'success');
+            uiController.showNotification('Joined channel', 'success');
         } catch (error) {
             if (error.code === 'GATE_ACCESS_DENIED') {
                 const { channelModalsUI } = await import('./ui/ChannelModalsUI.js');

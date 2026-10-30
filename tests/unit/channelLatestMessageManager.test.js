@@ -25,6 +25,7 @@ describe('channelLatestMessageManager', () => {
         channelLatestMessageManager.listeners.clear();
         channelLatestMessageManager.db = null;
         channelLatestMessageManager._initPromise = null;
+        channelLatestMessageManager.account = '0xtester';
         resendMock.mockReset();
         mayPublishAsMock.mockReset().mockResolvedValue(true);
     });
@@ -59,6 +60,17 @@ describe('channelLatestMessageManager', () => {
             type: 'text', id: 'm1', text: 'hi', sender: '0xa', senderName: '   ', timestamp: 1
         });
         expect(e2.senderName).toBeNull();
+    });
+
+    it('setFromLocal drops a write started under the previous account', () => {
+        const started = channelLatestMessageManager.generation;
+        channelLatestMessageManager.setAccount('0xnext');
+
+        const stored = channelLatestMessageManager.setFromLocal(sid,
+            { type: 'text', id: 'm1', text: 'the last account\'s secret', sender: '0xa', timestamp: 10 }, started);
+
+        expect(stored).toBeNull();
+        expect(channelLatestMessageManager.getCached(sid)).toBeNull();
     });
 
     it('setFromLocal rejects unknown message types', () => {
@@ -204,6 +216,83 @@ describe('channelLatestMessageManager', () => {
         expect(channelLatestMessageManager.getCached(sid).text).toBe('new');
     });
 
+    describe('future-dated messages', () => {
+        const DAY = 86400000;
+
+        it('never become the preview', () => {
+            const now = Date.now();
+            channelLatestMessageManager.setFromLocal(sid, { type: 'text', id: 'real', text: 'real', sender: '0xa', timestamp: now - 1000 });
+            channelLatestMessageManager.setFromLocal(sid, { type: 'text', id: 'attack', text: 'attack', sender: '0xb', timestamp: now + 30 * DAY, _timestamp: now + 30 * DAY });
+            expect(channelLatestMessageManager.getCached(sid).id).toBe('real');
+        });
+
+        it('a pinned future entry gives way to the first real message', () => {
+            const now = Date.now();
+            channelLatestMessageManager.cache.set(sid, { id: 'attack', ts: now + 30 * DAY, type: 'text', sender: '0xb', text: 'attack' });
+            channelLatestMessageManager.setFromLocal(sid, { type: 'text', id: 'real', text: 'real', sender: '0xa', timestamp: now - 1000 });
+            expect(channelLatestMessageManager.getCached(sid).id).toBe('real');
+        });
+
+        it('are dropped when the cache is loaded from IndexedDB', async () => {
+            await channelLatestMessageManager.init();
+            await channelLatestMessageManager._persistToIDB(sid, { id: 'attack', ts: Date.now() + 30 * DAY, type: 'text', sender: '0xb', text: 'attack' });
+            channelLatestMessageManager.cache.clear();
+            channelLatestMessageManager.db = null;
+            channelLatestMessageManager._initPromise = null;
+
+            await channelLatestMessageManager.init();
+            expect(channelLatestMessageManager.getCached(sid)).toBeNull();
+        });
+
+        it('are skipped on the resend even when only the envelope is ahead', async () => {
+            const now = Date.now();
+            resendMock.mockResolvedValueOnce([
+                { type: 'text', id: 'attack', text: 'attack', sender: '0xb', _timestamp: now + 30 * DAY },
+                { type: 'text', id: 'real', text: 'real', sender: '0xa', timestamp: now - 1000, _timestamp: now - 1000 }
+            ]);
+            await channelLatestMessageManager.get(sid, { force: true });
+            expect(channelLatestMessageManager.getCached(sid).id).toBe('real');
+        });
+    });
+
+    describe('per-account scope', () => {
+        const entry = (text) => ({ type: 'text', id: text, text, sender: '0xa', timestamp: Date.now() - 60000 });
+
+        it("an account never sees another account's previews", async () => {
+            await channelLatestMessageManager.setAccount('0xAlice');
+            channelLatestMessageManager.setFromLocal(sid, entry('alice secret'));
+            await new Promise((r) => setTimeout(r, 20));
+
+            await channelLatestMessageManager.setAccount('0xBob');
+            expect(channelLatestMessageManager.getCached(sid)).toBeNull();
+
+            await channelLatestMessageManager.setAccount('0xalice');
+            expect(channelLatestMessageManager.getCached(sid)).toMatchObject({ text: 'alice secret' });
+        });
+
+        it('a guest keeps previews in memory only', async () => {
+            await channelLatestMessageManager.setAccount('0xGuest', { guest: true });
+            channelLatestMessageManager.setFromLocal(sid, entry('guest'));
+            expect(channelLatestMessageManager.db).toBeNull();
+
+            await channelLatestMessageManager.setAccount(null);
+            expect(channelLatestMessageManager.getCached(sid)).toBeNull();
+        });
+
+        it("drops a resend that answers after the account changed", async () => {
+            await channelLatestMessageManager.setAccount('0xAlice');
+            let answer;
+            resendMock.mockReturnValueOnce(new Promise((r) => { answer = r; }));
+            const pending = channelLatestMessageManager.get(sid);
+
+            await channelLatestMessageManager.setAccount('0xBob');
+            answer([{ type: 'text', id: 'late', text: 'from alice', sender: '0xa', timestamp: Date.now() - 1000, _timestamp: Date.now() - 1000 }]);
+            await pending;
+
+            expect(channelLatestMessageManager.getCached(sid)).toBeNull();
+        });
+    });
+
     it('hydrate from IDB merges entries when the cache has none', async () => {
         await channelLatestMessageManager.init();
         const persisted = { id: 'm1', ts: 50, type: 'text', sender: '0xa', senderName: null, text: 'persisted' };
@@ -215,6 +304,18 @@ describe('channelLatestMessageManager', () => {
 
         await channelLatestMessageManager.init();
         expect(channelLatestMessageManager.getCached(sid)).toMatchObject({ id: 'm1', text: 'persisted' });
+    });
+
+    it('hydrate leaves out a stored preview with no author, so it is fetched again', async () => {
+        await channelLatestMessageManager.init();
+        await channelLatestMessageManager._persistToIDB(sid, { id: 'm1', ts: 50, type: 'text', sender: null, text: 'gm' });
+
+        channelLatestMessageManager.cache.clear();
+        channelLatestMessageManager.db = null;
+        channelLatestMessageManager._initPromise = null;
+
+        await channelLatestMessageManager.init();
+        expect(channelLatestMessageManager.getCached(sid)).toBeNull();
     });
 
     /**
@@ -268,6 +369,18 @@ describe('channelLatestMessageManager', () => {
         ]);
 
         expect((await channelLatestMessageManager._fetch(sid, null, 10)).text).toBe('just sent');
+    });
+
+    it('takes the proven author for a preview stored without one', async () => {
+        const ts = Date.now() - 24 * 3600 * 1000;
+        channelLatestMessageManager.cache.set(sid, {
+            type: 'text', id: 'same', text: 'gm', sender: null, senderName: null, ts
+        });
+        resendMock.mockResolvedValue([
+            { type: 'text', id: 'same', text: 'gm', sender: '0xowner', _timestamp: ts }
+        ]);
+
+        expect((await channelLatestMessageManager._fetch(sid, null, 10)).sender).toBe('0xowner');
     });
 
     it('keeps an older preview that the window still serves', async () => {

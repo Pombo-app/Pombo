@@ -32,6 +32,18 @@ function isFutureForged(payloadTs, envelopeTs) {
     return false;
 }
 
+// A signed envelope dated past the wall clock: the publisher chose that time,
+// so it is no more trustworthy than a forged payload.
+function isEnvelopeAhead(envelopeTs) {
+    return Number.isFinite(envelopeTs) && envelopeTs > Date.now() + (CONFIG.gate?.timestampSkewMs ?? 0);
+}
+
+// A resend yields the SDK's public Message, where the publisher is a field.
+function publisherOf(message) {
+    if (typeof message?.getPublisherId === 'function') return message.getPublisherId() || null;
+    return message?.publisherId ?? message?.messageId?.publisherId ?? null;
+}
+
 export class History {
     /**
      * Calls back into `controller` on purpose: while the controller is still
@@ -128,14 +140,14 @@ export class History {
                     // Skip overrides for the preview path
                     if (t === 'edit' || t === 'delete') continue;
                     // Only accept known preview-renderable types
-                    if (t !== 'text' && t !== 'image' && t !== 'audio' && t !== 'file_announce' && t !== 'storage_file_announce' && t !== 'reaction') {
+                    if (t !== 'text' && t !== 'audio' && t !== 'image' && t !== 'file_announce' && t !== 'storage_file_announce'
+                        && t !== 'video_announce' && t !== 'reaction') {
                         continue;
                     }
 
-                    let publisherId = null;
-                    if (typeof message.getPublisherId === 'function') {
-                        publisherId = message.getPublisherId() || null;
-                    }
+                    const publisherId = publisherOf(message);
+                    // The proven account, never the payload's claim.
+                    if (publisherId) this.controller.attachAccount(content, publisherId);
                     let timestamp = null;
                     if (typeof message.getTimestamp === 'function') {
                         timestamp = message.getTimestamp();
@@ -144,6 +156,8 @@ export class History {
                     }
 
                     if (isFutureForged(content.timestamp, timestamp)) continue;
+                    if (isEnvelopeAhead(timestamp)) continue;
+                    if (storageFetch.judgeMessage(messageStreamId, 0, message).forwardDated) continue;
 
                     entries.push({
                         ...content,
@@ -160,16 +174,75 @@ export class History {
             return [];
         }
 
+        // Only the author's own edits and deletes apply, as in MessageOverrides.
+        const overrides = await this._latestOverrides(messageStreamId, password, fetchLast * 2);
+        const visible = [];
+        for (const entry of entries) {
+            const override = entry.id ? overrides.get(entry.id) : null;
+            if (override && entry.sender
+                && override.account.toLowerCase() === String(entry.sender).toLowerCase()) {
+                if (override.type === 'delete') continue;
+                if (override.text) {
+                    entry.text = override.text;
+                    entry._edited = true;
+                }
+            }
+            visible.push(entry);
+        }
+
         // Resend yields oldest-first within the requested window — sort
         // newest-first defensively before returning.
-        entries.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));
+        visible.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));
 
         Logger.debug('resendLatestContentMessages result:', {
             messageStreamId: String(messageStreamId).slice(-30),
-            count: entries.length,
-            top: entries[0]?.type
+            count: visible.length,
+            top: visible[0]?.type
         });
-        return entries;
+        return visible;
+    }
+
+    /**
+     * The newest edit or delete per target in the last `last` overrides of
+     * the message stream's control partition.
+     * @returns {Promise<Map<string, {type: string, text?: string, account: string, ts: number}>>}
+     * @private
+     */
+    async _latestOverrides(messageStreamId, password, last) {
+        const latest = new Map();
+        try {
+            const resend = await this.controller.client.resend(
+                { streamId: messageStreamId, partition: STREAM_CONFIG.MESSAGE_STREAM.CONTROL },
+                { last, raw: true }
+            );
+            for await (const message of resend) {
+                try {
+                    if (!verifyEnvelopeAuthenticity(message)
+                        || !await this.controller.publisherMayWrite(messageStreamId, message)) continue;
+                    let content = message.content || message;
+                    if (typeof content === 'string') {
+                        if (!password) continue;
+                        content = await cryptoManager.decryptJSON(content, password);
+                    }
+                    if (!content || (content.type !== 'edit' && content.type !== 'delete') || !content.targetId) continue;
+                    const ts = typeof message.getTimestamp === 'function' ? message.getTimestamp() : message.timestamp;
+                    if (isEnvelopeAhead(ts) || isFutureForged(content.timestamp, ts)) continue;
+                    if (storageFetch.judgeMessage(messageStreamId, STREAM_CONFIG.MESSAGE_STREAM.CONTROL, message).forwardDated) continue;
+                    const publisherId = publisherOf(message);
+                    if (!publisherId) continue;
+                    this.controller.attachAccount(content, publisherId);
+                    const account = content.account || publisherId;
+                    const prev = latest.get(content.targetId);
+                    if (prev && prev.ts >= ts) continue;
+                    latest.set(content.targetId, { type: content.type, text: content.text, account, ts });
+                } catch {
+                    continue;
+                }
+            }
+        } catch (e) {
+            Logger.debug('preview overrides read failed:', e?.message);
+        }
+        return latest;
     }
 
     /**
@@ -715,7 +788,8 @@ export class History {
                     // Epoch envelope (gated): unknown kid → skip, not error (§7.9)
                     let innerAuthor = null;
                     const judged = storageFetch.judgeMessage(streamId, partition, message);
-                    if (judged.forwardDated) {
+                    if (judged.forwardDated || isEnvelopeAhead(historyTimestamp)
+                        || isFutureForged(content?.timestamp, historyTimestamp)) {
                         skippedCount++;
                         continue;
                     }

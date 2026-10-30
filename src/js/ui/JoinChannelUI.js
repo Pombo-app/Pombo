@@ -82,7 +82,7 @@ class JoinChannelUI {
 
         let channelInfo = exploreUI.cachedPublicChannels?.find(ch => ch.streamId === streamId);
         if (!channelInfo) {
-            notificationUI.showLoading('Checking channel...');
+            notificationUI.showLoading('Checking channel…');
             try {
                 channelInfo = await graphAPI.getChannelInfo(streamId);
             } catch (error) {
@@ -103,7 +103,7 @@ class JoinChannelUI {
         const name = channelInfo?.name || localName || undefined;
         const attempt = async () => {
             try {
-                notificationUI.showLoadingToast('Joining channel...', 'This may take a moment');
+                notificationUI.showLoadingToast('Joining channel…', 'This may take a moment');
                 await channelManager.joinChannel(streamId, password, {
                     name,
                     named: !!localName,
@@ -114,7 +114,7 @@ class JoinChannelUI {
                     wireIdentity: channelInfo?.wireIdentity || undefined
                 });
                 renderChannelList();
-                showNotification('Joined channel successfully!', 'success');
+                showNotification('Joined channel', 'success');
             } finally {
                 notificationUI.hideLoadingToast();
             }
@@ -169,7 +169,7 @@ class JoinChannelUI {
                     return; // User cancelled
                 }
                 
-                notificationUI.showLoadingToast('Joining channel...', 'This may take a moment');
+                notificationUI.showLoadingToast('Joining channel…', 'This may take a moment');
                 await channelManager.joinChannel(streamId, password, {
                     name: channelInfo?.name,
                     type: 'password',
@@ -177,7 +177,7 @@ class JoinChannelUI {
                     createdBy: channelInfo?.createdBy
                 });
             } else {
-                notificationUI.showLoadingToast('Joining channel...', 'This may take a moment');
+                notificationUI.showLoadingToast('Joining channel…', 'This may take a moment');
                 await channelManager.joinChannel(streamId, null, {
                     name: channelInfo?.name,
                     type: channelInfo?.type || 'public',
@@ -194,7 +194,7 @@ class JoinChannelUI {
             // Automatically enter the channel after joining
             await selectChannel(streamId);
 
-            showNotification('Joined channel successfully!', 'success');
+            showNotification('Joined channel', 'success');
         } catch (error) {
             if (error.code === 'GATE_ACCESS_DENIED') {
                 channelModalsUI.showGateEntryModal({

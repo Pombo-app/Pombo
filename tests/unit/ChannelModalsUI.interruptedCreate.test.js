@@ -50,9 +50,9 @@ describe('interrupted channel creation actions', () => {
 
         expect(channelManager.finishPendingCreate).toHaveBeenCalledWith(RECORD.basePath, expect.any(Object));
         expect(notificationUI.showLoadingToast.mock.calls[0][2].steps).toBe(19);
-        expect(notificationUI.setLoadingProgress).toHaveBeenCalledWith(1, 'Creating Channel...');
+        expect(notificationUI.setLoadingProgress).toHaveBeenCalledWith(1, 'Creating Channel…');
         expect(notificationUI.hideLoadingToast).toHaveBeenCalled();
-        expect(showNotification).toHaveBeenCalledWith('Channel created successfully!', 'success', undefined);
+        expect(showNotification).toHaveBeenCalledWith('Channel created', 'success', undefined);
     });
 
     it('a failed Finish says so and asks the chain again, so the row reflects it', async () => {

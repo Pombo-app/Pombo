@@ -659,12 +659,12 @@ class ChannelSettingsUI {
                 btn.textContent = '...';
                 try {
                     await channelManager.unbanMemberLevels(channel.streamId, addr);
-                    showNotification?.('User unbanned', 'success');
+                    showNotification?.('Member unbanned', 'success');
                     await this.loadBannedMembers(channel);
                 } catch (err) {
                     btn.disabled = false;
                     btn.textContent = 'Unban';
-                    showNotification?.(err?.message || 'Failed to unban user', 'error');
+                    showNotification?.(err?.message || 'Failed to unban member', 'error');
                 }
             });
         });
@@ -1312,7 +1312,7 @@ class ChannelSettingsUI {
                     : await relayManager.subscribeToChannel(streamId);
                     
                 if (success) {
-                    showNotification('Push notifications enabled!', 'success');
+                    showNotification('Push notifications enabled', 'success');
                     if (status) {
                         status.textContent = 'Push notifications enabled for this channel';
                         status.className = 'text-xs text-green-500';
@@ -1353,7 +1353,7 @@ class ChannelSettingsUI {
         const streamId = currentChannel.streamId;
 
         try {
-            showLoading('Deleting channel...');
+            showLoading('Deleting channel…');
             this.hide();
 
             // Remove from subscription manager tracking first
@@ -1373,7 +1373,7 @@ class ChannelSettingsUI {
                 return;
             }
 
-            showNotification(`Channel "${channelName}" deleted successfully`, 'success');
+            showNotification(`Channel "${channelName}" deleted`, 'success');
 
             // Update UI - select first remaining channel or show empty state
             const channels = channelManager.getAllChannels();
@@ -1801,7 +1801,7 @@ class ChannelSettingsUI {
             case 'toggle-grant':
                 const newCanGrant = !currentCanGrant;
                 try {
-                    showLoading(newCanGrant ? 'Appointing moderator...' : 'Dismissing moderator...');
+                    showLoading(newCanGrant ? 'Appointing moderator…' : 'Dismissing moderator…');
                     await channelManager.updateMemberPermissions(currentChannel.streamId, address, { canGrant: newCanGrant });
                     showNotification(
                         newCanGrant ? 'Member is now a moderator' : 'Moderator dismissed',
@@ -1854,10 +1854,10 @@ class ChannelSettingsUI {
         if (!currentChannel) return;
 
         try {
-            showLoading('Adding member (on-chain transaction)...');
+            showLoading('Adding member…');
             await channelManager.addMember(currentChannel.streamId, address);
             this.elements.addMemberInput.value = '';
-            showNotification('Member added successfully!', 'success');
+            showNotification('Member added', 'success');
             await this.loadMembers();
         } catch (error) {
             showNotification('Failed to add member: ' + error.message, 'error');
@@ -1903,11 +1903,11 @@ class ChannelSettingsUI {
         try {
             // allowBatch admits the whole list in ONE transaction — the same
             // call channel creation uses for its initial members.
-            showLoading(`Adding ${validAddresses.length} members (one transaction)...`);
+            showLoading(`Adding ${validAddresses.length} members…`);
             await channelManager.addMembers(currentChannel.streamId, validAddresses);
 
             this.elements.batchMembersInput.value = '';
-            showNotification(`${validAddresses.length} members added successfully!`, 'success');
+            showNotification(`${validAddresses.length} members added`, 'success');
             await this.loadMembers();
         } catch (error) {
             showNotification('Failed to add members: ' + error.message, 'error');
@@ -1985,14 +1985,14 @@ class ChannelSettingsUI {
         if (!currentChannel) return;
 
         try {
-            showLoading('Removing member (on-chain transaction)...');
+            showLoading('Removing member…');
             await channelManager.removeMember(currentChannel.streamId, address);
             if (!channelManager.isChannelOwner(currentChannel.streamId)) {
                 showNotification('Member removed. The key rotates when the owner next opens the channel.', 'info', 5000);
             } else if (channelManager.isRotationOwed(currentChannel.streamId)) {
                 showNotification('Member removed. The channel key rotates the next time the app connects.', 'warning', 5000);
             } else {
-                showNotification('Member removed successfully!', 'success');
+                showNotification('Member removed', 'success');
             }
             await this.loadMembers();
         } catch (error) {
@@ -2165,6 +2165,7 @@ class ChannelSettingsUI {
                     e.preventDefault();
                     this.saveChannelName();
                 } else if (e.key === 'Escape') {
+                    e.stopPropagation();
                     this.cancelEditingName();
                 }
             });
@@ -2174,6 +2175,7 @@ class ChannelSettingsUI {
         if (this.elements.channelSettingsDescriptionInput) {
             this.elements.channelSettingsDescriptionInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
+                    e.stopPropagation();
                     this.cancelEditingName();
                 }
             });
@@ -2430,7 +2432,7 @@ class ChannelSettingsUI {
                 // Visible channel: admin-only on-chain metadata update (single tx for name + description)
                 if (saveBtn) saveBtn.disabled = true;
                 if (cancelBtn) cancelBtn.disabled = true;
-                showNotification('Updating channel info on-chain...', 'info');
+                showNotification('Updating channel info on-chain…', 'info');
 
                 const updates = {};
                 if (nameChanged) updates.name = newName;
@@ -2485,7 +2487,7 @@ class ChannelSettingsUI {
             // Re-render channel list to show new name
             this.deps.renderChannelList?.();
             
-            showNotification('Channel info updated!', 'success');
+            showNotification('Channel info updated', 'success');
             Logger.debug('Channel info updated:', { newName, newDescription });
             
         } catch (error) {

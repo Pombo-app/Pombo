@@ -61,7 +61,9 @@ vi.mock('../../src/js/adminStatePoller.js', () => ({
 
 vi.mock('../../src/js/channelLatestMessageManager.js', () => ({
     channelLatestMessageManager: {
-        setFromLocal: vi.fn()
+        setFromLocal: vi.fn(),
+        getCached: vi.fn(() => ({ id: 'cached' })),
+        generation: 7
     }
 }));
 
@@ -969,7 +971,23 @@ describe('SubscriptionManager', () => {
                 sender: '0x3',
                 senderName: 'Bob',
                 timestamp: now - 100
-            }));
+            }), 7);
+        });
+
+        it('gives a channel with no preview its newest message even if it is not new', async () => {
+            const now = Date.now();
+            channelLatestMessageManager.getCached.mockReturnValueOnce(null);
+            stubFetchHistoryAsync([
+                { id: 'm1', type: 'text', text: 'older', account: '0x1', timestamp: now - 5000 },
+                { id: 'm2', type: 'text', text: 'last said', account: '0x2', timestamp: now - 4000 },
+                { id: 'm3', type: 'text', text: 'forged', account: '0x3', timestamp: now + 86400000 }
+            ]);
+            subscriptionManager.channelActivity.set('stream1', { lastMessageTime: now - 1000, unreadCount: 0, lastChecked: 0 });
+
+            await subscriptionManager.checkChannelActivity({ messageStreamId: 'stream1' });
+
+            expect(channelLatestMessageManager.setFromLocal).toHaveBeenCalledWith('stream1',
+                expect.objectContaining({ id: 'm2', text: 'last said' }), 7);
         });
 
         it('should not update the preview when only reactions are newer', async () => {

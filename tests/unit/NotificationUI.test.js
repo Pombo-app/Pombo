@@ -20,33 +20,27 @@ describe('NotificationUI', () => {
     });
 
     describe('showLoading()', () => {
-        it('should show loading overlay with message', () => {
-            const overlay = document.createElement('div');
-            overlay.id = 'loading-overlay';
-            const textEl = document.createElement('span');
-            textEl.id = 'loading-text';
-            document.body.appendChild(overlay);
-            document.body.appendChild(textEl);
-            
-            notificationUI.showLoading('Loading data...');
-            
-            expect(overlay.classList.contains('active')).toBe(true);
-            expect(textEl.textContent).toBe('Loading data...');
+        it('shows the message as a loading toast', () => {
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            document.body.appendChild(container);
+
+            notificationUI.showLoading('Adding member…');
+
+            const toast = container.querySelector('.toast.loading');
+            expect(toast.querySelector('.toast-message').textContent).toBe('Adding member…');
         });
-        
+
         it('should use default message when not provided', () => {
-            const overlay = document.createElement('div');
-            overlay.id = 'loading-overlay';
-            const textEl = document.createElement('span');
-            textEl.id = 'loading-text';
-            document.body.appendChild(overlay);
-            document.body.appendChild(textEl);
-            
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            document.body.appendChild(container);
+
             notificationUI.showLoading();
-            
-            expect(textEl.textContent).toBe('Loading...');
+
+            expect(container.querySelector('.toast-message').textContent).toBe('Loading…');
         });
-        
+
         it('should handle missing elements gracefully', () => {
             // Should not throw
             notificationUI.showLoading('Test');
@@ -54,18 +48,20 @@ describe('NotificationUI', () => {
     });
 
     describe('hideLoading()', () => {
-        it('should hide loading overlay', () => {
-            const overlay = document.createElement('div');
-            overlay.id = 'loading-overlay';
-            overlay.classList.add('active');
-            document.body.appendChild(overlay);
-            
+        it('removes the loading toast', () => {
+            vi.useFakeTimers();
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            document.body.appendChild(container);
+
+            notificationUI.showLoading('Sending invite…');
             notificationUI.hideLoading();
-            
-            expect(overlay.classList.contains('active')).toBe(false);
+            vi.advanceTimersByTime(300);
+
+            expect(container.querySelector('.toast.loading')).toBeNull();
         });
-        
-        it('should handle missing overlay gracefully', () => {
+
+        it('should handle a missing toast gracefully', () => {
             // Should not throw
             notificationUI.hideLoading();
         });
@@ -408,16 +404,8 @@ describe('NotificationUI', () => {
         beforeEach(() => {
             vi.useFakeTimers();
             
-            // Setup full DOM
-            const overlay = document.createElement('div');
-            overlay.id = 'loading-overlay';
-            const textEl = document.createElement('span');
-            textEl.id = 'loading-text';
             const container = document.createElement('div');
             container.id = 'toast-container';
-            
-            document.body.appendChild(overlay);
-            document.body.appendChild(textEl);
             document.body.appendChild(container);
         });
         
@@ -430,25 +418,33 @@ describe('NotificationUI', () => {
             expect(container.querySelectorAll('.toast').length).toBe(3);
         });
         
-        it('should allow loading overlay and toast simultaneously', () => {
-            notificationUI.showLoading('Processing...');
+        it('should allow a loading toast and a toast simultaneously', () => {
+            notificationUI.showLoading('Processing…');
             notificationUI.showNotification('Background task completed', 'success');
-            
-            const overlay = document.getElementById('loading-overlay');
+
             const container = document.getElementById('toast-container');
-            
-            expect(overlay.classList.contains('active')).toBe(true);
-            expect(container.querySelectorAll('.toast').length).toBe(1);
+            expect(container.querySelectorAll('.toast.loading').length).toBe(1);
+            expect(container.querySelectorAll('.toast.success').length).toBe(1);
         });
-        
+
         it('should handle rapid show/hide cycles', () => {
             for (let i = 0; i < 10; i++) {
                 notificationUI.showLoading(`Loading ${i}`);
                 notificationUI.hideLoading();
             }
-            
-            const overlay = document.getElementById('loading-overlay');
-            expect(overlay.classList.contains('active')).toBe(false);
+            vi.advanceTimersByTime(300);
+
+            const container = document.getElementById('toast-container');
+            expect(container.querySelector('.toast.loading')).toBeNull();
+        });
+
+        it('keeps errors up for 5 s unless told otherwise', () => {
+            notificationUI.showNotification('Failed to add member: x', 'error');
+            notificationUI.showNotification('Member added', 'success');
+
+            const container = document.getElementById('toast-container');
+            expect(container.querySelector('.toast.error').style.getPropertyValue('--toast-duration')).toBe('5000ms');
+            expect(container.querySelector('.toast.success').style.getPropertyValue('--toast-duration')).toBe('3000ms');
         });
     });
 

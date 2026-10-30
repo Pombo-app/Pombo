@@ -62,10 +62,24 @@ class ContactsUI {
         if (this.elements.closeContactsBtn) {
             this.elements.closeContactsBtn.addEventListener('click', () => this.hide());
         }
+        document.getElementById('contacts-add-open-btn')?.addEventListener('click', () => this._setAdding(true));
+        document.getElementById('contacts-add-backdrop')?.addEventListener('click', () => this._setAdding(false));
+        document.getElementById('contacts-add-box')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.body.classList.contains('contacts-adding')) {
+                e.stopPropagation();
+                this._setAdding(false);
+            }
+        });
 
         // Register onHide callback for back button and programmatic hide
         modalManager.registerOnHide('contacts-modal', () => this._cleanupOnHide());
         this.initialized = true;
+    }
+
+    /** Open or close the add-contact dialog of the mobile layout. */
+    _setAdding(open) {
+        document.body.classList.toggle('contacts-adding', open);
+        if (open) this.elements.addContactAddress?.focus();
     }
 
     /**
@@ -129,7 +143,7 @@ class ContactsUI {
      */
     _cleanupOnHide() {
         // Remove contacts-open class for mobile
-        document.body.classList.remove('contacts-open');
+        document.body.classList.remove('contacts-open', 'contacts-adding');
         // Only reset pill nav to chats if still on contacts tab
         // If pill was already switched (e.g. to explore), don't override
         const activeTab = document.querySelector('.pill-nav-item[data-pill-tab].active');
@@ -169,15 +183,16 @@ class ContactsUI {
 
         this.elements.contactsList.innerHTML = contacts.map(contact => {
             const avatarUrl = identityManager.getCachedENSAvatar(contact.address);
-            const avatarHtml = getAvatarHtml(contact.address, 36, 0.5, avatarUrl);
-            const displayName = sanitizeText(contact.nickname) || formatAddress(contact.address);
+            const avatarHtml = getAvatarHtml(contact.address, 42, 0.5, avatarUrl);
+            const displayName = identityManager.getCachedENS(contact.address)
+                || sanitizeText(contact.nickname) || formatAddress(contact.address);
 
             return `
                 <div class="flex items-center justify-between p-3 bg-overlay-5 border border-overlay-8 rounded-xl">
                     <div class="flex items-center gap-3 flex-1 min-w-0">
-                        <div class="flex-shrink-0" style="width:36px;height:36px;border-radius:9999px;overflow:hidden;">${avatarHtml}</div>
+                        <div class="flex-shrink-0" style="width:42px;height:42px;border-radius:9999px;overflow:hidden;">${avatarHtml}</div>
                         <div class="flex-1 min-w-0">
-                            <span class="text-[13px] font-medium text-primary truncate block">${escapeHtml(displayName)}</span>
+                            <span class="text-[13px] font-medium text-primary truncate block" data-contact-name="${escapeAttr(contact.address.toLowerCase())}">${escapeHtml(displayName)}</span>
                             <div class="text-[10px] text-overlay-30 font-mono truncate mt-0.5">${escapeHtml(contact.address)}</div>
                         </div>
                     </div>
@@ -193,6 +208,15 @@ class ContactsUI {
                 </div>
             `;
         }).join('');
+
+        for (const contact of contacts) {
+            if (identityManager.getCachedENS(contact.address)) continue;
+            identityManager.resolveENS(contact.address).then((name) => {
+                if (!name) return;
+                const el = this.elements.contactsList.querySelector(`[data-contact-name="${contact.address.toLowerCase()}"]`);
+                if (el) el.textContent = name;
+            }).catch(() => {});
+        }
 
         this.elements.contactsList.querySelectorAll('.contact-menu-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -251,7 +275,7 @@ class ContactsUI {
             
             // Resolve ENS if needed
             if (addressOrEns.endsWith('.eth')) {
-                showLoading('Resolving ENS...');
+                showLoading('Resolving ENS…');
                 isLoading = true;
                 address = await identityManager.resolveAddress(addressOrEns);
                 
@@ -270,11 +294,12 @@ class ContactsUI {
             await identityManager.addTrustedContact(address, nickname || null);
             this.renderList();
             this.deps.renderChannelList?.();
-            showNotification('Contact added!', 'success');
+            showNotification('Contact added', 'success');
 
             // Clear inputs
             this.elements.addContactAddress.value = '';
             this.elements.addContactNickname.value = '';
+            this._setAdding(false);
         } catch (error) {
             showNotification('Failed to add contact: ' + error.message, 'error');
         } finally {
@@ -317,7 +342,7 @@ class ContactsUI {
         await identityManager.addTrustedContact(address, nickname);
         this.renderList();
         this.deps.renderChannelList?.();
-        showNotification('Contact added!', 'success');
+        showNotification('Contact added', 'success');
         this.hideAddModal();
     }
 

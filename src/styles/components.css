@@ -1919,6 +1919,7 @@ body.cannot-write #context-menu-reply-btn {
     z-index: 9999;
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 0.75rem;
     max-width: 380px;
     width: calc(100% - 2rem);
@@ -1927,7 +1928,10 @@ body.cannot-write #context-menu-reply-btn {
 
 .toast {
     position: relative;
-    padding: 0.875rem 1rem;
+    width: fit-content;
+    min-width: 200px;
+    max-width: 100%;
+    padding: 0.875rem 2rem 0.875rem 1rem;
     border-radius: 0.75rem;
     color: var(--pombo-overlay-90);
     font-size: 0.8125rem;
@@ -2171,6 +2175,7 @@ body.cannot-write #context-menu-reply-btn {
     
     /* Minimized state - shows only right edge */
     .toast.toast-minimized {
+        align-self: flex-end;
         transform: translateX(calc(100% - 12px)) !important;
         opacity: 0.7;
         border-left: 3px solid currentColor;
@@ -2215,23 +2220,41 @@ body.cannot-write #context-menu-reply-btn {
     }
 }
 
-/* ----- Loading Spinner Overlay ----- */
-.loading-overlay {
-    position: fixed;
-    inset: 0;
-    background-color: rgba(0, 0, 0, 0.7);
-    z-index: 9998;
+input[type="radio"]:not(.sr-only) {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    flex-shrink: 0;
+    border: 2px solid var(--pombo-overlay-30);
+    border-radius: 50%;
+    display: inline-grid;
+    place-content: center;
+    cursor: pointer;
+}
+input[type="radio"]:not(.sr-only)::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #F6851B;
+    transform: scale(0);
+    transition: transform 0.12s ease;
+}
+input[type="radio"]:not(.sr-only):checked {
+    border-color: #F6851B;
+}
+input[type="radio"]:not(.sr-only):checked::before {
+    transform: scale(1);
+}
+
+#explore-search-input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
     display: none;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 1rem;
 }
 
-.loading-overlay.active {
-    display: flex;
-}
-
+/* ----- Spinner ----- */
 .spinner {
     width: 48px;
     height: 48px;
@@ -2254,11 +2277,6 @@ body.cannot-write #context-menu-reply-btn {
     to {
         transform: rotate(360deg);
     }
-}
-
-.loading-text {
-    color: var(--pombo-overlay-87);
-    font-size: 0.9rem;
 }
 
 /* ----- Scrollbar ----- */
@@ -2420,9 +2438,9 @@ body.network-down .network-dot {
 }
 
 #channel-list {
-    --channel-item-padding-top: 0.5rem;
+    --channel-item-padding-top: 0.625rem;
     --channel-item-padding-right: 0.75rem;
-    --channel-item-padding-bottom: 0.5rem;
+    --channel-item-padding-bottom: 0.625rem;
     --channel-item-padding-left: 0.75rem;
     --channel-item-main-offset: 0.75rem;
     /* Sidebar now shows only the read-only megaphone next to the name. */
@@ -2466,9 +2484,17 @@ body.network-down .network-dot {
     padding: var(--channel-item-badge-padding-y) var(--channel-item-badge-padding-x);
 }
 
+#channel-list .channel-preview-row {
+    margin-top: 0.3125rem;
+    min-height: 14px;
+}
+
 #channel-list .channel-preview-slot {
-    margin-top: 0.25rem;
     line-height: 1.2;
+}
+
+#channel-list .channel-preview-line {
+    font-size: 11px;
 }
 
 /* ===========================================
@@ -2495,8 +2521,7 @@ body.network-down .network-dot {
     font-style: normal;
 }
 
-/* Explore card variant: allow wrapping so users can scan more of
-   the message on mobile. Desktop keeps it concise (2 lines max). */
+/* Explore card variant: wraps, two lines at most. */
 .explore-preview-line {
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -2508,11 +2533,8 @@ body.network-down .network-dot {
     overflow-wrap: anywhere;
     font-size: 0.875rem; 
 }
-@media (max-width: 767px) {
-    .explore-preview-line {
-        line-clamp: 3;
-        -webkit-line-clamp: 3;
-    }
+.explore-preview-line:empty {
+    display: none;
 }
 
 /* Explore filter chips: keep the expand button out of the chip flow on
@@ -3309,8 +3331,8 @@ body.explore-open #explore-channels-list {
         max-width: 100%;
     }
     
-    /* Toast notifications full width */
     .toast-container {
+        width: auto;
         max-width: calc(100% - 1rem);
         left: 0.5rem;
         right: 0.5rem;
@@ -3402,8 +3424,45 @@ body.explore-open #explore-channels-list {
         max-height: 100% !important;
         border-radius: 0 !important;
         margin: 0 !important;
-        padding: 1rem 1.25rem 7rem 1.25rem !important;
+        padding: 1rem 14px 7rem 14px !important;
         border: none !important;
+    }
+    #settings-panel-profile > .space-y-6 {
+        padding: 1.25rem;
+        border: 1px solid var(--pombo-overlay-8);
+        border-radius: 1rem;
+    }
+    #contacts-modal .contacts-mobile-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+    }
+    #contacts-add-box {
+        display: none;
+    }
+    body.contacts-adding .contacts-add-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 70;
+    }
+    body.contacts-adding #contacts-add-box {
+        display: block;
+        position: fixed;
+        left: 16px;
+        right: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 71;
+        margin: 0;
+        padding: 1.25rem;
+        border-radius: 1rem;
+        background: var(--pombo-surface-raised);
+    }
+    body.contacts-adding .contacts-add-title {
+        display: block;
     }
     
     #new-channel-modal > div,
@@ -4177,7 +4236,10 @@ body.guest-mode #pill-wallet-btn {
 }
 
 #contacts-btn-wrapper,
-#transfers-btn-wrapper {
+body.guest-mode #transfers-btn-wrapper,
+.contacts-mobile-header,
+.contacts-add-backdrop,
+.contacts-add-title {
     display: none;
 }
 
@@ -4245,6 +4307,7 @@ body.guest-mode #pill-wallet-btn {
     }
     #contacts-btn-wrapper,
     #transfers-btn-wrapper {
+        display: none;
         position: absolute;
         top: 50%;
         transform: translateY(-50%);

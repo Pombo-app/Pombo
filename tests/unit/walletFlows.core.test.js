@@ -295,7 +295,7 @@ describe('WalletFlows Extended', () => {
 
             await walletFlows.connectLocal();
 
-            expect(uiController.showNotification).toHaveBeenCalledWith('Account created!', 'success');
+            expect(uiController.showNotification).toHaveBeenCalledWith('Account created', 'success');
         });
 
         it('does not save wallet if setup returned null', async () => {
@@ -413,7 +413,7 @@ describe('WalletFlows Extended', () => {
 
             await walletFlows.importPrivateKey();
 
-            expect(uiController.showNotification).toHaveBeenCalledWith('Account imported!', 'success');
+            expect(uiController.showNotification).toHaveBeenCalledWith('Account imported', 'success');
         });
     });
 
@@ -1063,7 +1063,7 @@ describe('WalletFlows Extended', () => {
             await walletFlows.restoreFromBackup(file);
 
             expect(uiController.showNotification).toHaveBeenCalledWith(
-                'Account restored successfully!',
+                'Account restored',
                 'success'
             );
         });

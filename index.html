@@ -127,7 +127,16 @@
                     </svg>
                 </button>
             </div>
-            <!-- Transfers: mobile header only, always shown; desktop keeps them in the bell. -->
+            <!-- Wallet: the token balances of this account. Sits beside the
+                 bell and follows the same visibility rules. -->
+            <div id="wallet-btn-wrapper" class="hidden relative">
+                <button id="wallet-btn" class="w-12 h-12 hover:bg-overlay-5 active:bg-overlay-12 rounded-full flex items-center justify-center transition" title="Wallet">
+                    <svg class="w-6 h-6 text-overlay-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3"/>
+                    </svg>
+                </button>
+            </div>
+            <!-- Transfers: always shown beside the bell, which keeps the invites. -->
             <div id="transfers-btn-wrapper" class="relative">
                 <button id="transfers-btn" class="relative w-12 h-12 hover:bg-overlay-5 active:bg-overlay-12 rounded-full flex items-center justify-center transition" title="Transfers">
                     <svg id="transfers-ring" class="transfers-ring hidden" viewBox="0 0 36 36" aria-hidden="true">
@@ -140,16 +149,7 @@
                     <span id="transfers-badge" class="hidden absolute top-[7px] right-[7px] min-w-[16px] h-4 px-1 bg-[#F6851B] rounded-full text-[9px] font-bold text-primary flex items-center justify-center">0</span>
                 </button>
             </div>
-            <!-- Wallet: the token balances of this account. Sits beside the
-                 bell and follows the same visibility rules. -->
-            <div id="wallet-btn-wrapper" class="hidden relative">
-                <button id="wallet-btn" class="w-12 h-12 hover:bg-overlay-5 active:bg-overlay-12 rounded-full flex items-center justify-center transition" title="Wallet">
-                    <svg class="w-6 h-6 text-overlay-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3"/>
-                    </svg>
-                </button>
-            </div>
-            <!-- Notification bell: channel invites + active transfers.
+            <!-- Notification bell: channel invites.
                  Desktop: beside the account button. Mobile: the header slot
                  Create Channel uses in Explore, but shown in the Chats view
                  instead (components.css owns the visibility rules). -->
@@ -670,7 +670,7 @@
                     </div>
                     <nav class="space-y-1 px-2 flex-1">
                         <button type="button" data-tab="public" class="channel-tab w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-left transition-all bg-overlay-10 text-primary">
-                            <svg class="w-4 h-4 text-overlay-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <svg class="w-4 h-4 text-overlay-60" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
                             <span>Open</span>
                         </button>
                         <button type="button" data-tab="password" class="channel-tab w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-left transition-all text-overlay-60 hover:text-overlay-90 hover:bg-overlay-5">
@@ -2352,7 +2352,7 @@
                             <span>Networks</span>
                         </button>
                         <button data-settings-tab="linkpreviews" class="settings-tab w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-left transition-all text-overlay-60 hover:text-overlay-90 hover:bg-overlay-5">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 5.25h16.5a1.5 1.5 0 011.5 1.5v10.5a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6.75a1.5 1.5 0 011.5-1.5zM10 9.25v5.5l4.5-2.75L10 9.25z"/></svg>
                             <span>Content</span>
                         </button>
                         <div class="my-2 mx-3 border-t border-overlay-5 hidden md:block"></div>
@@ -2365,7 +2365,7 @@
                             <span>Security</span>
                         </button>
                         <button data-settings-tab="repair" class="settings-tab w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-left transition-all text-overlay-60 hover:text-overlay-90 hover:bg-overlay-5">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z"/></svg>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
                             <span>DM Inbox</span>
                         </button>
                         <div class="my-2 mx-3 border-t border-overlay-5 hidden md:block"></div>
@@ -2395,7 +2395,7 @@
                                 <span>Networks</span>
                             </button>
                             <button class="settings-index-row" data-settings-open="linkpreviews">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 5.25h16.5a1.5 1.5 0 011.5 1.5v10.5a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6.75a1.5 1.5 0 011.5-1.5zM10 9.25v5.5l4.5-2.75L10 9.25z"/></svg>
                                 <span>Content</span>
                             </button>
                             <div class="settings-index-divider"></div>
@@ -2408,7 +2408,7 @@
                                 <span>Security</span>
                             </button>
                             <button class="settings-index-row" data-settings-open="repair">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z"/></svg>
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
                                 <span>DM Inbox</span>
                             </button>
                             <button class="settings-index-row" data-settings-open="about">
@@ -2982,9 +2982,21 @@
                 </svg>
                 <h3 class="text-base font-medium text-primary">Contacts</h3>
             </div>
-            
-            <!-- Add new contact -->
-            <div class="mb-4 p-3 bg-overlay-5 border border-overlay-8 rounded-xl">
+
+            <!-- Mobile header (Android ContactsScreen): logo, and + opens the add dialog -->
+            <div class="contacts-mobile-header">
+                <img src="favicon/favicon.svg" alt="Pombo" class="w-12 h-12 header-logo">
+                <button id="contacts-add-open-btn" class="px-4 py-1.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-primary border border-[#F6851B]/30 rounded-xl transition-all duration-200 flex items-center" aria-label="Add contact">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.5v15m7.5-7.5h-15"/>
+                    </svg>
+                </button>
+            </div>
+            <div id="contacts-add-backdrop" class="contacts-add-backdrop"></div>
+
+            <!-- Add new contact (a dialog on mobile) -->
+            <div id="contacts-add-box" class="mb-4 p-3 bg-overlay-5 border border-overlay-8 rounded-xl">
+                <h3 class="contacts-add-title text-base font-medium text-primary mb-3">Add contact</h3>
                 <div class="flex gap-2">
                     <input
                         type="text"
@@ -3531,12 +3543,6 @@
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- Loading Overlay -->
-    <div id="loading-overlay" class="loading-overlay">
-        <div class="spinner"></div>
-        <div id="loading-text" class="loading-text">Loading...</div>
     </div>
 
     <!-- Capture #install hash BEFORE app router overwrites it -->

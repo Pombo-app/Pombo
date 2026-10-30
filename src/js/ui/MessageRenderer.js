@@ -3,7 +3,7 @@
  * Handles rendering of messages, content types, and related UI
  */
 
-import { escapeHtml, escapeAttr, formatAddress, addressToColor, linkify, embedYouTubeLinks } from './utils.js';
+import { escapeHtml, escapeAttr, formatAddress, addressToColor, linkify, embedYouTubeLinks, formatBytes } from './utils.js';
 import { GroupPosition, shouldShowSenderName } from './MessageGrouper.js';
 import { getAvatar, getAvatarHtml } from './AvatarGenerator.js';
 import { sanitizeMessageHtml, sanitizeText } from './sanitizer.js';
@@ -69,10 +69,7 @@ class MessageRenderer {
      * @returns {string} - Formatted size string
      */
     formatFileSize(bytes) {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-        return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        return formatBytes(bytes);
     }
 
     /**
@@ -268,9 +265,7 @@ class MessageRenderer {
      */
     formatSpeed(bytesPerSec) {
         if (!Number.isFinite(bytesPerSec) || bytesPerSec <= 0) return '';
-        if (bytesPerSec < 1024) return `${Math.round(bytesPerSec)} B/s`;
-        if (bytesPerSec < 1048576) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
-        return `${(bytesPerSec / 1048576).toFixed(2)} MB/s`;
+        return `${formatBytes(bytesPerSec)}/s`;
     }
 
     /**

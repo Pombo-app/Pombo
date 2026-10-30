@@ -123,7 +123,7 @@ class InviteUI {
 
         let address = input;
         if (!input.startsWith('0x') && input.includes('.')) {
-            this.deps.showLoading('Resolving name...');
+            this.deps.showLoading('Resolving name…');
             try {
                 address = await identityManager.resolveAddress(input);
             } finally {
@@ -144,10 +144,10 @@ class InviteUI {
             // Import notificationManager dynamically
             const { notificationManager } = await import('../notifications.js');
 
-            this.deps.showLoading('Sending invite...');
+            this.deps.showLoading('Sending invite…');
             await notificationManager.sendChannelInvite(address, currentChannel);
             this.hide();
-            this.deps.showNotification('Invite sent successfully!', 'success');
+            this.deps.showNotification('Invite sent', 'success');
         } catch (error) {
             Logger.error('Failed to send invite:', error);
             // Check for STREAM_NOT_FOUND error - user doesn't have notifications enabled
@@ -168,7 +168,7 @@ class InviteUI {
         if (this.elements.inviteLinkDisplay) {
             this.elements.inviteLinkDisplay.select();
             document.execCommand('copy');
-            this.deps.showNotification('Link copied to clipboard!', 'success');
+            this.deps.showNotification('Link copied to clipboard', 'success');
         }
     }
 

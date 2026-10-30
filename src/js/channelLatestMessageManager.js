@@ -44,6 +44,21 @@ import { Logger } from './logger.js';
 import { streamrController } from './streamr.js';
 import { isMessageStream } from './streamConstants.js';
 import { CONFIG } from './config.js';
+import { messageTime } from './utils/messageTime.js';
+
+/** File name and MIME type of a file announce, for its preview label. */
+const fileFields = (m) => ({
+    fileName: typeof m?.metadata?.fileName === 'string' ? m.metadata.fileName : null,
+    fileType: typeof m?.metadata?.fileType === 'string' ? m.metadata.fileType : null
+});
+
+/** Whether `next` adds what `prev` lacks, or carries a different proven author. */
+const enriches = (prev, next) => (!prev.senderName && !!next.senderName)
+    || (!prev.fileType && !!next.fileType)
+    || (!!next.sender && String(prev.sender || '').toLowerCase() !== String(next.sender).toLowerCase());
+
+/** A preview dated past the wall clock (plus skew) is forged; it never shows or wins. */
+const isAhead = (ts) => (Number(ts) || 0) > Date.now() + (CONFIG.gate?.timestampSkewMs ?? 0);
 
 /** How long a preview may be newer than storage before it stops being an echo. */
 const PREVIEW_ECHO_GRACE_MS = 5 * 60 * 1000;
@@ -62,18 +77,72 @@ class ChannelLatestMessageManager {
         this.listeners = new Map();
         this.db = null;
         this._initPromise = null;
+        // Lowercased address whose database is open; null keeps everything in
+        // memory (no account yet, or a guest).
+        this.account = null;
+        // Bumped on every account change: a resend that started under the
+        // previous account must not land in the next one's cache.
+        this._generation = 0;
+        this._legacyDropped = false;
     }
 
     /**
-     * Open the IndexedDB. Idempotent.
+     * Scope the cache to an account. Previews hold decrypted DM and
+     * password-channel text, so each account gets its own database and the
+     * in-memory cache never carries over.
+     * @param {string|null} address
+     * @param {Object} [opts]
+     * @param {boolean} [opts.guest]
+     * @returns {Promise<void>}
+     */
+    setAccount(address, { guest = false } = {}) {
+        const key = !guest && address ? address.toLowerCase() : null;
+        this._generation++;
+        try { this.db?.close(); } catch {}
+        this.db = null;
+        this._initPromise = null;
+        this.cache.clear();
+        this.inflight.clear();
+        this.account = key;
+        for (const id of this.listeners.keys()) this._emit(id, null);
+        this._dropLegacyDatabase();
+        return key ? this.init() : Promise.resolve();
+    }
+
+    /** Changes on every account switch; a write carrying an older one is dropped. */
+    get generation() {
+        return this._generation;
+    }
+
+    /**
+     * Delete an account's preview database (account deletion).
+     * @param {string} address
+     */
+    deleteAccountData(address) {
+        if (!address) return;
+        const key = address.toLowerCase();
+        if (key === this.account) this.setAccount(null);
+        try { indexedDB.deleteDatabase(`${DB_NAME}_${key}`); } catch {}
+    }
+
+    /** The pre-account database was shared by every account on the browser. */
+    _dropLegacyDatabase() {
+        if (this._legacyDropped) return;
+        this._legacyDropped = true;
+        try { indexedDB.deleteDatabase(DB_NAME); } catch {}
+    }
+
+    /**
+     * Open the account's IndexedDB. Idempotent; a no-op without an account.
      * @returns {Promise<void>}
      */
     async init() {
-        if (this.db) return;
+        if (this.db || !this.account) return;
         if (this._initPromise) return this._initPromise;
+        const generation = this._generation;
         this._initPromise = new Promise((resolve) => {
             try {
-                const req = indexedDB.open(DB_NAME, DB_VERSION);
+                const req = indexedDB.open(`${DB_NAME}_${this.account}`, DB_VERSION);
                 req.onupgradeneeded = (e) => {
                     const db = e.target.result;
                     if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -81,6 +150,11 @@ class ChannelLatestMessageManager {
                     }
                 };
                 req.onsuccess = (e) => {
+                    if (generation !== this._generation) {
+                        e.target.result.close();
+                        resolve();
+                        return;
+                    }
                     this.db = e.target.result;
                     Logger.debug('ChannelLatestMessageManager IDB opened');
                     // Block init resolution on hydrate to close the
@@ -118,6 +192,9 @@ class ChannelLatestMessageManager {
                 // was stored with.
                 if (row.entry.type === 'reaction'
                     && !row.messageStreamId.endsWith(`/${CONFIG.dm.streamPrefix}-1`)) continue;
+                if (isAhead(row.entry.ts)) continue;
+                // Every preview names its proven author; one without is fetched again.
+                if (!row.entry.sender) continue;
                 const prev = this.cache.get(row.messageStreamId);
                 if (prev) {
                     // Stale guard — never let an IDB row clobber a
@@ -181,12 +258,14 @@ class ChannelLatestMessageManager {
             // Defensive: callers should always pass -1 ids
             Logger.debug('ChannelLatestMessageManager.get: not a -1 id', messageStreamId);
         }
+        const generation = this._generation;
         await this.init();
+        if (generation !== this._generation) return null;
 
         const cached = this.cache.get(messageStreamId);
         if (cached && !force) {
             if (!this.inflight.has(messageStreamId)) {
-                this._fetch(messageStreamId, password, last).catch(() => {});
+                this._fetch(messageStreamId, password, last, generation).catch(() => {});
             }
             return cached;
         }
@@ -195,7 +274,7 @@ class ChannelLatestMessageManager {
             return this.inflight.get(messageStreamId);
         }
 
-        const promise = this._fetch(messageStreamId, password, last);
+        const promise = this._fetch(messageStreamId, password, last, generation);
         this.inflight.set(messageStreamId, promise);
         try {
             return await promise;
@@ -204,7 +283,7 @@ class ChannelLatestMessageManager {
         }
     }
 
-    async _fetch(messageStreamId, password, last) {
+    async _fetch(messageStreamId, password, last, generation = this._generation) {
         try {
             const entries = await streamrController.resendLatestContentMessages(
                 messageStreamId,
@@ -213,6 +292,7 @@ class ChannelLatestMessageManager {
                     password
                 }
             );
+            if (generation !== this._generation) return null;
             if (!Array.isArray(entries) || entries.length === 0) {
                 return this.cache.get(messageStreamId) || null;
             }
@@ -237,7 +317,7 @@ class ChannelLatestMessageManager {
             // echo storage has not caught up with — a message the readers
             // refuse (a stranger's post on a read-only channel) is newer than
             // every real one too, and that used to pin it here for good.
-            if (prev && (prev.ts || 0) > (normalized.ts || 0)) {
+            if (prev && !isAhead(prev.ts) && (prev.ts || 0) > (normalized.ts || 0)) {
                 const inWindow = !!prev.id && entries.some((e) => e?.id === prev.id);
                 const couldBeLocalEcho = Date.now() - (prev.ts || 0) < PREVIEW_ECHO_GRACE_MS;
                 if (inWindow || couldBeLocalEcho) return prev;
@@ -249,8 +329,7 @@ class ChannelLatestMessageManager {
             // missing metadata (e.g. payloads from older sessions stored
             // without `senderName` are now arriving with it populated).
             if (prev && prev.id && prev.id === normalized.id && prev.type === normalized.type) {
-                const enriches = (!prev.senderName && normalized.senderName);
-                if (!enriches) return prev;
+                if (!enriches(prev, normalized)) return prev;
             }
 
             this.cache.set(messageStreamId, normalized);
@@ -279,7 +358,8 @@ class ChannelLatestMessageManager {
         const skew = CONFIG.gate.timestampSkewMs;
         if (payloadTs && (payloadTs > Date.now() + skew
             || (envTs && payloadTs > envTs + skew))) return null;
-        const ts = Number(raw._timestamp || raw.timestamp || 0) || Date.now();
+        const ts = messageTime(raw) || Date.now();
+        if (isAhead(ts)) return null;
         // Reactions carry no `sender`; use the publisher injected by streamr.js
         const sender = (raw.sender || raw._publisherId || null);
         const senderText = sender ? String(sender) : null;
@@ -308,13 +388,14 @@ class ChannelLatestMessageManager {
                 senderName
             };
         }
-        if (t === 'file_announce' || t === 'storage_file_announce') {
+        if (t === 'file_announce' || t === 'storage_file_announce' || t === 'video_announce') {
             return {
                 id: raw.id || null,
                 ts,
                 type: t,
                 sender: senderText,
-                senderName
+                senderName,
+                ...fileFields(raw)
             };
         }
         if (t === 'reaction') {
@@ -351,17 +432,21 @@ class ChannelLatestMessageManager {
      *
      * @param {string} messageStreamId
      * @param {Object} message - app-shape message
+     * @param {number} [generation] - the account generation the caller started under
      * @returns {Object|null} stored entry (or null if rejected)
      */
-    setFromLocal(messageStreamId, message) {
+    setFromLocal(messageStreamId, message, generation = this._generation) {
+        if (generation !== this._generation) return null;
         if (!messageStreamId || !message || typeof message !== 'object') return null;
         const t = message.type;
-        if (t !== 'text' && t !== 'audio' && t !== 'image' && t !== 'file_announce' && t !== 'storage_file_announce' && t !== 'reaction') {
+        if (t !== 'text' && t !== 'audio' && t !== 'image' && t !== 'file_announce' && t !== 'storage_file_announce'
+            && t !== 'video_announce' && t !== 'reaction') {
             return null;
         }
         // Reaction removals never enter the preview — see _normalizeRemoteEntry.
         if (t === 'reaction' && message.action === 'remove') return null;
-        const ts = Number(message.timestamp || message._timestamp || Date.now()) || Date.now();
+        const ts = messageTime(message) || Date.now();
+        if (isAhead(ts)) return this.cache.get(messageStreamId) || null;
         const sender = message.sender || message._publisherId || null;
         const senderText = sender ? String(sender) : null;
         const senderName = typeof message.senderName === 'string' && message.senderName.trim()
@@ -380,8 +465,8 @@ class ChannelLatestMessageManager {
             };
         } else if (t === 'image') {
             entry = { id: message.id || null, ts, type: 'image', sender: senderText, senderName };
-        } else if (t === 'file_announce' || t === 'storage_file_announce') {
-            entry = { id: message.id || null, ts, type: t, sender: senderText, senderName };
+        } else if (t === 'file_announce' || t === 'storage_file_announce' || t === 'video_announce') {
+            entry = { id: message.id || null, ts, type: t, sender: senderText, senderName, ...fileFields(message) };
         } else {
             entry = {
                 id: null,
@@ -397,13 +482,12 @@ class ChannelLatestMessageManager {
 
         const prev = this.cache.get(messageStreamId);
         // Stale guard: don't overwrite with an older entry
-        if (prev && (prev.ts || 0) > entry.ts) return prev;
+        if (prev && !isAhead(prev.ts) && (prev.ts || 0) > entry.ts) return prev;
         // Same id + same type → no-op (prevents re-render flicker),
         // unless the new entry enriches metadata that was missing
         // (e.g. senderName arriving on a re-publish path).
         if (prev && prev.id && entry.id && prev.id === entry.id && prev.type === entry.type) {
-            const enriches = (!prev.senderName && entry.senderName);
-            if (!enriches) return prev;
+            if (!enriches(prev, entry)) return prev;
         }
 
         this.cache.set(messageStreamId, entry);

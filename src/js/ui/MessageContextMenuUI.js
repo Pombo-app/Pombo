@@ -160,6 +160,9 @@ class MessageContextMenuUI {
             msgType: messageDiv.dataset.type
         };
 
+        document.querySelector('#message-context-menu [data-action="copy-text"]')
+            ?.classList.toggle('hidden', messageDiv.dataset.type !== 'text');
+
         const isSelf = messageDiv.classList.contains('own-message');
         const { channelManager, identityManager } = this.deps;
         const currentChannel = channelManager?.getCurrentChannel?.();
@@ -363,7 +366,7 @@ class MessageContextMenuUI {
                 const text = msgContent?.innerText || msgContent?.textContent || '';
                 try {
                     await navigator.clipboard.writeText(text);
-                    showNotification('Text copied!', 'success');
+                    showNotification('Text copied', 'success');
                 } catch {
                     showNotification('Failed to copy', 'error');
                 }
@@ -373,7 +376,7 @@ class MessageContextMenuUI {
             case 'copy-address':
                 try {
                     await navigator.clipboard.writeText(address);
-                    showNotification('Address copied!', 'success');
+                    showNotification('Address copied', 'success');
                 } catch {
                     showNotification('Failed to copy', 'error');
                 }

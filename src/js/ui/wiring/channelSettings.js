@@ -67,7 +67,7 @@ export function attachChannelSettings(ui) {
             if (!value) return;
             try {
                 await navigator.clipboard.writeText(value);
-                ui.showNotification(`${code?.dataset.copyLabel || 'Channel ID'} copied!`, 'success');
+                ui.showNotification(`${code?.dataset.copyLabel || 'Channel ID'} copied`, 'success');
             } catch {
                 ui.showNotification('Failed to copy', 'error');
             }

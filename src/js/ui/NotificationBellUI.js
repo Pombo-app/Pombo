@@ -8,15 +8,13 @@
  * file this device is serving, with basic speed figures and a way to cancel
  * either.
  *
- * Placement is CSS-driven (components.css): on desktop the bell sits beside
- * the account button, top right, with both sections; on the mobile viewport
- * the bell shows invites only and a separate, always-visible transfers button
- * opens the transfers section, with a progress ring and count while
- * downloads run.
+ * Placement is CSS-driven (components.css). The bell shows invites only; a
+ * separate, always-visible transfers button opens the transfers section,
+ * with a progress ring and count while downloads run.
  */
 
 import { Logger } from '../logger.js';
-import { escapeHtml } from './utils.js';
+import { escapeHtml, formatBytes } from './utils.js';
 import { sanitizeText } from './sanitizer.js';
 
 class NotificationBellUI {
@@ -33,15 +31,10 @@ class NotificationBellUI {
         // fetched async into this cache when toggled on.
         this.showInactive = false;
         this._inactiveSeeds = [];
-        // Which sections the open menu shows: 'all' (desktop bell), or one of
-        // 'invites' / 'transfers' (the two mobile header buttons).
-        this.section = 'all';
+        // Which section the open menu shows: 'invites' (the bell) or
+        // 'transfers' (the transfers button).
+        this.section = 'invites';
         this._indicatorTimer = null;
-    }
-
-    _isMobile() {
-        return window.innerWidth < 768
-            || (window.innerHeight <= 500 && window.matchMedia('(orientation: landscape)').matches);
     }
 
     /**
@@ -71,7 +64,7 @@ class NotificationBellUI {
 
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.toggle(undefined, this._isMobile() ? 'invites' : 'all');
+            this.toggle(undefined, 'invites');
         });
         document.getElementById('transfers-btn')?.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -241,10 +234,7 @@ class NotificationBellUI {
     }
 
     formatBytes(bytes) {
-        if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
-        if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-        if (bytes >= 1024) return Math.round(bytes / 1024) + ' KB';
-        return bytes + ' B';
+        return formatBytes(bytes);
     }
 
     formatSpeed(bytesPerSec) {

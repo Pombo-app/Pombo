@@ -566,50 +566,6 @@ class ChannelModalsUI {
     }
 
     /**
-     * Show join channel modal for channels requiring local name
-     * Used for: native channels, hidden channels, unknown channels
-     * @param {string} streamId - Channel stream ID
-     * @param {Object} channelInfo - Channel info from Graph (optional)
-     */
-    showJoinClosedModal(streamId = '', channelInfo = null) {
-        // Store channelInfo for use when joining
-        this._pendingJoinChannelInfo = channelInfo;
-        this._localIdentityTarget = null;
-
-        this.deps.modalManager?.showJoinClosedChannelModal(streamId);
-        document.getElementById('join-closed-stream-id-input')?.parentElement?.classList.remove('hidden');
-        const joinBtn = document.getElementById('join-closed-btn');
-        if (joinBtn) joinBtn.textContent = 'Join';
-        this.switchJoinClassificationTab('personal');
-        
-        // Always show classification section - helps organize any channel locally
-        const classificationSection = document.getElementById('join-classification-section');
-        classificationSection?.classList.remove('hidden');
-        
-        // Update modal title based on channel type
-        const modalTitle = document.querySelector('#join-closed-channel-modal h3');
-        if (modalTitle) {
-            if (channelInfo?.type === 'gated') {
-                modalTitle.textContent = 'Join Closed Channel';
-            } else if (channelInfo) {
-                modalTitle.textContent = 'Name This Channel';
-            } else {
-                modalTitle.textContent = 'Join Channel';
-            }
-        }
-    }
-    
-    /**
-     * Show join hidden channel modal (alias for consistency)
-     * @param {string} streamId - Channel stream ID
-     * @param {Object} channelInfo - Channel info from Graph (optional)
-     */
-    showJoinHiddenModal(streamId = '', channelInfo = null) {
-        // Use the same modal - classification is useful for all hidden channels
-        this.showJoinClosedModal(streamId, channelInfo);
-    }
-
-    /**
      * Hide join closed channel modal
      */
     hideJoinClosedModal() {
@@ -626,7 +582,6 @@ class ChannelModalsUI {
      */
     showLocalIdentityModal(channel) {
         if (!channel) return;
-        this._pendingJoinChannelInfo = null;
 
         this.deps.modalManager?.showJoinClosedChannelModal(channel.messageStreamId);
         this._localIdentityTarget = channel;
@@ -651,7 +606,9 @@ class ChannelModalsUI {
      * Save the local identity panel: local rename + classification only,
      * never a join (the channel is already in the list).
      */
-    async _handleSaveLocalIdentity(channel) {
+    async saveLocalIdentity() {
+        const channel = this._localIdentityTarget;
+        if (!channel) return;
         const localName = document.getElementById('join-closed-name-input')?.value.trim();
         const classification = this.joinClassification || 'personal';
         this.hideJoinClosedModal();
@@ -665,74 +622,6 @@ class ChannelModalsUI {
         if (current?.messageStreamId === channel.messageStreamId) {
             const headerName = document.getElementById('current-channel-name');
             if (headerName) headerName.textContent = channel.name;
-        }
-    }
-
-    /**
-     * Handle joining a channel (with local name + classification)
-     */
-    async handleJoinClosedChannel() {
-        if (this._localIdentityTarget) {
-            await this._handleSaveLocalIdentity(this._localIdentityTarget);
-            return;
-        }
-
-        const streamId = document.getElementById('join-closed-stream-id-input')?.value.trim();
-        const localName = document.getElementById('join-closed-name-input')?.value.trim();
-        const classification = this.joinClassification || 'personal';
-        
-        // Get stored channel info from when modal was opened
-        const channelInfo = this._pendingJoinChannelInfo;
-        
-        if (!streamId) {
-            this.showNotification('Please enter a Stream ID', 'error');
-            return;
-        }
-        
-        if (!localName) {
-            this.showNotification('Please enter a name for this channel', 'error');
-            return;
-        }
-        
-        this.hideJoinClosedModal();
-        
-        // Clear pending state
-        this._pendingJoinChannelInfo = null;
-        
-        // Use actual channel type from Graph, or 'gated' if unknown
-        const channelType = channelInfo?.type || 'gated';
-
-        const attempt = async () => {
-            try {
-                this.notificationUI?.showLoadingToast('Joining channel...', 'This may take a moment');
-                await this.channelManager.joinChannel(streamId, null, {
-                    name: localName,
-                    named: true,
-                    type: channelType,
-                    classification: classification,  // Always save classification for local organization
-                    readOnly: channelInfo?.readOnly || false,
-                    createdBy: channelInfo?.createdBy
-                });
-                this.deps.renderChannelList?.();
-                this.showNotification('Joined channel successfully!', 'success');
-            } finally {
-                this.notificationUI?.hideLoadingToast();
-            }
-        };
-
-        try {
-            await attempt();
-        } catch (error) {
-            if (error.code === 'GATE_ACCESS_DENIED') {
-                this.showGateEntryModal({
-                    streamId,
-                    gateAddress: error.gateAddress,
-                    name: localName,
-                    retry: attempt
-                });
-            } else {
-                this.showNotification('Failed to join: ' + error.message, 'error');
-            }
         }
     }
 
@@ -1062,12 +951,12 @@ class ChannelModalsUI {
                     // the modal up: on failure it is the retry context.)
                     if (entry.renewal) this.hideGateEntryModal();
                     try {
-                        this.notificationUI?.showLoadingToast('Paying subscription...', 'Confirm may take a moment', { icon: 'payment' });
+                        this.notificationUI?.showLoadingToast('Paying subscription…', 'Confirm may take a moment', { icon: 'payment' });
                         await gateManager.pay(entry.gateAddress, (step) => {
                             this.notificationUI?.showLoadingToast(
-                                step === 'wrap' ? 'Wrapping POL...'
-                                    : step === 'approve' ? 'Approving token...'
-                                        : 'Paying subscription...',
+                                step === 'wrap' ? 'Wrapping POL…'
+                                    : step === 'approve' ? 'Approving token…'
+                                        : 'Paying subscription…',
                                 'Waiting for the transaction',
                                 { icon: 'payment' }
                             );
@@ -1351,21 +1240,21 @@ class ChannelModalsUI {
         }
 
         this.hide();
-        await this._runWithCreateProgress(isGated, members.length, 'Creating channel...',
+        await this._runWithCreateProgress(isGated, members.length, 'Creating channel…',
             (onProgress) => this.channelManager.createChannel(name, type, password, members, {
                 ...options,
                 onProgress
             }),
-            'Channel created successfully!', 'Failed to create channel: ');
+            'Channel created', 'Failed to create channel: ');
     }
 
     /** Finish an interrupted creation: only the missing transactions are sent. */
     async finishInterruptedCreate(basePath) {
         const record = this.channelManager.getInterruptedCreates().find(r => r.basePath === basePath);
         if (!record) return;
-        await this._runWithCreateProgress(record.type === 'gated', record.members?.length || 0, 'Finishing channel...',
+        await this._runWithCreateProgress(record.type === 'gated', record.members?.length || 0, 'Finishing channel…',
             (onProgress) => this.channelManager.finishPendingCreate(basePath, { onProgress }),
-            'Channel created successfully!', 'Could not finish the channel: ');
+            'Channel created', 'Could not finish the channel: ');
     }
 
     async discardInterruptedCreate(basePath) {
@@ -1404,15 +1293,15 @@ class ChannelModalsUI {
             this.notificationUI?.showLoadingToast(
                 title,
                 'This may take a minute',
-                { steps: totalSteps, initialLabel: 'Creating Channel...' }
+                { steps: totalSteps, initialLabel: 'Creating Channel…' }
             );
 
             // Map step index -> phase label.
             // [1; N] Creating Channel · [N+1; 2N] Setting Permissions · [2N+1; total] Setting Storage
             const labelForStep = (s) => {
-                if (s <= streamCount) return 'Creating Channel...';
-                if (s <= streamCount * 2) return 'Setting Permissions...';
-                return 'Setting Storage...';
+                if (s <= streamCount) return 'Creating Channel…';
+                if (s <= streamCount * 2) return 'Setting Permissions…';
+                return 'Setting Storage…';
             };
 
             let currentStep = 0;

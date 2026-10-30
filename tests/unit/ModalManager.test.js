@@ -426,6 +426,45 @@ describe('ModalManager', () => {
         });
     });
 
+    describe('dismissing the top modal', () => {
+        const escape = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+        it('Escape closes the top modal only', () => {
+            const below = createModal('settings-modal');
+            const top = createModal('contacts-modal');
+            modalManager.show('settings-modal');
+            modalManager.show('contacts-modal');
+
+            escape();
+
+            expect(top.classList.contains('hidden')).toBe(true);
+            expect(below.classList.contains('hidden')).toBe(false);
+        });
+
+        it('leaves Escape to an open confirm dialog', () => {
+            const modal = createModal('contacts-modal');
+            createModal('confirm-dialog-modal', false);
+            modalManager.show('contacts-modal');
+
+            escape();
+
+            expect(modal.classList.contains('hidden')).toBe(false);
+        });
+
+        it('a click on the backdrop closes the top modal, a click inside does not', () => {
+            const modal = createModal('contacts-modal');
+            const inner = document.createElement('div');
+            modal.appendChild(inner);
+            modalManager.show('contacts-modal');
+
+            inner.click();
+            expect(modal.classList.contains('hidden')).toBe(false);
+
+            modal.click();
+            expect(modal.classList.contains('hidden')).toBe(true);
+        });
+    });
+
     describe('hideNewChannelModal()', () => {
         it('should hide the new channel modal', () => {
             const modal = createModal('new-channel-modal', false);

@@ -6,7 +6,7 @@
 
 import { modalManager } from './ModalManager.js';
 import { sanitizeText } from './sanitizer.js';
-import { escapeHtml } from './utils.js';
+import { escapeHtml, formatBytes } from './utils.js';
 import { formatAudioTime } from './MessageRenderer.js';
 import { VoiceRecorder, canRecordAudio } from '../audioRecorder.js';
 import { CONFIG } from '../config.js';
@@ -600,23 +600,23 @@ class InputUI {
         }
 
         try {
-            const label = { image: 'Sending image...', video: 'Processing video...' }[type] || 'Processing file...';
+            const label = { image: 'Sending image…', video: 'Processing video…' }[type] || 'Processing file…';
             showLoading?.(label);
             
             if (type === 'image') {
                 const result = await mediaController.sendImage(currentChannel.streamId, file, currentChannel.password);
                 if (result?.finalMime && result?.originalMime && result.finalMime !== result.originalMime) {
                     const finalLabel = result.finalMime.replace('image/', '').toUpperCase();
-                    showNotification?.(`Image sent! Converted to ${finalLabel} to fit the 1MB limit.`, 'success');
+                    showNotification?.(`Image sent. Converted to ${finalLabel} to fit the 1 MB limit.`, 'success');
                 } else {
-                    showNotification?.('Image sent!', 'success');
+                    showNotification?.('Image sent', 'success');
                 }
             } else if (type === 'video') {
                 await mediaController.sendVideo(currentChannel.streamId, file, currentChannel.password);
-                showNotification?.('Video shared!', 'success');
+                showNotification?.('Video shared', 'success');
             } else {
                 await mediaController.sendFile(currentChannel.streamId, file, currentChannel.password);
-                showNotification?.('File shared!', 'success');
+                showNotification?.('File shared', 'success');
             }
         } catch (error) {
             showNotification?.('Failed to send: ' + error.message, 'error');
@@ -640,10 +640,7 @@ class InputUI {
      * @returns {string} Formatted size
      */
     formatFileSize(bytes) {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-        return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        return formatBytes(bytes);
     }
 
     /**

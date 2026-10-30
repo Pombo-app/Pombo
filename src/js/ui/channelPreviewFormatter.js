@@ -94,11 +94,16 @@ export function formatPreviewBody(entry) {
             return escapeHtml(sanitizeText(t));
         }
         case 'image':
-            return mute('[image]');
+            return mute('🖼️ Image');
+        case 'video_announce':
+            return mute('🎬 Video');
         case 'file_announce':
-            return mute('[video]');
-        case 'storage_file_announce':
-            return mute('[file]');
+        case 'storage_file_announce': {
+            const mime = entry.fileType || '';
+            if (mime.startsWith('video/')) return mute('🎬 Video');
+            if (mime.startsWith('image/')) return mute('🖼️ Image');
+            return mute(`📎 ${sanitizeText(entry.fileName || 'File')}`);
+        }
         case 'reaction': {
             // Reaction removals are filtered out upstream
             // (channelLatestMessageManager). Defensive fallthrough only.
@@ -122,6 +127,27 @@ export function formatPreviewBody(entry) {
  *        participants and the prefix is redundant).
  * @returns {string}
  */
+/**
+ * Compact time for a Home row: the clock today, then Yesterday, the weekday
+ * within a week, the date within the year, and the full date before that.
+ * @param {number} ts - ms epoch
+ * @param {number} [now]
+ * @returns {string}
+ */
+export function formatPreviewTime(ts, now = Date.now()) {
+    if (!Number.isFinite(ts) || ts <= 0) return '';
+    const date = new Date(ts);
+    const today = new Date(now);
+    const dayStart = (offset) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - offset).getTime();
+    if (ts >= dayStart(0)) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (ts >= dayStart(1)) return 'Yesterday';
+    if (ts >= dayStart(6)) return date.toLocaleDateString('en-US', { weekday: 'short' });
+    if (date.getFullYear() === today.getFullYear()) {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 export function formatPreviewLine(entry, { omitSender = false } = {}) {
     if (!entry) return '';
     let senderHtml = '';

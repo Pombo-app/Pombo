@@ -160,7 +160,7 @@ class WalletFlows {
             await this._disconnectWallet({ skipFallback: true });
 
             await this.loadWalletWithProgress(password, address);
-            uiController.showNotification('Account switched!', 'success');
+            uiController.showNotification('Account switched', 'success');
         } catch (error) {
             uiController.showNotification(error.message || 'Failed to switch account', 'error');
         }
@@ -585,7 +585,7 @@ class WalletFlows {
                 }
             }
 
-            uiController.showNotification('Account restored successfully!', 'success');
+            uiController.showNotification('Account restored', 'success');
         } catch (error) {
             this.hideProgressModal(progressModal);
             throw error;
@@ -702,7 +702,7 @@ class WalletFlows {
                     await secureStorage.saveToStorage();
                 }
 
-                uiController.showNotification('Account created!', 'success');
+                uiController.showNotification('Account created', 'success');
             }
         } catch (error) {
             throw error;
@@ -1479,7 +1479,7 @@ class WalletFlows {
             });
             
             this.hideProgressModal(modal);
-            uiController.showNotification(`Account "${result.name}" saved securely!`, 'success');
+            uiController.showNotification(`Account "${result.name}" saved securely`, 'success');
             return result;
         } catch (error) {
             this.hideProgressModal(modal);
@@ -1644,7 +1644,7 @@ class WalletFlows {
 
             this.releaseWalletFlowUI();
             await this._onWalletConnected(result.address, result.signer);
-            uiController.showNotification('Account imported!', 'success');
+            uiController.showNotification('Account imported', 'success');
         } catch (error) {
             throw error;
         }

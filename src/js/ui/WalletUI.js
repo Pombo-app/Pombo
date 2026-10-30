@@ -117,7 +117,7 @@ class WalletUI {
         });
         document.getElementById('wallet-add-input')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') this.addToken(e.target.value);
-            if (e.key === 'Escape') this._closeAddRow();
+            if (e.key === 'Escape') { e.stopPropagation(); this._closeAddRow(); }
         });
 
         document.getElementById('wallet-address-copy')?.addEventListener('click', () => this.copyAddress());
@@ -518,14 +518,14 @@ class WalletUI {
             const amountWei = BigInt(Math.floor(parseFloat(amount) * 1e18));
             const amountHex = '0x' + amountWei.toString(16);
 
-            showNotification?.('Confirm transaction in MetaMask...', 'info');
+            showNotification?.('Confirm transaction in MetaMask…', 'info');
 
             const txHash = await window.ethereum.request({
                 method: 'eth_sendTransaction',
                 params: [{ from: metamaskAddress, to: localAddress, value: amountHex }]
             });
 
-            showNotification?.('Transaction sent! Waiting for confirmation...', 'info');
+            showNotification?.('Transaction sent. Waiting for confirmation…', 'info');
 
             let receipt = null;
             while (!receipt) {
@@ -537,7 +537,7 @@ class WalletUI {
             }
 
             if (receipt.status === '0x1') {
-                showNotification?.(`Funded ${amount} POL successfully!`, 'success');
+                showNotification?.(`Funded ${amount} POL`, 'success');
                 this.refresh();
             } else {
                 showNotification?.('Transaction failed', 'error');

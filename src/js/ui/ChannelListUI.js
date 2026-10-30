@@ -11,7 +11,7 @@ import { channelLatestMessageManager } from '../channelLatestMessageManager.js';
 import { deriveAdminId } from '../streamConstants.js';
 import { getAvatarHtml } from './AvatarGenerator.js';
 import { identityManager } from '../identity.js';
-import { formatPreviewLine } from './channelPreviewFormatter.js';
+import { formatPreviewLine, formatPreviewTime } from './channelPreviewFormatter.js';
 
 class ChannelListUI {
     constructor() {
@@ -144,13 +144,13 @@ class ChannelListUI {
         if (!slot) return;
         const dataUrl = this._getCachedImageDataUrl(adminStreamId);
         if (dataUrl) {
-            slot.style.width = '44px';
-            slot.innerHTML = `<img class="channel-item-image rounded-full object-cover" alt="" src="${escapeAttr(dataUrl)}" draggable="true" style="width:44px;height:44px" />`;
+            slot.style.width = '46px';
+            slot.innerHTML = `<img class="channel-item-image rounded-full object-cover" alt="" src="${escapeAttr(dataUrl)}" draggable="true" style="width:46px;height:46px" />`;
         } else if (this._resolvedImages.has(adminStreamId)) {
             // Resolution finished without a remote image — swap spinner
             // placeholder for the deterministic fallback avatar.
-            slot.style.width = '44px';
-            slot.innerHTML = `<div class="rounded-full overflow-hidden" style="width:44px;height:44px">${getAvatarHtml(streamId, 44, 0.5, null)}</div>`;
+            slot.style.width = '46px';
+            slot.innerHTML = `<div class="rounded-full overflow-hidden" style="width:46px;height:46px">${getAvatarHtml(streamId, 46, 0.5, null)}</div>`;
         }
         // Bump signature so next reconcile doesn't replace this row
         const cached = channelImageManager.getCached(adminStreamId);
@@ -199,17 +199,17 @@ class ChannelListUI {
                 for (const ch of all) {
                     if (!ch) continue;
                     if (ch.type === 'dm') {
-                        // DMs never hit the resend path — only live messages
-                        // populate the preview. Subscribe so the row patches
-                        // when a message arrives, but do NOT mark resolved
-                        // (would cause a render-signature flip on the next
-                        // render). The slot stays as a spinner placeholder
-                        // until the first message lands.
+                        // DMs never hit the resend path: the stored entry is
+                        // all there is until a live message lands.
                         if (!this._previewSubs.has(ch.streamId)) {
                             const unsub = channelLatestMessageManager.subscribe(ch.streamId, () => {
                                 this._refreshSinglePreview(ch.streamId);
                             });
                             this._previewSubs.set(ch.streamId, unsub);
+                            channelLatestMessageManager.init().finally(() => {
+                                this._resolvedPreviews.add(ch.streamId);
+                                this._refreshSinglePreview(ch.streamId);
+                            });
                         }
                         continue;
                     }
@@ -237,6 +237,8 @@ class ChannelListUI {
         const entry = channelLatestMessageManager.getCached(streamId);
         const channelType = this.channelManager?.getChannel?.(streamId)?.type || null;
         slot.innerHTML = this._renderPreviewSlotInner(streamId, entry, channelType);
+        const time = row.querySelector('.channel-preview-time');
+        if (time) time.textContent = formatPreviewTime(entry?.ts);
         // Bump signature so reconcile doesn't replace this row
         const sig = row.dataset.renderSignature;
         if (sig) {
@@ -475,9 +477,9 @@ class ChannelListUI {
         const block = document.createElement('div');
         block.className = 'pending-creates space-y-1.5';
         block.innerHTML = records.map(record => `
-            <div class="pending-create mx-2 rounded-xl bg-overlay-2 border border-overlay-4 px-3 py-2.5" data-pending-base="${escapeAttr(record.basePath)}">
+            <div class="pending-create mx-2.5 rounded-xl bg-overlay-2 border border-overlay-4 px-3 py-2.5" data-pending-base="${escapeAttr(record.basePath)}">
                 <div class="flex items-center gap-1.5 min-w-0">
-                    <h3 class="text-sm font-medium text-overlay-90 truncate">${escapeHtml(sanitizeText(record.name))}</h3>
+                    <h3 class="text-[15px] font-medium text-overlay-90 truncate">${escapeHtml(sanitizeText(record.name))}</h3>
                     <span class="text-[12px] text-overlay-40 flex-shrink-0">· creation interrupted</span>
                 </div>
                 <div class="flex items-center gap-2 mt-2">
@@ -686,52 +688,59 @@ class ChannelListUI {
         // Render image / avatar / spinner. We show a spinner whenever the
         // remote lookup is still pending so the deterministic fallback
         // doesn't flash before the real image / ENS avatar arrives.
-        const spinnerSlot = `<div class="rounded-full flex items-center justify-center bg-overlay-4" style="width:44px;height:44px"><div class="thumb-spinner" style="width:16px;height:16px"></div></div>`;
+        const spinnerSlot = `<div class="rounded-full flex items-center justify-center bg-overlay-4" style="width:46px;height:46px"><div class="thumb-spinner" style="width:16px;height:16px"></div></div>`;
         let iconSlot = '';
         if (channelViewModel.type === 'dm') {
             const seed = channelViewModel.peerAddress || channelViewModel.streamId;
             if (channelViewModel.peerEnsAvatar) {
-                iconSlot = `<div class="rounded-full overflow-hidden" style="width:44px;height:44px">${getAvatarHtml(seed, 44, 0.5, channelViewModel.peerEnsAvatar)}</div>`;
+                iconSlot = `<div class="rounded-full overflow-hidden" style="width:46px;height:46px">${getAvatarHtml(seed, 46, 0.5, channelViewModel.peerEnsAvatar)}</div>`;
             } else if (channelViewModel.peerAddress && !this._resolvedDMPeers.has(channelViewModel.peerAddress)) {
                 iconSlot = spinnerSlot;
             } else {
-                iconSlot = `<div class="rounded-full overflow-hidden" style="width:44px;height:44px">${getAvatarHtml(seed, 44, 0.5, null)}</div>`;
+                iconSlot = `<div class="rounded-full overflow-hidden" style="width:46px;height:46px">${getAvatarHtml(seed, 46, 0.5, null)}</div>`;
             }
         } else {
             const dataUrl = this._getCachedImageDataUrl(channelViewModel.adminStreamId);
             if (dataUrl) {
-                iconSlot = `<img class="channel-item-image rounded-full object-cover" alt="" src="${escapeAttr(dataUrl)}" draggable="true" style="width:44px;height:44px" />`;
+                iconSlot = `<img class="channel-item-image rounded-full object-cover" alt="" src="${escapeAttr(dataUrl)}" draggable="true" style="width:46px;height:46px" />`;
             } else if (channelViewModel.adminStreamId && !this._resolvedImages.has(channelViewModel.adminStreamId)) {
                 iconSlot = spinnerSlot;
             } else {
-                iconSlot = `<div class="rounded-full overflow-hidden" style="width:44px;height:44px">${getAvatarHtml(channelViewModel.streamId, 44, 0.5, null)}</div>`;
+                iconSlot = `<div class="rounded-full overflow-hidden" style="width:46px;height:46px">${getAvatarHtml(channelViewModel.streamId, 46, 0.5, null)}</div>`;
             }
         }
         const readOnlyIcon = this._renderReadOnlyIcon(channelViewModel.readOnly);
 
         return `
             <div
-                class="channel-item mx-2 rounded-xl cursor-pointer bg-overlay-2 border border-overlay-4 hover:bg-overlay-6 hover:border-overlay-8 transition-all duration-200 group ${activeClass}"
+                class="channel-item mx-2.5 rounded-xl cursor-pointer bg-overlay-2 border border-overlay-4 hover:bg-overlay-6 hover:border-overlay-8 transition-all duration-200 group ${activeClass}"
                 data-stream-id="${escapeAttr(channelViewModel.streamId)}"
                 data-admin-stream-id="${escapeAttr(channelViewModel.adminStreamId || '')}"
                 draggable="true"
             >
                 <div class="channel-item-body flex items-center">
                     <!-- Icon / avatar slot -->
-                    <div class="channel-icon-slot flex-shrink-0 flex items-center justify-center" style="width:44px">
+                    <div class="channel-icon-slot flex-shrink-0 flex items-center justify-center" style="width:46px">
                         ${iconSlot}
                     </div>
                     <!-- Two stacked rows: name + read-only icon | preview line -->
                     <div class="channel-item-main flex-1 min-w-0">
                         <div class="flex items-center min-w-0">
-                            <h3 class="text-sm font-medium text-overlay-90 truncate">${escapeHtml(sanitizeText(channelViewModel.name))}</h3>
+                            <h3 class="text-[15px] font-medium text-overlay-90 truncate">${escapeHtml(sanitizeText(channelViewModel.name))}</h3>
                             ${readOnlyIcon ? `<div class="channel-item-readonly-icon flex items-center flex-shrink-0">${readOnlyIcon}</div>` : ''}
+                            ${channelViewModel.hasUnread 
+                                ? `<span class="channel-msg-count ml-auto flex-shrink-0 text-[10px] ${countClass} rounded-md" data-channel-count="${escapeAttr(channelViewModel.streamId)}">${channelViewModel.displayCount}</span>` 
+                                : `<span class="channel-msg-count ml-auto flex-shrink-0 text-[10px] text-overlay-30 bg-overlay-4 rounded-md hidden" data-channel-count="${escapeAttr(channelViewModel.streamId)}">0</span>`
+                            }
                         </div>
-                        <div class="channel-preview-slot">
-                            ${this._renderPreviewSlotInner(channelViewModel.streamId, channelViewModel.previewEntry, channelViewModel.type)}
+                        <div class="channel-preview-row flex items-center min-w-0">
+                            <div class="channel-preview-slot flex-1 min-w-0">
+                                ${this._renderPreviewSlotInner(channelViewModel.streamId, channelViewModel.previewEntry, channelViewModel.type)}
+                            </div>
+                            <span class="channel-preview-time pl-2 flex-shrink-0 text-[11px] text-overlay-40">${escapeHtml(formatPreviewTime(channelViewModel.previewEntry?.ts))}</span>
                         </div>
                     </div>
-                    <!-- Right side: drag handle + counter (vertically centered between the 2 rows by the body's items-center) -->
+                    <!-- Right side: drag handle -->
                     <div class="channel-item-actions flex items-center flex-shrink-0">
                         <!-- Drag handle (6 dots) - visible on hover -->
                         <div class="drag-handle cursor-grab opacity-0 group-hover:opacity-100 transition-opacity text-overlay-20 hover:text-overlay-40" title="Drag to reorder">
@@ -744,10 +753,6 @@ class ChannelListUI {
                                 <circle cx="16" cy="18" r="1.5"/>
                             </svg>
                         </div>
-                        ${channelViewModel.hasUnread 
-                            ? `<span class="channel-msg-count text-[10px] ${countClass} rounded-md" data-channel-count="${escapeAttr(channelViewModel.streamId)}">${channelViewModel.displayCount}</span>` 
-                            : `<span class="channel-msg-count text-[10px] text-overlay-30 bg-overlay-4 rounded-md hidden" data-channel-count="${escapeAttr(channelViewModel.streamId)}">0</span>`
-                        }
                     </div>
                 </div>
             </div>

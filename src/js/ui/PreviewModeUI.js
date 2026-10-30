@@ -137,7 +137,7 @@ class PreviewModeUI {
             // Clear stale reactions from any previously viewed channel
             reactionManager.loadFromChannelState({});
 
-            notificationUI.showLoadingToast('Loading channel...', 'Connecting to stream');
+            notificationUI.showLoadingToast('Loading channel…', 'Connecting to stream');
 
             // If no channelInfo, try to fetch from The Graph
             if (!channelInfo) {
@@ -532,7 +532,7 @@ class PreviewModeUI {
                 ? this.previewChannel._pendingOverrides
                 : null;
 
-            notificationUI.showLoadingToast('Joining channel...', 'Saving channel...');
+            notificationUI.showLoadingToast('Joining channel…', 'Saving channel…');
 
             // Use fast path - channel already subscribed via preview
             await channelManager.persistChannelFromPreview(streamId, {
@@ -598,7 +598,7 @@ class PreviewModeUI {
             // Select the now-joined channel
             await this.ui.selectChannel(previewStreamId);
 
-            this.ui.showNotification('Joined channel successfully!', 'success');
+            this.ui.showNotification('Joined channel', 'success');
             Logger.info('Preview channel added to list:', previewStreamId);
         } catch (error) {
             Logger.error('Failed to add preview to list:', error);

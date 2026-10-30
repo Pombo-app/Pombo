@@ -12,6 +12,7 @@ import {
 import { rpcHealth, describeVerdict } from '../rpcHealth.js';
 import { MESSAGE_STREAM } from '../streamConstants.js';
 import { importBackupData } from '../backupImport.js';
+import { channelLatestMessageManager } from '../channelLatestMessageManager.js';
 
 /**
  * Settings UI Manager
@@ -161,7 +162,7 @@ class SettingsUI {
                         isKeyVisible = false;
                     }
                     
-                    this.showNotification('Private key unlocked!', 'success');
+                    this.showNotification('Private key unlocked', 'success');
                 } catch (error) {
                     this.showNotification(error.message || 'Failed to unlock', 'error');
                 } finally {
@@ -193,7 +194,7 @@ class SettingsUI {
                 onConfirm: async () => {
                     try {
                         await navigator.clipboard.writeText(unlockedPrivateKey);
-                        this.showNotification('Private key copied!', 'success');
+                        this.showNotification('Private key copied', 'success');
                         if (copyKeyText) copyKeyText.textContent = 'Copied!';
                         setTimeout(() => {
                             if (copyKeyText) copyKeyText.textContent = idleText;
@@ -305,7 +306,7 @@ class SettingsUI {
                         a.click();
                         
                         URL.revokeObjectURL(url);
-                        this.showNotification('Account backup exported!', 'success');
+                        this.showNotification('Account backup exported', 'success');
                     } catch (exportError) {
                         this.hideProgressModal(progressModal);
                         // Check if password was wrong (scrypt will fail silently, but we can detect)
@@ -435,6 +436,7 @@ class SettingsUI {
 
                         // 7. Delete encrypted storage
                         await this.secureStorage.deletePersistentState(currentAddress);
+                        channelLatestMessageManager.deleteAccountData(currentAddress);
 
                         // 8. Lock secure storage
                         this.secureStorage.lock();
@@ -442,7 +444,7 @@ class SettingsUI {
                         // 9. Delete wallet keystore
                         this.authManager.deleteWallet(currentAddress);
                         
-                        this.showNotification('Account deleted successfully', 'success');
+                        this.showNotification('Account deleted', 'success');
                         
                         // Close modal & update UI via callbacks
                         this.modalManager?.hide('settings-modal');
@@ -690,7 +692,7 @@ class SettingsUI {
                     const updatedUsername = this.identityManager.getUsername();
 
                     this.deps.updateDisplayName?.(updatedUsername);
-                    this.showNotification('Username updated!', 'success');
+                    this.showNotification('Username updated', 'success');
 
                     // Gated channels carry the name in the roster hello, so a
                     // rename has to be announced or it waits for the next
@@ -719,7 +721,7 @@ class SettingsUI {
                 await this.graphAPI.setApiKey(newKey || null);
                 await this.graphAPI.testConnection();
                 await this.updateGraphApiStatusDisplay();
-                this.showNotification('Graph API key updated!', 'success');
+                this.showNotification('Graph API key updated', 'success');
             });
         }
 
@@ -1183,7 +1185,7 @@ class SettingsUI {
         
         try {
             await navigator.clipboard.writeText(address);
-            this.showNotification('Address copied!', 'success');
+            this.showNotification('Address copied', 'success');
         } catch {
             this.showNotification('Failed to copy', 'error');
         }
@@ -1223,7 +1225,7 @@ class SettingsUI {
                 const subscription = await this.relayManager.subscribe();
                 
                 if (subscription) {
-                    this.showNotification('Push notifications enabled!', 'success');
+                    this.showNotification('Push notifications enabled', 'success');
                     this.updatePushNotificationsStatus();
                 } else {
                     e.target.checked = false;
@@ -1273,7 +1275,7 @@ class SettingsUI {
             try {
                 await this.dmManager.subscribeInboxPush(true); // force = true for explicit toggle
                 localStorage.setItem(storageKey, 'true');
-                this.showNotification('DM notifications enabled!', 'success');
+                this.showNotification('DM notifications enabled', 'success');
             } catch (error) {
                 e.target.checked = false;
                 this.showNotification('Failed to enable DM notifications: ' + error.message, 'error');
@@ -1565,7 +1567,7 @@ class SettingsUI {
 
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') input.blur();
-            if (e.key === 'Escape') { input.value = ''; input.blur(); }
+            if (e.key === 'Escape') { e.stopPropagation(); input.value = ''; input.blur(); }
         });
 
         input.addEventListener('blur', () => {
@@ -1754,10 +1756,10 @@ class SettingsUI {
 
     async reconnectForRpc() {
         if (!this.streamrController?.client) return;
-        this.showNotification('Reconnecting with new RPC...', 'info');
+        this.showNotification('Reconnecting with new RPC…', 'info');
         const success = await this.streamrController.reconnect();
         if (success) {
-            this.showNotification('RPC updated successfully', 'success');
+            this.showNotification('RPC updated', 'success');
         } else {
             this.showNotification('RPC saved. Reload page to apply.', 'warning');
         }
@@ -2310,7 +2312,7 @@ class SettingsUI {
             }
 
             this.showNotification(
-                failed > 0 ? `Inbox repair: ${fixed} fixed, ${failed} failed` : 'Inbox repaired successfully',
+                failed > 0 ? `Inbox repair: ${fixed} fixed, ${failed} failed` : 'Inbox repaired',
                 failed > 0 ? 'warning' : 'success'
             );
         } catch (e) {

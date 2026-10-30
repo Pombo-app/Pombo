@@ -136,6 +136,7 @@ export function setupModalCloseHandlers(modal, onClose, options = {}) {
     // Escape key — the listener is removed via modal._modalCleanup when the
     // modal closes by ANY path (button, backdrop, Escape or programmatic).
     if (closeOnEscape) {
+        modal.dataset.ownEscape = '';
         const escHandler = (e) => {
             // Self-heal: if the modal was removed without going through
             // closeModal, drop the listener instead of acting on a dead node.
