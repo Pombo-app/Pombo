@@ -706,8 +706,8 @@ class ExploreUI {
                     </div>
                     ${accessDesktop}
                 </div>
-                <button type="button" class="explore-details-btn absolute top-2 right-2 w-9 h-9 flex items-center justify-center rounded-full text-overlay-40 hover:text-primary hover:bg-overlay-6 transition" title="Channel details" aria-label="Channel details">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>
+                <button type="button" class="explore-details-btn absolute top-2 right-2 w-9 h-9 flex items-center justify-center rounded-full text-overlay-30 hover:text-overlay-70 hover:bg-overlay-6 transition" title="Channel details" aria-label="Channel details">
+                    <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>
                 </button>
                 <div class="mt-3 flex items-end justify-between gap-3${accessAttr ? ' border-t border-overlay-5 pt-3 md:border-t-0 md:pt-0' : ''}">
                     ${accessMobile}
