@@ -880,7 +880,7 @@ class ChannelModalsUI {
         };
 
         try {
-            const { gateManager, GATE_MODE } = await import('../gate.js');
+            const { gateManager, GATE_MODE, formatGatePeriod } = await import('../gate.js');
             const me = authManager.getAddress();
             const info = await gateManager.getGateInfo(entry.gateAddress);
             if (stale()) return;
@@ -913,13 +913,11 @@ class ChannelModalsUI {
             if (stale()) return;
 
             if (info.mode === GATE_MODE.PAID) {
-                const days = Number(info.duration) / 86400;
-                const daysLabel = Number.isInteger(days) ? days : days.toFixed(1);
                 // WPOL-priced gates read POL everywhere the user sees a cost —
                 // pay() auto-wraps, plain POL is literally what they spend
                 const paySymbol = meta.symbol === 'WPOL' ? 'POL' : meta.symbol;
                 showStack('Subscribe', `${fmt(info.price, meta.decimals)} ${paySymbol}`,
-                    `per ${daysLabel} ${days === 1 ? 'day' : 'days'}`, true);
+                    `per ${formatGatePeriod(info.duration)}`, true);
                 const until = me ? await gateManager.paidUntil(entry.gateAddress, me) : 0n;
                 if (stale()) return;
                 const msLeft = Number(until) * 1000 - Date.now();

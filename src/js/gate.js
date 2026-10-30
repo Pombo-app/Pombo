@@ -94,6 +94,27 @@ export const GATE_MODE = Object.freeze({
 
 const GATE_MODE_NAMES = ['none', 'token', 'nft', 'paid'];
 
+const PERIOD_UNITS = [[86400, 'day', 'days'], [3600, 'hour', 'hours'], [60, 'minute', 'minutes'], [1, 'second', 'seconds']];
+
+/**
+ * A subscription period in the largest unit it reaches: "day", "30 days",
+ * "10 minutes", "1.5 hours" (one decimal, in the device's number format).
+ * @param {number|bigint|string} seconds
+ * @returns {string}
+ */
+export function formatGatePeriod(seconds) {
+    const s = Number(seconds) || 0;
+    for (const [size, one, many] of PERIOD_UNITS) {
+        if (s < size) continue;
+        const n = Math.round((s / size) * 10) / 10;
+        if (n === 1) return one;
+        const label = Number.isInteger(n) ? String(n)
+            : n.toLocaleString(globalThis.navigator?.language, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        return `${label} ${many}`;
+    }
+    return '0 seconds';
+}
+
 /** Mirrors PomboGate.WireIdentity on-chain — order is part of the ABI. */
 export const WIRE_IDENTITY = Object.freeze({
     VISIBLE: 0, // every message signed by its author's account
@@ -928,14 +949,12 @@ class GateManager {
                 qualifier: 'in your wallet'
             };
         }
-        const days = Number(info.duration) / 86400;
-        const daysLabel = Number.isInteger(days) ? String(days) : days.toFixed(1);
         const paySymbol = info.token === WRAPPED_NATIVE ? 'POL' : meta.symbol;
         return {
             mode: info.mode, verb: 'Subscribe',
             value: `${fmt(info.price)} ${paySymbol}`,
             // "per" spells out the recurrence under SUBSCRIBE
-            qualifier: daysLabel === '1' ? 'per day' : `per ${daysLabel} days`
+            qualifier: `per ${formatGatePeriod(info.duration)}`
         };
     }
 
@@ -958,13 +977,11 @@ class GateManager {
         if (info.mode === GATE_MODE.NFT_OWNERSHIP) {
             return `Gated · Hold ${meta.symbol} NFT`;
         }
-        const days = Number(info.duration) / 86400;
-        const daysLabel = Number.isInteger(days) ? String(days) : days.toFixed(1);
         // WPOL-priced gates display POL: pay() auto-wraps, so plain POL is
         // literally what the subscriber spends. PAID only — on a balance
         // gate WPOL and native POL are different holdings.
         const paySymbol = info.token === WRAPPED_NATIVE ? 'POL' : meta.symbol;
-        return `Paid · ${fmt(info.price)} ${paySymbol} / ${daysLabel} ${daysLabel === '1' ? 'day' : 'days'}`;
+        return `Paid · ${fmt(info.price)} ${paySymbol} / ${formatGatePeriod(info.duration)}`;
     }
 
     /** Whether an address moderates this gate (v1 gates lack the getter → false).
