@@ -2750,15 +2750,33 @@ class StorageMediaController {
         return found;
     }
 
-    /** Whether any of the announce rows is on storage, by the `stored` endpoint; null when no provider offers it. */
+    /**
+     * Whether any of the announce rows is on storage, by the `stored` endpoint;
+     * null when no provider answers. The providers are asked in parallel and the
+     * first that holds the row settles it, without waiting for the slower ones.
+     */
     async storedRows(streamId, rows) {
         let providers;
         try { providers = await storageEndpoints.providersWith(streamId, 'stored'); } catch { return null; }
         if (!providers?.length) return null;
         for (const r of rows) {
-            const present = await storedOn(providers, streamId, r.partition, [{ timestamp: r.timestamp, sequenceNumber: r.sequenceNumber }], keySigner(r.privateKey));
+            const target = [{ timestamp: r.timestamp, sequenceNumber: r.sequenceNumber }];
+            const signer = keySigner(r.privateKey);
+            const present = await new Promise((resolve) => {
+                let answered = false;
+                let left = providers.length;
+                for (const provider of providers) {
+                    storedOn([provider], streamId, r.partition, target, signer)
+                        .catch(() => null)
+                        .then((set) => {
+                            if (set) answered = true;
+                            if (set?.size > 0) resolve(true);
+                            if (--left === 0) resolve(answered ? false : null);
+                        });
+                }
+            });
             if (present === null) return null;
-            if (present.size > 0) return true;
+            if (present) return true;
         }
         return false;
     }

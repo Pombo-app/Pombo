@@ -600,6 +600,16 @@ describe('sendFile — verify and repair', () => {
         expect(remembered).toContain(chunkTwo()[1].timestamp);
     }, 20000);
 
+    it('confirms the announce on the first provider that holds it, without waiting for a hung one', async () => {
+        H.storedProviders = [{ nodeAddress: '0xslow', urls: ['https://node-b.example'] }, { nodeAddress: '0xa', urls: [NODE] }];
+        H.storedFor = async (node, partition, targets) => {
+            if (node === '0xslow') return new Promise(() => {});
+            return new Set(targets.map(t => `${t.timestamp}:${t.sequenceNumber}`));
+        };
+        const rows = [{ partition: H.P0, timestamp: 1700000000500, sequenceNumber: 0, privateKey: '0xkey' }];
+        await expect(storageMediaController.isAnnounceStored(SID, [1700000000500], [NODE], rows)).resolves.toBe(true);
+    }, 20000);
+
     it('never counts rows published by somebody else', async () => {
         SM.verify = true;
         channelManager.usesAccountPublish.mockReturnValue(true);
