@@ -953,6 +953,7 @@ class SecureStorage {
         const stored = {
             id: message.id,
             sender: message.sender,
+            senderName: message.senderName || null,
             timestamp: message.timestamp,
             signature: message.signature,
             channelId: message.channelId

@@ -311,6 +311,20 @@ describe('secureStorage extended', () => {
             expect(secureStorage.getSentMessages('stream-1')).toHaveLength(2);
         });
 
+        it('should keep senderName for every message type', async () => {
+            const base = { sender: '0x1', timestamp: 1, signature: '', channelId: 'stream-1', senderName: 'Bob' };
+            await secureStorage.addSentMessage('stream-1', { ...base, id: 'name-text', text: 'Hi' });
+            await secureStorage.addSentMessage('stream-1', {
+                ...base, id: 'name-audio', type: 'audio', imageId: 'aud-1', text: 'Voice message'
+            });
+            await secureStorage.addSentMessage('stream-1', { ...base, id: 'name-none', text: 'Anon', senderName: undefined });
+
+            const byId = Object.fromEntries(secureStorage.getSentMessages('stream-1').map(m => [m.id, m]));
+            expect(byId['name-text'].senderName).toBe('Bob');
+            expect(byId['name-audio'].senderName).toBe('Bob');
+            expect(byId['name-none'].senderName).toBeNull();
+        });
+
         it('should store replyTo field for text messages', async () => {
             await secureStorage.addSentMessage('stream-1', {
                 id: 'reply-1', sender: '0x1', timestamp: 1, signature: '', channelId: 'stream-1',
