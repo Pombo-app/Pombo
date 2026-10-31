@@ -210,6 +210,7 @@ class App {
 
         connectBtn.addEventListener('click', () => walletFlows.connectWallet());
 
+        document.addEventListener('pombo:connect-account', () => walletFlows.connectWallet());
         document.getElementById('guest-create-account-btn')?.addEventListener('click', () => {
             headerUI._closeDesktopDropdown();
             walletFlows.createAccount();

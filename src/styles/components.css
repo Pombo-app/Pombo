@@ -2857,11 +2857,6 @@ body.explore-open #explore-channels-list {
         display: none !important;
     }
 
-    /* Show Create Account button in header for guest mode on mobile */
-    body.guest-mode #connect-wallet {
-        display: flex !important;
-    }
-    
     /* ----- SIDEBAR: Full screen initial view ----- */
     .sidebar {
         position: absolute;
@@ -4443,8 +4438,8 @@ body.guest-mode [data-guest-locked] {
     #contacts-btn-wrapper {
         right: 7.375rem;
     }
-    body:not(.chat-open):not(.settings-open):not(.contacts-open):not(.guest-mode) #contacts-btn-wrapper,
-    body:not(.chat-open):not(.settings-open):not(.contacts-open):not(.guest-mode) #transfers-btn-wrapper {
+    body:not(.chat-open):not(.settings-open):not(.contacts-open) #contacts-btn-wrapper,
+    body:not(.chat-open):not(.settings-open):not(.contacts-open) #transfers-btn-wrapper {
         display: block;
     }
     /* The sync spinner docks at this same right edge (absolute, right:

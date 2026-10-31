@@ -220,6 +220,49 @@ describe('ChannelListUI', () => {
         });
     });
 
+    describe('guest card', () => {
+        const guestDeps = (isGuest, extra = {}) => ({
+            channelManager, secureStorage, onChannelSelect, openExploreView: vi.fn(),
+            isGuest: () => isGuest, onCreateAccount: vi.fn(), ...extra
+        });
+
+        it('a guest with an empty list gets the card, in either tab, and its one button leads to an account', () => {
+            const deps = guestDeps(true);
+            channelListUI.setDependencies(deps);
+            channelManager.getAllChannels.mockReturnValue([]);
+
+            for (const tab of ['direct', 'channels']) {
+                channelListUI.currentFilter = tab;
+                channelListUI.render();
+                expect(channelList.textContent).toContain("You're browsing as a guest. Your identity and data aren't saved. Create an account to keep them.");
+            }
+            const buttons = [...channelList.querySelectorAll('button')];
+            expect(buttons.map((b) => b.textContent)).toEqual(['Create account']);
+            buttons[0].click();
+            expect(deps.onCreateAccount).toHaveBeenCalledTimes(1);
+        });
+
+        it('goes once the guest has a channel', () => {
+            channelListUI.setDependencies(guestDeps(true));
+            channelManager.getAllChannels.mockReturnValue([createChannel({ streamId: 'alpha' })]);
+            channelListUI.currentFilter = 'direct';
+
+            channelListUI.render();
+
+            expect(channelList.querySelector('.guest-home-card')).toBeNull();
+            expect(channelList.textContent).toContain('No direct messages yet');
+        });
+
+        it('never shows for an account', () => {
+            channelListUI.setDependencies(guestDeps(false));
+            channelManager.getAllChannels.mockReturnValue([]);
+
+            channelListUI.render();
+
+            expect(channelList.querySelector('.guest-home-card')).toBeNull();
+        });
+    });
+
     describe('Home tabs', () => {
         it('Direct shows only DMs and Channels shows every other type', () => {
             channelManager.getAllChannels.mockReturnValue([

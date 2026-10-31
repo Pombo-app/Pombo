@@ -297,7 +297,9 @@ class UIController {
             onChannelSelect: (streamId) => this.selectChannel(streamId),
             onFinishPendingCreate: (basePath) => channelModalsUI.finishInterruptedCreate(basePath),
             onDiscardPendingCreate: (basePath) => channelModalsUI.discardInterruptedCreate(basePath),
-            openExploreView: () => this.openExploreView()
+            openExploreView: () => this.openExploreView(),
+            isGuest: () => authManager.isGuestMode(),
+            onCreateAccount: () => document.dispatchEvent(new CustomEvent('pombo:connect-account'))
         });
 
         // ChannelModalsUI

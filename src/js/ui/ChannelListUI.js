@@ -30,6 +30,8 @@ class ChannelListUI {
         this.onFinishPendingCreate = null;
         this.onDiscardPendingCreate = null;
         this.openExploreView = null;
+        this.isGuest = null;
+        this.onCreateAccount = null;
 
         // Tracks which adminStreamIds / DM peers we have *attempted* to
         // resolve. Any row not in these sets renders a spinner placeholder
@@ -47,13 +49,15 @@ class ChannelListUI {
     /**
      * Set dependencies for the module
      */
-    setDependencies({ channelManager, secureStorage, onChannelSelect, onFinishPendingCreate, onDiscardPendingCreate, openExploreView }) {
+    setDependencies({ channelManager, secureStorage, onChannelSelect, onFinishPendingCreate, onDiscardPendingCreate, openExploreView, isGuest, onCreateAccount }) {
         this.channelManager = channelManager;
         this.secureStorage = secureStorage;
         this.onChannelSelect = onChannelSelect;
         this.onFinishPendingCreate = onFinishPendingCreate || null;
         this.onDiscardPendingCreate = onDiscardPendingCreate || null;
         this.openExploreView = openExploreView || null;
+        this.isGuest = isGuest || null;
+        this.onCreateAccount = onCreateAccount || null;
 
         // Wire a single global listener for channel-image updates so any
         // visible row gets its avatar refreshed without a full re-render.
@@ -386,6 +390,11 @@ class ChannelListUI {
         let channels = this.channelManager.getAllChannels();
         Logger.debug('ChannelListUI.render - Total channels:', channels.length);
 
+        if (channels.length === 0 && this.isGuest?.()) {
+            this._renderGuestCard();
+            return;
+        }
+
         // Apply channel filter
         channels = this._applyFilter(channels);
 
@@ -500,6 +509,24 @@ class ChannelListUI {
         }
         this.elements.channelList.replaceChildren(emptyState);
         Logger.debug('ChannelListUI: No channels to render');
+    }
+
+    /**
+     * A guest with nothing in the Home list: the way to an account.
+     * @private
+     */
+    _renderGuestCard() {
+        const card = document.createElement('div');
+        card.className = 'guest-home-card mx-2.5 mt-2 rounded-xl bg-overlay-2 border border-overlay-4 px-4 py-4 flex flex-col items-center gap-3 text-center';
+        const text = document.createElement('p');
+        text.className = 'text-[13px] text-overlay-60';
+        text.textContent = "You're browsing as a guest. Your identity and data aren't saved. Create an account to keep them.";
+        const create = document.createElement('button');
+        create.className = 'px-4 py-2 rounded-xl text-sm font-medium bg-[#F6851B] hover:bg-[#e5780f] text-primary transition';
+        create.textContent = 'Create account';
+        create.addEventListener('click', () => this.onCreateAccount?.());
+        card.append(text, create);
+        this.elements.channelList.replaceChildren(card);
     }
 
     /**
