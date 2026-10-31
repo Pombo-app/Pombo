@@ -2857,11 +2857,6 @@ body.explore-open #explore-channels-list {
         display: none !important;
     }
 
-    /* Show Create Account button in header for guest mode on mobile */
-    body.guest-mode #connect-wallet {
-        display: flex !important;
-    }
-    
     /* ----- SIDEBAR: Full screen initial view ----- */
     .sidebar {
         position: absolute;
@@ -3146,6 +3141,30 @@ body.explore-open #explore-channels-list {
         border-color: #F6851B;
     }
 
+    .pill-guest-label {
+        display: none;
+        color: #F6851B;
+    }
+
+    body.guest-mode .pill-guest-label {
+        display: block;
+    }
+
+    body.guest-mode .pill-profile-wrapper {
+        padding: 0.4rem 0.75rem;
+    }
+
+    body.guest-mode .pill-profile-avatar {
+        width: 1.5rem;
+        height: 1.5rem;
+        border-width: 1px;
+    }
+
+    body.guest-mode .pill-profile-avatar > * {
+        width: 100%;
+        height: 100%;
+    }
+
     /* ----- ACCOUNTS SCREEN (mirrors Android ProfileTab, px = dp) ----- */
     #accounts-modal {
         background: var(--pombo-bg);
@@ -3285,6 +3304,10 @@ body.explore-open #explore-channels-list {
 
     .accounts-row-danger {
         color: #EF4444;
+    }
+
+    .accounts-name-guest {
+        color: #F6851B;
     }
 
     .accounts-row-danger > svg {
@@ -4328,14 +4351,12 @@ body.explore-open #explore-channels-list {
     color: var(--pombo-danger);
 }
 
-/* A guest is a throwaway identity, not an account with funds. */
-body.guest-mode #wallet-btn-wrapper,
-body.guest-mode #pill-wallet-btn {
-    display: none !important;
+/* What needs an account stays in view for a guest, dimmed; a click opens the account modal. */
+body.guest-mode [data-guest-locked] {
+    opacity: 0.4;
 }
 
 #contacts-btn-wrapper,
-body.guest-mode #transfers-btn-wrapper,
 .contacts-mobile-header,
 .contacts-add-backdrop,
 .contacts-add-title {
@@ -4417,8 +4438,8 @@ body.guest-mode #transfers-btn-wrapper,
     #contacts-btn-wrapper {
         right: 7.375rem;
     }
-    body:not(.chat-open):not(.settings-open):not(.contacts-open):not(.guest-mode) #contacts-btn-wrapper,
-    body:not(.chat-open):not(.settings-open):not(.contacts-open):not(.guest-mode) #transfers-btn-wrapper {
+    body:not(.chat-open):not(.settings-open):not(.contacts-open) #contacts-btn-wrapper,
+    body:not(.chat-open):not(.settings-open):not(.contacts-open) #transfers-btn-wrapper {
         display: block;
     }
     /* The sync spinner docks at this same right edge (absolute, right:

@@ -121,7 +121,7 @@
             </div>
             <!-- Contacts: mobile header only; desktop reaches contacts from the sidebar footer. -->
             <div id="contacts-btn-wrapper" class="relative">
-                <button id="contacts-btn" class="w-12 h-12 hover:bg-overlay-5 active:bg-overlay-12 rounded-full flex items-center justify-center transition" title="Contacts">
+                <button id="contacts-btn" data-guest-locked class="w-12 h-12 hover:bg-overlay-5 active:bg-overlay-12 rounded-full flex items-center justify-center transition" title="Contacts">
                     <svg class="w-6 h-6 text-overlay-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/>
                     </svg>
@@ -139,7 +139,7 @@
             <!-- Wallet: the token balances of this account. Sits beside the
                  bell and follows the same visibility rules. -->
             <div id="wallet-btn-wrapper" class="hidden relative">
-                <button id="wallet-btn" class="w-12 h-12 hover:bg-overlay-5 active:bg-overlay-12 rounded-full flex items-center justify-center transition" title="Wallet">
+                <button id="wallet-btn" data-guest-locked class="w-12 h-12 hover:bg-overlay-5 active:bg-overlay-12 rounded-full flex items-center justify-center transition" title="Wallet">
                     <svg class="w-6 h-6 text-overlay-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3"/>
                     </svg>
@@ -203,13 +203,31 @@
                 <!-- Dropdown menu -->
                 <div id="desktop-account-dropdown" class="hidden absolute top-full right-0 mt-1.5 min-w-[200px] bg-surface-raised border border-overlay-10 rounded-xl p-1.5 shadow-2xl z-50" style="transform-origin: top right;">
                     <div id="desktop-dropdown-address" class="px-3 py-2 text-[11px] text-overlay-40 font-mono border-b border-overlay-6 mb-1"></div>
+                    <button id="guest-create-account-btn" class="hidden w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-[#F6851B] hover:bg-overlay-6 transition text-left">
+                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z"/>
+                        </svg>
+                        Create account
+                    </button>
+                    <button id="guest-import-account-btn" class="hidden w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-overlay-60 hover:bg-overlay-6 transition text-left">
+                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/>
+                        </svg>
+                        Import account
+                    </button>
+                    <button id="guest-restore-account-btn" class="hidden w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-overlay-60 hover:bg-overlay-6 transition text-left">
+                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+                        </svg>
+                        Restore from backup
+                    </button>
                     <button id="switch-wallet" class="hidden w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-overlay-60 hover:bg-overlay-6 transition text-left">
                         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
                         </svg>
                         Switch Account
                     </button>
-                    <button id="sync-devices-btn" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-overlay-60 hover:bg-overlay-6 transition text-left">
+                    <button id="sync-devices-btn" data-guest-locked class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-overlay-60 hover:bg-overlay-6 transition text-left">
                         <svg class="w-4 h-4 flex-shrink-0 sync-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
                         </svg>
@@ -234,11 +252,11 @@
             <div class="px-3 pb-2 space-y-2.5 pt-4 sidebar-top">
                 <!-- Channel Filter Tabs -->
                 <div class="flex items-center mt-3 md:mt-0 border-b border-overlay-6 channel-filter-tabs">
-                    <button data-channel-filter="direct" class="channel-filter-tab flex-1 py-2.5 text-[10px] font-medium uppercase tracking-widest transition-all text-[#F6851B] border-b-2 border-[#F6851B] -mb-px">
-                        Direct Messages
-                    </button>
-                    <button data-channel-filter="channels" class="channel-filter-tab flex-1 py-2.5 text-[10px] font-medium uppercase tracking-widest transition-all text-overlay-30 hover:text-overlay-50 border-b-2 border-transparent -mb-px">
+                    <button data-channel-filter="channels" class="channel-filter-tab flex-1 py-2.5 text-[10px] font-medium uppercase tracking-widest transition-all text-[#F6851B] border-b-2 border-[#F6851B] -mb-px">
                         Channels
+                    </button>
+                    <button data-channel-filter="direct" class="channel-filter-tab flex-1 py-2.5 text-[10px] font-medium uppercase tracking-widest transition-all text-overlay-30 hover:text-overlay-50 border-b-2 border-transparent -mb-px">
+                        Direct Messages
                     </button>
                 </div>
             </div>
@@ -294,7 +312,7 @@
 
             <!-- Desktop Sidebar Footer (hidden on mobile, replaced by pill) -->
             <div id="sidebar-footer-desktop" class="p-3 border-t border-overlay-6 space-y-0.5">
-                <button id="contacts-btn-desktop" class="w-full px-3 py-2.5 rounded-xl text-sm text-overlay-40 hover:text-primary hover:bg-overlay-6 transition-all duration-200 flex items-center gap-2.5">
+                <button id="contacts-btn-desktop" data-guest-locked class="w-full px-3 py-2.5 rounded-xl text-sm text-overlay-40 hover:text-primary hover:bg-overlay-6 transition-all duration-200 flex items-center gap-2.5">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"></path>
                     </svg>
@@ -338,7 +356,7 @@
                     <span>Explore</span>
                 </button>
                 <!-- No data-pill-tab: Wallet opens a sheet over the current view and is never the active tab. -->
-                <button id="pill-wallet-btn" class="pill-nav-item">
+                <button id="pill-wallet-btn" data-guest-locked class="pill-nav-item">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3"/>
                     </svg>
@@ -358,6 +376,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/>
                         </svg>
                     </button>
+                    <span class="pill-guest-label">Guest</span>
                 </div>
             </div>
         </div>
