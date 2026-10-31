@@ -46,6 +46,7 @@ vi.mock('../../src/js/secureStorage.js', () => ({
         isStorageUnlocked: vi.fn().mockReturnValue(true),
         importAccountBackup: vi.fn().mockResolvedValue({ data: null }),
         saveToStorage: vi.fn().mockResolvedValue(undefined),
+        setUsername: vi.fn(async function (username) { this.cache.username = username; }),
         cache: {}
     }
 }));
@@ -106,6 +107,7 @@ import { walletFlows } from '../../src/js/walletFlows.js';
 import { authManager } from '../../src/js/auth.js';
 import { secureStorage } from '../../src/js/secureStorage.js';
 import { channelManager } from '../../src/js/channels.js';
+import { identityManager } from '../../src/js/identity.js';
 import { uiController } from '../../src/js/ui.js';
 import { createModalFromTemplate, $ as $mock } from '../../src/js/ui/modalUtils.js';
 
@@ -267,7 +269,7 @@ describe('WalletFlows Extended', () => {
             await walletFlows.connectLocal();
 
             expect(secureStorage.cache.username).toBe('Bob');
-            expect(secureStorage.saveToStorage).toHaveBeenCalled();
+            expect(identityManager.getUsername()).toBe('Bob');
         });
 
         it('does not save display name if empty', async () => {
