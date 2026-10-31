@@ -4,8 +4,8 @@
  */
 import { CONFIG } from '../config.js';
 
-export const HOME_TABS = ['direct', 'channels'];
-export const DEFAULT_HOME_TAB = 'direct';
+export const HOME_TABS = ['channels', 'direct'];
+export const DEFAULT_HOME_TAB = 'channels';
 
 /**
  * @param {Object} channel

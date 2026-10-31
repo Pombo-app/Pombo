@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { homeTabOf, filterByHomeTab, loadHomeTab, saveHomeTab, DEFAULT_HOME_TAB } from '../../src/js/ui/homeTabs.js';
+import { homeTabOf, filterByHomeTab, loadHomeTab, saveHomeTab, DEFAULT_HOME_TAB, HOME_TABS } from '../../src/js/ui/homeTabs.js';
 
 describe('homeTabs', () => {
     beforeEach(() => {
@@ -25,21 +25,26 @@ describe('homeTabs', () => {
         expect(filterByHomeTab(list, 'channels').map(c => c.streamId)).toEqual(['a', 'c']);
     });
 
-    it('starts on Direct and remembers the tab per account', () => {
-        expect(loadHomeTab('0xAAA')).toBe(DEFAULT_HOME_TAB);
-        expect(DEFAULT_HOME_TAB).toBe('direct');
+    it('puts Channels first and starts there', () => {
+        expect(HOME_TABS).toEqual(['channels', 'direct']);
+        expect(DEFAULT_HOME_TAB).toBe('channels');
+        expect(loadHomeTab(null)).toBe('channels');
+    });
 
-        saveHomeTab('0xAAA', 'channels');
+    it('remembers the tab per account, a saved one winning over the default', () => {
+        expect(loadHomeTab('0xAAA')).toBe('channels');
 
-        expect(loadHomeTab('0xaaa')).toBe('channels');
-        expect(loadHomeTab('0xBBB')).toBe('direct');
+        saveHomeTab('0xAAA', 'direct');
+
+        expect(loadHomeTab('0xaaa')).toBe('direct');
+        expect(loadHomeTab('0xBBB')).toBe('channels');
     });
 
     it('never saves for a guest and ignores unknown stored values', () => {
-        saveHomeTab(null, 'channels');
+        saveHomeTab(null, 'direct');
         expect(localStorage.length).toBe(0);
 
         localStorage.setItem('pombo_home_tab_0xccc', 'community');
-        expect(loadHomeTab('0xCCC')).toBe('direct');
+        expect(loadHomeTab('0xCCC')).toBe('channels');
     });
 });
