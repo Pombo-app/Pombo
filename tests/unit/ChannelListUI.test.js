@@ -21,8 +21,7 @@ describe('ChannelListUI', () => {
         return {
             streamId: 'stream-1',
             name: 'General',
-            type: 'channel',
-            classification: 'community',
+            type: 'public',
             messages: [],
             ...overrides
         };
@@ -46,7 +45,7 @@ describe('ChannelListUI', () => {
         onChannelSelect = vi.fn();
 
         channelListUI.elements = {};
-        channelListUI.currentFilter = 'all';
+        channelListUI.currentFilter = 'channels';
         channelListUI.clickListenersAttached = false;
         channelListUI.dragAndDropBound = false;
         channelListUI.draggedItem = null;
@@ -58,7 +57,7 @@ describe('ChannelListUI', () => {
     it('reuses existing DOM rows when the rendered list is unchanged', () => {
         const channels = [
             createChannel({ streamId: 'alpha', name: 'Alpha' }),
-            createChannel({ streamId: 'beta', name: 'Beta', type: 'dm' })
+            createChannel({ streamId: 'beta', name: 'Beta', type: 'password' })
         ];
 
         channelManager.getAllChannels.mockReturnValue(channels);
@@ -209,15 +208,35 @@ describe('ChannelListUI', () => {
             expect(openExploreView).toHaveBeenCalledTimes(1);
         });
 
-        it('a filtered tab with nothing in it only says so', () => {
+        it('an empty Direct tab only says so', () => {
             channelListUI.setDependencies({ channelManager, secureStorage, onChannelSelect, openExploreView: vi.fn() });
-            channelManager.getAllChannels.mockReturnValue([]);
-            channelListUI.currentFilter = 'personal';
+            channelManager.getAllChannels.mockReturnValue([createChannel({ streamId: 'alpha' })]);
+            channelListUI.currentFilter = 'direct';
 
             channelListUI.render();
 
             expect(channelList.querySelector('button')).toBeNull();
-            channelListUI.currentFilter = 'all';
+            expect(channelList.textContent).toContain('No direct messages yet');
+        });
+    });
+
+    describe('Home tabs', () => {
+        it('Direct shows only DMs and Channels shows every other type', () => {
+            channelManager.getAllChannels.mockReturnValue([
+                createChannel({ streamId: 'dm-1', type: 'dm' }),
+                createChannel({ streamId: 'pub-1', type: 'public' }),
+                createChannel({ streamId: 'pw-1', type: 'password' }),
+                createChannel({ streamId: 'gated-1', type: 'gated', classification: 'personal' })
+            ]);
+            const shown = () => [...channelList.querySelectorAll('[data-stream-id]')].map(row => row.dataset.streamId);
+
+            channelListUI.currentFilter = 'direct';
+            channelListUI.render();
+            expect(shown()).toEqual(['dm-1']);
+
+            channelListUI.currentFilter = 'channels';
+            channelListUI.render();
+            expect(shown()).toEqual(['pub-1', 'pw-1', 'gated-1']);
         });
     });
 

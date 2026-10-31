@@ -2537,6 +2537,10 @@ body.network-down .network-dot {
 
 
 
+#dm-actions.dm-actions-off {
+    display: none;
+}
+
 /* ----- Always hide mobile-only pill elements on desktop ----- */
 #mobile-pill-nav,
 #sidebar-connect-float {
@@ -3823,6 +3827,11 @@ body.explore-open #explore-channels-list {
     #dm-inbox-setup,
     #dm-new-btn-wrap {
         padding-bottom: 8rem !important;
+    }
+
+    #dm-actions.dm-actions-off {
+        display: block;
+        visibility: hidden;
     }
 
     /* Restore mobile order on modal headers (Tailwind md:order-* flips them) */
