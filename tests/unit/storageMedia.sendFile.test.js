@@ -68,8 +68,16 @@ vi.mock('../../src/js/storageEndpoints.js', () => ({
         rotation: vi.fn(async () => H.bases),
         noteFailure: vi.fn(), noteSuccess: vi.fn(), noteReadError: vi.fn(),
         supportsMetaFormat: vi.fn(() => true),
-        setMetaFormatSupport: vi.fn()
+        setMetaFormatSupport: vi.fn(),
+        providersWith: vi.fn(async () => H.storedProviders)
     }
+}));
+vi.mock('../../src/js/storagePurge.js', async (importOriginal) => ({
+    ...(await importOriginal()),
+    keySigner: vi.fn(() => ({ address: '0xsigner', sign: async () => '0xsig' })),
+    storedOn: vi.fn(async (providers, sid, partition, targets) => new Set(targets
+        .filter(t => H.rows.some(r => r.partition === partition && r.timestamp === t.timestamp))
+        .map(t => `${t.timestamp}:${t.sequenceNumber}`)))
 }));
 vi.mock('../../src/js/streamr.js', () => ({
     isWebSafeStorageNodeUrl: () => true,
@@ -215,6 +223,7 @@ beforeEach(() => {
     H.storeChunk = null;
     H.failPublish = null;
     H.readsRefused = false;
+    H.storedProviders = [];
     H.announceVisible = true;
     H.bases = [NODE];
     H.nextTs = 1700000000000;
@@ -518,6 +527,20 @@ describe('sendFile — verify and repair', () => {
             streamrController.client = null;
         }
     }, 30000);
+
+    it('never reads the peer inbox on a DM when the nodes answer stored', async () => {
+        SM.verify = true;
+        H.readsRefused = true;
+        H.storedProviders = [{ nodeAddress: '0xnode', urls: [NODE] }];
+        H.channel = { messageStreamId: SID, type: 'dm', peerAddress: '0xpeer', messages: [] };
+        globalThis.EthereumKeyPairIdentity = window.EthereumKeyPairIdentity = dmIdentityClass();
+        const { metadata } = await storageMediaController.sendFile(SID, fileOfSize(3000));
+        expect(metadata.storedChunks).toBe(metadata.totalChunks);
+        const chunkReads = globalThis.fetch.mock.calls
+            .map(([url]) => url.match(/partitions\/(\d+)\/range\?/))
+            .filter(m => m && Number(m[1]) >= STORAGE_FILE.DM_FIRST_CHUNK_PARTITION);
+        expect(chunkReads).toHaveLength(0);
+    }, 20000);
 
     it('never counts rows published by somebody else', async () => {
         SM.verify = true;
