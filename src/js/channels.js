@@ -376,7 +376,7 @@ class ChannelManager {
     /**
      * Channels without an on-chain name (hidden gated, unknown streams) land
      * with an ID-derived or invite-suggested name. When the entry flow did not
-     * already ask (`named`), offer the local name + classification panel via
+     * already ask (`named`), offer the local name panel via
      * the UI hook. Fire-and-forget: the join itself never waits on this.
      * @param {Object} channel - The just-added channel record
      * @param {boolean} named - Entry flow already collected a user-typed name

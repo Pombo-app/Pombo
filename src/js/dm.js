@@ -1272,7 +1272,6 @@ class DMManager {
             name: displayName,
             type: 'dm',
             peerAddress: normalizedPeer,
-            classification: 'personal',
             createdAt: Date.now(),
             createdBy: authManager.getAddress(),
             password: null,

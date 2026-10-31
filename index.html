@@ -1084,21 +1084,6 @@
                             </button>
                         </div>
 
-                        <!-- Classification: local-only organization, so it closes the page -->
-                        <div id="classification-section" class="hidden">
-                            <div class="border-t border-overlay-5 mb-5"></div>
-                            <label class="block text-xs font-medium text-overlay-80 uppercase tracking-wider mb-2">Classification</label>
-                            <div class="flex gap-2">
-                                <button type="button" data-classification="personal" class="classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-10 text-primary border border-overlay-10">
-                                    Personal
-                                </button>
-                                <button type="button" data-classification="community" class="classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
-                                    Community
-                                </button>
-                            </div>
-                            <p class="text-xs text-overlay-30 mt-2">For organizing your channels locally.</p>
-                        </div>
-
                     </div>
                 </div>
             </div>
@@ -1455,11 +1440,6 @@
                     />
                     <p class="text-xs text-overlay-25 mt-1.5">Stored locally only. Channels with a public name keep it.</p>
                 </div>
-
-                <div class="flex gap-2 pt-1">
-                    <button type="button" data-join-id-classification="personal" class="join-id-classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition border">Personal</button>
-                    <button type="button" data-join-id-classification="community" class="join-id-classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition border">Community</button>
-                </div>
             </div>
 
             <button id="join-btn" disabled class="w-full mt-5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 border border-[#F6851B]/30 text-primary text-sm font-medium px-3 py-2.5 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#F6851B]/15">
@@ -1468,7 +1448,7 @@
         </div>
     </div>
 
-    <!-- Modal: Join Closed Channel (with name + classification) -->
+    <!-- Modal: Join Closed Channel (with name) -->
     <div id="join-closed-channel-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
         <div class="bg-surface rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
             <h3 class="text-base font-medium mb-4 text-primary">Join Closed Channel</h3>
@@ -1495,19 +1475,6 @@
                         class="w-full bg-overlay-5 border border-overlay-8 text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-overlay-15 transition"
                     />
                     <p class="text-xs text-overlay-25 mt-1">This name is stored locally only</p>
-                </div>
-
-                <div id="join-classification-section">
-                    <label class="block text-sm text-overlay-30 mb-2 uppercase tracking-wide">Classification</label>
-                    <div class="flex gap-2">
-                        <button type="button" data-join-classification="personal" class="join-classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-10 text-primary border border-overlay-10">
-                            Personal
-                        </button>
-                        <button type="button" data-join-classification="community" class="join-classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
-                            Community
-                        </button>
-                    </div>
-                    <p class="text-xs text-overlay-25 mt-1.5">Helps organize your channels locally</p>
                 </div>
             </div>
 

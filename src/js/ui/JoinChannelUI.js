@@ -33,7 +33,6 @@ class JoinChannelUI {
             this.elements.joinStreamIdInput,
             this.elements.joinPasswordInput
         );
-        this.setJoinClassification('personal');
         this.elements.joinBtn?.setAttribute('disabled', '');
         this.elements.joinStreamIdInput?.focus();
     }
@@ -46,25 +45,8 @@ class JoinChannelUI {
     }
 
     /**
-     * Personal/Community selection of the join dialog
-     * @param {string} classification - 'personal' or 'community'
-     */
-    setJoinClassification(classification) {
-        this.joinClassification = classification;
-        document.querySelectorAll('.join-id-classification-tab').forEach(tab => {
-            const isActive = tab.dataset.joinIdClassification === classification;
-            tab.classList.toggle('bg-overlay-10', isActive);
-            tab.classList.toggle('text-primary', isActive);
-            tab.classList.toggle('border-overlay-10', isActive);
-            tab.classList.toggle('bg-overlay-5', !isActive);
-            tab.classList.toggle('text-overlay-50', !isActive);
-            tab.classList.toggle('border-overlay-5', !isActive);
-        });
-    }
-
-    /**
-     * Handle join channel from modal: ID, optional password, optional local
-     * name and the Personal/Community classification in one step.
+     * Handle join channel from modal: ID, optional password and optional
+     * local name in one step.
      * @param {Function} showNotification - Notification callback
      * @param {Function} renderChannelList - Channel list render callback
      * @param {Function} selectChannel - Opens the joined channel
@@ -73,7 +55,6 @@ class JoinChannelUI {
         const streamId = this.elements.joinStreamIdInput?.value.trim();
         const password = this.elements.joinPasswordInput?.value || null;
         const localName = document.getElementById('join-local-name-input')?.value.trim() || null;
-        const classification = this.joinClassification || 'personal';
 
         if (!streamId) {
             showNotification('Please enter a channel ID', 'error');
@@ -108,7 +89,6 @@ class JoinChannelUI {
                     name,
                     named: !!localName,
                     type: channelInfo?.type,
-                    classification,
                     readOnly: channelInfo?.readOnly || false,
                     createdBy: channelInfo?.createdBy,
                     wireIdentity: channelInfo?.wireIdentity || undefined
@@ -155,7 +135,7 @@ class JoinChannelUI {
         try {
             // Channels without an on-chain name (hidden gated included) join
             // directly: the post-join local identity panel asks for the name
-            // and classification AFTER the entry — for a gated channel that
+            // AFTER the entry — for a gated channel that
             // means after the gate entry screen and the payment, over the
             // key-request wait, never before the user has seen the price.
 

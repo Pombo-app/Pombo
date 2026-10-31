@@ -53,13 +53,6 @@ export function attachChannelForm(ui) {
         channelModalsUI.checkPasswordMatch();
     });
 
-    // Classification tabs (for Closed channels) - switch between personal/community
-    document.querySelectorAll('.classification-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            channelModalsUI.switchClassificationTab(tab.dataset.classification);
-        });
-    });
-
     // Gate asset tabs (for Gated channels) - switch between token/nft
     document.querySelectorAll('.gate-asset-tab').forEach(tab => {
         tab.addEventListener('click', () => {
@@ -76,13 +69,6 @@ export function attachChannelForm(ui) {
     document.querySelectorAll('.paid-token-preset-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             channelModalsUI.switchTokenPresetTab('paid', tab.dataset.tokenPreset);
-        });
-    });
-
-    // Join classification tabs (in join-closed-channel modal)
-    document.querySelectorAll('.join-classification-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            channelModalsUI.switchJoinClassificationTab(tab.dataset.joinClassification);
         });
     });
 }
