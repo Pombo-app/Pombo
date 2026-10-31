@@ -2351,6 +2351,7 @@ class StorageMediaController {
 
                 // Frontier visibility: wait until each partition's NEWEST chunk is
                 // readable before judging the rest — reads before that undercount.
+                // Never on a DM: the sender may not read the peer's inbox.
                 const newestByPart = new Array(chunkPartitions).fill(0);
                 for (let i = 0; i < tc; i++) {
                     const k = i % chunkPartitions;
@@ -2374,7 +2375,7 @@ class StorageMediaController {
                         return seen;
                     } catch (e) { return true; }
                 };
-                if (bases.length && tc > 1) {
+                if (!isDM && bases.length && tc > 1) {
                     const pendingParts = new Set();
                     for (let k = 0; k < chunkPartitions; k++) if (newestByPart[k] > 0) pendingParts.add(k);
                     let lastPending = pendingParts.size, frontStall = 0;
