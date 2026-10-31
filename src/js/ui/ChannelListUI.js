@@ -375,14 +375,6 @@ class ChannelListUI {
     }
 
     /**
-     * Get the current channel filter
-     * @returns {string}
-     */
-    getFilter() {
-        return this.currentFilter;
-    }
-
-    /**
      * Render the channel list with current filter
      */
     render() {

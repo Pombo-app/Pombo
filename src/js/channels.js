@@ -965,9 +965,6 @@ class ChannelManager {
 
             const exposure = options.exposure || 'hidden';
 
-            // Classification for local organization (any channel type)
-            const classification = options.classification || null;
-            
             const channel = {
                 messageStreamId: streamInfo.messageStreamId,
                 ephemeralStreamId: streamInfo.ephemeralStreamId,
@@ -1012,7 +1009,6 @@ class ChannelManager {
                 description: exposure === 'visible' ? (options.description || '') : '',
                 language: exposure === 'visible' ? (options.language || 'en') : '',
                 category: exposure === 'visible' ? (options.category || 'general') : '',
-                classification: classification,
                 readOnly: options.readOnly || false,
                 // Lazy loading state (not persisted)
                 historyLoaded: false,
@@ -1256,9 +1252,6 @@ class ChannelManager {
             // Extract name from streamId if not provided (simplified ID format)
             // For Closed channels, use localName from options (user-provided)
             let channelName = options.localName || options.name || messageStreamId.split('/')[1]?.replace(/-\d$/, '') || messageStreamId;
-            
-            // Classification for local organization (any channel type)
-            const classification = options.classification || null;
 
             // Author visibility from the -1 metadata (`m`, immutable). It has
             // to be right BEFORE the first publish — a Sealed channel
@@ -1303,7 +1296,6 @@ class ChannelManager {
                 adminState: { bannedMembers: [], hiddenMessageIds: [], pins: [] },
                 adminRev: 0,
                 adminLoaded: false,
-                classification: classification,
                 // Callers that know the flag pass it; the rest (a pasted stream
                 // id, a gate retry) would store `false` on an announcements
                 // channel and offer a composer the network refuses. Gated
@@ -1421,8 +1413,6 @@ class ChannelManager {
             // Extract info from preview (already validated by successful preview)
             const channelType = previewInfo.type || 'public';
             const channelName = previewInfo.name || messageStreamId.split('/')[1]?.replace(/-\d$/, '') || messageStreamId;
-            // Classification for local organization (any channel type)
-            const classification = previewInfo.classification || null;
 
             // IMPORTANT: Transfer messages and reactions from preview
             const previewMessages = Array.isArray(previewInfo.messages) ? previewInfo.messages : [];
@@ -1475,7 +1465,6 @@ class ChannelManager {
                 adminRev: Number.isFinite(previewInfo.adminRev) ? previewInfo.adminRev : 0,
                 adminTs: Number.isFinite(previewInfo.adminTs) ? previewInfo.adminTs : 0,
                 adminLoaded: !!previewInfo.adminLoaded,
-                classification: classification,
                 readOnly: previewInfo.readOnly || false,
                 wireIdentity: previewInfo.wireIdentity || null,
                 historyLoaded: previewMessages.length > 0,  // Mark as loaded if we have messages

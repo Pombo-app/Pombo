@@ -508,7 +508,7 @@ describe('ChannelManager - Additional Coverage', () => {
             expect(channel.name).toBe('My Custom Name');
         });
 
-        it('sets classification from options', async () => {
+        it('never writes a classification on join', async () => {
             streamrController.checkPermissions.mockResolvedValue({
                 canSubscribe: true, canPublish: true, isOwner: false
             });
@@ -520,7 +520,7 @@ describe('ChannelManager - Additional Coverage', () => {
                 classification: 'work'
             });
 
-            expect(channel.classification).toBe('work');
+            expect(channel).not.toHaveProperty('classification');
         });
 
         it('caches publish permission on join', async () => {
