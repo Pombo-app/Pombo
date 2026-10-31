@@ -16,6 +16,7 @@ describe('ChannelListUI', () => {
     let channelManager;
     let secureStorage;
     let onChannelSelect;
+    let unread;
 
     function createChannel(overrides = {}) {
         return {
@@ -38,11 +39,11 @@ describe('ChannelListUI', () => {
 
         secureStorage = {
             getChannelOrder: vi.fn(() => []),
-            getChannelLastAccess: vi.fn(() => 0),
             setChannelOrder: vi.fn()
         };
 
         onChannelSelect = vi.fn();
+        unread = {};
 
         channelListUI.elements = {};
         channelListUI.currentFilter = 'channels';
@@ -51,7 +52,10 @@ describe('ChannelListUI', () => {
         channelListUI.draggedItem = null;
         channelListUI.draggedStreamId = null;
         channelListUI.setElements({ channelList });
-        channelListUI.setDependencies({ channelManager, secureStorage, onChannelSelect });
+        channelListUI.setDependencies({
+            channelManager, secureStorage, onChannelSelect,
+            getUnreadCount: (streamId) => unread[streamId] || 0
+        });
     });
 
     it('reuses existing DOM rows when the rendered list is unchanged', () => {
@@ -92,20 +96,27 @@ describe('ChannelListUI', () => {
         const alphaRow = channelList.querySelector('[data-stream-id="alpha"]');
         const betaRow = channelList.querySelector('[data-stream-id="beta"]');
 
-        channelManager.getAllChannels.mockReturnValue([
-            createChannel({
-                streamId: 'alpha',
-                name: 'Alpha',
-                messages: [{ id: 'm1', timestamp: 10, type: 'message' }]
-            }),
-            createChannel({ streamId: 'beta', name: 'Beta' })
-        ]);
+        unread.alpha = 1;
 
         channelListUI.render();
 
         expect(channelList.querySelector('[data-stream-id="alpha"]')).not.toBe(alphaRow);
         expect(channelList.querySelector('[data-stream-id="beta"]')).toBe(betaRow);
         expect(channelList.querySelector('[data-channel-count="alpha"]').textContent).toBe('1');
+    });
+
+    it('takes the badge from the unread store, not from the messages held', () => {
+        channelManager.getAllChannels.mockReturnValue([
+            createChannel({ streamId: 'alpha', messages: [{ id: 'm1', timestamp: Date.now(), type: 'message' }] })
+        ]);
+        unread.alpha = 0;
+
+        channelListUI.render();
+        expect(channelList.querySelector('[data-channel-count="alpha"]').classList.contains('hidden')).toBe(true);
+
+        unread.alpha = 2;
+        channelListUI.render();
+        expect(channelList.querySelector('[data-channel-count="alpha"]').textContent).toBe('2');
     });
 
     it('does not duplicate click handlers across repeated renders', () => {

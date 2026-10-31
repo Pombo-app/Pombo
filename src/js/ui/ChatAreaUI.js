@@ -185,7 +185,7 @@ class ChatAreaUI {
     /**
      * Inject dependencies (avoids circular imports)
      * @param {Object} deps - { 
-     *   channelManager, authManager, secureStorage, Logger,
+     *   channelManager, authManager, Logger,
      *   getActiveChannel, mediaController 
      * }
      */
@@ -1625,54 +1625,6 @@ class ChatAreaUI {
         const channel = channelManager?.getCurrentChannel();
         if (channel && channel.streamId === streamId) {
             this.renderMessages(channel.messages, onRenderComplete);
-            this.updateUnreadCount(channel.streamId);
-        }
-    }
-
-    /**
-     * Update unread count badge for a channel in the sidebar
-     * @param {string} streamId - Channel stream ID
-     */
-    updateUnreadCount(streamId) {
-        const { channelManager, secureStorage } = this.deps;
-        
-        const countEl = document.querySelector(`[data-channel-count="${CSS.escape(streamId)}"]`);
-        if (!countEl) return;
-        
-        const channel = channelManager?.getChannel(streamId);
-        if (!channel) return;
-        
-        // Get last access timestamp
-        const lastAccess = secureStorage?.getChannelLastAccess(streamId) || 0;
-        
-        // If user is currently viewing this channel, update access timestamp
-        const currentChannel = channelManager?.getCurrentChannel();
-        const isCurrentChannel = currentChannel?.streamId === streamId;
-        
-        if (isCurrentChannel) {
-            // User is viewing this channel - mark as read
-            secureStorage?.setChannelLastAccess(streamId, Date.now());
-            countEl.classList.add('hidden');
-            return;
-        }
-        
-        // Calculate unread count (messages newer than last access)
-        // Exclude deleted messages and control messages (reactions, edits, deletes)
-        const unreadCount = channel.messages.filter(m => 
-            m.timestamp > lastAccess && 
-            !m._deleted && 
-            !['reaction', 'edit', 'delete'].includes(m.type)
-        ).length;
-        const hasUnread = unreadCount > 0;
-        
-        if (hasUnread) {
-            countEl.textContent = unreadCount >= 30 ? '+30' : unreadCount;
-            countEl.classList.remove('hidden', 'text-overlay-30', 'bg-overlay-4');
-            countEl.classList.add('text-primary', 'bg-[#F6851B]/20');
-        } else {
-            countEl.classList.add('hidden');
-            countEl.classList.remove('text-primary', 'bg-[#F6851B]/20');
-            countEl.classList.add('text-overlay-30', 'bg-overlay-4');
         }
     }
 

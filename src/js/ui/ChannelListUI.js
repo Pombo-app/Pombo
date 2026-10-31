@@ -32,6 +32,7 @@ class ChannelListUI {
         this.openExploreView = null;
         this.isGuest = null;
         this.onCreateAccount = null;
+        this.getUnreadCount = null;
 
         // Tracks which adminStreamIds / DM peers we have *attempted* to
         // resolve. Any row not in these sets renders a spinner placeholder
@@ -49,7 +50,7 @@ class ChannelListUI {
     /**
      * Set dependencies for the module
      */
-    setDependencies({ channelManager, secureStorage, onChannelSelect, onFinishPendingCreate, onDiscardPendingCreate, openExploreView, isGuest, onCreateAccount }) {
+    setDependencies({ channelManager, secureStorage, onChannelSelect, onFinishPendingCreate, onDiscardPendingCreate, openExploreView, isGuest, onCreateAccount, getUnreadCount }) {
         this.channelManager = channelManager;
         this.secureStorage = secureStorage;
         this.onChannelSelect = onChannelSelect;
@@ -58,6 +59,7 @@ class ChannelListUI {
         this.openExploreView = openExploreView || null;
         this.isGuest = isGuest || null;
         this.onCreateAccount = onCreateAccount || null;
+        this.getUnreadCount = getUnreadCount || null;
 
         // Wire a single global listener for channel-image updates so any
         // visible row gets its avatar refreshed without a full re-render.
@@ -534,14 +536,7 @@ class ChannelListUI {
      * @private
      */
     _buildChannelViewModel(channel, currentStreamId) {
-        const lastAccess = this.secureStorage.getChannelLastAccess(channel.streamId) || 0;
-        const messages = Array.isArray(channel.messages) ? channel.messages : [];
-        const unreadCount = messages.reduce((count, message) => {
-            const isUnread = message.timestamp > lastAccess
-                && !message._deleted
-                && !['reaction', 'edit', 'delete'].includes(message.type);
-            return isUnread ? count + 1 : count;
-        }, 0);
+        const unreadCount = this.getUnreadCount?.(channel.messageStreamId || channel.streamId) || 0;
         const hasUnread = unreadCount > 0;
 
         return {
@@ -960,27 +955,6 @@ class ChannelListUI {
         this.render();
         
         Logger.debug('ChannelListUI: Channel order updated');
-    }
-
-    /**
-     * Update unread badge for a specific channel
-     * @param {string} streamId - Channel stream ID
-     * @param {number} count - New unread count
-     */
-    updateUnreadBadge(streamId, count) {
-        const badge = this.elements.channelList?.querySelector(`[data-channel-count="${CSS.escape(streamId)}"]`);
-        if (!badge) return;
-
-        if (count > 0) {
-            badge.textContent = count >= 30 ? '+30' : count;
-            badge.classList.remove('hidden', 'text-overlay-30', 'bg-overlay-4');
-            badge.classList.add('text-primary', 'bg-[#F6851B]/20', 'font-medium');
-        } else {
-            badge.textContent = '0';
-            badge.classList.add('hidden');
-            badge.classList.remove('text-primary', 'bg-[#F6851B]/20', 'font-medium');
-            badge.classList.add('text-overlay-30', 'bg-overlay-4');
-        }
     }
 
     /**

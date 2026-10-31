@@ -23,6 +23,25 @@ import { Logger } from './logger.js';
 import { CONFIG } from './config.js';
 import { messageTime } from './utils/messageTime.js';
 
+function isContentMessage(msg) {
+    if (!msg) return false;
+    if (msg._deleted) return false;
+    const type = msg.type;
+    if (type === 'reaction' || type === 'edit' || type === 'delete') return false;
+    if ((type === 'image' || type === 'audio') && msg.imageId) return true;
+    if (type === 'file_announce' && msg.metadata) return true;
+    if (type === 'storage_file_announce' && msg.metadata) return true;
+    if (type === 'text' || type === 'message') return true;
+    if (!type && msg.id && msg.text && msg.sender && msg.timestamp) return true;
+    return false;
+}
+
+function isOwnMessage(msg) {
+    const me = authManager.getAddress()?.toLowerCase();
+    const author = (msg.account || msg.sender || '').toLowerCase();
+    return !!me && author === me;
+}
+
 class SubscriptionManager {
     constructor() {
         // Active channel state (keyed by messageStreamId)
@@ -196,16 +215,7 @@ class SubscriptionManager {
         } catch (e) { /* ignore */ }
 
         try {
-            // Store current activity state before unsubscribing
             const channel = channelManager.getChannel(messageStreamId);
-            if (channel && channel.messages?.length > 0) {
-                const latestMsg = channel.messages[channel.messages.length - 1];
-                this.channelActivity.set(messageStreamId, {
-                    lastMessageTime: latestMsg.timestamp || Date.now(),
-                    unreadCount: 0,
-                    lastChecked: Date.now()
-                });
-            }
 
             // Get ephemeral stream ID
             const ephemeralStreamId = channel?.ephemeralStreamId || deriveEphemeralId(messageStreamId);
@@ -900,15 +910,16 @@ class SubscriptionManager {
      * Polls channels in batches to detect new messages without full subscriptions
      */
     startBackgroundPoller() {
+        // Before the early return: an account can come in while a guest
+        // start still holds the poller, and its channels need their seed.
+        this.initializeActivityState();
+
         if (this.backgroundPoller) {
             Logger.debug('Background poller already running');
             return;
         }
 
         Logger.info('Starting background activity poller');
-        
-        // Initialize activity state for all channels
-        this.initializeActivityState();
 
         // Start polling
         this.backgroundPoller = setInterval(async () => {
@@ -924,29 +935,67 @@ class SubscriptionManager {
      * Uses messageStreamId as key (dual-stream architecture)
      */
     initializeActivityState() {
-        const channels = channelManager.getAllChannels();
-        const lastAccessMap = secureStorage.getAllChannelLastAccess();
-        const now = Date.now();
-
-        for (const channel of channels) {
-            // Use messageStreamId as key (dual-stream)
-            const messageStreamId = channel.messageStreamId || channel.streamId;
-            
-            if (!this.channelActivity.has(messageStreamId)) {
-                // Get last access time for this channel
-                const lastAccess = lastAccessMap[messageStreamId] || lastAccessMap[channel.streamId];
-                
-                // If user never accessed this channel, use current time as baseline
-                // This prevents historical messages from being counted as "new"
-                const lastMessageTime = lastAccess || now;
-                
-                this.channelActivity.set(messageStreamId, {
-                    lastMessageTime,
-                    unreadCount: 0,
-                    lastChecked: 0
-                });
-            }
+        for (const channel of channelManager.getAllChannels()) {
+            this._activityFor(channel.messageStreamId || channel.streamId);
         }
+    }
+
+    /**
+     * A channel's activity, seeded from the last time it was read. A channel
+     * never read starts at the clock, so its stored history is not all new;
+     * a DM at zero, since its first message is what creates it.
+     */
+    _activityFor(messageStreamId) {
+        let activity = this.channelActivity.get(messageStreamId);
+        if (!activity) {
+            const isDm = channelManager.getChannel(messageStreamId)?.type === 'dm';
+            activity = {
+                lastMessageTime: secureStorage.getChannelLastAccess(messageStreamId) || (isDm ? 0 : Date.now()),
+                unreadCount: 0,
+                lastChecked: 0
+            };
+            this.channelActivity.set(messageStreamId, activity);
+        }
+        return activity;
+    }
+
+    /**
+     * Everything the channel holds counts as read. Returns the watermark.
+     *
+     * The watermark is the newest message held, in the same time the poll
+     * compares (messageTime): the clock would let a sender whose clock runs
+     * ahead have their already-read messages counted again.
+     */
+    markRead(messageStreamId) {
+        const latestAllowed = Date.now() + (CONFIG.gate?.timestampSkewMs ?? 0);
+        const seen = (channelManager.getChannel(messageStreamId)?.messages || []).reduce((max, m) => {
+            const t = messageTime(m);
+            return t > max && t <= latestAllowed ? t : max;
+        }, 0);
+        const watermark = seen || Date.now();
+        const had = this.getUnreadCount(messageStreamId);
+        this.channelActivity.set(messageStreamId, {
+            lastMessageTime: watermark,
+            unreadCount: 0,
+            lastChecked: Date.now()
+        });
+        secureStorage.setChannelLastAccess(messageStreamId, watermark)?.catch?.(() => {});
+        if (had > 0) this.notifyActivityHandlers(messageStreamId, this.channelActivity.get(messageStreamId));
+        return watermark;
+    }
+
+    /**
+     * A live message for a channel that is not on screen (a DM: background
+     * channels are not subscribed, the poll counts theirs).
+     */
+    noteMessage(messageStreamId, message) {
+        if (!isContentMessage(message) || isOwnMessage(message)) return;
+        const t = messageTime(message);
+        const activity = this._activityFor(messageStreamId);
+        if (!t || t <= activity.lastMessageTime) return;
+        const next = { ...activity, lastMessageTime: t, unreadCount: activity.unreadCount + 1 };
+        this.channelActivity.set(messageStreamId, next);
+        this.notifyActivityHandlers(messageStreamId, next);
     }
 
     /**
@@ -1031,13 +1080,7 @@ class SubscriptionManager {
         // The read below spans an account switch as easily as anything else.
         const previewGeneration = channelLatestMessageManager.generation;
 
-        // Get current activity state
-        // If no state exists, use current time as baseline to avoid false positives
-        const currentActivity = this.channelActivity.get(messageStreamId) || {
-            lastMessageTime: Date.now(),
-            unreadCount: 0,
-            lastChecked: 0
-        };
+        const currentActivity = this._activityFor(messageStreamId);
 
         try {
             // Fetch only the N most recent stored messages via a `{ last: N }`
@@ -1057,21 +1100,8 @@ class SubscriptionManager {
                 false,  // allowOverridesInContentPartition
                 { quiet: true }
             );
-
-            // Count only content messages for unread/background activity.
-            // P0 may include reactions, so filter them out explicitly.
-            const isContentMessage = (msg) => {
-                if (!msg) return false;
-                if (msg._deleted) return false;
-                const type = msg.type;
-                if (type === 'reaction' || type === 'edit' || type === 'delete') return false;
-                if ((type === 'image' || type === 'audio') && msg.imageId) return true;
-                if (type === 'file_announce' && msg.metadata) return true;
-                if (type === 'storage_file_announce' && msg.metadata) return true;
-                if (type === 'text' || type === 'message') return true;
-                if (!type && msg.id && msg.text && msg.sender && msg.timestamp) return true;
-                return false;
-            };
+            // Opened while the read was out: the channel is on screen now.
+            if (messageStreamId === this.activeChannelId) return;
 
             let newCount = 0;
             let latestTime = currentActivity.lastMessageTime;
@@ -1099,7 +1129,7 @@ class SubscriptionManager {
                 }
 
                 if (isContentMessage(msg)) {
-                    newCount++;
+                    if (!isOwnMessage(msg)) newCount++;
                     if (!latestPreviewCandidate || msgTimestamp > messageTime(latestPreviewCandidate)) {
                         latestPreviewCandidate = msg;
                     }
@@ -1175,15 +1205,6 @@ class SubscriptionManager {
     }
 
     /**
-     * Get activity state for a channel
-     * @param {string} streamId - Stream ID
-     * @returns {Object|null} - Activity data or null
-     */
-    getChannelActivity(streamId) {
-        return this.channelActivity.get(streamId) || null;
-    }
-
-    /**
      * Get unread count for a channel
      * @param {string} streamId - Stream ID
      * @returns {number} - Unread message count
@@ -1191,18 +1212,6 @@ class SubscriptionManager {
     getUnreadCount(streamId) {
         const activity = this.channelActivity.get(streamId);
         return activity?.unreadCount || 0;
-    }
-
-    /**
-     * Clear unread count for a channel (when user opens it)
-     * @param {string} streamId - Stream ID
-     */
-    clearUnreadCount(streamId) {
-        const activity = this.channelActivity.get(streamId);
-        if (activity) {
-            activity.unreadCount = 0;
-            this.channelActivity.set(streamId, activity);
-        }
     }
 
     /**
@@ -1259,9 +1268,6 @@ class SubscriptionManager {
         this.channelActivity.clear();
         this.pollIndex = 0;
         this.isPolling = false;
-        
-        // Clear handlers
-        this.activityHandlers = [];
     }
 
     /**
