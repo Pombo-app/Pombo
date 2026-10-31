@@ -75,9 +75,12 @@ vi.mock('../../src/js/storageEndpoints.js', () => ({
 vi.mock('../../src/js/storagePurge.js', async (importOriginal) => ({
     ...(await importOriginal()),
     keySigner: vi.fn(() => ({ address: '0xsigner', sign: async () => '0xsig' })),
-    storedOn: vi.fn(async (providers, sid, partition, targets) => new Set(targets
-        .filter(t => H.rows.some(r => r.partition === partition && r.timestamp === t.timestamp))
-        .map(t => `${t.timestamp}:${t.sequenceNumber}`)))
+    storedOn: vi.fn(async (providers, sid, partition, targets) => {
+        if (H.storedFor) return H.storedFor(providers[0].nodeAddress, partition, targets);
+        return new Set(targets
+            .filter(t => H.rows.some(r => r.partition === partition && r.timestamp === t.timestamp))
+            .map(t => `${t.timestamp}:${t.sequenceNumber}`));
+    })
 }));
 vi.mock('../../src/js/streamr.js', () => ({
     isWebSafeStorageNodeUrl: () => true,
@@ -224,6 +227,7 @@ beforeEach(() => {
     H.failPublish = null;
     H.readsRefused = false;
     H.storedProviders = [];
+    H.storedFor = null;
     H.announceVisible = true;
     H.bases = [NODE];
     H.nextTs = 1700000000000;
@@ -540,6 +544,70 @@ describe('sendFile — verify and repair', () => {
             .map(([url]) => url.match(/partitions\/(\d+)\/range\?/))
             .filter(m => m && Number(m[1]) >= STORAGE_FILE.DM_FIRST_CHUNK_PARTITION);
         expect(chunkReads).toHaveLength(0);
+    }, 20000);
+
+    it('asks the partitions of every provider in parallel', async () => {
+        SM.verify = true;
+        H.storedProviders = [{ nodeAddress: '0xa', urls: [NODE] }, { nodeAddress: '0xb', urls: ['https://node-b.example'] }];
+        H.channel = { messageStreamId: SID, type: 'dm', peerAddress: '0xpeer', messages: [] };
+        globalThis.EthereumKeyPairIdentity = window.EthereumKeyPairIdentity = dmIdentityClass();
+        H.nextTs = Date.now();   // inside the full sweep's window
+        let inFlight = 0, maxInFlight = 0;
+        H.storedFor = async (node, partition, targets) => {
+            maxInFlight = Math.max(maxInFlight, ++inFlight);
+            await new Promise(r => realSetTimeout(r, 5));
+            inFlight--;
+            return new Set(targets.map(t => `${t.timestamp}:${t.sequenceNumber}`));
+        };
+        const { metadata } = await storageMediaController.sendFile(SID, fileOfSize(9000));
+        expect(metadata.storedChunks).toBe(metadata.totalChunks);
+        expect(maxInFlight).toBeGreaterThan(1);
+        expect(maxInFlight).toBeLessThanOrEqual(6);
+    }, 20000);
+
+    it('announces once one provider holds every chunk, and repairs the other in the background', async () => {
+        SM.verify = true;
+        H.storedProviders = [{ nodeAddress: '0xa', urls: [NODE] }, { nodeAddress: '0xb', urls: ['https://node-b.example'] }];
+        H.channel = { messageStreamId: SID, type: 'dm', peerAddress: '0xpeer', messages: [] };
+        globalThis.EthereumKeyPairIdentity = window.EthereumKeyPairIdentity = dmIdentityClass();
+        H.nextTs = Date.now();   // inside the full sweep's window
+        let releaseB;
+        const bHeld = new Promise(r => { releaseB = r; });
+        const isTwo = (rec) => H.indexOf(unwrap(rec.payload)) === 2;
+        const chunkTwo = () => chunkPublishes().filter(isTwo);
+        const onB = (rec) => !isTwo(rec) || chunkTwo().length > 1;
+        H.storedFor = async (node, partition, targets) => {
+            if (node === '0xb') await bHeld;
+            const present = targets.filter(t => {
+                const rec = H.rows.find(r => r.partition === partition && r.timestamp === t.timestamp);
+                return rec && (node === '0xa' || onB(rec));
+            });
+            return new Set(present.map(t => `${t.timestamp}:${t.sequenceNumber}`));
+        };
+
+        // Every chunk partition in use: a node that hangs on all of them must not starve the other.
+        const { metadata } = await storageMediaController.sendFile(SID, fileOfSize(9000));
+        expect(metadata.storedChunks).toBe(metadata.totalChunks);
+        expect(H.dmPublishes).toHaveLength(1);
+        expect(storageMediaController.activeTransfers).toBe(1);
+        expect(chunkTwo()).toHaveLength(1);
+
+        releaseB();
+        for (let i = 0; i < 500 && storageMediaController.activeTransfers > 0; i++) await new Promise(r => realSetTimeout(r, 10));
+        expect(storageMediaController.activeTransfers).toBe(0);
+        expect(chunkTwo()).toHaveLength(2);
+        const remembered = dmManager.rememberFileRows.mock.calls.flatMap(([, rows]) => rows.map(r => r.timestamp));
+        expect(remembered).toContain(chunkTwo()[1].timestamp);
+    }, 20000);
+
+    it('confirms the announce on the first provider that holds it, without waiting for a hung one', async () => {
+        H.storedProviders = [{ nodeAddress: '0xslow', urls: ['https://node-b.example'] }, { nodeAddress: '0xa', urls: [NODE] }];
+        H.storedFor = async (node, partition, targets) => {
+            if (node === '0xslow') return new Promise(() => {});
+            return new Set(targets.map(t => `${t.timestamp}:${t.sequenceNumber}`));
+        };
+        const rows = [{ partition: H.P0, timestamp: 1700000000500, sequenceNumber: 0, privateKey: '0xkey' }];
+        await expect(storageMediaController.isAnnounceStored(SID, [1700000000500], [NODE], rows)).resolves.toBe(true);
     }, 20000);
 
     it('never counts rows published by somebody else', async () => {

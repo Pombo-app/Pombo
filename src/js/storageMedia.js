@@ -58,6 +58,7 @@ const SEAL_OVERHEAD = 28;              // [12B iv] + 16B GCM tag
 const RATE_WINDOW_MS = SM.rateWindowMs;
 const RESUME_KEY_PREFIX = 'pomboStorageResume_';
 const OPFS_PREFIX = 'psf_';
+const STORED_CONCURRENCY_PER_PROVIDER = 3;
 
 // ================= PURE HELPERS (exported for tests) =================
 
@@ -1621,12 +1622,13 @@ class StorageMediaController {
      * @param {Object} [stats] - Filled when given: {winsOk, winsFailed, rows,
      *   foreignRows}. Lets callers tell "read worked, chunk absent" apart from
      *   "read failed" — the auto-tune must NOT treat a failed read as loss.
+     * @param {Object} [storedOpts] - Handed to storedIndices (per-provider results).
      * @returns {Promise<Set<number>>}
      */
-    async readStoredIndices(sid, windows, tsIndex, bases, label, onProgress, stats = null, expectedPublisher = null, storedKey = null) {
+    async readStoredIndices(sid, windows, tsIndex, bases, label, onProgress, stats = null, expectedPublisher = null, storedKey = null, storedOpts) {
         const found = new Set();
         if (storedKey) {
-            const present = await this.storedIndices(sid, windows, tsIndex, storedKey, label);
+            const present = await this.storedIndices(sid, windows, tsIndex, storedKey, label, storedOpts);
             if (present) {
                 if (stats) stats.storedAnswered = true;
                 present.forEach((i) => found.add(i));
@@ -1829,6 +1831,7 @@ class StorageMediaController {
         this.activeTransfers++;
         this.acquireWakeLock();
         let uploadOpfsName = null;
+        let background = null;
 
         try {
             const doCompress = shouldCompress(file);
@@ -2011,6 +2014,10 @@ class StorageMediaController {
             const chunkTs = [];
             const chunkTsHist = [];
             const stored = new Set();
+            // nodeAddress → chunks that node confirmed by `stored`. One node holding
+            // every chunk lets the announce go; the others finish in the background.
+            const perProvider = new Map();
+            const storedPending = [];
             let totalBytesSent = 0;
 
             const tsIndexForVerify = () => {
@@ -2031,6 +2038,13 @@ class StorageMediaController {
                 }
                 return rows;
             };
+            const rememberedRows = new Set();
+            const freshRows = () => chunkRows().filter((r) => {
+                const k = `${r.partition}:${r.timestamp}`;
+                if (rememberedRows.has(k)) return false;
+                rememberedRows.add(k);
+                return true;
+            });
             const announceRows = () => (dmManager.rowsOf?.(messageId) || []).filter((r) => r.partition === MESSAGE_STREAM.MESSAGES);
 
             const allPartitionWindows = (from, to) =>
@@ -2344,8 +2358,13 @@ class StorageMediaController {
             // ---- VERIFY & REPAIR ----
             let storedCount = null;
             if (doVerify) {
-                const missingIdx = () => { const m = []; for (let i = 0; i < tc; i++) if (!stored.has(i)) m.push(i); return m; };
-                const updVerifyBar = () => emitProgress(100, stored.size, tc, null);
+                const confirmed = () => {
+                    let best = null;
+                    for (const set of perProvider.values()) if (!best || set.size > best.size) best = set;
+                    return best || stored;
+                };
+                const missingIdx = () => { const m = []; for (let i = 0; i < tc; i++) if (!confirmed().has(i)) m.push(i); return m; };
+                const updVerifyBar = () => emitProgress(100, confirmed().size, tc, null);
                 emitPhase('Verifying on storage…', 'verifying');
                 updVerifyBar();
 
@@ -2398,7 +2417,9 @@ class StorageMediaController {
                 let lastReadKnown = true;
                 const verifyRead = async (windows, label, onProgress) => {
                     const st = {};
-                    const f = await this.readStoredIndices(messageStreamId, windows, tsIndexForVerify(), bases, label, onProgress, st, chunkPublisher, chunkPrivateKey);
+                    const storedOpts = { byProvider: perProvider };
+                    const f = await this.readStoredIndices(messageStreamId, windows, tsIndexForVerify(), bases, label, onProgress, st, chunkPublisher, chunkPrivateKey, storedOpts);
+                    if (storedOpts.pending) storedPending.push(storedOpts.pending);
                     lastReadKnown = !!(st.storedAnswered || st.directOk || (!isDM && st.winsOk));
                     return f;
                 };
@@ -2443,7 +2464,7 @@ class StorageMediaController {
                 let pass = 0, stalledPasses = 0;
                 while (missing.length > 0 && !verifyBlind && lastReadKnown && pass < 8 && stalledPasses < 3) {
                     pass++;
-                    const storedBeforePass = stored.size;
+                    const storedBeforePass = confirmed().size;
                     if (pass > 1) sendSpacing = Math.min(2000, sendSpacing * 1.5);
                     Logger.warn(`Storage repair pass ${pass}: ${missing.length} chunks confirmed missing`);
                     emitPhase(`Repairing (pass ${pass})…`, 'repairing');
@@ -2468,7 +2489,7 @@ class StorageMediaController {
                             break;
                         }
                     }
-                    stalledPasses = stored.size > storedBeforePass ? 0 : stalledPasses + 1;
+                    stalledPasses = confirmed().size > storedBeforePass ? 0 : stalledPasses + 1;
                     if (stalledPasses >= 3 && missing.length > 0) {
                         Logger.warn(`3 consecutive repair passes with no progress — ending verify with ${missing.length} missing`);
                     }
@@ -2482,8 +2503,58 @@ class StorageMediaController {
                     storedCount = null;
                     Logger.error('Storage verify skipped (blind) — announcing UNVERIFIED; fix the storage node and re-upload');
                 } else {
-                    storedCount = stored.size;
+                    storedCount = confirmed().size;
                     Logger.info(`Storage verify & repair: ${storedCount}/${tc} chunks confirmed${storedCount < tc ? ' — INCOMPLETE' : ''}`);
+                }
+
+                const finishOnProvider = async (node) => {
+                    await Promise.allSettled(storedPending);
+                    const has = () => perProvider.get(node) || new Set();
+                    const missingOn = () => { const m = []; for (let i = 0; i < tc; i++) if (!has().has(i)) m.push(i); return m; };
+                    let answered = true;
+                    const readOn = async (label) => {
+                        const before = has().size;
+                        const r = await this.storedIndices(messageStreamId, windowsForIndices(missingOn()), tsIndexForVerify(), chunkPrivateKey, label, { providers: [node], byProvider: perProvider });
+                        answered = r !== null;
+                        return has().size > before;
+                    };
+                    if (doSecondChance && missingOn().length > 0) {
+                        const start = performance.now();
+                        const cap = Math.max(5 * 60000, tc * 2000);
+                        let lastProgress = performance.now();
+                        while (missingOn().length > 0 && performance.now() - lastProgress < SM.verifyQuietMs && performance.now() - start < cap) {
+                            await sleep(2500);
+                            if (await readOn('background drain')) lastProgress = performance.now();
+                        }
+                    }
+                    let pass = 0, stalled = 0;
+                    while (missingOn().length > 0 && answered && pass < 8 && stalled < 3) {
+                        pass++;
+                        const before = has().size;
+                        Logger.info(`Storage background repair on ${node}, pass ${pass}: ${missingOn().length} chunks missing`);
+                        await republishParallel(missingOn(), `background repair pass ${pass}`);
+                        let lastProgress = performance.now();
+                        while (missingOn().length > 0) {
+                            await sleep(2000);
+                            if (await readOn(`background post-repair pass ${pass}`)) { lastProgress = performance.now(); continue; }
+                            if (!answered || performance.now() - lastProgress >= SM.verifyQuietMs) break;
+                        }
+                        stalled = has().size > before ? 0 : stalled + 1;
+                    }
+                    dmManager.rememberFileRows?.(messageId, freshRows(), chunkPrivateKey);
+                    Logger.info(`Storage background verify on ${node}: ${has().size}/${tc} chunks confirmed${has().size < tc ? ' — INCOMPLETE' : ''}`);
+                };
+                const complete = [...perProvider].filter(([, set]) => set.size >= tc).map(([node]) => node);
+                if (complete.length > 0) {
+                    let others = [];
+                    try {
+                        others = (await storageEndpoints.providersWith(messageStreamId, 'stored'))
+                            .map((p) => p.nodeAddress).filter((n) => !complete.includes(n));
+                    } catch (e) { /* nothing left to confirm */ }
+                    if (others.length > 0) {
+                        Logger.info(`Storage verify: ${tc}/${tc} on ${complete.join(', ')} — confirming ${others.join(', ')} in the background`);
+                        background = Promise.all(others.map(finishOnProvider));
+                    }
                 }
             }
 
@@ -2523,11 +2594,11 @@ class StorageMediaController {
                 const pub = await dmManager.sealAndPublish(
                     messageStreamId, channel.peerAddress, cleanAnnouncement);
                 if (pub && typeof pub.timestamp === 'number') annTss.push(pub.timestamp);
-                dmManager.rememberFileRows?.(messageId, chunkRows(), chunkPrivateKey);
+                dmManager.rememberFileRows?.(messageId, freshRows(), chunkPrivateKey);
             } else {
                 const pub = await streamrController.publishMessage(messageStreamId, announcement, password);
                 if (pub && typeof pub.timestamp === 'number') annTss.push(pub.timestamp);
-                if (chunkSigner) rememberFileRows(messageStreamId, messageId, chunkRows(), chunkSigner);
+                if (chunkSigner) rememberFileRows(messageStreamId, messageId, freshRows(), chunkSigner);
             }
 
             // Persist locally where a replay cannot restore it.
@@ -2597,9 +2668,15 @@ class StorageMediaController {
             try { this.fileErrorCallback?.(tid, error.message); } catch (e) { /* UI */ }
             throw error;
         } finally {
-            this.activeTransfers--;
-            this.releaseWakeLock();
-            if (uploadOpfsName) opfsDelete(uploadOpfsName);
+            // The background repair republishes from the staged file and keeps the
+            // leave-page warning on until it is done.
+            const release = () => {
+                this.activeTransfers--;
+                this.releaseWakeLock();
+                if (uploadOpfsName) opfsDelete(uploadOpfsName);
+            };
+            if (background) background.catch((e) => Logger.warn(`Storage background verify failed: ${e.message}`)).finally(release);
+            else release();
         }
     }
 
@@ -2608,10 +2685,16 @@ class StorageMediaController {
      * The verify by the node's `stored` endpoint: exact per row and signed by
      * the key that wrote the chunks, for a stream the writer may not read (a
      * peer's inbox). Null when no provider offers it, so the caller reads.
+     *
+     * Every (partition, provider) query runs in parallel. With `opts.byProvider`
+     * (nodeAddress → Set of indices, filled as the answers land) it resolves as
+     * soon as one provider has answered every partition; `opts.pending` is
+     * then the queries still in flight. `opts.providers` limits the nodes asked.
      */
-    async storedIndices(sid, windows, tsIndex, privateKey, label) {
+    async storedIndices(sid, windows, tsIndex, privateKey, label, opts = {}) {
         let providers;
         try { providers = await storageEndpoints.providersWith(sid, 'stored'); } catch { return null; }
+        if (opts.providers) providers = providers?.filter((p) => opts.providers.includes(p.nodeAddress));
         if (!providers?.length) return null;
         const byPartition = new Map();
         for (const [key, i] of tsIndex) {
@@ -2622,26 +2705,78 @@ class StorageMediaController {
         }
         const signer = keySigner(privateKey);
         const found = new Set();
-        for (const [partition, rows] of byPartition) {
-            const present = await storedOn(providers, sid, partition, rows.map(({ timestamp, sequenceNumber }) => ({ timestamp, sequenceNumber })), signer);
-            if (present === null) {
+        const answeredBy = new Map();
+        const unanswered = new Map();
+        let markComplete;
+        const anyComplete = new Promise((resolve) => { markComplete = resolve; });
+        const isComplete = (node) => answeredBy.get(node)?.size === byPartition.size;
+        // A queue per provider: a node that hangs must not hold the slots of another.
+        const queues = providers.map((provider) => [...byPartition].map(([partition, rows]) => ({ partition, rows, provider })));
+        const worker = async (tasks) => {
+            while (tasks.length > 0) {
+                const { partition, rows, provider } = tasks.shift();
+                let present = null;
+                try {
+                    present = await storedOn([provider], sid, partition, rows.map(({ timestamp, sequenceNumber }) => ({ timestamp, sequenceNumber })), signer);
+                } catch (e) { Logger.warn(`${label}: stored on ${provider.nodeAddress} P${partition} failed: ${e.message}`); }
+                if (present === null) {
+                    unanswered.set(partition, (unanswered.get(partition) || 0) + 1);
+                    continue;
+                }
+                const node = provider.nodeAddress;
+                if (opts.byProvider && !opts.byProvider.has(node)) opts.byProvider.set(node, new Set());
+                for (const r of rows) {
+                    if (!present.has(`${r.timestamp}:${r.sequenceNumber}`)) continue;
+                    found.add(r.index);
+                    opts.byProvider?.get(node).add(r.index);
+                }
+                if (!answeredBy.has(node)) answeredBy.set(node, new Set());
+                answeredBy.get(node).add(partition);
+                if (isComplete(node)) markComplete();
+            }
+        };
+        const all = Promise.all(queues.flatMap((tasks) => Array.from({ length: Math.min(STORED_CONCURRENCY_PER_PROVIDER, tasks.length) }, () => worker(tasks))));
+        opts.pending = all;
+        if (opts.byProvider) await Promise.race([all, anyComplete]);
+        else await all;
+        if (providers.some((p) => isComplete(p.nodeAddress))) return found;
+        await all;
+        for (const partition of byPartition.keys()) {
+            if ((unanswered.get(partition) || 0) === providers.length) {
                 Logger.warn(`${label}: stored query unanswered on P${partition} — reading instead`);
                 return null;
             }
-            for (const r of rows) if (present.has(`${r.timestamp}:${r.sequenceNumber}`)) found.add(r.index);
         }
         return found;
     }
 
-    /** Whether any of the announce rows is on storage, by the `stored` endpoint; null when no provider offers it. */
+    /**
+     * Whether any of the announce rows is on storage, by the `stored` endpoint;
+     * null when no provider answers. The providers are asked in parallel and the
+     * first that holds the row settles it, without waiting for the slower ones.
+     */
     async storedRows(streamId, rows) {
         let providers;
         try { providers = await storageEndpoints.providersWith(streamId, 'stored'); } catch { return null; }
         if (!providers?.length) return null;
         for (const r of rows) {
-            const present = await storedOn(providers, streamId, r.partition, [{ timestamp: r.timestamp, sequenceNumber: r.sequenceNumber }], keySigner(r.privateKey));
+            const target = [{ timestamp: r.timestamp, sequenceNumber: r.sequenceNumber }];
+            const signer = keySigner(r.privateKey);
+            const present = await new Promise((resolve) => {
+                let answered = false;
+                let left = providers.length;
+                for (const provider of providers) {
+                    storedOn([provider], streamId, r.partition, target, signer)
+                        .catch(() => null)
+                        .then((set) => {
+                            if (set) answered = true;
+                            if (set?.size > 0) resolve(true);
+                            if (--left === 0) resolve(answered ? false : null);
+                        });
+                }
+            });
             if (present === null) return null;
-            if (present.size > 0) return true;
+            if (present) return true;
         }
         return false;
     }
