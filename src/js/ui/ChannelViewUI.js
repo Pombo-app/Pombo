@@ -141,7 +141,6 @@ class ChannelViewUI {
         
         // Save as last opened channel
         await secureStorage.setLastOpenedChannel(streamId);
-        subscriptionManager.clearUnreadCount(streamId);
         
         // Update header. Leaving Explore belongs here, with the caption and
         // thumb that replace it — the subscribe above can take a while, and
@@ -215,9 +214,6 @@ class ChannelViewUI {
         channelManager.recoverIncompleteImages?.(streamId)?.catch?.((err) => {
             Logger.debug('selectChannel image recovery failed:', err?.message || err);
         });
-        // Mark channel as read
-        await secureStorage.setChannelLastAccess(streamId, Date.now());
-        
         // Update sidebar
         this.deps.renderChannelList();
         

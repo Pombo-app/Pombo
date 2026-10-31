@@ -527,26 +527,6 @@ describe('secureStorage', () => {
                 expect(secureStorage.getChannelLastAccess('channel-1')).toBeNull();
             });
         });
-
-        describe('getAllChannelLastAccess()', () => {
-            it('should return empty object initially', () => {
-                expect(secureStorage.getAllChannelLastAccess()).toEqual({});
-            });
-
-            it('should return all channel access timestamps', async () => {
-                await secureStorage.setChannelLastAccess('channel-1', 1000);
-                await secureStorage.setChannelLastAccess('channel-2', 2000);
-                
-                const all = secureStorage.getAllChannelLastAccess();
-                expect(all['channel-1']).toBe(1000);
-                expect(all['channel-2']).toBe(2000);
-            });
-
-            it('should return empty object when locked', () => {
-                secureStorage.isUnlocked = false;
-                expect(secureStorage.getAllChannelLastAccess()).toEqual({});
-            });
-        });
     });
 
     describe('Channel Order', () => {

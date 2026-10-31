@@ -781,8 +781,9 @@ class App {
                 ?? previewModeUI.getPreviewChannel()?.streamId;
             
             if (event === 'message') {
-                chatAreaUI.updateUnreadCount(data.streamId);
-                if (data.streamId === currentStreamId) {
+                if (data.streamId !== currentStreamId) {
+                    subscriptionManager.noteMessage(data.streamId, data.message);
+                } else {
                     // Append immediately even during initial history load.
                     // ChatAreaUI.addMessage appends to existing DOM; the
                     // subsequent full render on history_batch_loaded /

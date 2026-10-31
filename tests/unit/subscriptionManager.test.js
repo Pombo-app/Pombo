@@ -87,7 +87,8 @@ vi.mock('../../src/js/channels.js', () => ({
 vi.mock('../../src/js/secureStorage.js', () => ({
     secureStorage: {
         isStorageUnlocked: vi.fn().mockReturnValue(true),
-        getAllChannelLastAccess: vi.fn().mockReturnValue({}),
+        getChannelLastAccess: vi.fn().mockReturnValue(null),
+        setChannelLastAccess: vi.fn().mockResolvedValue(undefined),
         getLastOpenedChannel: vi.fn().mockReturnValue(null),
         setLastOpenedChannel: vi.fn()
     }
@@ -343,21 +344,6 @@ describe('SubscriptionManager', () => {
     });
 
     describe('Activity Tracking', () => {
-        describe('getChannelActivity()', () => {
-            it('should return activity for tracked channel', () => {
-                const activity = { lastMessageTime: Date.now(), unreadCount: 5 };
-                subscriptionManager.channelActivity.set('stream1', activity);
-                
-                const result = subscriptionManager.getChannelActivity('stream1');
-                
-                expect(result).toBe(activity);
-            });
-            
-            it('should return null for untracked channel', () => {
-                expect(subscriptionManager.getChannelActivity('unknown')).toBeNull();
-            });
-        });
-
         describe('getUnreadCount()', () => {
             it('should return unread count', () => {
                 subscriptionManager.channelActivity.set('stream1', { unreadCount: 10 });
@@ -370,18 +356,91 @@ describe('SubscriptionManager', () => {
             });
         });
 
-        describe('clearUnreadCount()', () => {
-            it('should clear unread count', () => {
-                subscriptionManager.channelActivity.set('stream1', { unreadCount: 10 });
-                
-                subscriptionManager.clearUnreadCount('stream1');
-                
+        describe('markRead()', () => {
+            it('clears the count, persists the watermark and tells the list', () => {
+                const handler = vi.fn();
+                subscriptionManager.activityHandlers = [handler];
+                const now = Date.now();
+                channelManager.getChannel.mockReturnValue({ messages: [{ timestamp: now - 1000 }] });
+                subscriptionManager.channelActivity.set('stream1', { lastMessageTime: 0, unreadCount: 4, lastChecked: 0 });
+
+                subscriptionManager.markRead('stream1');
+
+                expect(subscriptionManager.getUnreadCount('stream1')).toBe(0);
+                expect(secureStorage.setChannelLastAccess).toHaveBeenCalledWith('stream1', now - 1000);
+                expect(handler).toHaveBeenCalledWith('stream1', expect.objectContaining({ unreadCount: 0 }));
+            });
+
+            it('does not count again, once left, a message already on screen', async () => {
+                const now = Date.now();
+                // Envelope time (_timestamp) a little after the time the sender wrote in it.
+                const read = { id: 'm1', text: 'seen', sender: '0x1', timestamp: now - 1000, _timestamp: now - 960 };
+                channelManager.getChannel.mockReturnValue({ messages: [read] });
+
+                subscriptionManager.markRead('stream1');
+                stubFetchHistoryAsync([{ ...read }]);
+                await subscriptionManager.checkChannelActivity({ messageStreamId: 'stream1' });
+
                 expect(subscriptionManager.getUnreadCount('stream1')).toBe(0);
             });
-            
-            it('should handle untracked channel gracefully', () => {
-                // Should not throw
-                subscriptionManager.clearUnreadCount('unknown');
+
+            it('does not count again a read message from a sender whose clock runs ahead', async () => {
+                const ahead = Date.now() + 20000;
+                const read = { id: 'm1', text: 'seen', sender: '0x1', timestamp: ahead };
+                channelManager.getChannel.mockReturnValue({ messages: [read] });
+
+                subscriptionManager.markRead('stream1');
+                stubFetchHistoryAsync([{ ...read }]);
+                await subscriptionManager.checkChannelActivity({ messageStreamId: 'stream1' });
+
+                expect(subscriptionManager.getUnreadCount('stream1')).toBe(0);
+            });
+
+            it('keeps a future-dated message from pushing the watermark past real ones', () => {
+                const now = Date.now();
+                channelManager.getChannel.mockReturnValue({
+                    messages: [{ timestamp: now - 1000 }, { timestamp: now + 3600000 }]
+                });
+
+                expect(subscriptionManager.markRead('stream1')).toBe(now - 1000);
+            });
+
+            it('falls back to the clock for a channel with nothing held', () => {
+                channelManager.getChannel.mockReturnValue({ messages: [] });
+
+                expect(subscriptionManager.markRead('stream1')).toBe(Date.now());
+            });
+        });
+
+        describe('noteMessage()', () => {
+            it('counts a live message for a channel not on screen', () => {
+                const handler = vi.fn();
+                subscriptionManager.activityHandlers = [handler];
+                subscriptionManager.channelActivity.set('dm1', { lastMessageTime: 0, unreadCount: 0, lastChecked: 0 });
+
+                subscriptionManager.noteMessage('dm1', { type: 'text', id: 'm1', text: 'hi', account: '0xpeer', timestamp: Date.now() });
+
+                expect(subscriptionManager.getUnreadCount('dm1')).toBe(1);
+                expect(handler).toHaveBeenCalledWith('dm1', expect.objectContaining({ unreadCount: 1 }));
+            });
+
+            it('ignores my own messages, reactions and anything already read', () => {
+                const now = Date.now();
+                subscriptionManager.channelActivity.set('dm1', { lastMessageTime: now - 1000, unreadCount: 0, lastChecked: 0 });
+
+                subscriptionManager.noteMessage('dm1', { type: 'text', id: 'm1', text: 'mine', account: '0xMyAddress', timestamp: now });
+                subscriptionManager.noteMessage('dm1', { type: 'reaction', id: 'm2', account: '0xpeer', timestamp: now });
+                subscriptionManager.noteMessage('dm1', { type: 'text', id: 'm3', text: 'old', account: '0xpeer', timestamp: now - 2000 });
+
+                expect(subscriptionManager.getUnreadCount('dm1')).toBe(0);
+            });
+
+            it('counts every message of a DM never opened, its first one included', () => {
+                channelManager.getChannel.mockReturnValue({ type: 'dm', messages: [] });
+
+                subscriptionManager.noteMessage('dm1', { type: 'text', id: 'm1', text: 'hi', account: '0xpeer', timestamp: 1000 });
+
+                expect(subscriptionManager.getUnreadCount('dm1')).toBe(1);
             });
         });
     });
@@ -449,6 +508,15 @@ describe('SubscriptionManager', () => {
                 
                 expect(subscriptionManager.backgroundPoller).toBe(originalPoller);
             });
+
+            it('still seeds the channels of an account that came in while it was running', () => {
+                subscriptionManager.backgroundPoller = setInterval(() => {}, 1000);
+                channelManager.getAllChannels.mockReturnValue([{ messageStreamId: 'stream1', messages: [] }]);
+
+                subscriptionManager.startBackgroundPoller();
+
+                expect(subscriptionManager.channelActivity.has('stream1')).toBe(true);
+            });
         });
 
         describe('stopBackgroundPoller()', () => {
@@ -482,9 +550,7 @@ describe('SubscriptionManager', () => {
             });
             
             it('should use lastAccess time from storage when available', () => {
-                secureStorage.getAllChannelLastAccess.mockReturnValue({
-                    'stream1': 5000
-                });
+                secureStorage.getChannelLastAccess.mockReturnValue(5000);
                 channelManager.getAllChannels.mockReturnValue([
                     { messageStreamId: 'stream1', messages: [] }
                 ]);
@@ -600,12 +666,13 @@ describe('SubscriptionManager', () => {
             expect(subscriptionManager.isPolling).toBe(false);
         });
         
-        it('should clear activity handlers', async () => {
-            subscriptionManager.activityHandlers = [vi.fn(), vi.fn()];
-            
+        it('keeps the activity handlers: the list registers once, and accounts come and go', async () => {
+            const handlers = [vi.fn(), vi.fn()];
+            subscriptionManager.activityHandlers = [...handlers];
+
             await subscriptionManager.cleanup();
-            
-            expect(subscriptionManager.activityHandlers).toEqual([]);
+
+            expect(subscriptionManager.activityHandlers).toEqual(handlers);
         });
     });
 
@@ -750,19 +817,6 @@ describe('SubscriptionManager', () => {
     });
 
     describe('downgradeToBackground()', () => {
-        it('should store activity state from messages', async () => {
-            const now = Date.now();
-            channelManager.getChannel.mockReturnValue({
-                messages: [{ timestamp: now - 1000 }, { timestamp: now }],
-                ephemeralStreamId: 'stream1/ephemeral'
-            });
-            
-            await subscriptionManager.downgradeToBackground('stream1');
-            
-            const activity = subscriptionManager.channelActivity.get('stream1');
-            expect(activity.lastMessageTime).toBe(now);
-        });
-
         it('should unsubscribe from both streams', async () => {
             channelManager.getChannel.mockReturnValue({
                 messages: [],
@@ -952,6 +1006,32 @@ describe('SubscriptionManager', () => {
             await subscriptionManager.checkChannelActivity({ messageStreamId: 'stream1' });
             
             expect(handler).toHaveBeenCalledWith('stream1', expect.objectContaining({ unreadCount: 1 }));
+        });
+
+        it('drops a read that lands after the channel was opened', async () => {
+            const now = Date.now();
+            streamrController.fetchHistoryAsync = vi.fn().mockImplementation(async (_s, _p, _c, handler) => {
+                subscriptionManager.activeChannelId = 'stream1';
+                await handler({ id: 'm1', type: 'text', text: 'hi', account: '0x1', timestamp: now });
+            });
+            subscriptionManager.channelActivity.set('stream1', { lastMessageTime: now - 1000, unreadCount: 0, lastChecked: 0 });
+
+            await subscriptionManager.checkChannelActivity({ messageStreamId: 'stream1' });
+
+            expect(subscriptionManager.getUnreadCount('stream1')).toBe(0);
+        });
+
+        it('does not count my own messages, sent from another device', async () => {
+            const now = Date.now();
+            stubFetchHistoryAsync([
+                { id: 'm1', type: 'text', text: 'mine', account: '0xmyaddress', timestamp: now - 500 },
+                { id: 'm2', type: 'text', text: 'theirs', account: '0x1', timestamp: now - 100 }
+            ]);
+            subscriptionManager.channelActivity.set('stream1', { lastMessageTime: now - 1000, unreadCount: 0, lastChecked: 0 });
+
+            await subscriptionManager.checkChannelActivity({ messageStreamId: 'stream1' });
+
+            expect(subscriptionManager.getUnreadCount('stream1')).toBe(1);
         });
 
         it('should push the newest previewable message into channelLatestMessageManager', async () => {

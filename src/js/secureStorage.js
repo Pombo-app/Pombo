@@ -865,15 +865,6 @@ class SecureStorage {
         await this.saveToStorage();
     }
 
-    /**
-     * Get all channel last access timestamps
-     * @returns {Object} - { streamId: timestamp }
-     */
-    getAllChannelLastAccess() {
-        if (!this.isUnlocked) return {};
-        return this.cache.channelLastAccess || {};
-    }
-
     // ==================== Channel Order ====================
 
     /**

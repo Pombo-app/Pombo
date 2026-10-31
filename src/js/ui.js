@@ -299,7 +299,8 @@ class UIController {
             onDiscardPendingCreate: (basePath) => channelModalsUI.discardInterruptedCreate(basePath),
             openExploreView: () => this.openExploreView(),
             isGuest: () => authManager.isGuestMode(),
-            onCreateAccount: () => document.dispatchEvent(new CustomEvent('pombo:connect-account'))
+            onCreateAccount: () => document.dispatchEvent(new CustomEvent('pombo:connect-account')),
+            getUnreadCount: (streamId) => subscriptionManager.getUnreadCount(streamId)
         });
 
         // ChannelModalsUI
@@ -547,7 +548,6 @@ class UIController {
             channelManager,
             authManager,
             epochKeyManager,
-            secureStorage,
             Logger,
             mediaController,
             storageMediaController,
@@ -679,12 +679,12 @@ class UIController {
         this.heartbeatStreamId = streamId;
         
         // Save immediately when entering channel
-        secureStorage.setChannelLastAccess(streamId, Date.now());
-        
+        subscriptionManager.markRead(streamId);
+
         // Then save periodically
         this.heartbeatTimer = setInterval(() => {
             if (this.heartbeatStreamId) {
-                secureStorage.setChannelLastAccess(this.heartbeatStreamId, Date.now());
+                subscriptionManager.markRead(this.heartbeatStreamId);
             }
         }, this.HEARTBEAT_INTERVAL);
     }
@@ -700,7 +700,7 @@ class UIController {
         
         // Save final access time
         if (this.heartbeatStreamId) {
-            secureStorage.setChannelLastAccess(this.heartbeatStreamId, Date.now());
+            subscriptionManager.markRead(this.heartbeatStreamId);
             this.heartbeatStreamId = null;
         }
     }
@@ -713,7 +713,7 @@ class UIController {
         if (currentChannel) {
             // Use synchronous localStorage directly for reliability during unload
             const key = CONFIG.storageKeys.channelAccess(currentChannel.streamId);
-            localStorage.setItem(key, Date.now().toString());
+            localStorage.setItem(key, subscriptionManager.markRead(currentChannel.streamId).toString());
         }
     }
     
@@ -735,14 +735,7 @@ class UIController {
         
         subscriptionManager.onActivity((streamId, activity) => {
             Logger.debug('Background activity update:', streamId, activity);
-            
-            // Update unread badge in sidebar
-            const countEl = document.querySelector(`[data-channel-count="${CSS.escape(streamId)}"]`);
-            if (countEl && activity.unreadCount > 0) {
-                countEl.textContent = activity.unreadCount >= 30 ? '+30' : activity.unreadCount;
-                countEl.classList.remove('hidden', 'text-overlay-30', 'bg-overlay-4');
-                countEl.classList.add('text-primary', 'bg-[#F6851B]/20');
-            }
+            this.renderChannelList();
         });
     }
 
