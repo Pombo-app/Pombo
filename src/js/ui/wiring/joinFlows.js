@@ -29,11 +29,6 @@ export function attachJoinFlows(ui) {
             if (e.key === 'Enter') join();
         });
     });
-    joinModal?.querySelectorAll('.join-id-classification-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            ui.joinChannelUI.setJoinClassification(tab.dataset.joinIdClassification);
-        });
-    });
 
     ui.elements.cancelJoinBtn?.addEventListener('click', () => {
         ui.hideJoinChannelModal();

@@ -127,6 +127,15 @@
                     </svg>
                 </button>
             </div>
+            <!-- Explore: desktop only; mobile reaches it from the pill. -->
+            <div id="explore-btn-wrapper" class="hidden md:block relative">
+                <button id="browse-channels-btn" class="w-12 h-12 hover:bg-overlay-5 active:bg-overlay-12 rounded-full flex items-center justify-center transition" title="Explore">
+                    <svg class="w-6 h-6 text-overlay-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="9" stroke-width="1.5"/>
+                        <path stroke-width="1.5" stroke-linejoin="round" fill="currentColor" d="M15.02 8.98l-2.1 4.14-4.14 2.1 2.1-4.14 4.14-2.1z"/>
+                    </svg>
+                </button>
+            </div>
             <!-- Wallet: the token balances of this account. Sits beside the
                  bell and follows the same visibility rules. -->
             <div id="wallet-btn-wrapper" class="hidden relative">
@@ -223,29 +232,13 @@
         <aside id="sidebar" class="sidebar w-80 lg:w-[380px] bg-surface-1 flex flex-col flex-shrink-0">
             <!-- Channel Controls -->
             <div class="px-3 pb-2 space-y-2.5 pt-4 sidebar-top">
-                <!-- Explore mode switch (desktop only, mobile uses pill nav) -->
-                <div class="hidden md:block">
-                    <div class="text-center text-[10px] font-medium uppercase tracking-widest text-overlay-30 mb-1.5">Explore</div>
-                    <div class="flex explore-mode-switch">
-                        <button id="browse-channels-btn" class="explore-mode-btn">
-                            <svg id="browse-btn-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/>
-                            </svg>
-                            <span id="browse-btn-text">Threads</span>
-                        </button>
-                    </div>
-                </div>
-                
                 <!-- Channel Filter Tabs -->
-                <div class="flex items-center mt-3 border-b border-overlay-6 channel-filter-tabs">
-                    <button data-channel-filter="all" class="channel-filter-tab flex-1 py-2.5 text-[10px] font-medium uppercase tracking-widest transition-all text-[#F6851B] border-b-2 border-[#F6851B] -mb-px">
-                        All
+                <div class="flex items-center mt-3 md:mt-0 border-b border-overlay-6 channel-filter-tabs">
+                    <button data-channel-filter="direct" class="channel-filter-tab flex-1 py-2.5 text-[10px] font-medium uppercase tracking-widest transition-all text-[#F6851B] border-b-2 border-[#F6851B] -mb-px">
+                        Direct Messages
                     </button>
-                    <button data-channel-filter="personal" class="channel-filter-tab flex-1 py-2.5 text-[10px] font-medium uppercase tracking-widest transition-all text-overlay-30 hover:text-overlay-50 border-b-2 border-transparent -mb-px">
-                        Personal
-                    </button>
-                    <button data-channel-filter="community" class="channel-filter-tab flex-1 py-2.5 text-[10px] font-medium uppercase tracking-widest transition-all text-overlay-30 hover:text-overlay-50 border-b-2 border-transparent -mb-px">
-                        Communities
+                    <button data-channel-filter="channels" class="channel-filter-tab flex-1 py-2.5 text-[10px] font-medium uppercase tracking-widest transition-all text-overlay-30 hover:text-overlay-50 border-b-2 border-transparent -mb-px">
+                        Channels
                     </button>
                 </div>
             </div>
@@ -258,6 +251,8 @@
                 </div>
             </div>
 
+            <!-- DM actions: only on the Direct Messages tab -->
+            <div id="dm-actions">
             <!-- DM Inbox Setup Button (hidden by default, shown for non-guests without inbox) -->
             <div id="dm-inbox-setup" class="hidden flex justify-center px-4 pt-3 pb-32 md:pb-3">
                 <button id="open-dm-btn" class="px-5 py-2.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-primary border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 inline-flex items-center gap-2 hover:shadow-lg hover:shadow-[#F6851B]/10">
@@ -270,11 +265,14 @@
 
             <!-- New DM Button (hidden by default, shown when inbox is ready) -->
             <div id="dm-new-btn-wrap" class="hidden flex justify-center px-4 pt-3 pb-32 md:pb-3">
-                <button id="new-dm-btn" class="px-5 py-2.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-primary border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 inline-flex items-center gap-2 hover:shadow-lg hover:shadow-[#F6851B]/10">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button id="new-dm-btn" aria-label="New DM" class="px-5 py-2.5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 text-primary border border-[#F6851B]/30 text-sm font-medium rounded-xl transition-all duration-200 inline-flex items-center gap-2 hover:shadow-lg hover:shadow-[#F6851B]/10">
+                    <svg class="new-dm-icon-desktop w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.5v15m7.5-7.5h-15"/>
                     </svg>
-                    New DM
+                    <svg class="new-dm-icon-mobile w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 19H5a2 2 0 01-2-2V7a2 2 0 012-2h14a2 2 0 012 2v6M3 8l7.89 5.26a2 2 0 002.22 0L21 8M19 16v6m-3-3h6"/>
+                    </svg>
+                    <span class="new-dm-label">New DM</span>
                 </button>
             </div>
 
@@ -282,14 +280,16 @@
                  label, hidden, so the pill keeps that button's size -->
             <div id="dm-checking-wrap" class="hidden flex justify-center px-4 pt-3 pb-32 md:pb-3">
                 <div class="relative px-5 py-2.5 bg-[#F6851B]/15 border border-[#F6851B]/30 text-sm font-medium rounded-xl inline-flex items-center gap-2">
-                    <svg class="w-4 h-4 invisible" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="new-dm-icon-desktop w-4 h-4 invisible" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.5v15m7.5-7.5h-15"/>
                     </svg>
-                    <span class="invisible">New DM</span>
+                    <svg class="new-dm-icon-mobile w-5 h-5 invisible" fill="none" stroke="currentColor" viewBox="0 0 24 24"></svg>
+                    <span class="new-dm-label invisible">New DM</span>
                     <span class="absolute inset-0 flex items-center justify-center">
                         <span class="w-5 h-5 border-2 border-overlay-25 border-t-white rounded-full animate-spin"></span>
                     </span>
                 </div>
+            </div>
             </div>
 
             <!-- Desktop Sidebar Footer (hidden on mobile, replaced by pill) -->
@@ -1084,21 +1084,6 @@
                             </button>
                         </div>
 
-                        <!-- Classification: local-only organization, so it closes the page -->
-                        <div id="classification-section" class="hidden">
-                            <div class="border-t border-overlay-5 mb-5"></div>
-                            <label class="block text-xs font-medium text-overlay-80 uppercase tracking-wider mb-2">Classification</label>
-                            <div class="flex gap-2">
-                                <button type="button" data-classification="personal" class="classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-10 text-primary border border-overlay-10">
-                                    Personal
-                                </button>
-                                <button type="button" data-classification="community" class="classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
-                                    Community
-                                </button>
-                            </div>
-                            <p class="text-xs text-overlay-30 mt-2">For organizing your channels locally.</p>
-                        </div>
-
                     </div>
                 </div>
             </div>
@@ -1455,11 +1440,6 @@
                     />
                     <p class="text-xs text-overlay-25 mt-1.5">Stored locally only. Channels with a public name keep it.</p>
                 </div>
-
-                <div class="flex gap-2 pt-1">
-                    <button type="button" data-join-id-classification="personal" class="join-id-classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition border">Personal</button>
-                    <button type="button" data-join-id-classification="community" class="join-id-classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition border">Community</button>
-                </div>
             </div>
 
             <button id="join-btn" disabled class="w-full mt-5 bg-[#F6851B]/15 hover:bg-[#F6851B]/25 border border-[#F6851B]/30 text-primary text-sm font-medium px-3 py-2.5 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#F6851B]/15">
@@ -1468,7 +1448,7 @@
         </div>
     </div>
 
-    <!-- Modal: Join Closed Channel (with name + classification) -->
+    <!-- Modal: Join Closed Channel (with name) -->
     <div id="join-closed-channel-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
         <div class="bg-surface rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
             <h3 class="text-base font-medium mb-4 text-primary">Join Closed Channel</h3>
@@ -1495,19 +1475,6 @@
                         class="w-full bg-overlay-5 border border-overlay-8 text-primary px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-overlay-15 transition"
                     />
                     <p class="text-xs text-overlay-25 mt-1">This name is stored locally only</p>
-                </div>
-
-                <div id="join-classification-section">
-                    <label class="block text-sm text-overlay-30 mb-2 uppercase tracking-wide">Classification</label>
-                    <div class="flex gap-2">
-                        <button type="button" data-join-classification="personal" class="join-classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-10 text-primary border border-overlay-10">
-                            Personal
-                        </button>
-                        <button type="button" data-join-classification="community" class="join-classification-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
-                            Community
-                        </button>
-                    </div>
-                    <p class="text-xs text-overlay-25 mt-1.5">Helps organize your channels locally</p>
                 </div>
             </div>
 

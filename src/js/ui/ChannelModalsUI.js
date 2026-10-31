@@ -19,11 +19,9 @@ class ChannelModalsUI {
         this.deps = {};
         this.elements = {};
         this.currentExposure = 'hidden';
-        this.currentClassification = 'personal';
         this.currentGateAsset = 'token';
         this.gateTokenPreset = 'pol';
         this.paidTokenPreset = 'usdc';
-        this.joinClassification = 'personal';
         this.currentReadOnly = false;
         this.currentStorageProvider = 'streamr';
         this.currentCustomStorageAddress = '';
@@ -86,8 +84,6 @@ class ChannelModalsUI {
         this.switchChannelTab('public');
         // Reset to hidden visibility (default)
         this.setVisibility(false);
-        // Reset classification to personal (for Closed channels)
-        this.switchClassificationTab('personal');
         // Reset gate fields (Gated/Paid tabs)
         for (const id of ['gate-token-input', 'gate-min-balance-input', 'paid-token-input', 'paid-price-input']) {
             const input = document.getElementById(id);
@@ -246,9 +242,6 @@ class ChannelModalsUI {
         const gatedFamily = ['closed', 'gated', 'paid'].includes(tabType);
         document.getElementById('author-visibility-section')
             ?.classList.toggle('hidden', !gatedFamily);
-        // Classification is local-only organization: same variants, end of page
-        document.getElementById('classification-section')
-            ?.classList.toggle('hidden', !gatedFamily);
 
         // Update cost display in footer
         document.querySelectorAll('.channel-cost-display').forEach(cost => {
@@ -388,42 +381,6 @@ class ChannelModalsUI {
     }
 
     /**
-     * Switch classification tab (personal/community) in Create modal
-     */
-    switchClassificationTab(classification) {
-        document.querySelectorAll('.classification-tab').forEach(tab => {
-            const isActive = tab.dataset.classification === classification;
-            tab.classList.toggle('bg-overlay-10', isActive);
-            tab.classList.toggle('text-primary', isActive);
-            tab.classList.toggle('border-overlay-10', isActive);
-            tab.classList.toggle('bg-overlay-5', !isActive);
-            tab.classList.toggle('text-overlay-50', !isActive);
-            tab.classList.toggle('border-overlay-5', !isActive);
-            tab.classList.toggle('hover:bg-overlay-10', !isActive);
-            tab.classList.toggle('hover:text-overlay-70', !isActive);
-        });
-        this.currentClassification = classification;
-    }
-
-    /**
-     * Switch classification tab in Join Closed Channel modal
-     */
-    switchJoinClassificationTab(classification) {
-        document.querySelectorAll('.join-classification-tab').forEach(tab => {
-            const isActive = tab.dataset.joinClassification === classification;
-            tab.classList.toggle('bg-overlay-10', isActive);
-            tab.classList.toggle('text-primary', isActive);
-            tab.classList.toggle('border-overlay-10', isActive);
-            tab.classList.toggle('bg-overlay-5', !isActive);
-            tab.classList.toggle('text-overlay-50', !isActive);
-            tab.classList.toggle('border-overlay-5', !isActive);
-            tab.classList.toggle('hover:bg-overlay-10', !isActive);
-            tab.classList.toggle('hover:text-overlay-70', !isActive);
-        });
-        this.joinClassification = classification;
-    }
-
-    /**
      * Toggle read-only mode
      */
     toggleReadOnly() {
@@ -541,7 +498,7 @@ class ChannelModalsUI {
     /**
      * Post-join local identity panel for channels without an on-chain name:
      * reuses the join-closed modal (stream ID hidden, name prefilled) to let
-     * the member set the local name + classification. Closing skips — the
+     * the member set the local name. Closing skips — the
      * ID-derived name stays and can be edited later in Channel Details.
      * @param {Object} channel - The just-joined channel record
      */
@@ -551,8 +508,6 @@ class ChannelModalsUI {
         this.deps.modalManager?.showJoinClosedChannelModal(channel.messageStreamId);
         this._localIdentityTarget = channel;
         document.getElementById('join-closed-stream-id-input')?.parentElement?.classList.add('hidden');
-        document.getElementById('join-classification-section')?.classList.remove('hidden');
-        this.switchJoinClassificationTab(channel.classification || 'personal');
 
         const nameInput = document.getElementById('join-closed-name-input');
         if (nameInput) {
@@ -568,18 +523,16 @@ class ChannelModalsUI {
     }
 
     /**
-     * Save the local identity panel: local rename + classification only,
-     * never a join (the channel is already in the list).
+     * Save the local identity panel: local rename only, never a join (the
+     * channel is already in the list).
      */
     async saveLocalIdentity() {
         const channel = this._localIdentityTarget;
         if (!channel) return;
         const localName = document.getElementById('join-closed-name-input')?.value.trim();
-        const classification = this.joinClassification || 'personal';
         this.hideJoinClosedModal();
 
         if (localName) channel.name = localName;
-        channel.classification = classification;
         await this.channelManager.saveChannels();
         this.deps.renderChannelList?.();
 
@@ -1023,9 +976,6 @@ class ChannelModalsUI {
         const language = exposure === 'visible' ? (this.elements.channelLanguageInput?.value || 'en') : '';
         const category = exposure === 'visible' ? (this.elements.channelCategoryInput?.value || 'general') : '';
 
-        // Classification for Closed channels (stored locally only)
-        const classification = isClosed ? (this.currentClassification || 'personal') : null;
-
         // Storage provider selection
         const storageProvider = this.currentStorageProvider || 'streamr';
         const storageDays = snapRetentionDays(document.getElementById('storage-days-input')?.value || '180');
@@ -1142,7 +1092,6 @@ class ChannelModalsUI {
             description,
             language,
             category,
-            classification,
             readOnly: this.currentReadOnly || false,
             storageProvider,
             customStorageAddress,

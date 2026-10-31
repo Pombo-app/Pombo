@@ -12,11 +12,12 @@ import { deriveAdminId } from '../streamConstants.js';
 import { getAvatarHtml } from './AvatarGenerator.js';
 import { identityManager } from '../identity.js';
 import { formatPreviewLine, formatPreviewTime } from './channelPreviewFormatter.js';
+import { DEFAULT_HOME_TAB, filterByHomeTab } from './homeTabs.js';
 
 class ChannelListUI {
     constructor() {
         this.elements = {};
-        this.currentFilter = 'all'; // all | personal | community
+        this.currentFilter = DEFAULT_HOME_TAB;
         this.clickListenersAttached = false;
         this.dragAndDropBound = false;
         this.draggedItem = null;
@@ -367,7 +368,7 @@ class ChannelListUI {
 
     /**
      * Set the current channel filter
-     * @param {string} filter - 'all' | 'personal' | 'community'
+     * @param {string} filter - 'direct' | 'channels'
      */
     setFilter(filter) {
         this.currentFilter = filter;
@@ -449,20 +450,7 @@ class ChannelListUI {
      * @private
      */
     _applyFilter(channels) {
-        switch (this.currentFilter) {
-            case 'personal':
-                // Personal: any channel with classification 'personal'
-                return channels.filter(ch => ch.classification === 'personal');
-            case 'community':
-                // Communities: channels without classification OR with classification 'community'
-                // This includes public/password channels without explicit classification
-                return channels.filter(ch => 
-                    !ch.classification || ch.classification === 'community'
-                );
-            default:
-                // 'all' - no filtering
-                return channels;
-        }
+        return filterByHomeTab(channels, this.currentFilter);
     }
 
     /**
@@ -507,14 +495,11 @@ class ChannelListUI {
      * @private
      */
     _renderEmptyState() {
-        const filterMsg = this.currentFilter === 'all' 
-            ? 'No channels yet' 
-            : `No ${this.currentFilter} channels`;
-
+        const isDirect = this.currentFilter === 'direct';
         const emptyState = document.createElement('div');
         emptyState.className = 'p-4 flex flex-col items-center gap-3 text-center text-overlay-25 text-[13px]';
-        emptyState.textContent = filterMsg;
-        if (this.currentFilter === 'all' && this.openExploreView) {
+        emptyState.textContent = isDirect ? 'No direct messages yet' : 'No channels yet';
+        if (!isDirect && this.openExploreView) {
             const explore = document.createElement('button');
             explore.className = 'px-4 py-2 rounded-xl text-sm bg-overlay-5 hover:bg-overlay-8 border border-overlay-8 text-overlay-70 transition';
             explore.textContent = 'Explore channels';

@@ -21,6 +21,7 @@ import { dmManager } from './dm.js';
 import { syncManager } from './syncManager.js';
 import { openUnjoinedChannel } from './channelEntry.js';
 import { CONFIG } from './config.js';
+import { DEFAULT_HOME_TAB, HOME_TABS, loadHomeTab, saveHomeTab } from './ui/homeTabs.js';
 
 // UI Modules
 import { notificationUI } from './ui/NotificationUI.js';
@@ -77,8 +78,9 @@ class UIController {
         // Reply state (kept for backward compatibility, synced with ChatAreaUI)
         this.replyingTo = null; // { id, text, sender, senderName }
         
-        // Channel filter state (sidebar tabs: all/personal/community)
-        this.currentChannelFilter = 'all';
+        // Home tab (direct/channels) and the account it was loaded for
+        this.currentChannelFilter = DEFAULT_HOME_TAB;
+        this.channelFilterAccount = undefined;
         this.isFilterAnimating = false; // Prevent rapid swipes
         
         // Preview mode state - handled by previewModeUI module
@@ -464,8 +466,6 @@ class UIController {
 
             // Join/Browse channels
             browseChannelsBtn: document.getElementById('browse-channels-btn'),
-            browseBtnIcon: document.getElementById('browse-btn-icon'),
-            browseBtnText: document.getElementById('browse-btn-text'),
             
             // Reply UI
             replyBar: document.getElementById('reply-bar'),
@@ -809,6 +809,12 @@ class UIController {
      * Render channel list (delegates to ChannelListUI)
      */
     renderChannelList() {
+        const account = this._homeTabAccount();
+        if (account !== this.channelFilterAccount) {
+            this.channelFilterAccount = account;
+            this.currentChannelFilter = loadHomeTab(account);
+            this._paintChannelFilterTabs(this.currentChannelFilter);
+        }
         channelListUI.setFilter(this.currentChannelFilter);
         channelListUI.render();
         // Update DM sidebar buttons visibility
@@ -1533,19 +1539,16 @@ class UIController {
         }
     }
 
-    /**
-     * Switch channel filter tab in sidebar (All/Personal/Communities)
-     * @param {string} filter - Filter to apply ('all', 'personal', 'community')
-     * @param {number} direction - Direction of swipe (-1 = right/prev, 1 = left/next, 0 = click)
-     */
-    switchChannelFilterTab(filter, direction = 0) {
-        // Animation lock for swipes
-        if (direction !== 0 && this.isFilterAnimating) return;
-        if (direction !== 0) this.isFilterAnimating = true;
-        
+    /** @private Account whose Home tab is remembered; null for a guest. */
+    _homeTabAccount() {
+        return authManager.isGuest ? null : (authManager.getAddress() || null);
+    }
+
+    /** @private */
+    _paintChannelFilterTabs(filter) {
         document.querySelectorAll('.channel-filter-tab').forEach(tab => {
             const isActive = tab.dataset.channelFilter === filter;
-            
+
             // Border bottom indicator for active state
             tab.classList.toggle('border-[#F6851B]', isActive);
             tab.classList.toggle('border-transparent', !isActive);
@@ -1553,9 +1556,23 @@ class UIController {
             tab.classList.toggle('text-overlay-40', !isActive);
             tab.classList.toggle('hover:text-overlay-60', !isActive);
         });
-        
+        document.getElementById('dm-actions')?.classList.toggle('dm-actions-off', filter !== 'direct');
+    }
+
+    /**
+     * Switch the Home tab (Direct/Channels)
+     * @param {string} filter - 'direct' | 'channels'
+     * @param {number} direction - Direction of swipe (-1 = right/prev, 1 = left/next, 0 = click)
+     */
+    switchChannelFilterTab(filter, direction = 0) {
+        // Animation lock for swipes
+        if (direction !== 0 && this.isFilterAnimating) return;
+        if (direction !== 0) this.isFilterAnimating = true;
+
+        this._paintChannelFilterTabs(filter);
         this.currentChannelFilter = filter;
-        
+        saveHomeTab(this.channelFilterAccount, filter);
+
         // Animate channel list on mobile swipe
         const channelList = this.elements.channelList;
         if (this.isMobileView() && direction !== 0 && channelList) {
@@ -1594,13 +1611,13 @@ class UIController {
 
     /**
      * Initialize swipe gestures for channel filter tabs (mobile)
-     * Allows swiping left/right on channel list to switch between All/Personal/Communities
+     * Allows swiping left/right on channel list to switch between Direct/Channels
      */
     initChannelFilterSwipe() {
         const channelList = this.elements.channelList;
         if (!channelList) return;
 
-        const filterOrder = ['all', 'personal', 'community'];
+        const filterOrder = HOME_TABS;
         let touchStartX = 0;
         let touchStartY = 0;
         let isSwiping = false;

@@ -422,6 +422,7 @@ export const CONFIG = {
         invites: (addr) => `pombo_invites_${addr.toLowerCase()}`,
         invitesMuted: (addr) => `pombo_invites_muted_${addr.toLowerCase()}`,
         dmPush: (addr) => `pombo_dm_push_${addr.toLowerCase()}`,
+        homeTab: (addr) => `pombo_home_tab_${addr.toLowerCase()}`,
         // Only ever written true: inbox streams are not deleted.
         dmInboxKnown: (addr) => `pombo_dm_inbox_known_${addr.toLowerCase()}`,
         syncDirty: (addr) => `pombo_sync_dirty_${addr.toLowerCase()}`,
