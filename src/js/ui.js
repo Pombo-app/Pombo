@@ -466,8 +466,6 @@ class UIController {
 
             // Join/Browse channels
             browseChannelsBtn: document.getElementById('browse-channels-btn'),
-            browseBtnIcon: document.getElementById('browse-btn-icon'),
-            browseBtnText: document.getElementById('browse-btn-text'),
             
             // Reply UI
             replyBar: document.getElementById('reply-bar'),

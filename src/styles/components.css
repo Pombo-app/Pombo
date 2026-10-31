@@ -2537,6 +2537,10 @@ body.network-down .network-dot {
 
 
 
+body.explore-open #browse-channels-btn svg {
+    color: #F6851B;
+}
+
 #dm-actions.dm-actions-off,
 #new-dm-btn .new-dm-icon-mobile,
 #dm-checking-wrap .new-dm-icon-mobile {
@@ -4041,61 +4045,6 @@ body.explore-open #explore-channels-list {
         font-size: 1.6rem;
         padding: 4px;
     }
-}
-
-/* ----- EXPLORE MODE SWITCH (Threads / Live) -----
-   Two segments in a shallow well. Both carry a fill and read as live buttons;
-   the one whose view you are already in sinks into the well instead, which is
-   the only state that is not a call to action. */
-.explore-mode-switch {
-    position: relative;
-    align-items: center;
-    gap: 3px;
-    padding: 3px;
-    background: var(--pombo-overlay-3);
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: 0.75rem;
-}
-
-.explore-mode-btn {
-    flex: 1 1 0%;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.375rem;
-    padding: 0.4rem 0.5rem;
-    border-radius: 0.6rem;
-    font-size: 0.875rem;
-    background: var(--pombo-overlay-8);
-    color: var(--pombo-overlay-80);
-    transition: color 160ms ease-out, background-color 160ms ease-out,
-                box-shadow 160ms ease-out;
-}
-
-.explore-mode-btn:not(:disabled):hover {
-    background: rgba(255, 255, 255, 0.13);
-    color: var(--pombo-text-primary);
-}
-
-.explore-mode-btn:disabled {
-    background: var(--pombo-overlay-3);
-    color: var(--pombo-overlay-30);
-    cursor: default;
-}
-
-body.explore-open #browse-channels-btn {
-    background: rgba(0, 0, 0, 0.22);
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3),
-                inset 0 0 10px rgba(246, 133, 27, 0.045),
-                0 0 8px rgba(246, 133, 27, 0.035);
-    color: var(--pombo-overlay-45);
-    text-shadow: 0 0 7px rgba(246, 133, 27, 0.14);
-    pointer-events: none;
-}
-
-body.explore-open #browse-channels-btn svg {
-    filter: drop-shadow(0 0 3px rgba(246, 133, 27, 0.18));
 }
 
 /* ==== Wallet panel (token balances) ==== */

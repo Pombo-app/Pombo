@@ -127,6 +127,15 @@
                     </svg>
                 </button>
             </div>
+            <!-- Explore: desktop only; mobile reaches it from the pill. -->
+            <div id="explore-btn-wrapper" class="hidden md:block relative">
+                <button id="browse-channels-btn" class="w-12 h-12 hover:bg-overlay-5 active:bg-overlay-12 rounded-full flex items-center justify-center transition" title="Explore">
+                    <svg class="w-6 h-6 text-overlay-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="9" stroke-width="1.5"/>
+                        <path stroke-width="1.5" stroke-linejoin="round" fill="currentColor" d="M15.02 8.98l-2.1 4.14-4.14 2.1 2.1-4.14 4.14-2.1z"/>
+                    </svg>
+                </button>
+            </div>
             <!-- Wallet: the token balances of this account. Sits beside the
                  bell and follows the same visibility rules. -->
             <div id="wallet-btn-wrapper" class="hidden relative">
@@ -223,21 +232,8 @@
         <aside id="sidebar" class="sidebar w-80 lg:w-[380px] bg-surface-1 flex flex-col flex-shrink-0">
             <!-- Channel Controls -->
             <div class="px-3 pb-2 space-y-2.5 pt-4 sidebar-top">
-                <!-- Explore mode switch (desktop only, mobile uses pill nav) -->
-                <div class="hidden md:block">
-                    <div class="text-center text-[10px] font-medium uppercase tracking-widest text-overlay-30 mb-1.5">Explore</div>
-                    <div class="flex explore-mode-switch">
-                        <button id="browse-channels-btn" class="explore-mode-btn">
-                            <svg id="browse-btn-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/>
-                            </svg>
-                            <span id="browse-btn-text">Threads</span>
-                        </button>
-                    </div>
-                </div>
-                
                 <!-- Channel Filter Tabs -->
-                <div class="flex items-center mt-3 border-b border-overlay-6 channel-filter-tabs">
+                <div class="flex items-center mt-3 md:mt-0 border-b border-overlay-6 channel-filter-tabs">
                     <button data-channel-filter="direct" class="channel-filter-tab flex-1 py-2.5 text-[10px] font-medium uppercase tracking-widest transition-all text-[#F6851B] border-b-2 border-[#F6851B] -mb-px">
                         Direct Messages
                     </button>
