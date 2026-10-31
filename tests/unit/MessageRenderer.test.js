@@ -174,10 +174,7 @@ describe('MessageRenderer', () => {
         });
         
         it('should include year for past years', () => {
-            const date = new Date();
-            date.setFullYear(date.getFullYear() - 1);
-            date.setMonth(5); // June
-            date.setDate(20);
+            const date = new Date(new Date().getFullYear() - 1, 5, 20);
             const result = messageRenderer.renderDateSeparator(date);
             expect(result).toContain('June 20');
             expect(result).toContain((date.getFullYear()).toString());
