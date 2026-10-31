@@ -697,9 +697,9 @@ class WalletFlows {
                 await this._onWalletConnected(importResult.address, importResult.signer);
 
                 // Save display name to secureStorage (after it's initialized)
-                if (setupResult.displayName && secureStorage.isStorageUnlocked()) {
-                    secureStorage.cache.username = setupResult.displayName;
-                    await secureStorage.saveToStorage();
+                if (setupResult.displayName) {
+                    await identityManager.setUsername(setupResult.displayName);
+                    headerUI.updateDisplayName(identityManager.getUsername());
                 }
 
                 uiController.showNotification('Account created', 'success');
