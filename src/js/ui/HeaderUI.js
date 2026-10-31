@@ -18,6 +18,7 @@ class HeaderUI {
         this._boundCloseDesktopDropdown = null;
         this._currentAddress = null;
         this._currentDisplayName = null;
+        this._isGuest = false;
         this._globalSyncSuccessTimeout = null;
         this._isGlobalSyncActive = false;
         
@@ -105,7 +106,8 @@ class HeaderUI {
         
         // Mobile pill elements
         const pill = this._getPillElements();
-        
+        this._isGuest = !!address && isGuest;
+
         if (address) {
             if (isGuest) {
                 // Guest mode: show "Guest" label + Connect button
@@ -118,12 +120,16 @@ class HeaderUI {
                     </svg>
                     Create Account
                 `;
-                // Hide desktop dropdown for guest
-                desktopAccountWrapper?.classList.add('hidden');
-                desktopAccountWrapper?.classList.remove('md:relative');
-                // Hide contacts button for guest
-                contactsBtn?.classList.add('hidden');
-                
+                desktopAccountWrapper?.classList.remove('hidden');
+                desktopAccountWrapper?.classList.add('md:relative');
+                if (desktopAccountAvatar) desktopAccountAvatar.innerHTML = generateAvatar(address, 38, 0.5);
+                if (desktopAccountName) {
+                    desktopAccountName.innerHTML = '<span class="text-[#F6851B]">Guest</span>';
+                    desktopAccountName.classList.remove('font-mono');
+                }
+                this._setGuestMenu(true);
+                contactsBtn?.classList.remove('hidden');
+
                 // Mobile: show pill nav (same as authenticated), hide floating connect
                 document.body.classList.add('guest-mode');
                 pill.connectFloat?.classList.add('hidden');
@@ -155,7 +161,8 @@ class HeaderUI {
                 if (desktopDropdownAddress) {
                     desktopDropdownAddress.textContent = short;
                 }
-                
+                this._setGuestMenu(false);
+
                 // Show contacts button
                 contactsBtn?.classList.remove('hidden');
                 
@@ -201,13 +208,26 @@ class HeaderUI {
     }
 
     /**
+     * Account menu items: a guest gets Create and Import instead of the
+     * address line and Disconnect.
+     * @param {boolean} isGuest
+     */
+    _setGuestMenu(isGuest) {
+        document.getElementById('guest-create-account-btn')?.classList.toggle('hidden', !isGuest);
+        document.getElementById('guest-import-account-btn')?.classList.toggle('hidden', !isGuest);
+        document.getElementById('guest-restore-account-btn')?.classList.toggle('hidden', !isGuest);
+        this.elements.desktopDropdownAddress?.classList.toggle('hidden', isGuest);
+        document.getElementById('disconnect-wallet')?.classList.toggle('hidden', isGuest);
+    }
+
+    /**
      * Update display name shown in header and pill nav
      * @param {string|null} username - Username to show, or null to revert to address
      */
     updateDisplayName(username) {
         this._currentDisplayName = username || null;
         const displayText = this._currentDisplayName || (this._currentAddress ? `${this._currentAddress.slice(0, 6)}...${this._currentAddress.slice(-4)}` : null);
-        if (!displayText) return;
+        if (!displayText || this._isGuest) return;
 
         // Update desktop dropdown button name
         const { desktopAccountName } = this.elements;

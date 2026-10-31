@@ -123,7 +123,10 @@ class AccountsUI {
         const avatar = document.getElementById('accounts-avatar');
         if (avatar) avatar.innerHTML = address ? getAvatarHtml(address, 88, 0.3) : '';
         const name = document.getElementById('accounts-name');
-        if (name) name.textContent = ens || username || (address ? shortAddress(address) : 'No name');
+        if (name) {
+            name.textContent = isGuest ? 'Guest' : (ens || username || (address ? shortAddress(address) : 'No name'));
+            name.classList.toggle('accounts-name-guest', isGuest);
+        }
         const second = document.getElementById('accounts-username');
         if (second) {
             second.textContent = ens && username ? username : '';

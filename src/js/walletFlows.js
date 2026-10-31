@@ -119,13 +119,53 @@ class WalletFlows {
         }
     }
 
+    /** Guest menu: straight to creating an account. */
+    async createAccount() {
+        await this._guestAccountFlow(() => this.connectLocal());
+    }
+
+    /** Guest menu: straight to importing an account. */
+    async importAccount() {
+        await this._guestAccountFlow(() => this.importPrivateKey());
+    }
+
+    /** Guest menu: pick a backup file and restore the account in it. */
+    async restoreAccount() {
+        const file = await new Promise((resolve) => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.addEventListener('change', () => resolve(input.files?.[0] || null), { once: true });
+            input.addEventListener('cancel', () => resolve(null), { once: true });
+            input.click();
+        });
+        if (!file) return;
+        await this._guestAccountFlow(() => this.restoreFromBackup(file), 'Restore failed: ');
+    }
+
+    /** Runs one step of the account modal the way connectWallet runs the whole of it. */
+    async _guestAccountFlow(step, failure = 'Failed to connect: ') {
+        document.body.classList.add('wallet-flow-open');
+        try {
+            await step();
+        } catch (error) {
+            if (error.message !== 'cancelled') {
+                uiController.showNotification(failure + error.message, 'error');
+            }
+        } finally {
+            document.body.classList.remove('wallet-flow-open');
+        }
+        if (!authManager.getAddress()) {
+            await this._fallbackToGuest('Continuing as Guest - connect an Account to save your data');
+        }
+    }
+
     /**
      * Switch to another saved wallet
      */
     async switchWallet() {
         try {
             const savedWallets = authManager.listSavedWallets();
-            if (savedWallets.length <= 1) return;
 
             // Show wallet selector (excluding current)
             const currentAddress = authManager.getAddress();

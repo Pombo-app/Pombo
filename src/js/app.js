@@ -210,6 +210,30 @@ class App {
 
         connectBtn.addEventListener('click', () => walletFlows.connectWallet());
 
+        document.getElementById('guest-create-account-btn')?.addEventListener('click', () => {
+            headerUI._closeDesktopDropdown();
+            walletFlows.createAccount();
+        });
+        document.getElementById('guest-import-account-btn')?.addEventListener('click', () => {
+            headerUI._closeDesktopDropdown();
+            walletFlows.importAccount();
+        });
+        document.getElementById('guest-restore-account-btn')?.addEventListener('click', () => {
+            headerUI._closeDesktopDropdown();
+            walletFlows.restoreAccount();
+        });
+
+        // Capture phase: a guest's click on what needs an account opens the
+        // account modal before the control's own handler can run.
+        document.addEventListener('click', (e) => {
+            if (!authManager.isGuestMode()) return;
+            if (!e.target.closest?.('[data-guest-locked]')) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            headerUI._closeDesktopDropdown();
+            walletFlows.connectWallet();
+        }, true);
+
         disconnectBtn?.addEventListener('click', async () => {
             headerUI._closeDesktopDropdown();
             await this.disconnectWallet();
@@ -536,7 +560,7 @@ class App {
             }
 
             const savedWallets = authManager.listSavedWallets();
-            headerUI.updateSwitchWalletButton(savedWallets.length > 1);
+            headerUI.updateSwitchWalletButton(savedWallets.length > (isGuest ? 0 : 1));
 
             if (isGuest) {
                 secureStorage.initAsGuest(address);

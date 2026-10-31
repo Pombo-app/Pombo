@@ -201,6 +201,50 @@ describe('walletFlows.connectWallet', () => {
     });
 });
 
+// ─── restoreAccount (guest menu) ───────────────────────────────
+
+describe('walletFlows.restoreAccount', () => {
+    const pickerThat = (event, files = []) => {
+        const realCreate = document.createElement.bind(document);
+        return vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+            const el = realCreate(tag);
+            if (tag === 'input') {
+                Object.defineProperty(el, 'files', { value: files });
+                el.click = () => el.dispatchEvent(new Event(event));
+            }
+            return el;
+        });
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        walletFlows.init({ disconnectWallet: vi.fn(), onWalletConnected: vi.fn(), fallbackToGuest: vi.fn() });
+        walletFlows.restoreFromBackup = vi.fn().mockResolvedValue();
+    });
+
+    it('restores the backup file that was picked', async () => {
+        const file = new File(['{}'], 'backup.json');
+        const spy = pickerThat('change', [file]);
+        authManager.getAddress.mockReturnValue('0xrestored');
+        try {
+            await walletFlows.restoreAccount();
+        } finally {
+            spy.mockRestore();
+        }
+        expect(walletFlows.restoreFromBackup).toHaveBeenCalledWith(file);
+    });
+
+    it('does nothing when the picker is cancelled', async () => {
+        const spy = pickerThat('cancel');
+        try {
+            await walletFlows.restoreAccount();
+        } finally {
+            spy.mockRestore();
+        }
+        expect(walletFlows.restoreFromBackup).not.toHaveBeenCalled();
+    });
+});
+
 // ─── switchWallet guard logic ──────────────────────────────────
 
 describe('walletFlows.switchWallet', () => {
@@ -215,12 +259,25 @@ describe('walletFlows.switchWallet', () => {
         walletFlows.init(mockCallbacks);
     });
 
-    it('should do nothing when only one wallet saved', async () => {
+    it('should do nothing when the only saved wallet is the current one', async () => {
         authManager.listSavedWallets.mockReturnValue([{ address: '0x111' }]);
+        authManager.getAddress.mockReturnValue('0x111');
+        walletFlows.showWalletSelector = vi.fn();
 
         await walletFlows.switchWallet();
 
+        expect(walletFlows.showWalletSelector).not.toHaveBeenCalled();
         expect(mockCallbacks.disconnectWallet).not.toHaveBeenCalled();
+    });
+
+    it('offers the one saved wallet to a guest, whose address is not saved', async () => {
+        authManager.listSavedWallets.mockReturnValue([{ address: '0x111' }]);
+        authManager.getAddress.mockReturnValue('0xguest');
+        walletFlows.showWalletSelector = vi.fn().mockResolvedValue(null);
+
+        await walletFlows.switchWallet();
+
+        expect(walletFlows.showWalletSelector).toHaveBeenCalledWith([{ address: '0x111' }]);
     });
 
     it('should do nothing when no other wallets available', async () => {
