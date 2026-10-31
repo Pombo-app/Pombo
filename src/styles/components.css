@@ -2537,7 +2537,9 @@ body.network-down .network-dot {
 
 
 
-#dm-actions.dm-actions-off {
+#dm-actions.dm-actions-off,
+#new-dm-btn .new-dm-icon-mobile,
+#dm-checking-wrap .new-dm-icon-mobile {
     display: none;
 }
 
@@ -3823,15 +3825,45 @@ body.explore-open #explore-channels-list {
         display: none !important;
     }
 
-    /* Restore large bottom padding on DM buttons (Tailwind md:pb-3 overrides pb-32) */
-    #dm-inbox-setup,
-    #dm-new-btn-wrap {
-        padding-bottom: 8rem !important;
+    /* DM button floats above the pill, right-aligned */
+    #dm-actions {
+        position: fixed;
+        right: 1.5rem;
+        bottom: calc(1.25rem + 4.25rem + 0.75rem + 1.5rem + env(safe-area-inset-bottom));
+        z-index: 101;
     }
 
-    #dm-actions.dm-actions-off {
+    #dm-inbox-setup,
+    #dm-new-btn-wrap,
+    #dm-checking-wrap {
+        padding: 0 !important;
+    }
+
+    #new-dm-btn,
+    #dm-checking-wrap > div {
+        padding: 0.75rem !important;
+    }
+
+    #new-dm-btn .new-dm-icon-mobile,
+    #dm-checking-wrap .new-dm-icon-mobile {
         display: block;
-        visibility: hidden;
+    }
+
+    #new-dm-btn .new-dm-icon-desktop,
+    #new-dm-btn .new-dm-label,
+    #dm-checking-wrap .new-dm-icon-desktop,
+    #dm-checking-wrap .new-dm-label {
+        display: none;
+    }
+
+    /* The list ends above the pill; its last rows scroll clear of the DM button */
+    #channel-list {
+        margin-bottom: calc(1.25rem + 4.25rem + 0.75rem + env(safe-area-inset-bottom));
+        padding-bottom: 5.5rem;
+    }
+
+    .sidebar:has(#dm-actions.dm-actions-off) #channel-list {
+        padding-bottom: 0.5rem;
     }
 
     /* Restore mobile order on modal headers (Tailwind md:order-* flips them) */
