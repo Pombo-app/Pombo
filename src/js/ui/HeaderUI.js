@@ -24,8 +24,6 @@ class HeaderUI {
         
         // DOM elements
         this.elements = {
-            walletInfo: null,
-            connectWalletBtn: null,
             switchWalletBtn: null,
             contactsBtn: null,
             settingsBtn: null,
@@ -62,8 +60,6 @@ class HeaderUI {
      */
     init(elements) {
         this.elements = {
-            walletInfo: elements.walletInfo,
-            connectWalletBtn: elements.connectWalletBtn,
             switchWalletBtn: elements.switchWalletBtn,
             contactsBtn: elements.contactsBtn,
             settingsBtn: elements.settingsBtn,
@@ -101,7 +97,7 @@ class HeaderUI {
      * @param {boolean} isGuest - Whether connected as Guest
      */
     updateWalletInfo(address, isGuest = false) {
-        const { walletInfo, connectWalletBtn, contactsBtn, settingsBtn,
+        const { contactsBtn, settingsBtn,
                 desktopAccountWrapper, desktopAccountAvatar, desktopAccountName, desktopDropdownAddress } = this.elements;
         
         // Mobile pill elements
@@ -110,8 +106,6 @@ class HeaderUI {
 
         if (address) {
             if (isGuest) {
-                walletInfo.classList.add('hidden');
-                connectWalletBtn.classList.add('hidden');
                 desktopAccountWrapper?.classList.remove('hidden');
                 desktopAccountWrapper?.classList.add('md:relative');
                 if (desktopAccountAvatar) desktopAccountAvatar.innerHTML = generateAvatar(address, 38, 0.5);
@@ -135,9 +129,6 @@ class HeaderUI {
                 const short = `${address.slice(0, 6)}...${address.slice(-4)}`;
                 const displayText = this._currentDisplayName || short;
                 
-                // Hide connect button and guest label, show desktop dropdown
-                walletInfo.classList.add('hidden');
-                connectWalletBtn.classList.add('hidden');
                 desktopAccountWrapper?.classList.remove('hidden');
                 desktopAccountWrapper?.classList.add('md:relative');
                 
@@ -174,16 +165,6 @@ class HeaderUI {
             this._currentAddress = null;
             this._currentDisplayName = null;
             this.setGlobalSyncState(false);
-            walletInfo.textContent = 'Not Connected';
-            walletInfo.classList.add('hidden');
-            // Show connect button with original text
-            connectWalletBtn.innerHTML = `
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/>
-                </svg>
-                Connect
-            `;
-            connectWalletBtn.classList.remove('hidden');
             // Hide desktop dropdown
             desktopAccountWrapper?.classList.add('hidden');
             desktopAccountWrapper?.classList.remove('md:relative');

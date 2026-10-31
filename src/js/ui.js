@@ -332,8 +332,6 @@ class UIController {
         // Cache DOM elements
         this.elements = {
             // Header
-            walletInfo: document.getElementById('wallet-info'),
-            connectWalletBtn: document.getElementById('connect-wallet'),
             disconnectWalletBtn: document.getElementById('disconnect-wallet'),
             switchWalletBtn: document.getElementById('switch-wallet'),
             contactsBtn: document.getElementById('contacts-btn'),
@@ -582,8 +580,6 @@ class UIController {
 
         // Initialize HeaderUI with elements
         headerUI.init({
-            walletInfo: this.elements.walletInfo,
-            connectWalletBtn: this.elements.connectWalletBtn,
             switchWalletBtn: this.elements.switchWalletBtn,
             contactsBtn: this.elements.contactsBtn,
             settingsBtn: document.getElementById('settings-btn'),

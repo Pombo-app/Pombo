@@ -2842,18 +2842,8 @@ body.explore-open #explore-channels-list {
         display: none !important;
     }
     
-    /* Hide wallet address text */
-    #wallet-info {
-        max-width: 80px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        font-size: 0.75rem;
-    }
-
     /* Hide header wallet controls on mobile (moved to pill nav) */
-    #connect-wallet,
-    #desktop-account-wrapper,
-    #wallet-info {
+    #desktop-account-wrapper {
         display: none !important;
     }
 
@@ -3965,13 +3955,10 @@ body.explore-open #explore-channels-list {
         height: calc(100dvh - 3rem - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
     }
     
-    /* Hide connect button text */
-    #connect-wallet span,
     #disconnect-wallet span {
         display: none;
     }
-    
-    #connect-wallet,
+
     #disconnect-wallet {
         padding: 0.5rem;
     }

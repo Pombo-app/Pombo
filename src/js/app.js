@@ -203,12 +203,9 @@ class App {
      * Set up wallet connection handlers
      */
     setupWalletHandlers() {
-        const connectBtn = document.getElementById('connect-wallet');
         const disconnectBtn = document.getElementById('disconnect-wallet');
         const switchBtn = document.getElementById('switch-wallet');
         const syncBtn = document.getElementById('sync-devices-btn');
-
-        connectBtn.addEventListener('click', () => walletFlows.connectWallet());
 
         document.addEventListener('pombo:connect-account', () => walletFlows.connectWallet());
         document.getElementById('guest-create-account-btn')?.addEventListener('click', () => {
