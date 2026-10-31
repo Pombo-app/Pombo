@@ -108,6 +108,7 @@ import { authManager } from '../../src/js/auth.js';
 import { secureStorage } from '../../src/js/secureStorage.js';
 import { channelManager } from '../../src/js/channels.js';
 import { identityManager } from '../../src/js/identity.js';
+import { headerUI } from '../../src/js/ui/HeaderUI.js';
 import { uiController } from '../../src/js/ui.js';
 import { createModalFromTemplate, $ as $mock } from '../../src/js/ui/modalUtils.js';
 
@@ -270,6 +271,22 @@ describe('WalletFlows Extended', () => {
 
             expect(secureStorage.cache.username).toBe('Bob');
             expect(identityManager.getUsername()).toBe('Bob');
+        });
+
+        it('shows the new display name in the header', async () => {
+            const updateDisplayName = vi.spyOn(headerUI, 'updateDisplayName');
+            walletFlows.showNewAccountSetupModal = vi.fn().mockResolvedValue({
+                address: '0xChosenAddr',
+                privateKey: '0xChosenKey',
+                password: 'pass123',
+                displayName: 'Bob'
+            });
+            walletFlows.saveWalletWithProgress = vi.fn().mockResolvedValue({});
+
+            await walletFlows.connectLocal();
+
+            expect(updateDisplayName).toHaveBeenLastCalledWith('Bob');
+            updateDisplayName.mockRestore();
         });
 
         it('does not save display name if empty', async () => {

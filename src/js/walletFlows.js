@@ -699,6 +699,7 @@ class WalletFlows {
                 // Save display name to secureStorage (after it's initialized)
                 if (setupResult.displayName) {
                     await identityManager.setUsername(setupResult.displayName);
+                    headerUI.updateDisplayName(identityManager.getUsername());
                 }
 
                 uiController.showNotification('Account created', 'success');
