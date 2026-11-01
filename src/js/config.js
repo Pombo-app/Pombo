@@ -137,8 +137,7 @@ export const CONFIG = {
             },
             pay: {
                 pol: { label: 'POL (wrapped)', address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270' },
-                usdc: { label: 'USDC', address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359' },
-                data: { label: 'DATA', address: '0x3a9A81d576d83FF21f26f325066054540720fC34' }
+                usdc: { label: 'USDC', address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359' }
             }
         }
     },

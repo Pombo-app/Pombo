@@ -18,9 +18,9 @@ class ChannelModalsUI {
     constructor() {
         this.deps = {};
         this.elements = {};
-        this.currentExposure = 'hidden';
+        this.currentExposure = 'visible';
         this.currentGateAsset = 'token';
-        this.gateTokenPreset = 'pol';
+        this.gateTokenPreset = 'usdc';
         this.paidTokenPreset = 'usdc';
         this.currentReadOnly = false;
         this.currentStorageProvider = 'streamr';
@@ -82,8 +82,7 @@ class ChannelModalsUI {
         
         // Reset to public tab
         this.switchChannelTab('public');
-        // Reset to hidden visibility (default)
-        this.setVisibility(false);
+        this.setVisibility(true);
         // Reset gate fields (Gated/Paid tabs)
         for (const id of ['gate-token-input', 'gate-min-balance-input', 'paid-token-input', 'paid-price-input']) {
             const input = document.getElementById(id);
@@ -91,7 +90,7 @@ class ChannelModalsUI {
         }
         const paidDuration = document.getElementById('paid-duration-input');
         if (paidDuration) paidDuration.value = '30';
-        this.gateTokenPreset = 'pol';
+        this.gateTokenPreset = 'usdc';
         this.paidTokenPreset = 'usdc';
         this.switchGateAssetTab('token');   // reapplies the gate token preset
         this.switchTokenPresetTab('paid', 'usdc');
@@ -250,13 +249,9 @@ class ChannelModalsUI {
         const activeCost = document.getElementById(`cost-${tabType}`);
         if (activeCost) activeCost.classList.remove('hidden');
 
-        // Closed channels: hide exposure section entirely
-        if (tabType === 'closed') {
-            this.setVisibility(false);
-            this.elements.exposureSection?.classList.add('hidden');
-        } else {
-            this.elements.exposureSection?.classList.remove('hidden');
-        }
+        // Closed is never listed: creation forces 'hidden', whatever the toggle says.
+        this.elements.exposureSection?.classList.toggle('hidden', tabType === 'closed');
+        this.elements.visibleFields?.classList.toggle('hidden', tabType === 'closed' || this.currentExposure !== 'visible');
     }
 
     /**
@@ -297,7 +292,7 @@ class ChannelModalsUI {
     }
 
     /**
-     * Switch the quick-pick token (pol/usdc/data/custom) in the Gated or Paid
+     * Switch the quick-pick token (usdc/pol/custom) in the Gated or Paid
      * tab. A preset fills the (hidden) token input; Custom reveals it empty.
      * POL differs by context — see CONFIG.gate.tokenPresets.
      */
@@ -367,8 +362,8 @@ class ChannelModalsUI {
         if (!caption) return;
         const onTheWire = document.getElementById('gate-wire-identity-visible')?.checked;
         caption.textContent = onTheWire
-            ? "Every message exposes its author's account, attributable by anyone, forever. Removed members' messages are rejected by readers, but can still reach storage."
-            : 'Full author privacy. Removed members can pollute storage until you reset the key with a paid on-chain action.';
+            ? 'Authors visible on the network and to members. Storage drops removed members within minutes.'
+            : 'Authors hidden from the network; only members see who wrote what. Removed members can still reach storage until you reset the publish key.';
     }
 
     _wireAuthorVisibilityCaption() {

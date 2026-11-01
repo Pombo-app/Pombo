@@ -772,6 +772,79 @@
                             />
                         </div>
 
+                        <!-- Divider -->
+                        <div class="border-t border-overlay-5"></div>
+
+                        <!-- Visibility Toggle -->
+                        <div id="exposure-section" class="flex items-center justify-between">
+                            <div>
+                                <label class="text-xs font-medium text-overlay-70 uppercase tracking-wider">Listed</label>
+                                <p class="text-xs text-overlay-30 mt-0.5">Channel appears in Explore</p>
+                            </div>
+                            <button type="button" id="visibility-toggle" class="pombo-switch" data-enabled="true" aria-label="Listed"></button>
+                        </div>
+
+                        <!-- Visible Channel Fields (shown when visibility is ON) -->
+                        <div id="visible-fields" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-medium text-overlay-80 uppercase tracking-wider mb-2">Description</label>
+                                <textarea
+                                    id="channel-description-input"
+                                    placeholder="What's this channel about?"
+                                    rows="2"
+                                    maxlength="200"
+                                    class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition resize-none placeholder:text-overlay-20"
+                                ></textarea>
+                            </div>
+                            <div class="flex gap-3">
+                                <div class="flex-1">
+                                    <label class="block text-xs font-medium text-overlay-40 uppercase tracking-wider mb-2">Language</label>
+                                    <select id="channel-language-input" class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition cursor-pointer">
+                                        <option value="en">English</option>
+                                        <option value="pt">Português</option>
+                                        <option value="es">Español</option>
+                                        <option value="fr">Français</option>
+                                        <option value="de">Deutsch</option>
+                                        <option value="it">Italiano</option>
+                                        <option value="zh">中文</option>
+                                        <option value="ja">日本語</option>
+                                        <option value="ko">한국어</option>
+                                        <option value="ru">Русский</option>
+                                        <option value="ar">العربية</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                                <div class="flex-1">
+                                    <label class="block text-xs font-medium text-overlay-40 uppercase tracking-wider mb-2">Category</label>
+                                    <select id="channel-category-input" class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition cursor-pointer">
+                                        <option value="general">General</option>
+                                        <option value="politics">Politics</option>
+                                        <option value="news">News</option>
+                                        <option value="tech">Tech & AI</option>
+                                        <option value="crypto">Crypto & Web3</option>
+                                        <option value="finance">Business & Finance</option>
+                                        <option value="science">Science</option>
+                                        <option value="gaming">Gaming</option>
+                                        <option value="entertainment">Entertainment</option>
+                                        <option value="sports">Sports</option>
+                                        <option value="education">Education</option>
+                                        <option value="comedy">Comedy & Memes</option>
+                                        <option value="nsfw">NSFW (18+)</option>
+                                        <option value="adult">Adult (18+)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Read-Only Toggle -->
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label class="text-xs font-medium text-overlay-70 uppercase tracking-wider">Read-Only</label>
+                                <p class="text-xs text-overlay-30 mt-0.5">Only you and moderators can send messages</p>
+                            </div>
+                            <button type="button" id="read-only-toggle" class="pombo-switch" data-enabled="false" aria-label="Read-Only"></button>
+                        </div>
+
                         <!-- Password field (shown only for Password tab) -->
                         <div id="password-field-section" class="hidden">
                             <label class="block text-xs font-medium text-overlay-80 uppercase tracking-wider mb-2">Password</label>
@@ -855,14 +928,11 @@
                             <div>
                                 <label class="block text-xs font-medium text-overlay-80 uppercase tracking-wider mb-2">Token</label>
                                 <div id="gate-token-presets" class="flex gap-2">
-                                    <button type="button" data-token-preset="pol" class="gate-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-10 text-primary border border-overlay-10">
-                                        POL
-                                    </button>
-                                    <button type="button" data-token-preset="usdc" class="gate-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
+                                    <button type="button" data-token-preset="usdc" class="gate-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-10 text-primary border border-overlay-10">
                                         USDC
                                     </button>
-                                    <button type="button" data-token-preset="data" class="gate-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
-                                        DATA
+                                    <button type="button" data-token-preset="pol" class="gate-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
+                                        POL
                                     </button>
                                     <button type="button" data-token-preset="custom" class="gate-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
                                         Custom
@@ -875,7 +945,7 @@
                                     spellcheck="false"
                                     class="hidden w-full mt-2 bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition font-mono placeholder:text-overlay-20"
                                 />
-                                <p class="text-xs text-overlay-30 mt-2" id="gate-token-hint">Gates on the member's native POL balance.</p>
+                                <p class="text-xs text-overlay-30 mt-2" id="gate-token-hint">USDC on Polygon · 0x3c49…3359</p>
                             </div>
                             <div id="gate-min-balance-field">
                                 <label class="block text-xs font-medium text-overlay-80 uppercase tracking-wider mb-2">Minimum Balance</label>
@@ -895,14 +965,11 @@
                             <div>
                                 <label class="block text-xs font-medium text-overlay-80 uppercase tracking-wider mb-2">Payment Token</label>
                                 <div id="paid-token-presets" class="flex gap-2">
-                                    <button type="button" data-token-preset="pol" class="paid-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
-                                        POL
-                                    </button>
                                     <button type="button" data-token-preset="usdc" class="paid-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-10 text-primary border border-overlay-10">
                                         USDC
                                     </button>
-                                    <button type="button" data-token-preset="data" class="paid-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
-                                        DATA
+                                    <button type="button" data-token-preset="pol" class="paid-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
+                                        POL
                                     </button>
                                     <button type="button" data-token-preset="custom" class="paid-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
                                         Custom
@@ -960,80 +1027,7 @@
                                     </span>
                                 </label>
                             </div>
-                            <p id="author-visibility-caption" class="text-xs text-overlay-30 mt-2">Full author privacy. Removed members can pollute storage until you reset the key with a paid on-chain action.</p>
-                        </div>
-
-                        <!-- Divider -->
-                        <div class="border-t border-overlay-5"></div>
-
-                        <!-- Visible Channel Fields (shown when visibility is ON) -->
-                        <div id="visible-fields" class="hidden space-y-4">
-                            <div>
-                                <label class="block text-xs font-medium text-overlay-80 uppercase tracking-wider mb-2">Description</label>
-                                <textarea
-                                    id="channel-description-input"
-                                    placeholder="What's this channel about?"
-                                    rows="2"
-                                    maxlength="200"
-                                    class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition resize-none placeholder:text-overlay-20"
-                                ></textarea>
-                            </div>
-                            <div class="flex gap-3">
-                                <div class="flex-1">
-                                    <label class="block text-xs font-medium text-overlay-40 uppercase tracking-wider mb-2">Language</label>
-                                    <select id="channel-language-input" class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition cursor-pointer">
-                                        <option value="en">English</option>
-                                        <option value="pt">Português</option>
-                                        <option value="es">Español</option>
-                                        <option value="fr">Français</option>
-                                        <option value="de">Deutsch</option>
-                                        <option value="it">Italiano</option>
-                                        <option value="zh">中文</option>
-                                        <option value="ja">日本語</option>
-                                        <option value="ko">한국어</option>
-                                        <option value="ru">Русский</option>
-                                        <option value="ar">العربية</option>
-                                        <option value="other">Other</option>
-                                    </select>
-                                </div>
-                                <div class="flex-1">
-                                    <label class="block text-xs font-medium text-overlay-40 uppercase tracking-wider mb-2">Category</label>
-                                    <select id="channel-category-input" class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition cursor-pointer">
-                                        <option value="politics">Politics</option>
-                                        <option value="news">News</option>
-                                        <option value="tech">Tech & AI</option>
-                                        <option value="crypto">Crypto & Web3</option>
-                                        <option value="finance">Business & Finance</option>
-                                        <option value="science">Science</option>
-                                        <option value="gaming">Gaming</option>
-                                        <option value="entertainment">Entertainment</option>
-                                        <option value="sports">Sports</option>
-                                        <option value="education">Education</option>
-                                        <option value="comedy">Comedy & Memes</option>
-                                        <option value="general">General</option>
-                                        <option value="nsfw">NSFW (18+)</option>
-                                        <option value="adult">Adult (18+)</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Visibility Toggle -->
-                        <div id="exposure-section" class="flex items-center justify-between">
-                            <div>
-                                <label class="text-xs font-medium text-overlay-70 uppercase tracking-wider">Listed</label>
-                                <p class="text-xs text-overlay-30 mt-0.5">Channel appears in Explore</p>
-                            </div>
-                            <button type="button" id="visibility-toggle" class="pombo-switch" data-enabled="false" aria-label="Listed"></button>
-                        </div>
-
-                        <!-- Read-Only Toggle -->
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <label class="text-xs font-medium text-overlay-70 uppercase tracking-wider">Read-Only</label>
-                                <p class="text-xs text-overlay-30 mt-0.5">Only you can send messages</p>
-                            </div>
-                            <button type="button" id="read-only-toggle" class="pombo-switch" data-enabled="false" aria-label="Read-Only"></button>
+                            <p id="author-visibility-caption" class="text-xs text-overlay-30 mt-2">Authors hidden from the network; only members see who wrote what. Removed members can still reach storage until you reset the publish key.</p>
                         </div>
 
                         <!-- Divider -->

@@ -21,6 +21,17 @@ export function attachChannelForm(ui) {
         });
     });
 
+    // On mobile the tabs are a horizontal scroller: fade the edge that has more past it
+    const typeNav = document.querySelector('#new-channel-modal nav');
+    if (typeNav) {
+        const updateFade = () => {
+            typeNav.classList.toggle('fade-start', typeNav.scrollLeft > 1);
+            typeNav.classList.toggle('fade-end', typeNav.scrollLeft + typeNav.clientWidth < typeNav.scrollWidth - 1);
+        };
+        typeNav.addEventListener('scroll', updateFade, { passive: true });
+        if (typeof ResizeObserver === 'function') new ResizeObserver(updateFade).observe(typeNav);
+    }
+
     // Visibility toggle - switch between hidden/visible
     document.getElementById('visibility-toggle')?.addEventListener('click', () => {
         channelModalsUI.toggleVisibility();
