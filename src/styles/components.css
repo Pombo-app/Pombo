@@ -2920,6 +2920,7 @@ body.explore-open #explore-channels-list {
 
     /* Modal containers on mobile */
     #new-channel-modal > div,
+    #dm-inbox-setup-modal > div,
     #settings-modal > div,
     #channel-settings-modal > div,
     #contacts-modal > div {
@@ -2928,6 +2929,7 @@ body.explore-open #explore-channels-list {
 
     /* Modal header bars (contacts header hidden on mobile, channel-settings visible) */
     #new-channel-modal > div > .flex.border-b,
+    #dm-inbox-setup-modal > div > .flex.border-b,
     #channel-settings-modal > div > .flex.border-b {
         background-color: var(--pombo-bg) !important;
     }
@@ -3482,7 +3484,8 @@ body.explore-open #explore-channels-list {
     }
     
     /* ----- FULLSCREEN MODALS ON MOBILE ----- */
-    #new-channel-modal {
+    #new-channel-modal,
+    #dm-inbox-setup-modal {
         padding: 0 !important;
     }
 
@@ -3603,6 +3606,7 @@ body.explore-open #explore-channels-list {
     }
     
     #new-channel-modal > div,
+    #dm-inbox-setup-modal > div,
     #settings-modal > div,
     #channel-settings-modal > div {
         width: 100% !important;
@@ -3616,6 +3620,7 @@ body.explore-open #explore-channels-list {
 
     /* Modal headers - same dark color as main header */
     #new-channel-modal > div > .flex.border-b,
+    #dm-inbox-setup-modal > div > .flex.border-b,
     #channel-settings-modal > div > .flex.border-b {
         border-color: var(--pombo-overlay-6) !important;
     }
