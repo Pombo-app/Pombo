@@ -2920,15 +2920,16 @@ body.explore-open #explore-channels-list {
 
     /* Modal containers on mobile */
     #new-channel-modal > div,
+    #dm-inbox-setup-modal > div,
     #settings-modal > div,
     #channel-settings-modal > div,
-    #contacts-modal > div,
-    #storage-info-modal > div {
+    #contacts-modal > div {
         background-color: var(--pombo-bg) !important;
     }
 
     /* Modal header bars (contacts header hidden on mobile, channel-settings visible) */
     #new-channel-modal > div > .flex.border-b,
+    #dm-inbox-setup-modal > div > .flex.border-b,
     #channel-settings-modal > div > .flex.border-b {
         background-color: var(--pombo-bg) !important;
     }
@@ -3483,7 +3484,8 @@ body.explore-open #explore-channels-list {
     }
     
     /* ----- FULLSCREEN MODALS ON MOBILE ----- */
-    #new-channel-modal {
+    #new-channel-modal,
+    #dm-inbox-setup-modal {
         padding: 0 !important;
     }
 
@@ -3604,6 +3606,7 @@ body.explore-open #explore-channels-list {
     }
     
     #new-channel-modal > div,
+    #dm-inbox-setup-modal > div,
     #settings-modal > div,
     #channel-settings-modal > div {
         width: 100% !important;
@@ -3617,6 +3620,7 @@ body.explore-open #explore-channels-list {
 
     /* Modal headers - same dark color as main header */
     #new-channel-modal > div > .flex.border-b,
+    #dm-inbox-setup-modal > div > .flex.border-b,
     #channel-settings-modal > div > .flex.border-b {
         border-color: var(--pombo-overlay-6) !important;
     }
@@ -3644,11 +3648,13 @@ body.explore-open #explore-channels-list {
         overflow: hidden;
     }
 
-    /* Modal content panel - scrollable */
-    #new-channel-modal .flex-1.p-5.overflow-y-auto {
-        flex: 1;
-        min-height: 0;
+    /* The type tabs scroll away with the form; only the header and footer stay */
+    #new-channel-modal .flex.flex-1.min-h-0 {
         overflow-y: auto;
+    }
+    #new-channel-modal .flex-1.p-5.overflow-y-auto {
+        flex: none;
+        overflow: visible;
     }
     
     /* Modal sidebars horizontal on mobile */
@@ -3676,10 +3682,23 @@ body.explore-open #explore-channels-list {
         flex-direction: row !important;
         gap: 0.5rem;
         flex-wrap: nowrap;
-        justify-content: center;
+        justify-content: flex-start;
         width: 100%;
-        padding-left: 0.5rem;
-        padding-right: 0.5rem;
+        padding: 0.625rem 1.25rem;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    #new-channel-modal .w-40 nav::-webkit-scrollbar {
+        display: none;
+    }
+    #new-channel-modal .w-40 nav.fade-start {
+        mask-image: linear-gradient(to right, transparent, #000 48px);
+    }
+    #new-channel-modal .w-40 nav.fade-end {
+        mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
+    }
+    #new-channel-modal .w-40 nav.fade-start.fade-end {
+        mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent);
     }
 
     /* Settings & Channel Settings modal - hide nav on mobile */
@@ -3818,6 +3837,10 @@ body.explore-open #explore-channels-list {
         white-space: nowrap;
         flex-shrink: 0;
         width: auto !important;
+        background: var(--pombo-overlay-6);
+    }
+    #new-channel-modal .w-40 nav button.bg-overlay-10 {
+        background: var(--pombo-overlay-12);
     }
 
     /* ----- Tailwind md: overrides for landscape mode ----- */

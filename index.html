@@ -772,6 +772,79 @@
                             />
                         </div>
 
+                        <!-- Divider -->
+                        <div class="border-t border-overlay-5"></div>
+
+                        <!-- Visibility Toggle -->
+                        <div id="exposure-section" class="flex items-center justify-between">
+                            <div>
+                                <label class="text-xs font-medium text-overlay-70 uppercase tracking-wider">Listed</label>
+                                <p class="text-xs text-overlay-30 mt-0.5">Channel appears in Explore</p>
+                            </div>
+                            <button type="button" id="visibility-toggle" class="pombo-switch" data-enabled="true" aria-label="Listed"></button>
+                        </div>
+
+                        <!-- Visible Channel Fields (shown when visibility is ON) -->
+                        <div id="visible-fields" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-medium text-overlay-80 uppercase tracking-wider mb-2">Description</label>
+                                <textarea
+                                    id="channel-description-input"
+                                    placeholder="What's this channel about?"
+                                    rows="2"
+                                    maxlength="200"
+                                    class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition resize-none placeholder:text-overlay-20"
+                                ></textarea>
+                            </div>
+                            <div class="flex gap-3">
+                                <div class="flex-1">
+                                    <label class="block text-xs font-medium text-overlay-40 uppercase tracking-wider mb-2">Language</label>
+                                    <select id="channel-language-input" class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition cursor-pointer">
+                                        <option value="en">English</option>
+                                        <option value="pt">Português</option>
+                                        <option value="es">Español</option>
+                                        <option value="fr">Français</option>
+                                        <option value="de">Deutsch</option>
+                                        <option value="it">Italiano</option>
+                                        <option value="zh">中文</option>
+                                        <option value="ja">日本語</option>
+                                        <option value="ko">한국어</option>
+                                        <option value="ru">Русский</option>
+                                        <option value="ar">العربية</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                                <div class="flex-1">
+                                    <label class="block text-xs font-medium text-overlay-40 uppercase tracking-wider mb-2">Category</label>
+                                    <select id="channel-category-input" class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition cursor-pointer">
+                                        <option value="general">General</option>
+                                        <option value="politics">Politics</option>
+                                        <option value="news">News</option>
+                                        <option value="tech">Tech & AI</option>
+                                        <option value="crypto">Crypto & Web3</option>
+                                        <option value="finance">Business & Finance</option>
+                                        <option value="science">Science</option>
+                                        <option value="gaming">Gaming</option>
+                                        <option value="entertainment">Entertainment</option>
+                                        <option value="sports">Sports</option>
+                                        <option value="education">Education</option>
+                                        <option value="comedy">Comedy & Memes</option>
+                                        <option value="nsfw">NSFW (18+)</option>
+                                        <option value="adult">Adult (18+)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Read-Only Toggle -->
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label class="text-xs font-medium text-overlay-70 uppercase tracking-wider">Read-Only</label>
+                                <p class="text-xs text-overlay-30 mt-0.5">Only you and moderators can send messages</p>
+                            </div>
+                            <button type="button" id="read-only-toggle" class="pombo-switch" data-enabled="false" aria-label="Read-Only"></button>
+                        </div>
+
                         <!-- Password field (shown only for Password tab) -->
                         <div id="password-field-section" class="hidden">
                             <label class="block text-xs font-medium text-overlay-80 uppercase tracking-wider mb-2">Password</label>
@@ -855,14 +928,11 @@
                             <div>
                                 <label class="block text-xs font-medium text-overlay-80 uppercase tracking-wider mb-2">Token</label>
                                 <div id="gate-token-presets" class="flex gap-2">
-                                    <button type="button" data-token-preset="pol" class="gate-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-10 text-primary border border-overlay-10">
-                                        POL
-                                    </button>
-                                    <button type="button" data-token-preset="usdc" class="gate-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
+                                    <button type="button" data-token-preset="usdc" class="gate-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-10 text-primary border border-overlay-10">
                                         USDC
                                     </button>
-                                    <button type="button" data-token-preset="data" class="gate-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
-                                        DATA
+                                    <button type="button" data-token-preset="pol" class="gate-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
+                                        POL
                                     </button>
                                     <button type="button" data-token-preset="custom" class="gate-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
                                         Custom
@@ -875,7 +945,7 @@
                                     spellcheck="false"
                                     class="hidden w-full mt-2 bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition font-mono placeholder:text-overlay-20"
                                 />
-                                <p class="text-xs text-overlay-30 mt-2" id="gate-token-hint">Gates on the member's native POL balance.</p>
+                                <p class="text-xs text-overlay-30 mt-2" id="gate-token-hint">USDC on Polygon · 0x3c49…3359</p>
                             </div>
                             <div id="gate-min-balance-field">
                                 <label class="block text-xs font-medium text-overlay-80 uppercase tracking-wider mb-2">Minimum Balance</label>
@@ -895,14 +965,11 @@
                             <div>
                                 <label class="block text-xs font-medium text-overlay-80 uppercase tracking-wider mb-2">Payment Token</label>
                                 <div id="paid-token-presets" class="flex gap-2">
-                                    <button type="button" data-token-preset="pol" class="paid-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
-                                        POL
-                                    </button>
                                     <button type="button" data-token-preset="usdc" class="paid-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-10 text-primary border border-overlay-10">
                                         USDC
                                     </button>
-                                    <button type="button" data-token-preset="data" class="paid-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
-                                        DATA
+                                    <button type="button" data-token-preset="pol" class="paid-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
+                                        POL
                                     </button>
                                     <button type="button" data-token-preset="custom" class="paid-token-preset-tab flex-1 px-3 py-2 rounded-lg text-xs font-medium transition bg-overlay-5 text-overlay-50 border border-overlay-5 hover:bg-overlay-10 hover:text-overlay-70">
                                         Custom
@@ -960,80 +1027,7 @@
                                     </span>
                                 </label>
                             </div>
-                            <p id="author-visibility-caption" class="text-xs text-overlay-30 mt-2">Full author privacy. Removed members can pollute storage until you reset the key with a paid on-chain action.</p>
-                        </div>
-
-                        <!-- Divider -->
-                        <div class="border-t border-overlay-5"></div>
-
-                        <!-- Visible Channel Fields (shown when visibility is ON) -->
-                        <div id="visible-fields" class="hidden space-y-4">
-                            <div>
-                                <label class="block text-xs font-medium text-overlay-80 uppercase tracking-wider mb-2">Description</label>
-                                <textarea
-                                    id="channel-description-input"
-                                    placeholder="What's this channel about?"
-                                    rows="2"
-                                    maxlength="200"
-                                    class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition resize-none placeholder:text-overlay-20"
-                                ></textarea>
-                            </div>
-                            <div class="flex gap-3">
-                                <div class="flex-1">
-                                    <label class="block text-xs font-medium text-overlay-40 uppercase tracking-wider mb-2">Language</label>
-                                    <select id="channel-language-input" class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition cursor-pointer">
-                                        <option value="en">English</option>
-                                        <option value="pt">Português</option>
-                                        <option value="es">Español</option>
-                                        <option value="fr">Français</option>
-                                        <option value="de">Deutsch</option>
-                                        <option value="it">Italiano</option>
-                                        <option value="zh">中文</option>
-                                        <option value="ja">日本語</option>
-                                        <option value="ko">한국어</option>
-                                        <option value="ru">Русский</option>
-                                        <option value="ar">العربية</option>
-                                        <option value="other">Other</option>
-                                    </select>
-                                </div>
-                                <div class="flex-1">
-                                    <label class="block text-xs font-medium text-overlay-40 uppercase tracking-wider mb-2">Category</label>
-                                    <select id="channel-category-input" class="w-full bg-overlay-5 border border-overlay-10 text-primary px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-overlay-30 transition cursor-pointer">
-                                        <option value="politics">Politics</option>
-                                        <option value="news">News</option>
-                                        <option value="tech">Tech & AI</option>
-                                        <option value="crypto">Crypto & Web3</option>
-                                        <option value="finance">Business & Finance</option>
-                                        <option value="science">Science</option>
-                                        <option value="gaming">Gaming</option>
-                                        <option value="entertainment">Entertainment</option>
-                                        <option value="sports">Sports</option>
-                                        <option value="education">Education</option>
-                                        <option value="comedy">Comedy & Memes</option>
-                                        <option value="general">General</option>
-                                        <option value="nsfw">NSFW (18+)</option>
-                                        <option value="adult">Adult (18+)</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Visibility Toggle -->
-                        <div id="exposure-section" class="flex items-center justify-between">
-                            <div>
-                                <label class="text-xs font-medium text-overlay-70 uppercase tracking-wider">Listed</label>
-                                <p class="text-xs text-overlay-30 mt-0.5">Channel appears in Explore</p>
-                            </div>
-                            <button type="button" id="visibility-toggle" class="pombo-switch" data-enabled="false" aria-label="Listed"></button>
-                        </div>
-
-                        <!-- Read-Only Toggle -->
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <label class="text-xs font-medium text-overlay-70 uppercase tracking-wider">Read-Only</label>
-                                <p class="text-xs text-overlay-30 mt-0.5">Only you can send messages</p>
-                            </div>
-                            <button type="button" id="read-only-toggle" class="pombo-switch" data-enabled="false" aria-label="Read-Only"></button>
+                            <p id="author-visibility-caption" class="text-xs text-overlay-30 mt-2">Authors hidden from the network; only members see who wrote what. Removed members can still reach storage until you reset the publish key.</p>
                         </div>
 
                         <!-- Divider -->
@@ -1087,11 +1081,6 @@
                                     </div>
                                 </div>
                             </div>
-
-                            <button type="button" class="storage-learn-more-btn text-xs text-overlay-30 hover:text-overlay-50 transition mt-2 flex items-center gap-1">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                <span>Learn more about storage</span>
-                            </button>
                         </div>
 
                     </div>
@@ -1121,100 +1110,6 @@
     </div>
 
     <!-- Modal: Channel Types Info -->
-    <!-- Modal: Storage Info -->
-    <div id="storage-info-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end md:items-center justify-center z-[60] md:p-4">
-        <div class="bg-surface w-full h-full md:h-auto md:w-[520px] md:max-w-[95vw] md:rounded-2xl shadow-2xl border-t md:border border-overlay-6 overflow-hidden flex flex-col">
-            <!-- Header -->
-            <div class="flex items-center justify-between px-5 md:px-6 py-4 border-b border-overlay-5 flex-shrink-0">
-                <h3 class="text-base md:text-lg font-medium text-overlay-90">Message Storage</h3>
-                <button id="close-storage-info-btn" class="text-overlay-40 hover:text-overlay-80 transition p-1">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-            
-            <!-- Content -->
-            <div class="p-5 md:p-6 space-y-4 md:space-y-5 flex-1 overflow-y-auto md:max-h-[70vh]">
-                <!-- Intro -->
-                <p class="text-sm text-overlay-50 leading-relaxed">
-                    Pombo offers two storage options for message history. Both flow through the Streamr Network's encrypted P2P transport — only the storage destination differs.
-                </p>
-
-                <!-- Pombo Storage -->
-                <div class="p-4 bg-overlay-5 rounded-xl border border-overlay-5">
-                    <div class="flex items-center gap-3 mb-3">
-                        <div class="w-8 h-8 rounded-lg bg-overlay-10 flex items-center justify-center">
-                            <svg class="w-4 h-4 text-overlay-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
-                        </div>
-                        <h4 class="text-sm font-medium text-primary">Pombo Storage</h4>
-                    </div>
-                    <p class="text-sm text-overlay-40 leading-relaxed">
-                        Official Pombo storage cluster with configurable retention. Messages are stored with a configurable Time-To-Live (TTL) from 1 to 365 days. After expiration, messages are automatically purged.
-                    </p>
-                    <div class="mt-3 pt-3 border-t border-overlay-5 space-y-2">
-                        <div class="flex items-start gap-2">
-                            <span class="text-[10px] text-overlay-20 uppercase tracking-wider w-20 flex-shrink-0 pt-0.5">Provider</span>
-                            <span class="text-xs text-overlay-40 font-mono">0xae340e79...7667</span>
-                        </div>
-                        <div class="flex items-start gap-2">
-                            <span class="text-[10px] text-overlay-20 uppercase tracking-wider w-20 flex-shrink-0 pt-0.5">TTL</span>
-                            <span class="text-xs text-overlay-40">1-365 days (configurable)</span>
-                        </div>
-                        <div class="flex items-start gap-2">
-                            <span class="text-[10px] text-overlay-20 uppercase tracking-wider w-20 flex-shrink-0 pt-0.5">Type</span>
-                            <span class="text-xs text-overlay-40">Redundant cluster</span>
-                        </div>
-                    </div>
-                    <div class="flex flex-wrap gap-2 md:gap-4 mt-3 pt-3 border-t border-overlay-5 text-xs text-overlay-30">
-                        <span>Guaranteed retention</span>
-                        <span>Configurable TTL</span>
-                        <span>Auto-cleanup</span>
-                    </div>
-                </div>
-
-                <!-- Custom Storage Provider -->
-                <div class="p-4 bg-overlay-5 rounded-xl border border-overlay-5">
-                    <div class="flex items-center gap-3 mb-3">
-                        <div class="w-8 h-8 rounded-lg bg-overlay-10 flex items-center justify-center">
-                            <svg class="w-4 h-4 text-overlay-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
-                        </div>
-                        <h4 class="text-sm font-medium text-primary">Custom Storage Provider</h4>
-                    </div>
-                    <p class="text-sm text-overlay-40 leading-relaxed">
-                        Bring your own Streamr-compatible storage node or cluster. Provide the node's on-chain address and Pombo will register your stream against it. TTL behavior depends on your node's configuration. Use this to self-host history, route to a private cluster, or experiment with third-party storage providers.
-                    </p>
-                    <div class="mt-3 pt-3 border-t border-overlay-5 space-y-2">
-                        <div class="flex items-start gap-2">
-                            <span class="text-[10px] text-overlay-20 uppercase tracking-wider w-20 flex-shrink-0 pt-0.5">Provider</span>
-                            <span class="text-xs text-overlay-40">User-supplied EVM address</span>
-                        </div>
-                        <div class="flex items-start gap-2">
-                            <span class="text-[10px] text-overlay-20 uppercase tracking-wider w-20 flex-shrink-0 pt-0.5">TTL</span>
-                            <span class="text-xs text-overlay-40">Best-effort (depends on node)</span>
-                        </div>
-                        <div class="flex items-start gap-2">
-                            <span class="text-[10px] text-overlay-20 uppercase tracking-wider w-20 flex-shrink-0 pt-0.5">Type</span>
-                            <span class="text-xs text-overlay-40">Self-hosted or third-party</span>
-                        </div>
-                    </div>
-                    <div class="flex flex-wrap gap-2 md:gap-4 mt-3 pt-3 border-t border-overlay-5 text-xs text-overlay-30">
-                        <span>Self-sovereign</span>
-                        <span>Streamr-compatible</span>
-                        <span>Advanced</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Footer -->
-            <div class="px-5 md:px-6 py-4 pb-safe border-t border-overlay-5 bg-surface-2 flex-shrink-0">
-                <button id="close-storage-info-btn-footer" class="w-full px-5 py-2.5 rounded-xl text-sm font-medium bg-overlay-10 text-primary hover:bg-overlay-15 transition">
-                    Got it
-                </button>
-            </div>
-        </div>
-    </div>
-
     <!-- Modal: New DM -->
     <div id="new-dm-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
         <div class="bg-surface rounded-2xl p-5 w-[340px] max-w-full mx-4 border border-overlay-6">
@@ -1262,19 +1157,15 @@
         <div class="bg-surface rounded-2xl w-[420px] max-w-[95vw] shadow-2xl border border-overlay-6 overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh]">
             <!-- Header -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-overlay-5 flex-shrink-0">
-                <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl bg-[#F6851B]/15 flex items-center justify-center">
-                        <svg class="w-5 h-5 text-[#F6851B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                        </svg>
-                    </div>
-                    <h3 class="text-lg font-medium text-overlay-90">Create DM Inbox</h3>
-                </div>
-                <button id="cancel-dm-inbox-btn" class="text-overlay-40 hover:text-overlay-80 transition p-1">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button id="cancel-dm-inbox-btn" class="modal-close-btn text-overlay-40 hover:text-overlay-80 transition p-1 -ml-1 md:order-2 md:ml-0 md:-mr-1">
+                    <svg class="w-5 h-5 icon-back" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.75 19.5L8.25 12l7.5-7.5"/>
+                    </svg>
+                    <svg class="w-5 h-5 icon-close hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </button>
+                <h3 class="text-lg font-medium text-overlay-90 md:order-1">Create DM Inbox</h3>
             </div>
             
             <!-- Content -->
@@ -1320,7 +1211,7 @@
 
                         <!-- Streamr Address (shown when Streamr selected) -->
                         <div id="dm-streamr-address-display" class="mt-3">
-                            <span class="text-[10px] text-overlay-30 uppercase tracking-wider block mb-1.5">Storage Provider</span>
+                            <span class="text-[10px] text-overlay-30 uppercase tracking-wider block mb-1.5">Storage Cluster</span>
                             <div class="w-full px-3 py-2 text-xs font-mono bg-overlay-5 border border-overlay-10 rounded-lg text-overlay-50 break-all">
                                 <span id="dm-streamr-address-value">—</span>
                             </div>
@@ -1328,7 +1219,7 @@
 
                         <!-- Custom Address Input (hidden by default) -->
                         <div id="dm-custom-address-section" class="hidden mt-3">
-                            <label for="dm-custom-storage-address" class="text-[10px] text-overlay-30 uppercase tracking-wider block mb-1.5">Storage Provider</label>
+                            <label for="dm-custom-storage-address" class="text-[10px] text-overlay-30 uppercase tracking-wider block mb-1.5">Storage Cluster</label>
                             <input type="text" id="dm-custom-storage-address" placeholder="0x… custom storage provider address" spellcheck="false" autocomplete="off" class="w-full px-3 py-2 text-xs font-mono bg-overlay-5 border border-overlay-10 rounded-lg text-primary placeholder-overlay-20 focus:outline-none focus:border-overlay-20 transition">
                             <p id="dm-custom-storage-address-error" class="hidden text-[11px] text-danger mt-1.5"></p>
                         </div>
@@ -1348,11 +1239,6 @@
                                 </div>
                             </div>
                         </div>
-
-                        <button type="button" class="dm-storage-learn-more-btn text-xs text-overlay-30 hover:text-overlay-50 transition mt-2 flex items-center gap-1">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            <span>Learn more about storage</span>
-                        </button>
                     </div>
                 </div>
             </div>
@@ -2649,6 +2535,35 @@
                     <!-- Security Panel -->
                     <div id="settings-panel-security" class="settings-panel hidden">
                         <div class="space-y-6">
+                            <!-- Backup & Restore -->
+                            <div>
+                                <h4 class="text-sm font-medium text-overlay-80 mb-1 flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"/></svg>
+                                    Backup & Restore
+                                </h4>
+                                <p class="text-xs text-overlay-40 mb-4">Export data to restore on another device</p>
+
+                                <div class="grid grid-cols-2 gap-3">
+                                    <button id="export-all-data-btn" class="bg-overlay-10 hover:bg-overlay-20 text-primary border border-overlay-20 px-4 py-3 rounded-xl text-sm transition flex items-center justify-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+                                        Export
+                                    </button>
+                                    <input type="file" id="import-data-file" accept=".json" class="hidden" />
+                                    <button id="import-data-btn" class="bg-overlay-5 hover:bg-overlay-10 text-overlay-60 border border-overlay-10 px-4 py-3 rounded-xl text-sm transition flex items-center justify-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                                        Import
+                                    </button>
+                                </div>
+                                <label class="flex items-center gap-2 mt-3 cursor-pointer select-none">
+                                    <input type="checkbox" id="backup-include-media" checked class="accent-overlay-80 w-3.5 h-3.5" />
+                                    <span class="text-xs text-overlay-40">Include sent DM media</span>
+                                </label>
+                                <p class="text-xs text-overlay-30 mt-3">Password not included — you'll need it to unlock</p>
+                            </div>
+
+                            <!-- Divider -->
+                            <div class="border-t border-overlay-5"></div>
+
                             <!-- Export Private Key -->
                             <div class="p-4 bg-red-500/5 rounded-xl border border-red-500/10">
                                 <h4 class="text-sm font-medium text-overlay-90 mb-1 flex items-center gap-2">
@@ -2695,35 +2610,6 @@
                                         Lock
                                     </button>
                                 </div>
-                            </div>
-
-                            <!-- Divider -->
-                            <div class="border-t border-overlay-5"></div>
-
-                            <!-- Backup & Restore -->
-                            <div>
-                                <h4 class="text-sm font-medium text-overlay-80 mb-1 flex items-center gap-2">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"/></svg>
-                                    Backup & Restore
-                                </h4>
-                                <p class="text-xs text-overlay-40 mb-4">Export data to restore on another device</p>
-                                
-                                <div class="grid grid-cols-2 gap-3">
-                                    <button id="export-all-data-btn" class="bg-overlay-10 hover:bg-overlay-20 text-primary border border-overlay-20 px-4 py-3 rounded-xl text-sm transition flex items-center justify-center gap-2">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
-                                        Export
-                                    </button>
-                                    <input type="file" id="import-data-file" accept=".json" class="hidden" />
-                                    <button id="import-data-btn" class="bg-overlay-5 hover:bg-overlay-10 text-overlay-60 border border-overlay-10 px-4 py-3 rounded-xl text-sm transition flex items-center justify-center gap-2">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
-                                        Import
-                                    </button>
-                                </div>
-                                <label class="flex items-center gap-2 mt-3 cursor-pointer select-none">
-                                    <input type="checkbox" id="backup-include-media" checked class="accent-overlay-80 w-3.5 h-3.5" />
-                                    <span class="text-xs text-overlay-40">Include sent DM media</span>
-                                </label>
-                                <p class="text-xs text-overlay-30 mt-3">Password not included — you'll need it to unlock</p>
                             </div>
 
                             <!-- Divider -->

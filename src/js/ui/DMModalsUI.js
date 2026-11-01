@@ -121,14 +121,6 @@ class DMModalsUI {
         customStorageAddrInput?.addEventListener('input', () => {
             this.clearCustomAddressError();
         });
-
-        // Learn more buttons - open storage info modal
-        const learnMoreBtns = modal.querySelectorAll('.dm-storage-learn-more-btn');
-        learnMoreBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.modalManager?.show('storage-info-modal');
-            });
-        });
     }
 
     /**
