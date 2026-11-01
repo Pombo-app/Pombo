@@ -2649,6 +2649,35 @@
                     <!-- Security Panel -->
                     <div id="settings-panel-security" class="settings-panel hidden">
                         <div class="space-y-6">
+                            <!-- Backup & Restore -->
+                            <div>
+                                <h4 class="text-sm font-medium text-overlay-80 mb-1 flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"/></svg>
+                                    Backup & Restore
+                                </h4>
+                                <p class="text-xs text-overlay-40 mb-4">Export data to restore on another device</p>
+
+                                <div class="grid grid-cols-2 gap-3">
+                                    <button id="export-all-data-btn" class="bg-overlay-10 hover:bg-overlay-20 text-primary border border-overlay-20 px-4 py-3 rounded-xl text-sm transition flex items-center justify-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+                                        Export
+                                    </button>
+                                    <input type="file" id="import-data-file" accept=".json" class="hidden" />
+                                    <button id="import-data-btn" class="bg-overlay-5 hover:bg-overlay-10 text-overlay-60 border border-overlay-10 px-4 py-3 rounded-xl text-sm transition flex items-center justify-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                                        Import
+                                    </button>
+                                </div>
+                                <label class="flex items-center gap-2 mt-3 cursor-pointer select-none">
+                                    <input type="checkbox" id="backup-include-media" checked class="accent-overlay-80 w-3.5 h-3.5" />
+                                    <span class="text-xs text-overlay-40">Include sent DM media</span>
+                                </label>
+                                <p class="text-xs text-overlay-30 mt-3">Password not included — you'll need it to unlock</p>
+                            </div>
+
+                            <!-- Divider -->
+                            <div class="border-t border-overlay-5"></div>
+
                             <!-- Export Private Key -->
                             <div class="p-4 bg-red-500/5 rounded-xl border border-red-500/10">
                                 <h4 class="text-sm font-medium text-overlay-90 mb-1 flex items-center gap-2">
@@ -2695,35 +2724,6 @@
                                         Lock
                                     </button>
                                 </div>
-                            </div>
-
-                            <!-- Divider -->
-                            <div class="border-t border-overlay-5"></div>
-
-                            <!-- Backup & Restore -->
-                            <div>
-                                <h4 class="text-sm font-medium text-overlay-80 mb-1 flex items-center gap-2">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"/></svg>
-                                    Backup & Restore
-                                </h4>
-                                <p class="text-xs text-overlay-40 mb-4">Export data to restore on another device</p>
-                                
-                                <div class="grid grid-cols-2 gap-3">
-                                    <button id="export-all-data-btn" class="bg-overlay-10 hover:bg-overlay-20 text-primary border border-overlay-20 px-4 py-3 rounded-xl text-sm transition flex items-center justify-center gap-2">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
-                                        Export
-                                    </button>
-                                    <input type="file" id="import-data-file" accept=".json" class="hidden" />
-                                    <button id="import-data-btn" class="bg-overlay-5 hover:bg-overlay-10 text-overlay-60 border border-overlay-10 px-4 py-3 rounded-xl text-sm transition flex items-center justify-center gap-2">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
-                                        Import
-                                    </button>
-                                </div>
-                                <label class="flex items-center gap-2 mt-3 cursor-pointer select-none">
-                                    <input type="checkbox" id="backup-include-media" checked class="accent-overlay-80 w-3.5 h-3.5" />
-                                    <span class="text-xs text-overlay-40">Include sent DM media</span>
-                                </label>
-                                <p class="text-xs text-overlay-30 mt-3">Password not included — you'll need it to unlock</p>
                             </div>
 
                             <!-- Divider -->
