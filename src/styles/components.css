@@ -2922,8 +2922,7 @@ body.explore-open #explore-channels-list {
     #new-channel-modal > div,
     #settings-modal > div,
     #channel-settings-modal > div,
-    #contacts-modal > div,
-    #storage-info-modal > div {
+    #contacts-modal > div {
         background-color: var(--pombo-bg) !important;
     }
 
