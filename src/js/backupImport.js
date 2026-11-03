@@ -38,9 +38,10 @@ import { dropSettledPending, mergeChannels, mergeSentDeletedAt, withoutDeleted }
  * @param {Object} deps.secureStorage - Unlocked secure storage instance
  * @param {Object} deps.channelManager - Live channel manager instance
  * @param {Object} [deps.identityManager] - Live identity manager instance
+ * @param {Object} deps.epochKeyManager - Live epoch key manager instance, owner of the epochKeys slice
  * @returns {Promise<{channelsImported: number, contactsImported: number, dmHistories: number, usernameImported: boolean, changed: boolean}>}
  */
-export async function importBackupData(data, { secureStorage, channelManager, identityManager }) {
+export async function importBackupData(data, { secureStorage, channelManager, identityManager, epochKeyManager }) {
     const summary = {
         channelsImported: 0,
         contactsImported: 0,
@@ -157,46 +158,39 @@ export async function importBackupData(data, { secureStorage, channelManager, id
     // ---- Epoch keys (channel keys, per channel: union, local wins) ----
     // The keys-stream protocol cannot always replace these: paid gates never
     // re-distribute past epochs, and announces beyond the -4 retention can't
-    // anchor a re-adopted key. The manager picks them up from storage on the
-    // next channel open (loadPersistedState).
+    // anchor a re-adopted key.
     if (data.epochKeys && typeof data.epochKeys === 'object') {
-        if (!cache.epochKeys) cache.epochKeys = {};
+        const records = {};
         for (const [streamId, incoming] of Object.entries(data.epochKeys)) {
             if (!incoming || typeof incoming !== 'object') continue;
-            const local = cache.epochKeys[streamId];
-            if (!local) {
-                cache.epochKeys[streamId] = incoming;
-                summary.changed = true;
+            const current = cache.epochKeys?.[streamId];
+            if (!current) {
+                records[streamId] = incoming;
                 continue;
             }
+            const local = structuredClone(current);
             if (!local.epochs) local.epochs = {};
             for (const [keyId, entry] of Object.entries(incoming.epochs || {})) {
-                if (!local.epochs[keyId]) {
-                    local.epochs[keyId] = entry;
-                    summary.changed = true;
-                }
+                if (!local.epochs[keyId]) local.epochs[keyId] = entry;
             }
             if (!local.announces) local.announces = {};
             for (const [epoch, ann] of Object.entries(incoming.announces || {})) {
-                if (!local.announces[epoch]) {
-                    local.announces[epoch] = ann;
-                    summary.changed = true;
-                }
+                if (!local.announces[epoch]) local.announces[epoch] = ann;
             }
             if (typeof incoming.currentEpoch === 'number'
                 && incoming.currentEpoch > (local.currentEpoch || 0)) {
                 local.currentEpoch = incoming.currentEpoch;
-                summary.changed = true;
             }
             // Shared keys and pending re-keys: the higher rev wins, as in the sync merge.
             for (const field of ['pubKey', 'pubAnnounce', 'intKey', 'intAnnounce', 'pubKeyPending', 'intKeyPending']) {
                 if (incoming[field] && (incoming[field].rev || 0) > (local[field]?.rev || 0)) {
                     local[field] = incoming[field];
-                    summary.changed = true;
                 }
             }
             dropSettledPending(local);
+            records[streamId] = local;
         }
+        if (epochKeyManager.applyPersisted(records)) summary.changed = true;
     }
 
     if (summary.changed) {

@@ -96,6 +96,12 @@ vi.mock('../../src/js/identity.js', () => ({
     }
 }));
 
+vi.mock('../../src/js/epochKeyManager.js', () => ({
+    epochKeyManager: {
+        applyPersisted: vi.fn().mockReturnValue(false)
+    }
+}));
+
 import { syncManager, SYNC_MODES } from '../../src/js/syncManager.js';
 import { authManager } from '../../src/js/auth.js';
 import { dmManager } from '../../src/js/dm.js';

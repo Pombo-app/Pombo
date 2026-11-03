@@ -375,9 +375,6 @@ class App {
     async applyPulledSyncChanges(changes) {
         if (!changes) return;
 
-        if (changes.epochKeysUpdated) {
-            epochKeyManager.refreshPersisted();
-        }
         if (changes.channelsUpdated || changes.contactsUpdated) {
             uiController.renderChannelList();
         }

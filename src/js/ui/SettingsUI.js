@@ -77,6 +77,7 @@ class SettingsUI {
     get notificationUI() { return this.deps.notificationUI; }
     get dmManager() { return this.deps.dmManager; }
     get syncManager() { return this.deps.syncManager; }
+    get epochKeyManager() { return this.deps.epochKeyManager; }
     get showCreateDMInboxModal() { return this.deps.showCreateDMInboxModal; }
     get isMobileView() { return this.deps.isMobileView; }
     get showExploreView() { return this.deps.showExploreView; }
@@ -539,7 +540,8 @@ class SettingsUI {
             const summary = await importBackupData(result.data, {
                 secureStorage: this.secureStorage,
                 channelManager: this.channelManager,
-                identityManager: this.identityManager
+                identityManager: this.identityManager,
+                epochKeyManager: this.epochKeyManager
             });
 
             // Import image blobs from backup into IDB ledger

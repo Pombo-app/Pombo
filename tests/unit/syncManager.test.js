@@ -80,6 +80,7 @@ vi.mock('../../src/js/secureStorage.js', () => ({
             blockedPeersUpdated: false,
             usernameUpdated: false
         }),
+        saveToStorage: vi.fn().mockResolvedValue(undefined),
         getUnsyncedImages: vi.fn().mockReturnValue({ [Symbol.asyncIterator]: () => ({ next: () => Promise.resolve({ done: true }) }) }),
         decryptBlob: vi.fn().mockResolvedValue('base64data'),
         markImageSynced: vi.fn().mockResolvedValue(undefined),
@@ -125,6 +126,12 @@ vi.mock('../../src/js/identity.js', () => ({
     }
 }));
 
+vi.mock('../../src/js/epochKeyManager.js', () => ({
+    epochKeyManager: {
+        applyPersisted: vi.fn().mockReturnValue(false)
+    }
+}));
+
 vi.mock('../../src/js/media.js', () => ({
     mediaController: {
         handleMediaMessage: vi.fn()
@@ -139,6 +146,7 @@ import { dmCrypto } from '../../src/js/dmCrypto.js';
 import { channelManager } from '../../src/js/channels.js';
 import { identityManager } from '../../src/js/identity.js';
 import { dmManager } from '../../src/js/dm.js';
+import { epochKeyManager } from '../../src/js/epochKeyManager.js';
 
 describe('syncManager', () => {
     beforeEach(() => {
@@ -367,8 +375,40 @@ describe('syncManager', () => {
             ]);
             
             await syncManager.pullSync();
-            
+
             expect(secureStorage.importFromSync).toHaveBeenCalled();
+        });
+
+        it('hands the merged epoch keys to their owner before awaiting the import', async () => {
+            const keys = { 'ch-1': { epochs: { k1: { keyHex: '0x1', epoch: 1 } }, currentEpoch: 1 } };
+            dmCrypto.decrypt.mockResolvedValue({
+                type: 'sync', v: 1, ts: 1000,
+                data: { channels: [{ messageStreamId: 'ch-1', joinedAt: 1 }], epochKeys: keys }
+            });
+            streamrController.fetchPartitionHistory.mockResolvedValue([
+                { content: { ct: 'enc' }, publisherId: '0xABC123', timestamp: 1000 }
+            ]);
+
+            await syncManager.pullSync();
+
+            expect(epochKeyManager.applyPersisted).toHaveBeenCalledWith(
+                expect.objectContaining({ 'ch-1': expect.objectContaining({ epochs: keys['ch-1'].epochs }) }),
+                { replace: true }
+            );
+            expect(epochKeyManager.applyPersisted.mock.invocationCallOrder[0])
+                .toBeLessThan(secureStorage.importFromSync.mock.invocationCallOrder[0]);
+        });
+
+        it('saves storage when only the epoch keys changed', async () => {
+            epochKeyManager.applyPersisted.mockReturnValueOnce(true);
+            dmCrypto.decrypt.mockResolvedValue({ type: 'sync', v: 1, ts: 1000, data: { epochKeys: {} } });
+            streamrController.fetchPartitionHistory.mockResolvedValue([
+                { content: { ct: 'enc' }, publisherId: '0xABC123', timestamp: 1000 }
+            ]);
+
+            await syncManager.pullSync();
+
+            expect(secureStorage.saveToStorage).toHaveBeenCalled();
         });
 
         it('should skip payloads already applied in a previous pull (stale replica no-op)', async () => {

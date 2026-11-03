@@ -21,8 +21,14 @@ const makeDeps = (cacheOverrides = {}) => {
         loadUsername: vi.fn(),
         loadTrustedContacts: vi.fn()
     };
-    return { secureStorage, channelManager, identityManager, cache };
+    const epochKeyManager = {
+        applyPersisted: vi.fn().mockReturnValue(true)
+    };
+    return { secureStorage, channelManager, identityManager, epochKeyManager, cache };
 };
+
+// The merged records handed to the epochKeys owner on the first call.
+const appliedEpochKeys = (epochKeyManager) => epochKeyManager.applyPersisted.mock.calls[0][0];
 
 // Android's Channel.toJson() serializes absent optionals as JSON null and
 // carries fields the web never persists (keysStreamId, storageProvider).
@@ -233,7 +239,7 @@ describe('importBackupData', () => {
     });
 
     it('imports epoch keys for channels without local state', async () => {
-        const { secureStorage, channelManager, cache } = makeDeps();
+        const { secureStorage, channelManager, epochKeyManager } = makeDeps();
         const data = {
             epochKeys: {
                 'ch-1': {
@@ -244,15 +250,40 @@ describe('importBackupData', () => {
             }
         };
 
-        const summary = await importBackupData(data, { secureStorage, channelManager });
+        const summary = await importBackupData(data, { secureStorage, channelManager, epochKeyManager });
 
-        expect(cache.epochKeys['ch-1'].epochs.kid1.keyHex).toBe('0xaa');
+        expect(appliedEpochKeys(epochKeyManager)['ch-1'].epochs.kid1.keyHex).toBe('0xaa');
         expect(summary.changed).toBe(true);
         expect(secureStorage.saveToStorage).toHaveBeenCalled();
     });
 
+    it('hands epoch keys to their owner before the first await, never writing the slice itself', () => {
+        const local = { 'ch-1': { epochs: { kid2: { keyHex: '0xlocal', epoch: 2 } }, currentEpoch: 2 } };
+        const { secureStorage, channelManager, epochKeyManager, cache } = makeDeps({ epochKeys: local });
+        const data = { epochKeys: { 'ch-1': { epochs: { kid1: { keyHex: '0xold', epoch: 1 } }, currentEpoch: 1 } } };
+
+        const pending = importBackupData(data, { secureStorage, channelManager, epochKeyManager });
+
+        expect(epochKeyManager.applyPersisted).toHaveBeenCalledTimes(1);
+        expect(cache.epochKeys).toEqual({ 'ch-1': { epochs: { kid2: { keyHex: '0xlocal', epoch: 2 } }, currentEpoch: 2 } });
+        return pending;
+    });
+
+    it('does not mark the import as changed when the owner reports no change', async () => {
+        const { secureStorage, channelManager, epochKeyManager } = makeDeps();
+        epochKeyManager.applyPersisted.mockReturnValue(false);
+
+        const summary = await importBackupData(
+            { epochKeys: { 'ch-1': { epochs: {}, currentEpoch: 1 } } },
+            { secureStorage, channelManager, epochKeyManager }
+        );
+
+        expect(summary.changed).toBe(false);
+        expect(secureStorage.saveToStorage).not.toHaveBeenCalled();
+    });
+
     it('union-merges epoch keys, local wins per entry', async () => {
-        const { secureStorage, channelManager, cache } = makeDeps({
+        const { secureStorage, channelManager, epochKeyManager } = makeDeps({
             epochKeys: {
                 'ch-1': {
                     epochs: { kid2: { keyHex: '0xlocal', keyHash: '0xh2', epoch: 2 } },
@@ -274,9 +305,9 @@ describe('importBackupData', () => {
             }
         };
 
-        await importBackupData(data, { secureStorage, channelManager });
+        await importBackupData(data, { secureStorage, channelManager, epochKeyManager });
 
-        const merged = cache.epochKeys['ch-1'];
+        const merged = appliedEpochKeys(epochKeyManager)['ch-1'];
         expect(merged.epochs.kid1.keyHex).toBe('0xold');      // gap filled from backup
         expect(merged.epochs.kid2.keyHex).toBe('0xlocal');    // local entry kept
         expect(merged.announces[1].keyId).toBe('kid1');
@@ -285,7 +316,7 @@ describe('importBackupData', () => {
 
     it('restores the shared keys by rev when the channel already has local keys', async () => {
         const key = (prefix, rev) => ({ keyId: `${prefix}${rev}`, keyHex: `0x${rev}`, rev });
-        const { secureStorage, channelManager, cache } = makeDeps({
+        const { secureStorage, channelManager, epochKeyManager } = makeDeps({
             epochKeys: {
                 'ch-1': { epochs: {}, currentEpoch: 1, intKey: key('i', 1), pubKey: key('p', 3) },
                 'ch-2': { epochs: {}, currentEpoch: 1, intKey: key('i', 1) }
@@ -298,26 +329,28 @@ describe('importBackupData', () => {
             }
         };
 
-        const summary = await importBackupData(data, { secureStorage, channelManager });
+        const summary = await importBackupData(data, { secureStorage, channelManager, epochKeyManager });
 
+        const applied = appliedEpochKeys(epochKeyManager);
         expect(summary.changed).toBe(true);
-        expect(cache.epochKeys['ch-1'].intKey.rev).toBe(2);      // newer from the backup
-        expect(cache.epochKeys['ch-1'].pubKey.rev).toBe(3);      // newer here, kept
-        expect(cache.epochKeys['ch-2'].intKeyPending.keyId).toBe('i2');
+        expect(applied['ch-1'].intKey.rev).toBe(2);      // newer from the backup
+        expect(applied['ch-1'].pubKey.rev).toBe(3);      // newer here, kept
+        expect(applied['ch-2'].intKeyPending.keyId).toBe('i2');
     });
 
     it('drops a pending re-key from the backup that the local keys already settled', async () => {
-        const { secureStorage, channelManager, cache } = makeDeps({
+        const { secureStorage, channelManager, epochKeyManager } = makeDeps({
             epochKeys: { 'ch-1': { epochs: {}, currentEpoch: 1, intKey: { keyId: 'i2', keyHex: '0x2', rev: 2 } } }
         });
         const data = {
             epochKeys: { 'ch-1': { epochs: {}, currentEpoch: 1, intKeyPending: { keyId: 'i2', keyHex: '0x2', rev: 2 } } }
         };
 
-        await importBackupData(data, { secureStorage, channelManager });
+        await importBackupData(data, { secureStorage, channelManager, epochKeyManager });
 
-        expect(cache.epochKeys['ch-1']).not.toHaveProperty('intKeyPending');
-        expect(cache.epochKeys['ch-1'].intKey.keyId).toBe('i2');
+        const applied = appliedEpochKeys(epochKeyManager);
+        expect(applied['ch-1']).not.toHaveProperty('intKeyPending');
+        expect(applied['ch-1'].intKey.keyId).toBe('i2');
     });
 
     it('returns an empty summary when data is null or storage is locked', async () => {
