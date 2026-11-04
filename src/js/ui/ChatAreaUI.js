@@ -389,8 +389,9 @@ class ChatAreaUI {
             // valid and the user-visible UI (banner / inline marker /
             // rendered messages) MUST be applied. Otherwise the banner
             // never appears in this cycle and the user waits even longer
-            // for an auto-load retry.
-            if (op.cancelled) return;
+            // for an auto-load retry. The watchdog cancels through the same
+            // path, so `cancelled` alone does not mean the user left.
+            if (op.cancelled && !op.timedOut) return;
 
             if (result.loaded > 0) {
                 this.renderMessages(channel.messages, () => {

@@ -529,6 +529,25 @@ describe('ChatAreaUI', () => {
 
             expect(bannerSpy).toHaveBeenCalledWith(channel, channelManager);
         });
+
+        it('applies a result that lands after the watchdog released the spinner', async () => {
+            vi.useFakeTimers();
+            try {
+                channel.type = 'dm';
+                let resolve;
+                channelManager.loadMoreHistory.mockReturnValue(new Promise(r => { resolve = r; }));
+                const bannerSpy = vi.spyOn(chatAreaUI, '_showSearchOlderBanner');
+
+                const run = chatAreaUI._loadMoreChannelHistory(channel, channelManager);
+                await vi.advanceTimersByTimeAsync(20_000);
+                resolve({ loaded: 0, hasMore: true, noResultsInWindow: true });
+                await run;
+
+                expect(bannerSpy).toHaveBeenCalled();
+            } finally {
+                vi.useRealTimers();
+            }
+        });
     });
 
     // ==================== Pagination state ownership (race conditions) ====================
