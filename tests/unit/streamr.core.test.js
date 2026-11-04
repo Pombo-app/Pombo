@@ -36,6 +36,7 @@ vi.mock('../../src/js/utils/retry.js', () => ({
 
 vi.mock('../../src/js/utils/rpcErrors.js', () => ({
     isRpcError: vi.fn(() => false),
+    isDefinitiveNotFound: vi.fn((e) => e?.code === 'STREAM_NOT_FOUND'),
     createPermissionResult: vi.fn((has, rpc, msg) => ({ hasPermission: has, rpcError: rpc, errorMessage: msg || null }))
 }));
 
@@ -361,6 +362,53 @@ describe('StreamrController Core', () => {
                 'stream-1', STREAM_CONFIG.MESSAGE_STREAM.MESSAGES, reaction, null
             );
             asChannel.mockRestore();
+        });
+
+        describe('on a channel whose -5 storage', () => {
+            const reaction = { type: 'reaction', messageId: 'm1', emoji: '👍' };
+            let record, asChannel, storage;
+
+            beforeEach(() => {
+                record = { messageStreamId: 'owner/room-1', interactionsStreamId: 'owner/room-5' };
+                vi.spyOn(streamrController, '_channelRecordFor').mockResolvedValue(record);
+                asChannel = vi.spyOn(streamrController, 'publishAsChannel').mockResolvedValue({});
+                storage = vi.spyOn(streamrController, 'getStreamStorageInfo');
+            });
+
+            afterEach(() => vi.restoreAllMocks());
+
+            const target = () => asChannel.mock.calls.map(([id, partition]) => `${id}#${partition}`);
+
+            it('keeps, reacts on the -5', async () => {
+                storage.mockResolvedValue({ ok: true, enabled: true, nodes: ['0xnode'] });
+                await streamrController.publishReaction('owner/room-1', reaction);
+                expect(target()).toEqual([`owner/room-5#${STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS}`]);
+            });
+
+            it('has no node, reacts on the -1', async () => {
+                storage.mockResolvedValue({ ok: true, enabled: false, nodes: [] });
+                await streamrController.publishReaction('owner/room-1', reaction);
+                expect(target()).toEqual([`owner/room-1#${STREAM_CONFIG.MESSAGE_STREAM.MESSAGES}`]);
+            });
+
+            it('does not exist, reacts on the -1', async () => {
+                storage.mockResolvedValue({ ok: false, enabled: false, nodes: [], notFound: true });
+                await streamrController.publishReaction('owner/room-1', reaction);
+                expect(target()).toEqual([`owner/room-1#${STREAM_CONFIG.MESSAGE_STREAM.MESSAGES}`]);
+            });
+
+            it('could not be read, still reacts on the -5', async () => {
+                storage.mockResolvedValue({ ok: false, enabled: false, nodes: [], notFound: false });
+                await streamrController.publishReaction('owner/room-1', reaction);
+                expect(target()).toEqual([`owner/room-5#${STREAM_CONFIG.INTERACTIONS_STREAM.REACTIONS}`]);
+            });
+
+            it('is asked once per session', async () => {
+                storage.mockResolvedValue({ ok: true, enabled: false, nodes: [] });
+                await streamrController.publishReaction('owner/room-1', reaction);
+                await streamrController.publishReaction('owner/room-1', reaction);
+                expect(storage).toHaveBeenCalledTimes(1);
+            });
         });
     });
 
@@ -956,6 +1004,13 @@ describe('StreamrController Core', () => {
             mockClient.getStream.mockRejectedValue(new Error('fail'));
             const result = await streamrController.getStreamStorageInfo('s');
             expect(result.enabled).toBe(false);
+            expect(result.notFound).toBe(false);
+        });
+
+        it('should say a stream that does not exist is not found', async () => {
+            mockClient.getStream.mockRejectedValue(Object.assign(new Error('Stream not found'), { code: 'STREAM_NOT_FOUND' }));
+            const result = await streamrController.getStreamStorageInfo('s');
+            expect(result).toMatchObject({ ok: false, notFound: true });
         });
     });
 
