@@ -1675,15 +1675,31 @@ class DMManager {
     }
 
     /**
+     * Days this account's inbox keeps messages, or null when the chain did not say.
+     * @returns {Promise<number|null>}
+     */
+    async getInboxRetentionDays() {
+        const cached = this._inboxRetention;
+        if (cached && Date.now() - cached.at < CONFIG.dm.retentionCacheMs) return cached.days;
+        const days = Number(await streamrController.getStorageDays(this.inboxMessageStreamId));
+        if (!Number.isFinite(days) || days <= 0) return null;
+        this._inboxRetention = { days, at: Date.now() };
+        return days;
+    }
+
+    /**
      * Fetch older DM messages from the inbox stream for a specific peer.
      * Uses a time-windowed query to avoid scanning the entire stream from epoch.
      * Messages from all peers arrive on the same inbox; we filter for the target peer.
-     * 
+     * The window never reaches past the inbox retention: nothing older is stored.
+     *
      * @param {string} peerAddress - Peer's address
      * @param {AbortSignal} [signal] - Optional abort signal
-     * @returns {Promise<{loaded: number, hasMore: boolean, noResultsInWindow: boolean}>}
+     * @param {{windowMs?: number}} [options] - Window size (default: one week)
+     * @returns {Promise<{loaded: number, hasMore: boolean, noResultsInWindow: boolean, failed?: boolean}>}
+     *   `failed`: the read broke off; the cursor did not move, so a retry reads the same window
      */
-    async fetchOlderDMMessages(peerAddress, signal) {
+    async fetchOlderDMMessages(peerAddress, signal, { windowMs = CONFIG.dm.searchWindowMs } = {}) {
         const normalizedPeer = peerAddress.toLowerCase();
         const channelStreamId = this.conversations.get(normalizedPeer);
         if (!channelStreamId) return { loaded: 0, hasMore: false, noResultsInWindow: false };
@@ -1695,9 +1711,16 @@ class DMManager {
 
         // Determine the timestamp to search before
         const beforeTimestamp = channel.oldestTimestamp || Date.now();
-        const windowMs = CONFIG.dm.searchWindowMs;
 
         try {
+            const retentionDays = await this.getInboxRetentionDays();
+            const retentionStart = retentionDays ? Date.now() - retentionDays * 24 * 3600 * 1000 : 0;
+            if (beforeTimestamp <= retentionStart) {
+                channel.hasMoreHistory = false;
+                channel.dmRetentionDays = retentionDays;
+                return { loaded: 0, hasMore: false, noResultsInWindow: false };
+            }
+
             Logger.info('DM: Fetching older messages for', normalizedPeer, 'before', new Date(beforeTimestamp).toISOString());
 
             // Fetch from OUR inbox (not the peer's) using a time window
@@ -1705,11 +1728,19 @@ class DMManager {
                 this.inboxMessageStreamId,
                 0, // partition 0 = messages
                 beforeTimestamp,
-                windowMs,
+                Math.min(windowMs, beforeTimestamp - retentionStart),
                 signal
             );
 
             if (signal?.aborted) return { loaded: 0, hasMore: channel.hasMoreHistory, noResultsInWindow: false };
+
+            // What a broken read returned is only the oldest part of the window
+            // (resends run forward in time): keeping it would move the cursor
+            // past the part never read.
+            if (result.failed) {
+                Logger.warn('DM: older inbox window did not finish reading for', normalizedPeer);
+                return { loaded: 0, hasMore: true, noResultsInWindow: false, failed: true };
+            }
 
             const refusal = storageFetch.lastReadError(this.inboxMessageStreamId, 0);
             if (refusal) {
@@ -1785,9 +1816,14 @@ class DMManager {
                 }
             }
 
+            const hasMore = typeof result.windowStart === 'number'
+                ? result.windowStart > retentionStart
+                : !!result.hasMore;
+
             if (addedCount > 0) {
                 channel.messages.sort((a, b) => a.timestamp - b.timestamp);
-            } else if (result.hasMore && typeof result.windowStart === 'number') {
+                channel.dmSearchStep = 0;
+            } else if (typeof result.windowStart === 'number') {
                 // Empty window but stream still has older data: advance the
                 // pagination cursor past this window so the next call (e.g.
                 // user clicks "Search older messages") scans the PREVIOUS
@@ -1795,18 +1831,46 @@ class DMManager {
                 channel.oldestTimestamp = result.windowStart;
             }
 
-            // Update hasMore based on whether the stream has older data
-            channel.hasMoreHistory = result.hasMore;
+            channel.hasMoreHistory = hasMore;
+            if (!hasMore) channel.dmRetentionDays = retentionDays;
 
-            const noResultsInWindow = addedCount === 0 && result.hasMore;
+            const noResultsInWindow = addedCount === 0 && hasMore;
 
-            Logger.info(`DM: Fetched ${addedCount} older messages for ${normalizedPeer} (noResultsInWindow: ${noResultsInWindow}, hasMore: ${result.hasMore})`);
+            Logger.info(`DM: Fetched ${addedCount} older messages for ${normalizedPeer} (noResultsInWindow: ${noResultsInWindow}, hasMore: ${hasMore})`);
 
-            return { loaded: addedCount, hasMore: result.hasMore, noResultsInWindow };
+            return { loaded: addedCount, hasMore, noResultsInWindow };
         } catch (error) {
             Logger.error('DM: fetchOlderDMMessages failed:', error.message);
-            return { loaded: 0, hasMore: channel.hasMoreHistory, noResultsInWindow: false };
+            return { loaded: 0, hasMore: channel.hasMoreHistory, noResultsInWindow: false, failed: true };
         }
+    }
+
+    /**
+     * One "Search older" tap. Each tap after an empty one searches further
+     * back (CONFIG.dm.searchStepsMs); past the last step it is Search all,
+     * which walks what is left of the retention until messages turn up.
+     * `channel.dmSearchStep` counts the empty taps since messages last arrived.
+     * @param {string} peerAddress - Peer's address
+     * @param {AbortSignal} [signal] - Optional abort signal
+     * @returns {Promise<{loaded: number, hasMore: boolean, noResultsInWindow: boolean, failed?: boolean}>}
+     */
+    async searchOlderDMMessages(peerAddress, signal) {
+        const channel = channelManager.channels.get(this.conversations.get(peerAddress.toLowerCase()));
+        if (!channel) return { loaded: 0, hasMore: false, noResultsInWindow: false };
+        const steps = CONFIG.dm.searchStepsMs;
+        const step = Math.min(channel.dmSearchStep || 0, steps.length);
+
+        let result;
+        if (step < steps.length) {
+            result = await this.fetchOlderDMMessages(peerAddress, signal, { windowMs: steps[step] });
+        } else {
+            do {
+                result = await this.fetchOlderDMMessages(peerAddress, signal, { windowMs: CONFIG.dm.searchAllWindowMs });
+            } while (result.noResultsInWindow && !signal?.aborted);
+        }
+
+        if (result.noResultsInWindow) channel.dmSearchStep = Math.min(step + 1, steps.length);
+        return result;
     }
 
     /**

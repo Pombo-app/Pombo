@@ -27,6 +27,8 @@ import { epochKeyManager } from '../epochKeyManager.js';
  * resolve later — only the *UI* state is released.
  */
 const PAGINATION_WATCHDOG_MS = 15000;
+// A DM "Search older" tap reads weeks to months of a shared inbox.
+const DM_SEARCH_WATCHDOG_MS = 5 * 60 * 1000;
 const LOADING_SLOW_MS = 30000;
 
 // What each author badge claims, shown when it is tapped. Mirrored verbatim in
@@ -104,7 +106,7 @@ class ChatAreaUI {
      * show the loading indicator scoped to this token.
      * @private
      */
-    _beginLoadOp({ streamId, mode, showIndicator }) {
+    _beginLoadOp({ streamId, mode, showIndicator, watchdogMs = PAGINATION_WATCHDOG_MS }) {
         // Defensive: cancel any prior op (e.g. caller did not clean up).
         if (this._loadOp) this._cancelLoadOp('begin-overrides-stale');
 
@@ -127,7 +129,7 @@ class ChatAreaUI {
                 `Pagination watchdog fired for ${mode}:${streamId?.slice?.(-20) || '?'}`
             );
             this._cancelLoadOp('watchdog');
-        }, PAGINATION_WATCHDOG_MS);
+        }, watchdogMs);
 
         this._loadOp = op;
 
@@ -349,16 +351,20 @@ class ChatAreaUI {
 
     /**
      * Load more history for a regular channel
+     * @param {{dmSearch?: boolean}} [options] - DM only: a "Search older" tap
      * @private
      */
-    async _loadMoreChannelHistory(channel, channelManager) {
+    async _loadMoreChannelHistory(channel, channelManager, { dmSearch = false } = {}) {
         const generationAtStart = channelManager.switchGeneration;
         const streamId = channel.streamId;
 
         // Only show "Loading More" indicator if there are existing messages
         // (otherwise the central spinner from renderMessages is already showing)
         const showIndicator = channel.messages.length > 0;
-        const op = this._beginLoadOp({ streamId, mode: 'channel', showIndicator });
+        const op = this._beginLoadOp({
+            streamId, mode: 'channel', showIndicator,
+            watchdogMs: dmSearch ? DM_SEARCH_WATCHDOG_MS : PAGINATION_WATCHDOG_MS
+        });
 
         // Remove any existing "search older" / "history end" banners before loading
         this._removeSearchOlderBanner();
@@ -377,7 +383,7 @@ class ChatAreaUI {
         const previousScrollTop = this.messagesArea.scrollTop;
         
         try {
-            const result = await channelManager.loadMoreHistory(streamId);
+            const result = await channelManager.loadMoreHistory(streamId, { dmSearch });
 
             // Guard against channel-switch mid-load (results are stale).
             if (channelManager.switchGeneration !== generationAtStart) return;
@@ -389,8 +395,9 @@ class ChatAreaUI {
             // valid and the user-visible UI (banner / inline marker /
             // rendered messages) MUST be applied. Otherwise the banner
             // never appears in this cycle and the user waits even longer
-            // for an auto-load retry.
-            if (op.cancelled) return;
+            // for an auto-load retry. The watchdog cancels through the same
+            // path, so `cancelled` alone does not mean the user left.
+            if (op.cancelled && !op.timedOut) return;
 
             if (result.loaded > 0) {
                 this.renderMessages(channel.messages, () => {
@@ -400,14 +407,15 @@ class ChatAreaUI {
                 const newScrollHeight = this.messagesArea.scrollHeight;
                 const heightDiff = newScrollHeight - previousScrollHeight;
                 this.messagesArea.scrollTop = previousScrollTop + heightDiff;
-            } else if (result.noResultsInWindow && result.hasMore) {
-                // DM pagination: no messages from this peer in the current time window.
+            } else if ((result.noResultsInWindow || result.failed) && result.hasMore) {
+                // DM pagination: no messages from this peer in the current time
+                // window, or the window could not be read.
                 // End the op BEFORE rendering the banner so `renderMessages`
                 // (called transitively from `_showSearchOlderBanner` for empty
                 // channels) can correctly evaluate `isTerminalEmpty` without
                 // our own in-flight op blocking the check.
                 this._endLoadOp(op);
-                this._showSearchOlderBanner(channel, channelManager);
+                this._showSearchOlderBanner(channel, channelManager, { failed: !!result.failed, retrySearch: dmSearch });
             } else {
                 // Empty result. End the op BEFORE re-rendering so the
                 // empty-state derivation in `renderMessages` (which requires
@@ -473,7 +481,7 @@ class ChatAreaUI {
      * Show "No messages found — Search older" banner at top of messages area (DM pagination)
      * @private
      */
-    _showSearchOlderBanner(channel, channelManager) {
+    _showSearchOlderBanner(channel, channelManager, { failed = false, retrySearch = true } = {}) {
         this._removeSearchOlderBanner();
         if (!this.messagesArea) return;
 
@@ -492,6 +500,11 @@ class ChatAreaUI {
             this.messagesArea.innerHTML = '';
         }
 
+        const searchAll = (channel?.dmSearchStep || 0) >= CONFIG.dm.searchStepsMs.length;
+        const label = failed
+            ? "Couldn't search this time range — Try again"
+            : `No messages found in this time range — ${searchAll ? 'Search all' : 'Search older'}`;
+
         const banner = document.createElement('div');
         banner.id = 'dm-search-older-banner';
         banner.className = messageCount === 0
@@ -502,12 +515,12 @@ class ChatAreaUI {
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <span>No messages found in this time range — Search older</span>
+                <span>${label}</span>
             </div>
         `;
         banner.addEventListener('click', async () => {
             banner.remove();
-            await this._loadMoreChannelHistory(channel, channelManager);
+            await this._loadMoreChannelHistory(channel, channelManager, { dmSearch: !failed || retrySearch });
         });
         this.messagesArea.prepend(banner);
     }
@@ -888,10 +901,16 @@ class ChatAreaUI {
         // false, and there the start is unknown, not reached.
         if (!hasMoreHistory && !effectiveChannel?.historyError && !effectiveChannel?.historyReadFailed
             && effectiveChannel?.historyRetrying !== true) {
+            // A DM inbox drops what is older than its retention, so reaching
+            // that edge is not the start of the conversation.
+            const retentionDays = effectiveChannel?.type === 'dm' ? effectiveChannel.dmRetentionDays : null;
+            const startText = retentionDays
+                ? `No older messages — this inbox keeps ${retentionDays} days`
+                : '— beginning of conversation —';
             historyStartIndicator = `
                 <div class="flex justify-center py-4">
                     <div class="text-overlay-12 text-xs">
-                        — beginning of conversation —
+                        ${startText}
                     </div>
                 </div>
             `;

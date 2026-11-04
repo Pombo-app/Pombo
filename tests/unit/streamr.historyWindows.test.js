@@ -139,7 +139,35 @@ describe('fetchOlderHistoryWindowed', () => {
 
         const out = await streamrController.fetchOlderHistoryWindowed(STREAM, 0, 10_000, 3_000);
 
-        expect(out).toEqual({ messages: [], hasMore: true, windowStart: 7_000 });
+        expect(out).toEqual({ messages: [], hasMore: true, windowStart: 7_000, failed: true });
+    });
+
+    it('reports a read that broke off mid-window as failed, not as an empty window', async () => {
+        let served = 0;
+        streamrController.client = {
+            resend: vi.fn(async () => ({
+                [Symbol.asyncIterator]: () => ({
+                    next: async () => {
+                        served++;
+                        if (served === 2) throw new Error('Failed to fetch');
+                        if (served > 2) return { done: true };
+                        return { done: false, value: row(7_500, { type: 'dm' }) };
+                    },
+                }),
+            })),
+        };
+
+        const out = await streamrController.fetchOlderHistoryWindowed(STREAM, 0, 10_000, 3_000);
+
+        expect(out.failed).toBe(true);
+    });
+
+    it('reports a complete read as not failed', async () => {
+        serve(row(8_000, { type: 'dm' }));
+
+        const out = await streamrController.fetchOlderHistoryWindowed(STREAM, 0, 10_000, 3_000);
+
+        expect(out.failed).toBe(false);
     });
 
     it('stops on abort', async () => {

@@ -835,9 +835,10 @@ export class MessageFlow {
      * Load more (older) history from MESSAGE stream - for lazy loading / infinite scroll
      * In dual-stream architecture, only messageStream has storage
      * @param {string} messageStreamId - Message Stream ID (channel key)
+     * @param {{dmSearch?: boolean}} [options] - DM only: a "Search older" tap rather than a scroll page
      * @returns {Promise<{loaded: number, hasMore: boolean}>} - Number of messages loaded and if more exist
      */
-    async loadMoreHistory(messageStreamId) {
+    async loadMoreHistory(messageStreamId, { dmSearch = false } = {}) {
         const channel = this.manager.channels.get(messageStreamId);
         if (!channel) {
             Logger.warn('Channel not found for loadMoreHistory:', messageStreamId);
@@ -865,7 +866,9 @@ export class MessageFlow {
             const signal = this.manager.historyAbortController.signal;
             const generationAtStart = this.manager.switchGeneration;
             try {
-                const result = await dmManager.fetchOlderDMMessages(channel.peerAddress, signal);
+                const result = dmSearch
+                    ? await dmManager.searchOlderDMMessages(channel.peerAddress, signal)
+                    : await dmManager.fetchOlderDMMessages(channel.peerAddress, signal);
                 if (this.manager.switchGeneration !== generationAtStart) {
                     channel.loadingHistory = false;
                     return { loaded: 0, hasMore: channel.hasMoreHistory };

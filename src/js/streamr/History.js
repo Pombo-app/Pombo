@@ -539,7 +539,8 @@ export class History {
      * @param {number} windowMs - Time window size in ms (e.g. 7 days)
      * @param {AbortSignal} [signal] - Optional abort signal
      * @param {string} [password] - Channel password for payload decryption (optional)
-     * @returns {Promise<{messages: Array, hasMore: boolean, windowStart: number}>}
+     * @returns {Promise<{messages: Array, hasMore: boolean, windowStart: number, failed: boolean}>}
+     *   `failed`: the read broke off, so the window is not known to be empty
      */
     async fetchOlderHistoryWindowed(streamId, partition, beforeTimestamp, windowMs, signal = null, password = null) {
         if (!this.controller.client) {
@@ -549,6 +550,7 @@ export class History {
         const windowStart = Math.max(0, beforeTimestamp - windowMs);
         const windowEnd = beforeTimestamp - 1;
         const messages = [];
+        let broke = false;
 
         try {
             Logger.debug(`fetchOlderHistoryWindowed: ${new Date(windowStart).toISOString()} → ${new Date(windowEnd).toISOString()}`);
@@ -585,6 +587,7 @@ export class History {
                         continue;
                     }
                     Logger.warn('fetchOlderHistoryWindowed iteration error:', iterError.message);
+                    broke = true;
                     continue;
                 }
 
@@ -623,12 +626,15 @@ export class History {
             // hasMore = true if windowStart > 0 (there could be older messages)
             const hasMore = windowStart > 0;
 
-            Logger.info(`fetchOlderHistoryWindowed: ${messages.length} messages in window, hasMore: ${hasMore}`);
+            const readError = storageFetch.lastReadError(streamId, partition);
+            const failed = broke && !(readError?.status >= 400 && readError?.status < 500);
 
-            return { messages, hasMore, windowStart };
+            Logger.info(`fetchOlderHistoryWindowed: ${messages.length} messages in window, hasMore: ${hasMore}, failed: ${failed}`);
+
+            return { messages, hasMore, windowStart, failed };
         } catch (error) {
             Logger.warn('fetchOlderHistoryWindowed error:', error.message);
-            return { messages: [], hasMore: windowStart > 0, windowStart };
+            return { messages: [], hasMore: windowStart > 0, windowStart, failed: true };
         }
     }
 

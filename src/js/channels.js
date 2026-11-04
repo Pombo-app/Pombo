@@ -2836,7 +2836,7 @@ class ChannelManager {
     resendMessage(messageStreamId, messageId) { return this.messageFlow.resendMessage(messageStreamId, messageId); }
     publishWithRetry(messageStreamId, message, password = null, retryCount = 0) { return this.messageFlow.publishWithRetry(messageStreamId, message, password, retryCount); }
     sortMessagesByTimestamp(channel) { return this.messageFlow.sortMessagesByTimestamp(channel); }
-    loadMoreHistory(messageStreamId) { return this.messageFlow.loadMoreHistory(messageStreamId); }
+    loadMoreHistory(messageStreamId, options) { return this.messageFlow.loadMoreHistory(messageStreamId, options); }
     sendWakeSignals(messageStreamId) { return this.messageFlow.sendWakeSignals(messageStreamId); }
     cancelPendingVerifications(streamId) { return this.messageFlow.cancelPendingVerifications(streamId); }
 
