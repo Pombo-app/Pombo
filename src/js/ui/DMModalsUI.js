@@ -500,6 +500,7 @@ class DMModalsUI {
             const channel = await this.dmManager.startDM(address, localName);
             this.hideNewDMModal();
             this.deps.renderChannelList?.();
+            await this.modalManager?.historySettled();
             await this.deps.selectChannel?.(channel.messageStreamId);
         } catch (err) {
             this.Logger?.error('DMModalsUI: startDM failed', err);
