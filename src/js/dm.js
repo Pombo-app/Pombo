@@ -1360,16 +1360,7 @@ class DMManager {
             }
         }
 
-        const channel = await this.getOrCreateConversation(resolvedAddress, localName);
-
-        // Switch to the DM channel
-        channelManager.setCurrentChannel(channel.messageStreamId);
-        channelManager.notifyHandlers('channelSwitched', {
-            streamId: channel.messageStreamId,
-            channel
-        });
-
-        return channel;
+        return this.getOrCreateConversation(resolvedAddress, localName);
     }
 
     /**

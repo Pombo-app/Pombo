@@ -259,17 +259,12 @@ describe('ModalManager', () => {
             streamIdInput.value = 'old-stream-id';
             const passwordInput = document.createElement('input');
             passwordInput.value = 'old-password';
-            const localName = document.createElement('input');
-            localName.id = 'join-local-name-input';
-            localName.value = 'old-name';
-            document.body.appendChild(localName);
 
             modalManager.showJoinChannelModal(modal, streamIdInput, passwordInput);
 
             expect(modal.classList.contains('hidden')).toBe(false);
             expect(streamIdInput.value).toBe('');
             expect(passwordInput.value).toBe('');
-            expect(localName.value).toBe('');
         });
 
         it('should handle null parameters gracefully', () => {

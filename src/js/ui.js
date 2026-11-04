@@ -323,7 +323,8 @@ class UIController {
             notificationUI,
             Logger,
             showNotification: (msg, type) => this.showNotification(msg, type),
-            renderChannelList: () => this.renderChannelList()
+            renderChannelList: () => this.renderChannelList(),
+            selectChannel: (streamId) => this.selectChannel(streamId)
         });
     }
     
