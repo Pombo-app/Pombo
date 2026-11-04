@@ -355,8 +355,6 @@ class ModalManager {
             passwordInput.type = 'password';
             passwordInput.style.webkitTextSecurity = 'disc';
         }
-        const localName = document.getElementById('join-local-name-input');
-        if (localName) localName.value = '';
 
         // Reset join password eye icons
         const joinEyeOpen = document.getElementById('join-pw-eye-open');

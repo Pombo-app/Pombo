@@ -45,8 +45,7 @@ class JoinChannelUI {
     }
 
     /**
-     * Handle join channel from modal: ID, optional password and optional
-     * local name in one step.
+     * Handle join channel from modal: ID and optional password.
      * @param {Function} showNotification - Notification callback
      * @param {Function} renderChannelList - Channel list render callback
      * @param {Function} selectChannel - Opens the joined channel
@@ -54,7 +53,6 @@ class JoinChannelUI {
     async handleJoinChannel(showNotification, renderChannelList, selectChannel) {
         const streamId = this.elements.joinStreamIdInput?.value.trim();
         const password = this.elements.joinPasswordInput?.value || null;
-        const localName = document.getElementById('join-local-name-input')?.value.trim() || null;
 
         if (!streamId) {
             showNotification('Please enter a channel ID', 'error');
@@ -79,15 +77,12 @@ class JoinChannelUI {
             return;
         }
 
-        // The on-chain name is authoritative; the local name only fills the
-        // channels that have none.
-        const name = channelInfo?.name || localName || undefined;
+        const name = channelInfo?.name || undefined;
         const attempt = async () => {
             try {
                 notificationUI.showLoadingToast('Joining channel…', 'This may take a moment');
                 await channelManager.joinChannel(streamId, password, {
                     name,
-                    named: !!localName,
                     type: channelInfo?.type,
                     readOnly: channelInfo?.readOnly || false,
                     createdBy: channelInfo?.createdBy,
