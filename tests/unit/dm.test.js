@@ -2659,6 +2659,77 @@ describe('DMManager', () => {
             });
         });
 
+        describe('catchUpInbox()', () => {
+            beforeEach(() => {
+                dmManager.inboxSeenTs = 0;
+                streamrController.fetchOlderHistoryWindowed.mockReset();
+            });
+            afterEach(() => {
+                dmManager._stopCatchUp();
+                dmManager.inboxSeenTs = 0;
+            });
+
+            it('reads nothing before anything was routed: the first replay is the catch-up', async () => {
+                expect(await dmManager.catchUpInbox('tick')).toBe(0);
+                expect(streamrController.fetchOlderHistoryWindowed).not.toHaveBeenCalled();
+            });
+
+            it('reads from the newest routed entry and routes what it finds', async () => {
+                await dmManager.routeInboxMessage({ _timestamp: 50_000 });
+                streamrController.fetchOlderHistoryWindowed.mockResolvedValueOnce({
+                    messages: [{ publisherId: peerAddress, content: { id: 'missed', text: 'x', timestamp: 60_000 }, timestamp: 60_000 }],
+                    hasMore: true, windowStart: 50_000, failed: false
+                });
+                const route = vi.spyOn(dmManager, 'routeInboxMessage');
+
+                expect(await dmManager.catchUpInbox('tick')).toBe(1);
+
+                const [, , before, windowMs] = streamrController.fetchOlderHistoryWindowed.mock.calls[0];
+                expect(before - windowMs).toBe(50_000);
+                expect(route).toHaveBeenCalledWith(expect.objectContaining({ id: 'missed', _timestamp: 60_000 }));
+                expect(dmManager.inboxSeenTs).toBe(60_000);
+                route.mockRestore();
+            });
+
+            it('a read that did not finish routes nothing and keeps the starting point', async () => {
+                dmManager.inboxSeenTs = 50_000;
+                streamrController.fetchOlderHistoryWindowed.mockResolvedValueOnce({
+                    messages: [{ publisherId: peerAddress, content: { id: 'half', timestamp: 60_000 }, timestamp: 60_000 }],
+                    hasMore: true, windowStart: 50_000, failed: true
+                });
+                const route = vi.spyOn(dmManager, 'routeInboxMessage');
+
+                expect(await dmManager.catchUpInbox('tick')).toBe(0);
+
+                expect(route).not.toHaveBeenCalled();
+                expect(dmManager.inboxSeenTs).toBe(50_000);
+                route.mockRestore();
+            });
+
+            it('runs every 30 seconds while the page is visible', async () => {
+                vi.useFakeTimers();
+                try {
+                    const run = vi.spyOn(dmManager, 'catchUpInbox').mockResolvedValue(0);
+                    dmManager._startCatchUp();
+                    await vi.advanceTimersByTimeAsync(30_000);
+                    expect(run).toHaveBeenCalledWith('tick');
+                    run.mockRestore();
+                } finally {
+                    vi.useRealTimers();
+                }
+            });
+
+            it('an account switch drops the starting point and the timer', async () => {
+                dmManager.inboxSeenTs = 50_000;
+                dmManager._startCatchUp();
+
+                await dmManager.destroy();
+
+                expect(dmManager.inboxSeenTs).toBe(0);
+                expect(dmManager._catchUpTimer).toBeNull();
+            });
+        });
+
         describe('searchOlderDMMessages()', () => {
             const DAY = 24 * 3600 * 1000;
             const emptyWindow = async (_id, _p, before, windowMs) => (

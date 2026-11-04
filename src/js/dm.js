@@ -64,6 +64,12 @@ class DMManager {
         // per sync operation. Keyed by stream ID so account switches invalidate.
         this._inboxExistsCache = null;
 
+        // Envelope time of the newest inbox entry routed: where a catch-up read starts.
+        this.inboxSeenTs = 0;
+        this._catchUpTimer = null;
+        this._catchUpRunning = false;
+        this._onVisible = null;
+
         // Event handlers (UI notifications)
         this.handlers = [];
     }
@@ -268,6 +274,7 @@ class DMManager {
             );
 
             Logger.info('DM: Inbox message subscription active');
+            this._startCatchUp();
             storageEndpoints.providersWith(this.inboxMessageStreamId, 'purge')
                 .then((providers) => { this.inboxPurgeProviders = providers; })
                 .catch((e) => Logger.debug('DM: inbox purge providers unknown:', e?.message || e));
@@ -969,6 +976,9 @@ class DMManager {
      */
     async routeInboxMessage(data) {
         if (!data) return;
+        if (Number.isFinite(data._timestamp) && data._timestamp > this.inboxSeenTs) {
+            this.inboxSeenTs = data._timestamp;
+        }
 
         // Open FIRST, identify after.
         //
@@ -1675,6 +1685,70 @@ class DMManager {
     }
 
     /**
+     * Reads what reached the inbox since the newest entry already routed and
+     * routes it the way live traffic is: a live subscription on a degraded
+     * mesh can deliver less than the stream holds.
+     * @param {string} reason - For the log
+     * @returns {Promise<number>} Entries read
+     */
+    async catchUpInbox(reason) {
+        const inbox = this.inboxMessageStreamId;
+        const since = this.inboxSeenTs;
+        // Before the first replay there is no starting point; that replay is the catch-up.
+        if (!inbox || !since || this._catchUpRunning) return 0;
+        this._catchUpRunning = true;
+        try {
+            const now = Date.now();
+            const result = await streamrController.fetchOlderHistoryWindowed(inbox, 0, now + 1, now + 1 - since);
+            if (result.failed) {
+                Logger.warn(`DM: inbox catch-up (${reason}) did not finish reading`);
+                return 0;
+            }
+            let routed = 0;
+            for (const row of result.messages) {
+                if (this.inboxMessageStreamId !== inbox) break;
+                const content = row.content;
+                if (!content || typeof content !== 'object') continue;
+                const publisherId = row.publisherId?.toLowerCase();
+                if (publisherId) applyAccount(content, publisherId, false);
+                content._timestamp = row.timestamp;
+                await this.routeInboxMessage(content);
+                routed++;
+            }
+            Logger.info(`DM: inbox catch-up (${reason}): ${routed} entries since ${new Date(since).toISOString()}`);
+            return routed;
+        } catch (error) {
+            Logger.warn(`DM: inbox catch-up (${reason}) failed:`, error.message);
+            return 0;
+        } finally {
+            this._catchUpRunning = false;
+        }
+    }
+
+    /** @private */
+    _startCatchUp() {
+        this._stopCatchUp();
+        const visible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
+        this._catchUpTimer = setInterval(() => {
+            if (visible()) this.catchUpInbox('tick');
+        }, CONFIG.dm.catchUpIntervalMs);
+        if (typeof document !== 'undefined') {
+            this._onVisible = () => { if (visible()) this.catchUpInbox('foreground'); };
+            document.addEventListener('visibilitychange', this._onVisible);
+        }
+    }
+
+    /** @private */
+    _stopCatchUp() {
+        clearInterval(this._catchUpTimer);
+        this._catchUpTimer = null;
+        if (this._onVisible && typeof document !== 'undefined') {
+            document.removeEventListener('visibilitychange', this._onVisible);
+        }
+        this._onVisible = null;
+    }
+
+    /**
      * Days this account's inbox keeps messages, or null when the chain did not say.
      * @returns {Promise<number|null>}
      */
@@ -2025,6 +2099,8 @@ class DMManager {
      * Cleanup on disconnect
      */
     async destroy() {
+        this._stopCatchUp();
+        this.inboxSeenTs = 0;
         await this.unsubscribeFromInbox();
         this.conversations.clear();
         this.pendingConversations.clear();

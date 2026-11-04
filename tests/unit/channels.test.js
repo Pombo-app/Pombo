@@ -149,6 +149,7 @@ vi.mock('../../src/js/dm.js', () => ({
         subscribeDMEphemeral: vi.fn().mockResolvedValue(undefined),
         unsubscribeDMEphemeral: vi.fn().mockResolvedValue(undefined),
         loadDMTimeline: vi.fn(),
+        catchUpInbox: vi.fn().mockResolvedValue(0),
         getPeerPublicKey: vi.fn().mockResolvedValue(null),
         isDMChannel: vi.fn().mockReturnValue(false),
         fetchOlderDMMessages: vi.fn().mockResolvedValue({ loaded: 0, hasMore: false, noResultsInWindow: false }),

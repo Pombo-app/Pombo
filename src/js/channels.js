@@ -2086,6 +2086,8 @@ class ChannelManager {
             // Gate renders while loading — inbox messages may still arrive via routeInboxMessage()
             channel.initialLoadInProgress = true;
             await dmManager.loadDMTimeline(channel.peerAddress);
+            // Not awaited: the open does not wait on storage.
+            dmManager.catchUpInbox('open');
             channel.historyLoaded = true;
             // Enable scroll-up pagination for DMs — set oldestTimestamp from loaded messages
             if (channel.messages.length > 0) {
