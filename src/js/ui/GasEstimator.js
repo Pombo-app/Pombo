@@ -26,6 +26,30 @@ export const GasEstimator = {
         // eth_estimateGas on Polygon: 217k for a Closed gate, 183k for a
         // token gate. The higher one, so the figure is never short.
         createGate: 220000,
+        // Rewriting a stream's metadata (partition count, description).
+        // Not measured: sized like a permission batch so it errs high.
+        updateStreamMetadata: 210000,
+    },
+
+    /**
+     * Gas units of the steps a DM inbox repair would send for this
+     * diagnosis. Only a false is repaired; null means not known.
+     */
+    inboxRepairUnits(diagnosis) {
+        const u = this.GAS_UNITS;
+        const m = diagnosis?.messageStream || {};
+        const e = diagnosis?.ephemeralStream || {};
+        const p = diagnosis?.permissions || {};
+        const s = diagnosis?.storage || {};
+        let units = 0;
+        if (m.exists === false) units += u.createStream;
+        if (m.exists && m.partitionsCorrect === false) units += u.updateStreamMetadata;
+        if (e.exists === false) units += u.createStream;
+        if (m.publicKeyPresent === false && m.exists !== false) units += u.updateStreamMetadata;
+        if (p.messagePublicPublish === false) units += u.setPublicPermissions;
+        if (p.ephemeralPublicPublish === false) units += u.setPublicPermissions;
+        if (s.enabled === false) units += u.addStorageNode + u.setStorageDayCount;
+        return units;
     },
     
     cachedGasPrice: null,

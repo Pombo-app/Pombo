@@ -24,7 +24,7 @@ import { Logger } from './logger.js';
 import { cryptoManager } from './crypto.js';
 import { CONFIG, getRpcEndpoints } from './config.js';
 import { executeWithRetry, executeWithRetryAndVerify } from './utils/retry.js';
-import { isRpcError, createPermissionResult } from './utils/rpcErrors.js';
+import { isRpcError, isDefinitiveNotFound, createPermissionResult } from './utils/rpcErrors.js';
 import { rpcHealth, getUsableRpcEndpoints } from './rpcHealth.js';
 import { authManager } from './auth.js';
 import { NodeRevival } from './streamr/NodeRevival.js';
@@ -1345,89 +1345,90 @@ class StreamrController {
         const messageStreamId = this.getDMInboxId(address);
         const ephemeralStreamId = this.getDMEphemeralId(address);
 
+        // Every check is true, false, or null when the chain did not answer.
+        // Only false is a finding: repairing a null would spend gas on
+        // something that may well be fine.
         const report = {
-            messageStream: { id: messageStreamId, exists: false, partitions: null, partitionsCorrect: false, metadataOk: false, publicKeyPresent: false },
-            ephemeralStream: { id: ephemeralStreamId, exists: false, partitions: null },
-            permissions: { messagePublicPublish: false, ephemeralPublicPublish: false },
-            storage: { enabled: false, provider: null, storageDays: null }
+            messageStream: { id: messageStreamId, exists: null, partitions: null, partitionsCorrect: null, metadataOk: null, publicKeyPresent: null },
+            ephemeralStream: { id: ephemeralStreamId, exists: null, partitions: null },
+            permissions: { messagePublicPublish: null, ephemeralPublicPublish: null },
+            storage: { enabled: null, provider: null, storageDays: null }
         };
 
-        // Check message stream
-        let messageStream = null;
-        try {
-            messageStream = await this.client.getStream(messageStreamId);
-            report.messageStream.exists = true;
-            const partitions = await messageStream.getPartitionCount();
-            report.messageStream.partitions = typeof partitions === 'bigint' ? Number(partitions) : partitions;
-            report.messageStream.partitionsCorrect = report.messageStream.partitions >= STREAM_CONFIG.MESSAGE_STREAM.DM_PARTITIONS;
+        const readStream = async (id, target) => {
+            try {
+                const stream = await this.client.getStream(id);
+                target.exists = true;
+                return stream;
+            } catch (e) {
+                if (isDefinitiveNotFound(e)) {
+                    target.exists = false;
+                } else {
+                    Logger.warn('Diagnose: could not read', id, '-', e.message);
+                }
+                return null;
+            }
+        };
 
-            // Check metadata
+        const messageStream = await readStream(messageStreamId, report.messageStream);
+        if (messageStream) {
+            try {
+                const partitions = await messageStream.getPartitionCount();
+                report.messageStream.partitions = typeof partitions === 'bigint' ? Number(partitions) : partitions;
+                report.messageStream.partitionsCorrect = report.messageStream.partitions >= STREAM_CONFIG.MESSAGE_STREAM.DM_PARTITIONS;
+            } catch (e) {
+                Logger.warn('Diagnose: could not read the partition count:', e.message);
+            }
             try {
                 const desc = await messageStream.getDescription();
-                if (desc) {
-                    const meta = JSON.parse(desc);
-                    report.messageStream.metadataOk = !!(meta.a && meta.t === 'dm-inbox');
-                    report.messageStream.publicKeyPresent = !!meta.pk;
-                }
+                const meta = desc ? JSON.parse(desc) : {};
+                report.messageStream.metadataOk = !!(meta.a && meta.t === 'dm-inbox');
+                report.messageStream.publicKeyPresent = !!meta.pk;
             } catch (e) {
-                Logger.debug('Diagnose: Could not parse message stream metadata:', e.message);
+                Logger.warn('Diagnose: could not read the message stream metadata:', e.message);
             }
-        } catch (e) {
-            Logger.debug('Diagnose: Message stream not found:', e.message);
+        } else if (report.messageStream.exists === false) {
+            report.messageStream.partitionsCorrect = false;
+            report.messageStream.publicKeyPresent = false;
+            report.permissions.messagePublicPublish = false;
+            report.storage.enabled = false;
         }
 
-        // Check ephemeral stream
-        let ephemeralStream = null;
-        try {
-            ephemeralStream = await this.client.getStream(ephemeralStreamId);
-            report.ephemeralStream.exists = true;
-            const partitions = await ephemeralStream.getPartitionCount();
-            report.ephemeralStream.partitions = typeof partitions === 'bigint' ? Number(partitions) : partitions;
-        } catch (e) {
-            Logger.debug('Diagnose: Ephemeral stream not found:', e.message);
-        }
-
-        // Check permissions (public publish)
-        const StreamPermission = window.StreamPermission;
-        if (StreamPermission) {
-            if (messageStream) {
-                try {
-                    report.permissions.messagePublicPublish = await messageStream.hasPermission({
-                        permission: StreamPermission.PUBLISH,
-                        public: true
-                    });
-                } catch (e) {
-                    Logger.debug('Diagnose: Could not check message stream permissions:', e.message);
-                }
-            }
-            if (ephemeralStream) {
-                try {
-                    report.permissions.ephemeralPublicPublish = await ephemeralStream.hasPermission({
-                        permission: StreamPermission.PUBLISH,
-                        public: true
-                    });
-                } catch (e) {
-                    Logger.debug('Diagnose: Could not check ephemeral stream permissions:', e.message);
-                }
-            }
-        }
-
-        // Check storage on message stream
-        if (report.messageStream.exists) {
+        const ephemeralStream = await readStream(ephemeralStreamId, report.ephemeralStream);
+        if (ephemeralStream) {
             try {
-                const storageInfo = await this.getStreamStorageInfo(messageStreamId);
+                const partitions = await ephemeralStream.getPartitionCount();
+                report.ephemeralStream.partitions = typeof partitions === 'bigint' ? Number(partitions) : partitions;
+            } catch (e) {
+                Logger.debug('Diagnose: could not read the ephemeral partition count:', e.message);
+            }
+        } else if (report.ephemeralStream.exists === false) {
+            report.permissions.ephemeralPublicPublish = false;
+        }
+
+        const StreamPermission = window.StreamPermission;
+        const publicPublish = async (stream, key) => {
+            if (!stream || !StreamPermission) return;
+            try {
+                report.permissions[key] = await stream.hasPermission({ permission: StreamPermission.PUBLISH, public: true });
+            } catch (e) {
+                Logger.warn('Diagnose: could not read the', key, 'permission:', e.message);
+            }
+        };
+        await publicPublish(messageStream, 'messagePublicPublish');
+        await publicPublish(ephemeralStream, 'ephemeralPublicPublish');
+
+        if (messageStream) {
+            const storageInfo = await this.getStreamStorageInfo(messageStreamId);
+            if (storageInfo.ok) {
                 report.storage.enabled = storageInfo.enabled;
                 report.storage.storageDays = storageInfo.storageDays;
                 if (storageInfo.enabled && storageInfo.nodes?.length > 0) {
-                    const nodeAddr = typeof storageInfo.nodes[0] === 'string'
-                        ? storageInfo.nodes[0].toLowerCase()
-                        : String(storageInfo.nodes[0]).toLowerCase();
+                    const nodeAddr = String(storageInfo.nodes[0]).toLowerCase();
                     const streamrAddr = (STREAM_CONFIG.NODE_ADDRESS || '').toLowerCase();
                     report.storage.provider = (streamrAddr && nodeAddr === streamrAddr) ? 'streamr' : 'custom';
                     report.storage.nodeAddress = nodeAddr;
                 }
-            } catch (e) {
-                Logger.debug('Diagnose: Could not check storage:', e.message);
             }
         }
 
@@ -1476,7 +1477,7 @@ class StreamrController {
 
         // Step 1: Create message stream if missing
         let messageStream = null;
-        if (!diagnosis.messageStream.exists) {
+        if (diagnosis.messageStream.exists === false) {
             onStep('messageStream', 'start');
             try {
                 messageStream = await executeWithRetryAndVerify(
@@ -1502,7 +1503,7 @@ class StreamrController {
         }
 
         // Step 1b: Fix partition count if too low (e.g. 3 → 4 for notifications)
-        if (messageStream && diagnosis.messageStream.exists && !diagnosis.messageStream.partitionsCorrect) {
+        if (messageStream && diagnosis.messageStream.exists && diagnosis.messageStream.partitionsCorrect === false) {
             onStep('partitions', 'start');
             try {
                 const currentMeta = await messageStream.getMetadata();
@@ -1520,7 +1521,7 @@ class StreamrController {
 
         // Step 2: Create ephemeral stream if missing
         let ephemeralStream = null;
-        if (!diagnosis.ephemeralStream.exists) {
+        if (diagnosis.ephemeralStream.exists === false) {
             onStep('ephemeralStream', 'start');
             try {
                 ephemeralStream = await executeWithRetryAndVerify(
@@ -1546,7 +1547,7 @@ class StreamrController {
         }
 
         // Step 3: Fix metadata (missing public key)
-        if (messageStream && publicKey && !diagnosis.messageStream.publicKeyPresent) {
+        if (messageStream && publicKey && diagnosis.messageStream.publicKeyPresent === false) {
             onStep('metadata', 'start');
             try {
                 const desc = await messageStream.getDescription();
@@ -1565,7 +1566,7 @@ class StreamrController {
         }
 
         // Step 4: Fix permissions on message stream
-        if (messageStream && !diagnosis.permissions.messagePublicPublish) {
+        if (messageStream && diagnosis.permissions.messagePublicPublish === false) {
             onStep('messagePermissions', 'start');
             try {
                 await this.grantManyToOnePermissions(messageStream);
@@ -1581,7 +1582,7 @@ class StreamrController {
         }
 
         // Step 5: Fix permissions on ephemeral stream
-        if (ephemeralStream && !diagnosis.permissions.ephemeralPublicPublish) {
+        if (ephemeralStream && diagnosis.permissions.ephemeralPublicPublish === false) {
             onStep('ephemeralPermissions', 'start');
             try {
                 await this.grantManyToOnePermissions(ephemeralStream);
@@ -1597,14 +1598,16 @@ class StreamrController {
         }
 
         // Step 6: Enable storage if missing
-        if (messageStream && !diagnosis.storage.enabled) {
+        if (messageStream && diagnosis.storage.enabled === false) {
             onStep('storage', 'start');
             try {
-                await this.enableStorage(messageStreamId, {
+                // enableStorage reports a failure instead of throwing it.
+                const stored = await this.enableStorage(messageStreamId, {
                     storageProvider: options.storageProvider,
                     customStorageAddress: options.customStorageAddress,
                     storageDays: options.storageDays
                 });
+                if (!stored?.success) throw new Error(stored?.error || 'storage was not enabled');
                 result.storage = 'ok';
                 onStep('storage', 'ok');
             } catch (e) {

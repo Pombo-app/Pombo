@@ -36,6 +36,7 @@ vi.mock('../../src/js/utils/retry.js', () => ({
 
 vi.mock('../../src/js/utils/rpcErrors.js', () => ({
     isRpcError: vi.fn(() => false),
+    isDefinitiveNotFound: vi.fn((e) => e?.code === 'STREAM_NOT_FOUND'),
     createPermissionResult: vi.fn((has, rpc, msg) => ({ hasPermission: has, rpcError: rpc, errorMessage: msg || null }))
 }));
 
@@ -906,6 +907,73 @@ describe('StreamrController Core', () => {
     });
 
     // ==================== getStreamStorageInfo() ====================
+    describe('DM inbox diagnosis and repair', () => {
+        const notFound = () => Object.assign(new Error('Stream not found'), { code: 'STREAM_NOT_FOUND' });
+        const healthyStream = () => createMockStream({
+            getPartitionCount: vi.fn().mockResolvedValue(13),
+            getDescription: vi.fn().mockResolvedValue(JSON.stringify({ a: 'pombo', t: 'dm-inbox', pk: 'pk' })),
+            getStorageNodes: vi.fn().mockReturnValue(['0xnode'])
+        });
+
+        it('calls a stream it could not read unknown, not missing', async () => {
+            mockClient.getStream.mockRejectedValue(new Error('RPC timeout'));
+            const d = await streamrController.diagnoseInbox('0xmyaddress');
+            expect(d.messageStream.exists).toBeNull();
+            expect(d.ephemeralStream.exists).toBeNull();
+            expect(d.permissions.messagePublicPublish).toBeNull();
+            expect(d.storage.enabled).toBeNull();
+        });
+
+        it('calls a stream that does not exist missing, and everything on it with it', async () => {
+            mockClient.getStream.mockRejectedValue(notFound());
+            const d = await streamrController.diagnoseInbox('0xmyaddress');
+            expect(d.messageStream.exists).toBe(false);
+            expect(d.permissions.messagePublicPublish).toBe(false);
+            expect(d.storage.enabled).toBe(false);
+        });
+
+        it('calls a permission it could not read unknown', async () => {
+            const stream = healthyStream();
+            stream.hasPermission.mockRejectedValue(new Error('RPC timeout'));
+            mockClient.getStream.mockResolvedValue(stream);
+            const d = await streamrController.diagnoseInbox('0xmyaddress');
+            expect(d.messageStream.exists).toBe(true);
+            expect(d.permissions.messagePublicPublish).toBeNull();
+            expect(d.storage.enabled).toBe(true);
+        });
+
+        it('repairs only what the diagnosis found broken', async () => {
+            const stream = healthyStream();
+            mockClient.getStream.mockResolvedValue(stream);
+            const grant = vi.spyOn(streamrController, 'grantManyToOnePermissions').mockResolvedValue();
+            const diagnosis = {
+                messageStream: { id: 'me/Pombo-DM-1', exists: true, partitionsCorrect: true, publicKeyPresent: true },
+                ephemeralStream: { id: 'me/Pombo-DM-2', exists: null },
+                permissions: { messagePublicPublish: false, ephemeralPublicPublish: null },
+                storage: { enabled: null }
+            };
+            const { steps } = await streamrController.repairInbox(diagnosis, 'pk');
+            expect(mockClient.createStream).not.toHaveBeenCalled();
+            expect(grant).toHaveBeenCalledTimes(1);
+            expect(steps).toMatchObject({ messagePermissions: 'ok', ephemeralStream: 'skip', storage: 'skip' });
+            grant.mockRestore();
+        });
+
+        it('reports storage that was not enabled as failed', async () => {
+            mockClient.getStream.mockResolvedValue(healthyStream());
+            const enable = vi.spyOn(streamrController, 'enableStorage').mockResolvedValue({ success: false });
+            const diagnosis = {
+                messageStream: { id: 'me/Pombo-DM-1', exists: true, partitionsCorrect: true, publicKeyPresent: true },
+                ephemeralStream: { id: 'me/Pombo-DM-2', exists: true },
+                permissions: { messagePublicPublish: true, ephemeralPublicPublish: true },
+                storage: { enabled: false }
+            };
+            const { steps } = await streamrController.repairInbox(diagnosis, 'pk');
+            expect(steps.storage).toBe('fail');
+            enable.mockRestore();
+        });
+    });
+
     describe('getStreamStorageInfo()', () => {
         it('should return disabled if client is null', async () => {
             streamrController.client = null;

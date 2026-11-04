@@ -10,7 +10,47 @@ vi.mock('../../src/js/logger.js', () => ({
     Logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }
 }));
 
-const { SettingsUI } = await import('../../src/js/ui/SettingsUI.js');
+const gas = vi.hoisted(() => ({ balance: 10n ** 18n, price: 100n }));
+vi.mock('../../src/js/ui/GasEstimator.js', async (importOriginal) => {
+    const { GasEstimator } = await importOriginal();
+    return {
+        GasEstimator: {
+            ...GasEstimator,
+            getBalance: vi.fn(async () => Number(gas.balance)),
+            getGasPrice: vi.fn(async () => Number(gas.price)),
+            formatPOL: (w) => `${w} wei`,
+            formatBalancePOL: (w) => `${w} wei`
+        }
+    };
+});
+
+const { SettingsUI, inboxFindings } = await import('../../src/js/ui/SettingsUI.js');
+
+const healthy = () => ({
+    messageStream: { exists: true, partitions: 13, partitionsCorrect: true, publicKeyPresent: true },
+    ephemeralStream: { exists: true },
+    permissions: { messagePublicPublish: true, ephemeralPublicPublish: true },
+    storage: { enabled: true, provider: 'streamr', storageDays: 180 }
+});
+
+describe('inbox findings', () => {
+    it('counts a false as an issue and a null as not checked', () => {
+        const d = healthy();
+        d.permissions.messagePublicPublish = false;
+        d.storage.enabled = null;
+        expect(inboxFindings(d)).toEqual({ issues: ['message permissions'], unchecked: ['storage'] });
+    });
+
+    it('does not ask what lives on a stream that is missing', () => {
+        const d = healthy();
+        d.messageStream = { exists: false, partitionsCorrect: false, publicKeyPresent: false };
+        d.permissions.messagePublicPublish = false;
+        d.storage.enabled = false;
+        const { issues, unchecked } = inboxFindings(d);
+        expect(issues).toEqual(['message stream', 'message permissions', 'storage']);
+        expect(unchecked).toEqual([]);
+    });
+});
 
 describe('DM Inbox panel', () => {
     let ui;
@@ -49,5 +89,53 @@ describe('DM Inbox panel', () => {
         ui.initRepairUI();
         document.getElementById('repair-check-again-btn').click();
         expect(ui.runDiagnosis).toHaveBeenCalled();
+    });
+
+    describe('with a DM manager', () => {
+        let dm;
+        beforeEach(() => {
+            dm = {
+                hasInbox: vi.fn(async () => true),
+                diagnoseInbox: vi.fn(async () => healthy()),
+                repairInbox: vi.fn(async () => ({ steps: { messagePermissions: 'ok' } }))
+            };
+            ui.setDependencies({
+                dmManager: dm,
+                authManager: { getAddress: () => '0xme' },
+                notificationUI: { showConfirmToast: vi.fn(async () => true) },
+                showNotification: vi.fn()
+            });
+            ui._refreshInboxStorage = vi.fn(async () => {});
+            gas.balance = 10n ** 18n;
+        });
+
+        it('says what it could not check instead of calling the inbox healthy', async () => {
+            const d = healthy();
+            d.storage.enabled = null;
+            dm.diagnoseInbox.mockResolvedValue(d);
+            await ui.runDiagnosis();
+            expect(ui._repairStatus).toBe('error');
+            expect(document.getElementById('repair-status-detail').textContent).toContain('Could not check: storage');
+            expect(hidden('repair-fix-btn')).toBe(true);
+        });
+
+        it('does not repair what the balance cannot pay for', async () => {
+            const d = healthy();
+            d.storage.enabled = false;
+            ui._repairDiagnosis = d;
+            gas.balance = 1n;
+            await ui.runRepair();
+            expect(dm.repairInbox).not.toHaveBeenCalled();
+        });
+
+        it('reads the chain again after a repair', async () => {
+            const d = healthy();
+            d.permissions.messagePublicPublish = false;
+            ui._repairDiagnosis = d;
+            await ui.runRepair();
+            expect(dm.repairInbox).toHaveBeenCalledTimes(1);
+            expect(dm.diagnoseInbox).toHaveBeenCalledTimes(1);
+            expect(ui._repairStatus).toBe('repaired');
+        });
     });
 });
