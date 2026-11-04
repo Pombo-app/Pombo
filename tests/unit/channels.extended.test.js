@@ -140,6 +140,7 @@ vi.mock('../../src/js/dm.js', () => ({
         subscribeDMEphemeral: vi.fn().mockResolvedValue(undefined),
         unsubscribeDMEphemeral: vi.fn().mockResolvedValue(undefined),
         loadDMTimeline: vi.fn(),
+        catchUpInbox: vi.fn().mockResolvedValue(0),
         getPeerPublicKey: vi.fn().mockResolvedValue('peerPubKey123'),
         sealAndPublish: vi.fn().mockResolvedValue({ messageId: { publisherId: '0xEphemeral' } }),
         isDMChannel: vi.fn().mockReturnValue(false),
@@ -1464,6 +1465,7 @@ describe('ChannelManager Extended', () => {
             await channelManager.subscribeToChannel('dm-stream');
 
             expect(dmManager.loadDMTimeline).toHaveBeenCalledWith('0xpeer');
+            expect(dmManager.catchUpInbox).toHaveBeenCalledWith('open');
             expect(dmManager.subscribeDMEphemeral).toHaveBeenCalled();
             const channel = channelManager.channels.get('dm-stream');
             expect(channel.historyLoaded).toBe(true);

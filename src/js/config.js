@@ -162,6 +162,8 @@ export const CONFIG = {
         searchAllWindowMs: 60 * 24 * 3600 * 1000,
         // How long a read of the inbox retention is reused (Settings can change it)
         retentionCacheMs: 5 * 60 * 1000,
+        // Inbox catch-up read while the page is visible, for a degraded live subscription
+        catchUpIntervalMs: 30 * 1000,
     },
 
     // Channel Settings

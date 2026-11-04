@@ -156,6 +156,7 @@ vi.mock('../../src/js/dm.js', () => ({
         subscribeDMEphemeral: vi.fn().mockResolvedValue(undefined),
         unsubscribeDMEphemeral: vi.fn().mockResolvedValue(undefined),
         loadDMTimeline: vi.fn(),
+        catchUpInbox: vi.fn().mockResolvedValue(0),
         getPeerPublicKey: vi.fn().mockResolvedValue('peerPubKey123'),
         sealAndPublish: vi.fn().mockResolvedValue({ messageId: { publisherId: '0xEphemeral' } }),
         isDMChannel: vi.fn().mockReturnValue(false),
