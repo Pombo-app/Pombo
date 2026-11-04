@@ -109,6 +109,7 @@ vi.mock('../../src/js/streamr.js', () => ({
             ephemeralStreamId: '0xmyaddress1234567890abcdef12345678/Pombo-DM-2'
         }),
         fetchOlderHistoryWindowed: vi.fn().mockResolvedValue({ messages: [], hasMore: false }),
+        getStorageDays: vi.fn().mockResolvedValue(null),
         client: {
             getStream: vi.fn().mockRejectedValue(new Error('not found'))
         }
@@ -2582,7 +2583,138 @@ describe('DMManager', () => {
         it('should return safe defaults on error', async () => {
             streamrController.fetchOlderHistoryWindowed.mockRejectedValueOnce(new Error('network'));
             const result = await dmManager.fetchOlderDMMessages(peerAddress);
-            expect(result).toEqual({ loaded: 0, hasMore: true, noResultsInWindow: false });
+            expect(result).toEqual({ loaded: 0, hasMore: true, noResultsInWindow: false, failed: true });
+        });
+
+        it('leaves the cursor where it was when the window read broke off', async () => {
+            const ch = channelManager.channels.get(streamId);
+            ch.oldestTimestamp = 50_000;
+            streamrController.fetchOlderHistoryWindowed.mockResolvedValueOnce({
+                messages: [{ publisherId: peerAddress, content: { id: 'half', text: 'x', timestamp: 10_000 } }],
+                hasMore: true, windowStart: 1_000, failed: true
+            });
+
+            const result = await dmManager.fetchOlderDMMessages(peerAddress);
+
+            expect(result).toMatchObject({ loaded: 0, hasMore: true, failed: true });
+            expect(ch.oldestTimestamp).toBe(50_000);
+            expect(ch.messages).toHaveLength(0);
+        });
+
+        describe('inbox retention', () => {
+            const DAY = 24 * 3600 * 1000;
+
+            beforeEach(() => {
+                dmManager._inboxRetention = null;
+                streamrController.getStorageDays.mockResolvedValue(10);
+            });
+            afterEach(() => {
+                dmManager._inboxRetention = null;
+                streamrController.getStorageDays.mockResolvedValue(null);
+            });
+
+            it('never reads past the retention and ends there', async () => {
+                const ch = channelManager.channels.get(streamId);
+                ch.oldestTimestamp = Date.now() - 9 * DAY;
+                streamrController.fetchOlderHistoryWindowed.mockImplementationOnce(async (_id, _p, before, windowMs) => (
+                    { messages: [], hasMore: true, windowStart: before - windowMs }
+                ));
+
+                const result = await dmManager.fetchOlderDMMessages(peerAddress);
+
+                const windowMs = streamrController.fetchOlderHistoryWindowed.mock.calls.at(-1)[3];
+                expect(windowMs).toBeLessThanOrEqual(DAY + 1000);
+                expect(result).toMatchObject({ loaded: 0, hasMore: false, noResultsInWindow: false });
+                expect(ch.hasMoreHistory).toBe(false);
+                expect(ch.dmRetentionDays).toBe(10);
+            });
+
+            it('does not read at all once the cursor is past the retention', async () => {
+                const ch = channelManager.channels.get(streamId);
+                ch.oldestTimestamp = Date.now() - 11 * DAY;
+                streamrController.fetchOlderHistoryWindowed.mockClear();
+
+                const result = await dmManager.fetchOlderDMMessages(peerAddress);
+
+                expect(streamrController.fetchOlderHistoryWindowed).not.toHaveBeenCalled();
+                expect(result).toMatchObject({ loaded: 0, hasMore: false });
+            });
+        });
+
+        describe('searchOlderDMMessages()', () => {
+            const DAY = 24 * 3600 * 1000;
+            const emptyWindow = async (_id, _p, before, windowMs) => (
+                { messages: [], hasMore: true, windowStart: before - windowMs }
+            );
+
+            beforeEach(() => {
+                dmManager._inboxRetention = null;
+                streamrController.fetchOlderHistoryWindowed.mockReset();
+            });
+
+            it('searches 15 days, then 2 months, then offers Search all', async () => {
+                streamrController.fetchOlderHistoryWindowed.mockImplementation(emptyWindow);
+                const ch = channelManager.channels.get(streamId);
+
+                await dmManager.searchOlderDMMessages(peerAddress);
+                expect(streamrController.fetchOlderHistoryWindowed.mock.calls[0][3]).toBe(15 * DAY);
+                expect(ch.dmSearchStep).toBe(1);
+
+                await dmManager.searchOlderDMMessages(peerAddress);
+                expect(streamrController.fetchOlderHistoryWindowed.mock.calls[1][3]).toBe(60 * DAY);
+                expect(ch.dmSearchStep).toBe(2);
+            });
+
+            it('Search all keeps walking back until messages turn up, then the steps start over', async () => {
+                const ch = channelManager.channels.get(streamId);
+                ch.dmSearchStep = 2;
+                streamrController.fetchOlderHistoryWindowed
+                    .mockImplementationOnce(emptyWindow)
+                    .mockImplementationOnce(emptyWindow)
+                    .mockImplementationOnce(async (_id, _p, before, windowMs) => ({
+                        messages: [{ publisherId: peerAddress, content: { id: 'found', text: 'x', timestamp: before - 1000 } }],
+                        hasMore: true, windowStart: before - windowMs
+                    }));
+
+                const result = await dmManager.searchOlderDMMessages(peerAddress);
+
+                const windows = streamrController.fetchOlderHistoryWindowed.mock.calls.map(c => c[3]);
+                expect(windows).toEqual([60 * DAY, 60 * DAY, 60 * DAY]);
+                expect(result.loaded).toBe(1);
+                expect(ch.dmSearchStep).toBe(0);
+            });
+
+            it('Search all stops at the retention', async () => {
+                streamrController.getStorageDays.mockResolvedValue(100);
+                try {
+                    const ch = channelManager.channels.get(streamId);
+                    ch.dmSearchStep = 2;
+                    ch.oldestTimestamp = Date.now() - 20 * DAY;
+                    streamrController.fetchOlderHistoryWindowed.mockImplementation(emptyWindow);
+
+                    const result = await dmManager.searchOlderDMMessages(peerAddress);
+
+                    expect(streamrController.fetchOlderHistoryWindowed).toHaveBeenCalledTimes(2);
+                    expect(result).toMatchObject({ hasMore: false });
+                    expect(ch.dmRetentionDays).toBe(100);
+                } finally {
+                    dmManager._inboxRetention = null;
+                    streamrController.getStorageDays.mockResolvedValue(null);
+                }
+            });
+
+            it('a failed tap does not move on to the next step', async () => {
+                const ch = channelManager.channels.get(streamId);
+                ch.dmSearchStep = 1;
+                streamrController.fetchOlderHistoryWindowed.mockResolvedValueOnce({
+                    messages: [], hasMore: true, windowStart: 1, failed: true
+                });
+
+                const result = await dmManager.searchOlderDMMessages(peerAddress);
+
+                expect(result.failed).toBe(true);
+                expect(ch.dmSearchStep).toBe(1);
+            });
         });
     });
 

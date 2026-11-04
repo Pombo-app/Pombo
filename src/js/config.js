@@ -156,6 +156,12 @@ export const CONFIG = {
         loadMoreCount: 100,
         // Time window (ms) per pagination search (7 days)
         searchWindowMs: 7 * 24 * 3600 * 1000,
+        // "Search older" taps after an empty week: 15 days, then 2 months, then Search all
+        searchStepsMs: [15 * 24 * 3600 * 1000, 60 * 24 * 3600 * 1000],
+        // Search all walks what is left of the retention in windows of this size
+        searchAllWindowMs: 60 * 24 * 3600 * 1000,
+        // How long a read of the inbox retention is reused (Settings can change it)
+        retentionCacheMs: 5 * 60 * 1000,
     },
 
     // Channel Settings

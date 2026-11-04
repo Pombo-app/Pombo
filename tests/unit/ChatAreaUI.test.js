@@ -454,7 +454,7 @@ describe('ChatAreaUI', () => {
         it('should call loadMoreHistory with streamId', async () => {
             await chatAreaUI._loadMoreChannelHistory(channel, channelManager);
 
-            expect(channelManager.loadMoreHistory).toHaveBeenCalledWith('stream-1');
+            expect(channelManager.loadMoreHistory).toHaveBeenCalledWith('stream-1', { dmSearch: false });
         });
 
         it('should re-render messages when history is loaded', async () => {
@@ -527,7 +527,36 @@ describe('ChatAreaUI', () => {
             const bannerSpy = vi.spyOn(chatAreaUI, '_showSearchOlderBanner');
             await chatAreaUI._loadMoreChannelHistory(channel, channelManager);
 
-            expect(bannerSpy).toHaveBeenCalledWith(channel, channelManager);
+            expect(bannerSpy).toHaveBeenCalledWith(channel, channelManager, { failed: false, retrySearch: false });
+        });
+
+        it('offers a retry of the same search when the window could not be read', async () => {
+            channel.type = 'dm';
+            channelManager.loadMoreHistory.mockResolvedValue({
+                loaded: 0, hasMore: true, noResultsInWindow: false, failed: true
+            });
+
+            await chatAreaUI._loadMoreChannelHistory(channel, channelManager, { dmSearch: true });
+
+            const banner = document.getElementById('dm-search-older-banner');
+            expect(banner.textContent).toContain("Couldn't search this time range — Try again");
+            channelManager.loadMoreHistory.mockClear();
+            banner.click();
+            await new Promise(r => setTimeout(r, 0));
+            expect(channelManager.loadMoreHistory).toHaveBeenCalledWith('stream-1', { dmSearch: true });
+        });
+
+        it('turns the prompt into Search all once the stepped searches came back empty', async () => {
+            channel.type = 'dm';
+            channel.dmSearchStep = 2;
+            channelManager.loadMoreHistory.mockResolvedValue({
+                loaded: 0, hasMore: true, noResultsInWindow: true
+            });
+
+            await chatAreaUI._loadMoreChannelHistory(channel, channelManager, { dmSearch: true });
+
+            expect(document.getElementById('dm-search-older-banner').textContent)
+                .toContain('No messages found in this time range — Search all');
         });
 
         it('applies a result that lands after the watchdog released the spinner', async () => {
