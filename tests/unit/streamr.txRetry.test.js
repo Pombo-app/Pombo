@@ -35,67 +35,80 @@ describe('on-chain writes retried against the chain', () => {
         stream = {
             id: STREAM,
             addToStorageNode: vi.fn().mockRejectedValue(receiptFailed()),
-            setStorageDayCount: vi.fn().mockResolvedValue(undefined)
+            setMetadata: vi.fn().mockResolvedValue(undefined)
         };
         client = {
             getStream: vi.fn().mockResolvedValue(stream),
-            isStoredStream: vi.fn().mockResolvedValue(true),
             setPermissions: vi.fn(),
             hasPermission: vi.fn()
         };
         streamrController.client = client;
+        vi.spyOn(streamrController, 'chainStreamMetadata').mockResolvedValue({ partitions: 12, description: '{}' });
+        vi.spyOn(streamrController, 'chainIsStorageNodeOf').mockResolvedValue(true);
     });
+
+    afterEach(() => vi.restoreAllMocks());
 
     it('does not assign the storage node twice when the first assignment landed', async () => {
         const result = await settled(streamrController.enableStorage(STREAM, {}, 4));
 
         expect(result.success).toBe(true);
         expect(stream.addToStorageNode).toHaveBeenCalledTimes(1);
-        expect(client.isStoredStream).toHaveBeenCalledWith(STREAM, NODE);
+        expect(streamrController.chainIsStorageNodeOf).toHaveBeenCalledWith(STREAM, NODE);
+    });
+
+    it('writes the retention over the metadata the chain holds, not a cached copy', async () => {
+        stream.addToStorageNode.mockResolvedValue(undefined);
+        stream.getMetadata = vi.fn().mockResolvedValue({ partitions: 1, description: 'stale', storageDays: 18 });
+        vi.spyOn(streamrController, '_chainStorageDays').mockResolvedValue(30);
+
+        await settled(streamrController.setStorageDays(STREAM, 30));
+
+        expect(stream.setMetadata).toHaveBeenCalledWith({ partitions: 12, description: '{}', storageDays: 30 });
     });
 
     it('does not set the retention twice when the first write landed', async () => {
         stream.addToStorageNode.mockResolvedValue(undefined);
-        stream.setStorageDayCount.mockRejectedValue(receiptFailed());
+        stream.setMetadata.mockRejectedValue(receiptFailed());
         const chainDays = vi.spyOn(streamrController, '_chainStorageDays').mockResolvedValue(30);
 
         const result = await settled(streamrController.enableStorage(STREAM, { storageDays: 30 }, 4));
 
         expect(result.retentionApplied).toBe(true);
-        expect(stream.setStorageDayCount).toHaveBeenCalledTimes(1);
+        expect(stream.setMetadata).toHaveBeenCalledTimes(1);
         chainDays.mockRestore();
     });
 
     it('sends a retention change again when the chain shows it did not land', async () => {
-        stream.setStorageDayCount.mockRejectedValueOnce(new Error('Failed to fetch')).mockResolvedValue(undefined);
+        stream.setMetadata.mockRejectedValueOnce(new Error('Failed to fetch')).mockResolvedValue(undefined);
         const chainDays = vi.spyOn(streamrController, '_chainStorageDays').mockResolvedValue(7);
 
         const ok = await settled(streamrController.setStorageDays(STREAM, 30, { retries: 4 }));
 
         expect(ok).toBe(true);
-        expect(stream.setStorageDayCount).toHaveBeenCalledTimes(2);
+        expect(stream.setMetadata).toHaveBeenCalledTimes(2);
         chainDays.mockRestore();
     });
 
     it('does not change the retention twice when the first change landed', async () => {
-        stream.setStorageDayCount.mockRejectedValue(receiptFailed());
+        stream.setMetadata.mockRejectedValue(receiptFailed());
         const chainDays = vi.spyOn(streamrController, '_chainStorageDays').mockResolvedValue(30);
 
         const ok = await settled(streamrController.setStorageDays(STREAM, 30, { retries: 4 }));
 
         expect(ok).toBe(true);
-        expect(stream.setStorageDayCount).toHaveBeenCalledTimes(1);
+        expect(stream.setMetadata).toHaveBeenCalledTimes(1);
         chainDays.mockRestore();
     });
 
     it('changes the retention once, without asking the chain, unless retries are asked for', async () => {
-        stream.setStorageDayCount.mockRejectedValue(receiptFailed());
+        stream.setMetadata.mockRejectedValue(receiptFailed());
         const chainDays = vi.spyOn(streamrController, '_chainStorageDays');
 
         const ok = await settled(streamrController.setStorageDays(STREAM, 30));
 
         expect(ok).toBe(false);
-        expect(stream.setStorageDayCount).toHaveBeenCalledTimes(1);
+        expect(stream.setMetadata).toHaveBeenCalledTimes(1);
         expect(chainDays).not.toHaveBeenCalled();
         chainDays.mockRestore();
     });
