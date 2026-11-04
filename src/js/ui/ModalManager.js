@@ -36,7 +36,7 @@ class ModalManager {
         // Opened over whatever view is showing: closing one must not navigate.
         // The history.back() that drops its entry lands on the view's own
         // state, which the mobile router reads as "go to Home" for Explore.
-        this.overlayModals = new Set(['wallet-modal', 'join-channel-modal', 'new-channel-modal', 'explore-details-modal']);
+        this.overlayModals = new Set(['wallet-modal', 'join-channel-modal', 'new-channel-modal', 'explore-details-modal', 'new-dm-modal']);
         this._swallowNextPop = false;
 
         // Extra history steps inside an open modal (e.g. a Settings section
