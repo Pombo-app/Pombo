@@ -232,6 +232,11 @@ class ContactsUI {
                     }
 
                     if (action === 'send-dm') {
+                        // The New DM modal must open after the pop that drops this
+                        // modal's history entry, or that pop closes it instead.
+                        const closed = new Promise(resolve => window.addEventListener('popstate', resolve, { once: true }));
+                        this.hide();
+                        await closed;
                         const { dmModalsUI } = await import('./DMModalsUI.js');
                         dmModalsUI.showNewDMModalWithAddress(contact.address);
                         return;

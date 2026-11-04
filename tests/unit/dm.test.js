@@ -1619,7 +1619,7 @@ describe('DMManager', () => {
                 .rejects.toThrow('Invalid Ethereum address');
         });
 
-        it('should create conversation and switch channel', async () => {
+        it('should create the conversation and leave opening it to the UI', async () => {
             const peerAddress = '0xdddddddddddddddddddddddddddddddddddddddd';
 
             // Peer's inbox must exist for startDM to proceed
@@ -1629,8 +1629,7 @@ describe('DMManager', () => {
 
             expect(result).toBeDefined();
             expect(result.type).toBe('dm');
-            expect(channelManager.setCurrentChannel).toHaveBeenCalled();
-            expect(channelManager.notifyHandlers).toHaveBeenCalledWith('channelSwitched', expect.any(Object));
+            expect(channelManager.setCurrentChannel).not.toHaveBeenCalled();
         });
     });
 

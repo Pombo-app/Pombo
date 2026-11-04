@@ -562,13 +562,15 @@ class MessageContextMenuUI {
 
     /** Open a DM conversation with the given address. */
     async handleSendDM(address) {
-        const { dmManager, showNotification } = this.deps;
+        const { dmManager, showNotification, renderChannelList, selectChannel } = this.deps;
         if (!dmManager) {
             showNotification('DM system not available', 'error');
             return;
         }
         try {
-            await dmManager.startDM(address);
+            const channel = await dmManager.startDM(address);
+            renderChannelList?.();
+            await selectChannel?.(channel.messageStreamId);
         } catch (e) {
             showNotification(e.message || 'Failed to start DM', 'error');
         }
