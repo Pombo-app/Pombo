@@ -2639,6 +2639,24 @@ describe('DMManager', () => {
                 expect(streamrController.fetchOlderHistoryWindowed).not.toHaveBeenCalled();
                 expect(result).toMatchObject({ loaded: 0, hasMore: false });
             });
+
+            it('each account searches up to its own inbox retention', async () => {
+                const first = dmManager.inboxMessageStreamId;
+                streamrController.getStorageDays.mockImplementation(async (id) => (id === first ? 2 : 180));
+                streamrController.fetchOlderHistoryWindowed.mockImplementation(async (_id, _p, before, windowMs) => (
+                    { messages: [], hasMore: true, windowStart: before - windowMs }
+                ));
+                await dmManager.fetchOlderDMMessages(peerAddress);
+                expect(streamrController.fetchOlderHistoryWindowed.mock.calls.at(-1)[3]).toBeLessThanOrEqual(2 * DAY + 1000);
+
+                dmManager.inboxMessageStreamId = '0xnextaccount000000000000000000000000000/Pombo-DM-1';
+                const ch = channelManager.channels.get(streamId);
+                ch.oldestTimestamp = 0;
+                ch.hasMoreHistory = true;
+                await dmManager.fetchOlderDMMessages(peerAddress);
+
+                expect(streamrController.fetchOlderHistoryWindowed.mock.calls.at(-1)[3]).toBe(7 * DAY);
+            });
         });
 
         describe('searchOlderDMMessages()', () => {

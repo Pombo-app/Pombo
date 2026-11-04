@@ -1679,11 +1679,12 @@ class DMManager {
      * @returns {Promise<number|null>}
      */
     async getInboxRetentionDays() {
+        const inbox = this.inboxMessageStreamId;
         const cached = this._inboxRetention;
-        if (cached && Date.now() - cached.at < CONFIG.dm.retentionCacheMs) return cached.days;
-        const days = Number(await streamrController.getStorageDays(this.inboxMessageStreamId));
+        if (cached?.inbox === inbox && Date.now() - cached.at < CONFIG.dm.retentionCacheMs) return cached.days;
+        const days = Number(await streamrController.getStorageDays(inbox));
         if (!Number.isFinite(days) || days <= 0) return null;
-        this._inboxRetention = { days, at: Date.now() };
+        this._inboxRetention = { inbox, days, at: Date.now() };
         return days;
     }
 
