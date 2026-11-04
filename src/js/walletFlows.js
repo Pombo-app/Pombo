@@ -23,6 +23,7 @@ import {
 } from './ui/modalUtils.js';
 import { CONFIG } from './config.js';
 import { identityManager } from './identity.js';
+import { epochKeyManager } from './epochKeyManager.js';
 import { importBackupData } from './backupImport.js';
 
 /**
@@ -604,7 +605,8 @@ class WalletFlows {
                 const summary = await importBackupData(data, {
                     secureStorage,
                     channelManager,
-                    identityManager
+                    identityManager,
+                    epochKeyManager
                 });
 
                 // Import image blobs from backup into IDB ledger

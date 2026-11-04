@@ -602,6 +602,22 @@ class SecureStorage {
     }
 
     /**
+     * Write merged epoch-key records into the cache without saving.
+     * Only epochKeyManager.applyPersisted calls this.
+     * @param {Object} records - messageStreamId → persisted record
+     * @param {{replace?: boolean}} [options] - replace the whole slice instead of per channel
+     * @returns {boolean} Whether the slice changed
+     */
+    putEpochKeys(records, { replace = false } = {}) {
+        if (!this.isUnlocked) return false;
+        const current = this.cache.epochKeys || {};
+        const next = replace ? { ...records } : { ...current, ...records };
+        if (JSON.stringify(next) === JSON.stringify(current)) return false;
+        this.cache.epochKeys = next;
+        return true;
+    }
+
+    /**
      * Drop persisted epoch keys for a channel (on leave/delete).
      * @param {string} messageStreamId
      */
@@ -1797,7 +1813,8 @@ class SecureStorage {
 
     /**
      * Import merged state from sync.
-     * Replaces local state with merged data from sync process.
+     * Replaces local state with merged data from sync process. The epochKeys
+     * slice is not written here: epochKeyManager.applyPersisted owns it.
      * @param {Object} data - Merged state from syncManager
      * @param {Object} [options]
      * @param {Function} [options.onChannelsWritten] - Called synchronously right after
@@ -1814,7 +1831,6 @@ class SecureStorage {
         const changes = {
             hasChanges: false,
             channelsUpdated: false,
-            epochKeysUpdated: false,
             contactsUpdated: false,
             blockedPeersUpdated: false,
             usernameUpdated: false,
@@ -1845,11 +1861,6 @@ class SecureStorage {
         }
         if (data.channelsLeftAt !== undefined && !isEqual(this.cache.channelsLeftAt, data.channelsLeftAt)) {
             this.cache.channelsLeftAt = data.channelsLeftAt;
-            changes.hasChanges = true;
-        }
-        if (data.epochKeys !== undefined && !isEqual(this.cache.epochKeys, data.epochKeys)) {
-            this.cache.epochKeys = data.epochKeys;
-            changes.epochKeysUpdated = true;
             changes.hasChanges = true;
         }
         if (data.blockedPeers !== undefined && !isEqual(this.cache.blockedPeers, data.blockedPeers)) {

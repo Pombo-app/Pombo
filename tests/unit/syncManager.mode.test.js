@@ -125,6 +125,12 @@ vi.mock('../../src/js/identity.js', () => ({
     }
 }));
 
+vi.mock('../../src/js/epochKeyManager.js', () => ({
+    epochKeyManager: {
+        applyPersisted: vi.fn().mockReturnValue(false)
+    }
+}));
+
 vi.mock('../../src/js/media.js', () => ({
     mediaController: {
         handleMediaMessage: vi.fn()

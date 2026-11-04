@@ -1296,7 +1296,6 @@ describe('secureStorage', () => {
                 expect(result).toEqual({
                     hasChanges: true,
                     channelsUpdated: true,
-                    epochKeysUpdated: false,
                     contactsUpdated: false,
                     blockedPeersUpdated: false,
                     usernameUpdated: false,
@@ -1314,7 +1313,6 @@ describe('secureStorage', () => {
                 expect(result).toEqual({
                     hasChanges: true,
                     channelsUpdated: false,
-                    epochKeysUpdated: false,
                     contactsUpdated: false,
                     blockedPeersUpdated: false,
                     usernameUpdated: true,
@@ -1347,6 +1345,18 @@ describe('secureStorage', () => {
                 expect(secureStorage.cache.username).toBe('keep');
             });
 
+            it('should leave the epochKeys slice to its owner', async () => {
+                secureStorage.initAsGuest('0xepochs');
+                secureStorage.cache.epochKeys = { 'ch-1': { epochs: { k1: { keyHex: '0x1' } } } };
+
+                const result = await secureStorage.importFromSync({
+                    epochKeys: { 'ch-1': { epochs: { k2: { keyHex: '0x2' } } } }
+                });
+
+                expect(result.hasChanges).toBe(false);
+                expect(secureStorage.cache.epochKeys).toEqual({ 'ch-1': { epochs: { k1: { keyHex: '0x1' } } } });
+            });
+
             it('should skip save and channel refresh when imported state is identical', async () => {
                 secureStorage.initAsGuest('0xsame');
                 secureStorage.cache.channels = [{ messageStreamId: 'same-ch' }];
@@ -1359,7 +1369,6 @@ describe('secureStorage', () => {
                 expect(result).toEqual({
                     hasChanges: false,
                     channelsUpdated: false,
-                    epochKeysUpdated: false,
                     contactsUpdated: false,
                     blockedPeersUpdated: false,
                     usernameUpdated: false,

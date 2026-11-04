@@ -183,6 +183,7 @@ class UIController {
             contactsUI,
             dmManager,
             syncManager,
+            epochKeyManager,
             showCreateDMInboxModal: () => dmModalsUI.showCreateInboxModal(),
             showNotification: (msg, type) => this.showNotification(msg, type),
             updateWalletInfo: (address, isGuest) => headerUI.updateWalletInfo(address, isGuest),

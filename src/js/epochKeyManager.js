@@ -355,16 +355,28 @@ class EpochKeyManager {
     }
 
     /**
-     * Re-pull persisted keys into every already-hydrated in-memory state.
-     * A sync pull can land keys for channels this session loaded before the
-     * pull ran — loadPersistedState is once-per-channel, so without this the
-     * synced keys only take effect after a restart. _loadPersisted unions
-     * (never overwrites), so adopted keys are untouched.
+     * Apply epoch-key records already merged by the caller (backup import,
+     * sync pull) to the persisted slice and to every hydrated channel state,
+     * in one synchronous step. The caller saves storage.
+     * Besides _persist, this is the only writer of the epochKeys slice: a
+     * cache write that skips the hydrated state is erased by the next _persist.
+     * @param {Object} records - messageStreamId → persisted record
+     * @param {{replace?: boolean}} [options] - replace the whole slice instead of per channel
+     * @returns {boolean} Whether the persisted slice changed
      */
-    refreshPersisted() {
+    applyPersisted(records, { replace = false } = {}) {
+        const changed = secureStorage.putEpochKeys(records, { replace });
+        if (!changed) return false;
         for (const [messageStreamId, s] of this.state) {
-            if (s.loaded) this._loadPersisted(messageStreamId, s);
+            if (!s.loaded) continue;
+            const held = new Set(s.epochs.keys());
+            this._loadPersisted(messageStreamId, s);
+            this._dropHeldKids(s);
+            for (const keyId of s.epochs.keys()) {
+                if (!held.has(keyId)) this._notifyAdopted(messageStreamId, keyId);
+            }
         }
+        return true;
     }
 
     /** Does the channel hold a usable current key right now? */

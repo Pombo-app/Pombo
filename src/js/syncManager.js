@@ -23,6 +23,7 @@ import { dmCrypto } from './dmCrypto.js';
 import { channelManager } from './channels.js';
 import { dmManager } from './dm.js';
 import { identityManager } from './identity.js';
+import { epochKeyManager } from './epochKeyManager.js';
 import { mergePayloadSeries as mergeSyncPayloadSeries, mergeSentMessages as mergeSyncSentMessages, mergeSentReactions as mergeSyncSentReactions, mergeState as mergeSyncState, mergeChannels as mergeSyncChannels, mergeEpochKeys as mergeSyncEpochKeys, mergeSentDeletedAt as mergeSyncSentDeletedAt, withoutDeleted as withoutDeletedSent } from './syncMerge.js';
 import { syncWorkerClient } from './workers/syncWorkerClient.js';
 import { cryptoManager } from './crypto.js';
@@ -843,10 +844,15 @@ class SyncManager {
 
             // Apply final merged state
             const importStartedAt = getNow();
+            // Before the first await: merged.epochKeys was rebased on the live cache above.
+            const epochKeysChanged = epochKeyManager.applyPersisted(merged.epochKeys, { replace: true });
             let reloadResult = null;
             const importResult = await secureStorage.importFromSync(merged, {
                 onChannelsWritten: () => { reloadResult = channelManager.reloadChannelsFromSync(); }
             });
+            if (epochKeysChanged && !importResult.hasChanges) {
+                await secureStorage.saveToStorage();
+            }
             const importCompletedAt = getNow();
             importResult.currentChannelRemoved = !!reloadResult?.currentChannelRemoved;
             if (reloadResult) {
