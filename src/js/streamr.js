@@ -24,7 +24,7 @@ import { Logger } from './logger.js';
 import { cryptoManager } from './crypto.js';
 import { CONFIG, getRpcEndpoints } from './config.js';
 import { executeWithRetry, executeWithRetryAndVerify } from './utils/retry.js';
-import { isRpcError, createPermissionResult } from './utils/rpcErrors.js';
+import { isRpcError, isDefinitiveNotFound, createPermissionResult } from './utils/rpcErrors.js';
 import { rpcHealth, getUsableRpcEndpoints } from './rpcHealth.js';
 import { authManager } from './auth.js';
 import { NodeRevival } from './streamr/NodeRevival.js';
@@ -1824,7 +1824,7 @@ class StreamrController {
             Logger.error('Failed to get stream storage info:', error);
             // `ok: false` is not "no nodes": callers that would skip a write,
             // or call a node missing, must treat it as nothing known.
-            return { ok: false, enabled: false, nodes: [], storageDays: null };
+            return { ok: false, enabled: false, nodes: [], storageDays: null, notFound: isDefinitiveNotFound(error) };
         }
     }
 
@@ -3536,9 +3536,17 @@ class StreamrController {
         // the publish fails once, falls back to the -1/P0 it used to use, and
         // remembers for the session.
         const record = await this._channelRecordFor(messageStreamId);
-        const interactionsId = record?._interactionsMissing
+        let interactionsId = record?._interactionsMissing
             ? null
             : (record?.interactionsStreamId || null);
+        // A publish to a -5 that does not exist succeeds all the same: the
+        // reaction is seen live and gone on the next open. Storage decides.
+        if (interactionsId && await this._interactionsStored(record, interactionsId) === false) {
+            if (record) record._interactionsMissing = true;
+            Logger.warn('No storage on the interactions stream — reacting on the -1:',
+                messageStreamId.slice(-20));
+            interactionsId = null;
+        }
         if (interactionsId) {
             try {
                 return await this.publishAsChannel(
@@ -3552,6 +3560,18 @@ class StreamrController {
         }
         return await this.publishAsChannel(
             messageStreamId, STREAM_CONFIG.MESSAGE_STREAM.MESSAGES, reaction, password);
+    }
+
+    /**
+     * Whether storage keeps the interactions stream: true, false (absent or
+     * no node), or null when the lookup did not answer. Asked once per session.
+     */
+    async _interactionsStored(record, interactionsId) {
+        if (typeof record?._interactionsStored === 'boolean') return record._interactionsStored;
+        const info = await this.getStreamStorageInfo(interactionsId);
+        const stored = info.ok ? info.enabled : (info.notFound ? false : null);
+        if (record && stored !== null) record._interactionsStored = stored;
+        return stored;
     }
 
     /**
