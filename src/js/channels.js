@@ -46,10 +46,14 @@ import { cryptoManager } from './crypto.js';
 
 const GATE_REPAIR_WAIT_MS = 10_000;
 const OPEN_READ_RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
+const STORAGE_LAND_POLLS = 18;
+const STORAGE_LAND_POLL_MS = 5_000;
 
 class ChannelManager {
     constructor() {
         this.channels = new Map(); // streamId -> channel object
+        // Storage nodes this session assigned, which no index may list yet.
+        this._writtenStorageNodes = new Set();
         // Each record as last persisted or imported, serialized: what a save
         // compares against to stamp the fields that changed here. A copy, as
         // the live records share their arrays with the storage cache.
@@ -1599,27 +1603,29 @@ class ChannelManager {
      * skip leaves the stream diverged with the UI reporting success, while a
      * redundant write only costs gas.
      *
+     * The contracts, not The Graph or the SDK cache: both lag a write, and the
+     * cache keeps the old value for good when the write's receipt read failed.
+     *
      * @param {Object} [options]
-     * @param {boolean} [options.fresh=false] - Read The Graph instead of the SDK's cached copy
+     * @param {string[]} [options.extraNodes] - nodes to ask about even when no index lists them yet
      * @returns {Promise<Array<{id, kind, read: boolean, nodes: string[], storageDays: number|null}>>}
      * @private
      */
-    async _readStoredStreams(messageStreamId, channel, { fresh = false } = {}) {
-        return Promise.all(this._storedStreamIds(messageStreamId, channel).map(async ({ id, kind }) => {
-            const info = await (fresh
-                ? graphAPI.getStreamStorage(id).then((s) => ({
-                    ok: true, nodes: s.nodes.map((n) => n.nodeAddress), storageDays: s.storageDays
-                }))
-                : streamrController.getStreamStorageInfo(id))
-                .catch(() => ({ ok: false, nodes: [], storageDays: null }));
+    async _readStoredStreams(messageStreamId, channel, { extraNodes = [] } = {}) {
+        const streams = this._storedStreamIds(messageStreamId, channel);
+        const state = await streamrController.chainStreamStorage(streams.map(s => s.id),
+            [STREAM_CONFIG.NODE_ADDRESS, ...this._writtenStorageNodes, ...extraNodes])
+            .catch(() => new Map());
+        return streams.map(({ id, kind }) => {
+            const info = state.get(id) || { ok: false, nodes: [], storageDays: null };
             return {
                 id,
                 kind,
-                read: info.ok !== false,
-                nodes: info.nodes || [],
-                storageDays: typeof info.storageDays === 'number' ? info.storageDays : null
+                read: info.ok,
+                nodes: info.nodes,
+                storageDays: info.storageDays
             };
-        }));
+        });
     }
 
     async getChannelStorageInfo(messageStreamId) {
@@ -1699,13 +1705,48 @@ class ChannelManager {
      *          results maps kind -> 'unchanged' | 'applied' | 'failed'
      * @private
      */
-    async _applyToStoredStreams(messageStreamId, needs, apply) {
+    /** The higher of this account's mined and pending counts; null when no endpoint answered. */
+    async _accountNonce() {
+        const n = await streamrController.accountNonces().catch(() => null);
+        return n ? Math.max(n.latest, n.pending) : null;
+    }
+
+    /**
+     * Whether a failed write may still have left: unknown counts as yes. A
+     * pending transaction can take a moment to reach the endpoint asked, so
+     * "never left" is only believed when two reads agree.
+     */
+    async _writeLeft(nonceBefore) {
+        if (nonceBefore === null) return true;
+        for (let attempt = 0; attempt < 2; attempt++) {
+            if (attempt > 0) await new Promise(resolve => setTimeout(resolve, STORAGE_LAND_POLL_MS));
+            const now = await this._accountNonce();
+            if (now === null || now > nonceBefore) return true;
+        }
+        Logger.info('Storage write never left; not waiting for it');
+        return false;
+    }
+
+    /** Polls the contracts until `stream` no longer `needs` the write, or gives up. */
+    async _awaitStoredStream(stream, needs, extraNodes) {
+        for (let i = 0; i < STORAGE_LAND_POLLS; i++) {
+            await new Promise(resolve => setTimeout(resolve, STORAGE_LAND_POLL_MS));
+            const state = await streamrController.chainStreamStorage([stream.id],
+                [STREAM_CONFIG.NODE_ADDRESS, ...this._writtenStorageNodes, ...extraNodes]).catch(() => null);
+            const info = state?.get(stream.id);
+            if (info?.ok && !needs({ ...stream, read: true, nodes: info.nodes, storageDays: info.storageDays })) {
+                Logger.info('Storage write on', stream.kind, 'landed after its receipt read failed');
+                return true;
+            }
+        }
+        return false;
+    }
+
+    async _applyToStoredStreams(messageStreamId, needs, apply, extraNodes = []) {
         const channel = this.channels.get(messageStreamId);
         if (!channel) throw new Error('Channel not found');
 
-        // Before: The Graph, which sees changes made from other devices. After:
-        // the SDK, which follows this client's own writes before The Graph indexes them.
-        const before = await this._readStoredStreams(messageStreamId, channel, { fresh: true });
+        const before = await this._readStoredStreams(messageStreamId, channel, { extraNodes });
         const results = {};
         let sent = 0;
 
@@ -1713,17 +1754,28 @@ class ChannelManager {
         for (const stream of before) {
             if (!needs(stream)) { results[stream.kind] = 'unchanged'; continue; }
             sent += 1;
+            const nonceBefore = await this._accountNonce();
             const res = await apply(stream.id).catch(e => ({ success: false, error: e?.message }));
             results[stream.kind] = res?.success ? 'applied' : 'failed';
             if (!res?.success) {
                 Logger.warn('Storage write failed on', stream.kind, stream.id?.slice(-20), res?.error);
+                // A receipt read that failed early leaves the write pending: the next one
+                // would take the same nonce and one of the two would be dropped.
+                if (await this._writeLeft(nonceBefore)
+                        && await this._awaitStoredStream(stream, needs, extraNodes)) {
+                    results[stream.kind] = 'applied';
+                }
             }
         }
 
         // Nothing was sent, so the read that said so is all we have.
         if (sent === 0) return { results, sent, verified: null };
 
-        const after = await this._readStoredStreams(messageStreamId, channel);
+        const after = await this._readStoredStreams(messageStreamId, channel, { extraNodes });
+        // A write whose receipt read failed has usually landed: the chain decides.
+        for (const st of after) {
+            if (results[st.kind] === 'failed' && st.read && !needs(st)) results[st.kind] = 'applied';
+        }
         const verified = after.every(st => st.read && !needs(st));
         if (!verified) {
             Logger.warn('Storage write did not converge; the channel streams are still out of sync');
@@ -1751,6 +1803,7 @@ class ChannelManager {
             : STREAM_CONFIG.NODE_ADDRESS) || '';
         const has = (stream) => stream.nodes
             .some(n => String(n).toLowerCase() === address.toLowerCase());
+        if (address) this._writtenStorageNodes.add(address.toLowerCase());
 
         const snapshot = await this.storageCopy.prepare(messageStreamId).catch((e) => {
             Logger.warn('Storage copy not prepared:', e?.message);
@@ -1760,7 +1813,8 @@ class ChannelManager {
             messageStreamId,
             // Unread streams are written to: absence proves nothing.
             (stream) => !stream.read || !has(stream),
-            (streamId) => streamrController.addStorageNodeToStream(streamId, options)
+            (streamId) => streamrController.addStorageNodeToStream(streamId, options),
+            [address]
         );
         this._forgetStorageEndpoints(messageStreamId);
         if (snapshot && address
@@ -1793,7 +1847,8 @@ class ChannelManager {
         const result = await this._applyToStoredStreams(
             messageStreamId,
             (stream) => !stream.read || has(stream),
-            (streamId) => streamrController.removeStorageFromStream(streamId, nodeAddress)
+            (streamId) => streamrController.removeStorageFromStream(streamId, nodeAddress),
+            [addr]
         );
         this._forgetStorageEndpoints(messageStreamId);
         return result;

@@ -1087,6 +1087,33 @@ class StreamrController {
         throw lastError;
     }
 
+    /**
+     * This account's mined and pending transaction counts, to tell a write
+     * that never left from one whose receipt read failed. Throws when no
+     * endpoint answers.
+     * @returns {Promise<{latest: number, pending: number}>}
+     */
+    async accountNonces() {
+        let lastError = new Error('No RPC endpoint');
+        for (const { url } of getUsableRpcEndpoints()) {
+            try {
+                const provider = new ethers.JsonRpcProvider(url, CONFIG.network.chainId,
+                    { staticNetwork: true, batchMaxCount: 1 });
+                return await Promise.race([
+                    (async () => ({
+                        latest: await provider.getTransactionCount(this.address, 'latest'),
+                        pending: await provider.getTransactionCount(this.address, 'pending')
+                    }))(),
+                    new Promise((_, reject) => setTimeout(
+                        () => reject(new Error('nonce read timed out')), REGISTRY_READ_TIMEOUT_MS))
+                ]);
+            } catch (e) {
+                lastError = e;
+            }
+        }
+        throw lastError;
+    }
+
     /** Stream metadata as the chain holds it now. Throws when unreadable or not JSON. */
     async chainStreamMetadata(streamId) {
         const raw = await this._registryRead(STREAM_REGISTRY_ADDRESS, STREAM_REGISTRY_ABI,
@@ -1102,6 +1129,35 @@ class StreamrController {
     async chainIsStorageNodeOf(streamId, nodeAddress) {
         return this._registryRead(STREAM_STORAGE_REGISTRY_ADDRESS, STREAM_STORAGE_REGISTRY_ABI,
             (registry) => registry.isStorageNodeOf(streamId, nodeAddress));
+    }
+
+    /**
+     * Storage nodes and retention per stream as the contracts hold them now.
+     * The registry cannot list a stream's nodes, so the candidates are the
+     * indexed lists plus `extraNodes`, each asked one by one.
+     * @returns {Promise<Map<string, {ok: boolean, nodes: string[], storageDays: number|null}>>}
+     */
+    async chainStreamStorage(streamIds, extraNodes = []) {
+        const candidates = new Set(extraNodes.filter(Boolean).map(n => String(n).toLowerCase()));
+        for (const id of streamIds) {
+            const info = await this.getStreamStorageInfo(id);
+            if (info.ok) info.nodes.forEach(n => candidates.add(String(n).toLowerCase()));
+        }
+        const out = new Map();
+        for (const id of streamIds) {
+            try {
+                const nodes = [];
+                for (const n of candidates) {
+                    if (await this.chainIsStorageNodeOf(id, n)) nodes.push(n);
+                }
+                const metadata = await this.chainStreamMetadata(id);
+                const storageDays = Number.isFinite(metadata.storageDays) ? metadata.storageDays : null;
+                out.set(id, { ok: true, nodes, storageDays });
+            } catch {
+                out.set(id, { ok: false, nodes: [], storageDays: null });
+            }
+        }
+        return out;
     }
 
     /**
