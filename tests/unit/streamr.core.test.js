@@ -73,7 +73,7 @@ function createMockStream(overrides = {}) {
         getPermissions: vi.fn().mockReturnValue([]),
         getStorageNodes: vi.fn().mockReturnValue([]),
         getStorageDayCount: vi.fn().mockResolvedValue(180),
-        setStorageDayCount: vi.fn().mockResolvedValue(undefined),
+        setMetadata: vi.fn().mockResolvedValue(undefined),
         addToStorageNode: vi.fn().mockResolvedValue(undefined),
         hasPermission: vi.fn().mockResolvedValue(true),
         ...overrides
@@ -121,6 +121,8 @@ describe('StreamrController Core', () => {
         streamrController.channels = new Map();
         streamrController._dmKeyAddedForPublisher = new Set();
         streamrController._dmPublishKeySet = new Set();
+        vi.spyOn(streamrController, 'chainStreamMetadata').mockResolvedValue({ partitions: 12, description: '{}' });
+        vi.spyOn(streamrController, 'chainIsStorageNodeOf').mockResolvedValue(true);
 
         // Reset global mocks
         window.StreamPermission = {
@@ -1106,7 +1108,7 @@ describe('StreamrController Core', () => {
         it('should set storage days for streamr provider', async () => {
             STREAM_CONFIG.NODE_ADDRESS = '0xstorage';
             await streamrController.enableStorage('stream-1', { storageProvider: 'streamr' });
-            expect(mockStream.setStorageDayCount).toHaveBeenCalled();
+            expect(mockStream.setMetadata).toHaveBeenCalled();
         });
 
         it('should return success result', async () => {
@@ -1131,14 +1133,14 @@ describe('StreamrController Core', () => {
             });
 
             it('reports no retention when setStorageDayCount never succeeds', async () => {
-                mockStream.setStorageDayCount.mockRejectedValue(new Error('rpc down'));
+                mockStream.setMetadata.mockRejectedValue(new Error('rpc down'));
                 const result = await streamrController.enableStorage('stream-1', { storageDays: 30 });
                 expect(result.storageDays).toBeNull();
                 expect(result.retentionApplied).toBe(false);
             });
 
             it('still reports the storage node as enabled when only the retention failed', async () => {
-                mockStream.setStorageDayCount.mockRejectedValue(new Error('rpc down'));
+                mockStream.setMetadata.mockRejectedValue(new Error('rpc down'));
                 const result = await streamrController.enableStorage('stream-1', { storageDays: 30 });
                 expect(result.success).toBe(true);
                 expect(mockStream.addToStorageNode).toHaveBeenCalled();
@@ -1156,7 +1158,7 @@ describe('StreamrController Core', () => {
                 const result = await streamrController.enableStorage('stream-1', { storageDays: 30 });
                 expect(result.storageDays).toBeNull();
                 expect(result.retentionApplied).toBe(false);
-                expect(mockStream.setStorageDayCount).not.toHaveBeenCalled();
+                expect(mockStream.setMetadata).not.toHaveBeenCalled();
             });
 
             it('ticks progress the same number of times whether the retention lands or not', async () => {
@@ -1165,7 +1167,7 @@ describe('StreamrController Core', () => {
                 const whenApplied = onProgress.mock.calls.length;
 
                 onProgress.mockClear();
-                mockStream.setStorageDayCount.mockRejectedValue(new Error('rpc down'));
+                mockStream.setMetadata.mockRejectedValue(new Error('rpc down'));
                 await streamrController.enableStorage('stream-1', { storageDays: 30, onProgress });
                 expect(onProgress.mock.calls.length).toBe(whenApplied);
             });
@@ -1213,14 +1215,14 @@ describe('StreamrController Core', () => {
             await expect(streamrController.setStorageDays('s', 90)).rejects.toThrow();
         });
 
-        it('should call stream.setStorageDayCount', async () => {
+        it('writes the retention into the metadata the chain holds', async () => {
             const result = await streamrController.setStorageDays('s', 90);
-            expect(mockStream.setStorageDayCount).toHaveBeenCalledWith(90);
+            expect(mockStream.setMetadata).toHaveBeenCalledWith({ partitions: 12, description: '{}', storageDays: 90 });
             expect(result).toBe(true);
         });
 
         it('should return false on error', async () => {
-            mockStream.setStorageDayCount.mockRejectedValue(new Error('fail'));
+            mockStream.setMetadata.mockRejectedValue(new Error('fail'));
             const result = await streamrController.setStorageDays('s', 90);
             expect(result).toBe(false);
         });

@@ -37,6 +37,7 @@ import { modalManager } from './ui/ModalManager.js';
 import { settingsUI } from './ui/SettingsUI.js';
 import { exploreUI } from './ui/ExploreUI.js';
 import { channelSettingsUI } from './ui/ChannelSettingsUI.js';
+import { channelHealthUI } from './ui/ChannelHealthUI.js';
 import { contactsUI } from './ui/ContactsUI.js';
 import { messageContextMenuUI } from './ui/MessageContextMenuUI.js';
 import { pinnedBannerUI } from './ui/PinnedBannerUI.js';
@@ -221,7 +222,14 @@ class UIController {
             getActiveChannel: () => this.getActiveChannel(),
             isInPreviewMode: () => previewModeUI.isInPreviewMode()
         });
-        
+
+        channelHealthUI.setDependencies({
+            streamrController,
+            authManager,
+            notificationUI,
+            showNotification: (msg, type, duration) => this.showNotification(msg, type, duration)
+        });
+
         // ContactsUI
         contactsUI.setDependencies({
             identityManager,
@@ -781,6 +789,7 @@ class UIController {
 
         // Initialize DM modals UI
         dmModalsUI.init();
+        channelHealthUI.init();
         
         // Initialize settings UI (delegates to SettingsUI)
         settingsUI.init();

@@ -59,7 +59,12 @@ const WRITER_CACHE_TTL_MS = 60_000;
 
 /** Streamr's StreamRegistry on Polygon, read directly past the SDK's metadata cache. */
 const STREAM_REGISTRY_ADDRESS = '0x0D483E10612F327FC11965Fc82E90dC19b141641';
-const STREAM_REGISTRY_ABI = ['function getStreamMetadata(string streamId) view returns (string)'];
+const STREAM_REGISTRY_ABI = [
+    'function getStreamMetadata(string streamId) view returns (string)',
+    'function exists(string streamId) view returns (bool)'
+];
+const STREAM_STORAGE_REGISTRY_ADDRESS = '0xe8e2660cedf2a59c917a5ed05b72df4146b58399';
+const STREAM_STORAGE_REGISTRY_ABI = ['function isStorageNodeOf(string streamId, address nodeAddress) view returns (bool)'];
 const REGISTRY_READ_TIMEOUT_MS = 10_000;
 
 // === STREAM CONFIG (DUAL-STREAM ARCHITECTURE) ===
@@ -1055,25 +1060,58 @@ class StreamrController {
      * @returns {Promise<number|null>} null when the stream sets none
      */
     async _chainStorageDays(streamId) {
+        const raw = await this._registryRead(STREAM_REGISTRY_ADDRESS, STREAM_REGISTRY_ABI,
+            (registry) => registry.getStreamMetadata(streamId));
+        let metadata = {};
+        try { metadata = raw ? JSON.parse(raw) : {}; } catch { /* the chain answered: no retention set */ }
+        return Number.isFinite(metadata.storageDays) ? metadata.storageDays : null;
+    }
+
+    /** One view call on every usable endpoint in turn; a revert is the chain's answer and is not retried. */
+    async _registryRead(address, abi, call) {
         let lastError = new Error('No RPC endpoint');
         for (const { url } of getUsableRpcEndpoints()) {
             try {
                 const provider = new ethers.JsonRpcProvider(url, CONFIG.network.chainId,
                     { staticNetwork: true, batchMaxCount: 1 });
-                const registry = new ethers.Contract(STREAM_REGISTRY_ADDRESS, STREAM_REGISTRY_ABI, provider);
-                const raw = await Promise.race([
-                    registry.getStreamMetadata(streamId),
+                return await Promise.race([
+                    call(new ethers.Contract(address, abi, provider)),
                     new Promise((_, reject) => setTimeout(
                         () => reject(new Error('registry read timed out')), REGISTRY_READ_TIMEOUT_MS))
                 ]);
-                let metadata = {};
-                try { metadata = raw ? JSON.parse(raw) : {}; } catch { /* the chain answered: no retention set */ }
-                return Number.isFinite(metadata.storageDays) ? metadata.storageDays : null;
             } catch (e) {
+                if (e?.code === 'CALL_EXCEPTION') throw e;
                 lastError = e;
             }
         }
         throw lastError;
+    }
+
+    /** Stream metadata as the chain holds it now. Throws when unreadable or not JSON. */
+    async chainStreamMetadata(streamId) {
+        const raw = await this._registryRead(STREAM_REGISTRY_ADDRESS, STREAM_REGISTRY_ABI,
+            (registry) => registry.getStreamMetadata(streamId));
+        return raw ? JSON.parse(raw) : {};
+    }
+
+    async chainStreamExists(streamId) {
+        return this._registryRead(STREAM_REGISTRY_ADDRESS, STREAM_REGISTRY_ABI,
+            (registry) => registry.exists(streamId));
+    }
+
+    async chainIsStorageNodeOf(streamId, nodeAddress) {
+        return this._registryRead(STREAM_STORAGE_REGISTRY_ADDRESS, STREAM_STORAGE_REGISTRY_ABI,
+            (registry) => registry.isStorageNodeOf(streamId, nodeAddress));
+    }
+
+    /**
+     * setMetadata replaces the whole document, so every field the patch leaves
+     * out has to come from a fresh chain read, never the SDK cache.
+     */
+    async patchStreamMetadata(streamId, patch) {
+        const metadata = await this.chainStreamMetadata(streamId);
+        const stream = await this.client.getStream(streamId);
+        await stream.setMetadata({ ...metadata, ...patch });
     }
 
     /** The stream, or null when the chain says it does not exist; throws when the chain cannot be read. */
@@ -4448,7 +4486,7 @@ class StreamrController {
                 const stream = await this.client.getStream(messageStreamId);
                 await stream.addToStorageNode(nodeAddress);
                 return true;
-            }, () => this.client.isStoredStream(messageStreamId, nodeAddress),
+            }, () => this.chainIsStorageNodeOf(messageStreamId, nodeAddress),
             { maxRetries: retries, verifyFirst: !!options.verifyFirst });
             try { options.onProgress?.(); } catch (_) { /* progress callback errors must not break flow */ }
             Logger.info('Storage enabled:', { stream: messageStreamId, provider: providerId });
@@ -4464,8 +4502,7 @@ class StreamrController {
         if (storageDays && providerConfig.supportsTTL) {
             try {
                 await executeWithRetryAndVerify('setStorageDayCount', async () => {
-                    const stream = await this.client.getStream(messageStreamId);
-                    await stream.setStorageDayCount(storageDays);
+                    await this.patchStreamMetadata(messageStreamId, { storageDays });
                     return true;
                 }, async () => (await this._chainStorageDays(messageStreamId)) === storageDays,
                 { maxRetries: retries, verifyFirst: !!options.verifyFirst });
@@ -4539,7 +4576,7 @@ class StreamrController {
             await stream.addToStorageNode(nodeAddress);
             if (typeof options.storageDays === 'number' && options.storageDays > 0 && providerConfig.supportsTTL) {
                 try {
-                    await stream.setStorageDayCount(options.storageDays);
+                    await this.patchStreamMetadata(streamId, { storageDays: options.storageDays });
                 } catch (ttlError) {
                     Logger.warn('addStorageNodeToStream: could not set storage days:', ttlError.message);
                 }
@@ -4595,8 +4632,7 @@ class StreamrController {
         
         try {
             await executeWithRetryAndVerify('setStorageDays', async () => {
-                const stream = await this.client.getStream(messageStreamId);
-                await stream.setStorageDayCount(days);
+                await this.patchStreamMetadata(messageStreamId, { storageDays: days });
                 return true;
             }, async () => (await this._chainStorageDays(messageStreamId)) === days,
             { maxRetries: retries });

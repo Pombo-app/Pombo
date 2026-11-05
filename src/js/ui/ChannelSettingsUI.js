@@ -13,6 +13,7 @@ import { identityManager } from '../identity.js';
 import { epochKeyManager } from '../epochKeyManager.js';
 import { mediaController } from '../media.js';
 import { channelImageManager } from '../channelImageManager.js';
+import { channelHealthUI } from './ChannelHealthUI.js';
 import { deriveAdminId } from '../streamConstants.js';
 import { getAvatarHtml } from './AvatarGenerator.js';
 import { formatRemaining } from './SubscriptionBannerUI.js';
@@ -254,6 +255,11 @@ class ChannelSettingsUI {
         const isDMChannel = currentChannel.type === 'dm';
         this.showModerationTab = canDelete && !isDMChannel && !isPreviewMode;
         moderationTabBtn?.classList.toggle('hidden', !this.showModerationTab);
+
+        // Channel Health repairs streams in the owner's namespace: only the owner sees it.
+        this.showHealthTab = !isDMChannel && !isPreviewMode && !!channelManager.isChannelOwner?.(currentChannel.streamId);
+        document.getElementById('health-tab-btn')?.classList.toggle('hidden', !this.showHealthTab);
+        this._healthChannel = this.showHealthTab ? currentChannel : null;
         if (this.showModerationTab) {
             this._currentModerationStreamId = currentChannel.streamId;
             this.loadBannedMembers(currentChannel);
@@ -764,6 +770,7 @@ class ChannelSettingsUI {
             const panelName = panel.id.replace('channel-panel-', '');
             panel.classList.toggle('hidden', panelName !== tabName);
         });
+        if (tabName === 'health' && this._healthChannel) channelHealthUI.open(this._healthChannel);
     }
 
     /**
@@ -802,6 +809,7 @@ class ChannelSettingsUI {
         membersNav?.classList.toggle('hidden', !this.showMembersTab);
         dangerNav?.classList.toggle('hidden', !this.showDangerTab);
         moderationNav?.classList.toggle('hidden', !this.showModerationTab);
+        unified.querySelector('[data-mobile-nav="health"]')?.classList.toggle('hidden', !this.showHealthTab);
 
         // Attach click handlers (clone to remove old listeners)
         unified.querySelectorAll('.channel-mobile-nav-item').forEach(btn => {
@@ -913,8 +921,10 @@ class ChannelSettingsUI {
             'members': 'Members',
             'moderation': 'Moderation',
             'storage': 'Storage',
+            'health': 'Channel Health',
             'danger': 'Delete Channel'
         };
+        if (panelName === 'health' && this._healthChannel) channelHealthUI.open(this._healthChannel);
         if (header) header.textContent = titles[panelName] || 'Channel Details';
 
         // Hide unified view + info (storage is a sub-panel of its own now)
