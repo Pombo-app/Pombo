@@ -610,6 +610,31 @@ describe('sendFile — verify and repair', () => {
         await expect(storageMediaController.isAnnounceStored(SID, [1700000000500], [NODE], rows)).resolves.toBe(true);
     }, 20000);
 
+    it('stops waiting for a hung provider once another says the announce is not there yet', async () => {
+        H.storedProviders = [{ nodeAddress: '0xslow', urls: ['https://node-b.example'] }, { nodeAddress: '0xa', urls: [NODE] }];
+        H.storedFor = async (node) => (node === '0xslow' ? new Promise(() => {}) : new Set());
+        const rows = [{ partition: H.P0, timestamp: 1700000000500, sequenceNumber: 0, privateKey: '0xkey' }];
+        await expect(storageMediaController.isAnnounceStored(SID, [1700000000500], [NODE], rows, { present: false })).resolves.toBe(false);
+    }, 20000);
+
+    it('counts the announce a slow provider finds after the grace on the next try', async () => {
+        let releaseSlow;
+        const slowHeld = new Promise(r => { releaseSlow = r; });
+        H.storedProviders = [{ nodeAddress: '0xslow', urls: ['https://node-b.example'] }, { nodeAddress: '0xa', urls: [NODE] }];
+        H.storedFor = async (node, partition, targets) => {
+            if (node !== '0xslow') return new Set();
+            await slowHeld;
+            return new Set(targets.map(t => `${t.timestamp}:${t.sequenceNumber}`));
+        };
+        const rows = [{ partition: H.P0, timestamp: 1700000000500, sequenceNumber: 0, privateKey: '0xkey' }];
+        const late = { present: false };
+        await expect(storageMediaController.isAnnounceStored(SID, [1700000000500], [NODE], rows, late)).resolves.toBe(false);
+        releaseSlow();
+        await new Promise(r => realSetTimeout(r, 10));
+        H.storedFor = async () => new Set();
+        await expect(storageMediaController.isAnnounceStored(SID, [1700000000500], [NODE], rows, late)).resolves.toBe(true);
+    }, 20000);
+
     it('never counts rows published by somebody else', async () => {
         SM.verify = true;
         channelManager.usesAccountPublish.mockReturnValue(true);

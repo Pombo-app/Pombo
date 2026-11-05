@@ -14,8 +14,14 @@ vi.mock('../../src/js/logger.js', () => ({
 }));
 
 const providersWith = vi.fn();
+const urlHealth = { byHealth: vi.fn((urls) => urls), noteFailure: vi.fn(), noteSuccess: vi.fn() };
 vi.mock('../../src/js/storageEndpoints.js', () => ({
-    storageEndpoints: { providersWith: (...args) => providersWith(...args) }
+    storageEndpoints: {
+        providersWith: (...args) => providersWith(...args),
+        byHealth: (...args) => urlHealth.byHealth(...args),
+        noteFailure: (...args) => urlHealth.noteFailure(...args),
+        noteSuccess: (...args) => urlHealth.noteSuccess(...args)
+    }
 }));
 
 import {
@@ -120,6 +126,28 @@ describe('purgeOnProvider', () => {
         const dead = vi.fn(async () => { throw new Error('down'); });
         expect(await purgeOnProvider(provider, STREAM, 0, targets, signer, dead)).toMatchObject({ status: 0, url: null, error: 'down' });
         expect(dead).toHaveBeenCalledTimes(2);
+    });
+
+    it('moves to the next URL on a server error, and reports it when every URL fails so', async () => {
+        urlHealth.noteFailure.mockClear();
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(jsonResponse(502, {}))
+            .mockResolvedValueOnce(jsonResponse(200, { results: [{ timestamp: 100, sequenceNumber: 0, result: 'deleted' }] }));
+        expect(await purgeOnProvider(provider, STREAM, 0, targets, signer, fetchMock)).toMatchObject({ status: 200, url: 'https://a2.example' });
+        expect(urlHealth.noteFailure).toHaveBeenCalledWith('https://a1.example');
+
+        const failing = vi.fn(async () => jsonResponse(503, {}));
+        expect(await purgeOnProvider(provider, STREAM, 0, targets, signer, failing)).toMatchObject({ status: 503, url: 'https://a2.example' });
+        expect(failing).toHaveBeenCalledTimes(2);
+    });
+
+    it('tries the URLs healthiest first and records how each went', async () => {
+        urlHealth.byHealth.mockImplementationOnce((urls) => [...urls].reverse());
+        urlHealth.noteSuccess.mockClear();
+        const fetchMock = vi.fn(async () => jsonResponse(200, { results: [] }));
+        expect(await purgeOnProvider(provider, STREAM, 0, targets, signer, fetchMock)).toMatchObject({ url: 'https://a2.example' });
+        expect(fetchMock.mock.calls[0][0]).toBe(purgeUrl('https://a2.example'));
+        expect(urlHealth.noteSuccess).toHaveBeenCalledWith('https://a2.example');
     });
 });
 

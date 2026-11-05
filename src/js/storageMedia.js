@@ -59,6 +59,7 @@ const RATE_WINDOW_MS = SM.rateWindowMs;
 const RESUME_KEY_PREFIX = 'pomboStorageResume_';
 const OPFS_PREFIX = 'psf_';
 const STORED_CONCURRENCY_PER_PROVIDER = 3;
+const ANNOUNCE_ANSWER_GRACE_MS = 2000;
 
 // ================= PURE HELPERS (exported for tests) =================
 
@@ -2615,12 +2616,13 @@ class StorageMediaController {
             // Confirm the announce is actually stored (publish() resolving
             // guarantees nothing). Timestamp match works on sealed payloads.
             let annStored = false;
+            const annLate = { present: false };
             const annWaits = [1500, 3000, 6000, 10000, 15000, 25000];
             for (let a = 1; a <= annWaits.length && !annStored; a++) {
                 emitPhase(`Confirming announcement (${a}/${annWaits.length})…`, 'announce');
                 await sleep(annWaits[a - 1]);
                 try {
-                    annStored = await this.isAnnounceStored(messageStreamId, annTss, bases, isDM ? announceRows() : null);
+                    annStored = await this.isAnnounceStored(messageStreamId, annTss, bases, isDM ? announceRows() : null, annLate);
                 } catch (e) { Logger.warn(`announce confirmation error: ${e.message}`); }
                 if (!annStored && a === 3) {
                     Logger.warn('Announce still not visible — one-off safety republish');
@@ -2753,9 +2755,11 @@ class StorageMediaController {
     /**
      * Whether any of the announce rows is on storage, by the `stored` endpoint;
      * null when no provider answers. The providers are asked in parallel and the
-     * first that holds the row settles it, without waiting for the slower ones.
+     * first that holds the row settles it. Once one answers that it does not
+     * hold it yet, the slower ones get ANNOUNCE_ANSWER_GRACE_MS more; one that
+     * finds the row after that sets `late.present`, for the caller's next try.
      */
-    async storedRows(streamId, rows) {
+    async storedRows(streamId, rows, late = null) {
         let providers;
         try { providers = await storageEndpoints.providersWith(streamId, 'stored'); } catch { return null; }
         if (!providers?.length) return null;
@@ -2765,13 +2769,21 @@ class StorageMediaController {
             const present = await new Promise((resolve) => {
                 let answered = false;
                 let left = providers.length;
+                let grace = null;
+                const settle = (value) => { clearTimeout(grace); resolve(value); };
                 for (const provider of providers) {
                     storedOn([provider], streamId, r.partition, target, signer)
                         .catch(() => null)
                         .then((set) => {
                             if (set) answered = true;
-                            if (set?.size > 0) resolve(true);
-                            if (--left === 0) resolve(answered ? false : null);
+                            if (set?.size > 0) {
+                                if (late) late.present = true;
+                                settle(true);
+                            } else if (--left === 0) {
+                                settle(answered ? false : null);
+                            } else if (set && !grace) {
+                                grace = setTimeout(() => settle(false), ANNOUNCE_ANSWER_GRACE_MS);
+                            }
                         });
                 }
             });
@@ -2781,10 +2793,11 @@ class StorageMediaController {
         return false;
     }
 
-    async isAnnounceStored(messageStreamId, annTss, bases, rows = null) {
+    async isAnnounceStored(messageStreamId, annTss, bases, rows = null, late = null) {
         if (!annTss.length) return false;
         if (rows?.length) {
-            const present = await this.storedRows(messageStreamId, rows);
+            if (late?.present) return true;
+            const present = await this.storedRows(messageStreamId, rows, late);
             if (present !== null) return present;
         }
         const from = Math.min(...annTss) - 1500;
