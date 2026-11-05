@@ -11,10 +11,44 @@ import {
 } from '../config.js';
 import { rpcHealth, describeVerdict } from '../rpcHealth.js';
 import { MESSAGE_STREAM } from '../streamConstants.js';
+import { GasEstimator } from './GasEstimator.js';
 import { importBackupData } from '../backupImport.js';
 import { channelLatestMessageManager } from '../channelLatestMessageManager.js';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/**
+ * What a DM inbox diagnosis found broken, and what it could not read.
+ * Only a false is broken; a null is a check the chain did not answer.
+ */
+export function inboxFindings(diagnosis) {
+    const m = diagnosis.messageStream;
+    const e = diagnosis.ephemeralStream;
+    const p = diagnosis.permissions;
+    const s = diagnosis.storage;
+    const issues = [];
+    const unchecked = [];
+    if (m.exists === false) issues.push('message stream');
+    if (m.exists === null) unchecked.push('message stream');
+    if (e.exists === false) issues.push('ephemeral stream');
+    if (e.exists === null) unchecked.push('ephemeral stream');
+    if (m.exists) {
+        // Partition check inherits the protocol constant (13 since Persistent
+        // File Sharing added 9 chunk partitions) — show actual/expected so an
+        // old 4-partition inbox reads as such at a glance.
+        if (m.partitionsCorrect === false) issues.push(`partition count (${m.partitions ?? '?'}/${MESSAGE_STREAM.DM_PARTITIONS})`);
+        if (m.partitionsCorrect === null) unchecked.push('partition count');
+        if (m.publicKeyPresent === false) issues.push('public key');
+        if (m.publicKeyPresent === null) unchecked.push('public key');
+        if (p.messagePublicPublish === null) unchecked.push('message permissions');
+        if (s.enabled === null) unchecked.push('storage');
+    }
+    if (e.exists && p.ephemeralPublicPublish === null) unchecked.push('ephemeral permissions');
+    if (p.messagePublicPublish === false) issues.push('message permissions');
+    if (p.ephemeralPublicPublish === false) issues.push('ephemeral permissions');
+    if (s.enabled === false) issues.push('storage');
+    return { issues, unchecked };
+}
 
 /**
  * The toast for an erase of blocked users' data.
@@ -2163,6 +2197,7 @@ class SettingsUI {
      * @param {string} [detail] - Optional detail text
      */
     _setRepairStatus(state, detail) {
+        this._repairStatus = state;
         const card = document.getElementById('repair-status-card');
         const icon = document.getElementById('repair-status-icon');
         const title = document.getElementById('repair-status-title');
@@ -2270,27 +2305,18 @@ class SettingsUI {
                 this.Logger?.debug('Inbox storage refresh failed:', err.message);
             });
 
-            // Count issues
-            const issues = [];
-            if (!diagnosis.messageStream.exists) issues.push('message stream');
-            if (!diagnosis.ephemeralStream.exists) issues.push('ephemeral stream');
-            // Partition check inherits the protocol constant (13 since Persistent
-            // File Sharing added 9 chunk partitions) — show actual/expected so an
-            // old 4-partition inbox reads as such at a glance.
-            if (diagnosis.messageStream.exists && !diagnosis.messageStream.partitionsCorrect) {
-                issues.push(`partition count (${diagnosis.messageStream.partitions ?? '?'}/${MESSAGE_STREAM.DM_PARTITIONS})`);
-            }
-            if (diagnosis.messageStream.exists && !diagnosis.messageStream.publicKeyPresent) issues.push('public key');
-            if (!diagnosis.permissions.messagePublicPublish) issues.push('message permissions');
-            if (!diagnosis.permissions.ephemeralPublicPublish) issues.push('ephemeral permissions');
-            if (!diagnosis.storage.enabled) issues.push('storage');
+            const { issues, unchecked } = inboxFindings(diagnosis);
 
             if (issues.length > 0) {
-                const summary = issues.length === 1
+                let summary = issues.length === 1
                     ? `Missing: ${issues[0]}`
                     : `${issues.length} issues: ${issues.join(', ')}`;
+                if (unchecked.length > 0) summary += ` · not checked: ${unchecked.join(', ')}`;
                 this._setRepairStatus('issues', summary);
                 fixBtn?.classList.remove('hidden');
+            } else if (unchecked.length > 0) {
+                this._setRepairStatus('error', `Could not check: ${unchecked.join(', ')}`);
+                fixBtn?.classList.add('hidden');
             } else {
                 // Build a short summary line
                 const parts = [];
@@ -2310,10 +2336,50 @@ class SettingsUI {
     }
 
     /**
+     * The cost of what this repair would send, against the balance: blocks
+     * when it cannot be paid, asks otherwise. A failed lookup never blocks.
+     * @returns {Promise<boolean>} Whether to go ahead
+     */
+    async _confirmRepairCost(diagnosis) {
+        const units = GasEstimator.inboxRepairUnits(diagnosis);
+        const address = this.authManager?.getAddress?.();
+        if (!units || !address) return true;
+        let costWei, balanceWei;
+        try {
+            [balanceWei, costWei] = await Promise.all([
+                GasEstimator.getBalance(address),
+                GasEstimator.getGasPrice().then(price => units * price)
+            ]);
+        } catch (e) {
+            this.Logger?.warn('Repair cost estimate failed (continuing):', e.message);
+            return true;
+        }
+        const cost = GasEstimator.formatPOL(costWei);
+        if (balanceWei === 0) {
+            this.showNotification(`No POL in wallet — this repair costs about ${cost}. Top up and try again.`, 'error', 6000);
+            return false;
+        }
+        if (balanceWei !== null && balanceWei < costWei) {
+            this.showNotification(`Insufficient POL: balance ${GasEstimator.formatBalancePOL(balanceWei)} is below the estimated cost (${cost}).`, 'error', 6000);
+            return false;
+        }
+        const low = balanceWei !== null && balanceWei < costWei * 1.5;
+        const confirmed = await this.notificationUI?.showConfirmToast?.(
+            'Repair DM inbox',
+            low
+                ? `This repair costs about ${cost} and your balance (${GasEstimator.formatBalancePOL(balanceWei)}) is close to it. If gas spikes, a step may fail. Continue anyway?`
+                : `This repair costs about ${cost}. Continue?`,
+            { confirmLabel: 'Repair', cancelLabel: 'Cancel', variant: low ? 'warning' : undefined }
+        );
+        return confirmed !== false;
+    }
+
+    /**
      * Run inbox repair using the last diagnosis
      */
     async runRepair() {
         if (!this._repairDiagnosis || !this.dmManager) return;
+        if (!await this._confirmRepairCost(this._repairDiagnosis)) return;
 
         const fixBtn = document.getElementById('repair-fix-btn');
         const diagnoseBtn = document.getElementById('repair-diagnose-btn');
@@ -2347,11 +2413,12 @@ class SettingsUI {
             const failed = Object.values(steps).filter(s => s === 'fail').length;
             const fixed = Object.values(steps).filter(s => s === 'ok').length;
 
-            if (failed > 0) {
-                this._setRepairStatus('issues', `${fixed} fixed, ${failed} failed`);
-            } else {
+            // Read the chain again rather than trust this run's bookkeeping:
+            // what is still missing is what the next Repair sends.
+            if (fixBtn) { fixBtn.disabled = false; fixBtn.querySelector('span').textContent = 'Repair'; }
+            await this.runDiagnosis();
+            if (failed === 0 && this._repairStatus === 'healthy') {
                 this._setRepairStatus('repaired', fixed > 0 ? `${fixed} issue${fixed > 1 ? 's' : ''} fixed` : 'Nothing to repair');
-                fixBtn?.classList.add('hidden');
             }
 
             this.showNotification(
