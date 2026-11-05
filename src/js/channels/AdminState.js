@@ -241,16 +241,22 @@ export class AdminState {
         const channel = this.manager.channels.get(messageStreamId);
         if (!channel) return;
 
+        channel.adminUnreadable = null;
         this._seedFromFloor(channel);
 
         try {
+            const report = {};
             const latest = await streamrController.resendAdminState(adminStreamId, {
                 historyCount: STREAM_CONFIG.ADMIN_HISTORY_COUNT,
-                password
+                password,
+                report
             });
             if (latest) {
                 this.manager.handleAdminMessage(messageStreamId, latest);
             }
+            // A newer state sealed under a key this account lacks: the bans on
+            // screen may be the floor's stale copy.
+            channel.adminUnreadable = (report.newestUnreadTs || 0) > (channel.adminTs || 0);
         } catch (e) {
             Logger.warn('Admin bootstrap resend failed (continuing without admin state):', e.message);
         } finally {

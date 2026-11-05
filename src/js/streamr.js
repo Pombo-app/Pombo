@@ -3767,9 +3767,11 @@ class StreamrController {
      * @param {Object} [options]
      * @param {number} [options.historyCount=ADMIN_HISTORY_COUNT] Last N to fetch
      * @param {string|null} [options.password=null] Channel password (encrypted channels)
+     * @param {Object} [options.report] - filled with `newestUnreadTs`: the newest
+     *   epoch-sealed row this account could not open (0 when none)
      * @returns {Promise<Object|null>} Latest ADMIN_STATE or null
      */
-    async resendAdminState(adminStreamId, { historyCount, password = null } = {}) {
+    async resendAdminState(adminStreamId, { historyCount, password = null, report = null } = {}) {
         if (!this.client) {
             throw new Error('Streamr client not initialized');
         }
@@ -3792,6 +3794,7 @@ class StreamrController {
             Logger.warn('resendAdminState error:', error.message);
             return null;
         }
+        if (report) report.newestUnreadTs = read.newestUnreadTs;
 
         Logger.debug('resendAdminState result:', {
             adminStreamId: adminStreamId.slice(-30),
@@ -3835,6 +3838,7 @@ class StreamrController {
         const partition = STREAM_CONFIG.ADMIN_STREAM.MODERATION;
         let latest = null;
         let newest = null;
+        let newestUnreadTs = 0;
         const framed = new Map();   // publisherId -> opened chunk/manifest rows
         const num = (v) => (typeof v === 'number' ? v : 0);
         const newer = (a, b) => !b
@@ -3887,7 +3891,10 @@ class StreamrController {
                     if (judged.forwardDated) continue;
                     const opened = await this.openEpochEnvelope(adminStreamId, content,
                         { live: false, timestamp: judged.judgeTime });
-                    if (opened === null) continue;
+                    if (opened === null) {
+                        newestUnreadTs = Math.max(newestUnreadTs, num(judged.judgeTime));
+                        continue;
+                    }
                     content = opened;
                 }
                 if (!content || typeof content !== 'object') continue;
@@ -3937,7 +3944,7 @@ class StreamrController {
         if (cutRun && (!newer(cutRun, latest)
             || cutRun.chunkCount + 1 <= last
             || cutRun.chunkCount > CONFIG.subscriptions.adminReadMaxChunks)) cutRun = null;
-        return { latest, cutRun, newest };
+        return { latest, cutRun, newest, newestUnreadTs };
     }
 
     /**

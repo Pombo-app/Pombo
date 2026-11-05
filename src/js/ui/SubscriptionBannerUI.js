@@ -28,6 +28,23 @@ export function formatRemaining(msLeft) {
     return 'less than an hour';
 }
 
+/**
+ * Whether a ban from the -3 is the viewer's standing. A lapsed subscriber
+ * cannot open the newer -3 states, so a ban seeded from the floor is never
+ * corrected: until the -3 has been read in full, a lapse the chain reports
+ * (or a paid read still pending) is the word.
+ * @param {boolean} listed - the -3 bans list the viewer
+ * @param {boolean|null} adminUnreadable - null until the -3 is read
+ * @param {string|null} gateState - stateOf without the -3 bans
+ * @param {boolean} paidChecked - the paid standing was read, or there is none
+ */
+export function clientBanStands(listed, adminUnreadable, gateState, paidChecked) {
+    if (!listed) return false;
+    if (adminUnreadable === false) return true;
+    const lapsed = gateState === 'expired' || gateState === 'unsubscribed';
+    return paidChecked && !lapsed;
+}
+
 class SubscriptionBannerUI {
     constructor() {
         this.deps = {};
@@ -70,6 +87,11 @@ class SubscriptionBannerUI {
      */
     stateOf(streamId) {
         if (this._clientBanned(streamId)) return 'banned';
+        return this._gateState(streamId);
+    }
+
+    /** What the gate alone says, without the moderators' -3 bans. */
+    _gateState(streamId) {
         const entry = this._status.get(streamId);
         if (!entry?.paid || entry.owner) return null;
         if (entry.banned) return 'banned';
@@ -96,12 +118,14 @@ class SubscriptionBannerUI {
      */
     _clientBanned(streamId) {
         const channel = this._resolveChannel();
-        if (channel?.streamId !== streamId) return false;
+        if (!channel || channel.streamId !== streamId) return false;
         const me = this.deps.authManager?.getAddress?.()?.toLowerCase();
         const banned = channel?.adminState?.bannedMembers;
         // Entries are {address, sinceEpoch}; older snapshots carry plain strings
-        return !!me && Array.isArray(banned)
+        const listed = !!me && Array.isArray(banned)
             && banned.some((e) => String(e?.address ?? e).toLowerCase() === me);
+        const paidChecked = !channel.gate?.address || this._status.has(streamId);
+        return clientBanStands(listed, channel.adminUnreadable ?? null, this._gateState(streamId), paidChecked);
     }
 
     /** Drop the cached status after a renewal so the next render re-reads. */
