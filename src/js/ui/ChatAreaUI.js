@@ -780,7 +780,9 @@ class ChatAreaUI {
                 !effectiveChannel?.loadingHistory &&
                 !document.getElementById('dm-search-older-banner');
 
-            if (isTerminalEmpty) {
+            const lockedOut = ['banned', 'expired', 'unsubscribed']
+                .includes(subscriptionBannerUI.stateOf(effectiveChannel?.streamId));
+            if (isTerminalEmpty || lockedOut) {
                 // Epoch channels: an empty render while keys are missing means
                 // "cannot decrypt yet", not "nothing was said" — the refresh
                 // fired on key adoption re-renders and clears this state.

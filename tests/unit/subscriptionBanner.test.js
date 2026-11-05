@@ -202,6 +202,38 @@ describe('a client ban on a channel with no gate', () => {
     });
 });
 
+// A ban seeded from the floor on a channel whose newer -3 states the viewer
+// cannot open told an expired subscriber "a moderator removed you".
+describe('a -3 ban the viewer could not confirm', () => {
+    const listed = () => ({ bannedMembers: [{ address: ME, sinceEpoch: 1 }] });
+
+    it('gives way to the lapse the chain reports', async () => {
+        gateManager.getGateMembers.mockResolvedValue([member({ paidUntil: nowSec() - DAY })]);
+        channel = { ...channel, adminState: listed(), adminUnreadable: true };
+        await settle();
+        expect(subscriptionBannerUI.stateOf(STREAM)).toBe('expired');
+    });
+
+    it('says nothing of the ban while the paid standing is still being read', () => {
+        channel = { ...channel, adminState: listed(), adminUnreadable: null };
+        expect(subscriptionBannerUI.stateOf(STREAM)).not.toBe('banned');
+    });
+
+    it('stands once the -3 was read in full, lapse or not', async () => {
+        gateManager.getGateMembers.mockResolvedValue([member({ paidUntil: nowSec() - DAY })]);
+        channel = { ...channel, adminState: listed(), adminUnreadable: false };
+        await settle();
+        expect(subscriptionBannerUI.stateOf(STREAM)).toBe('banned');
+    });
+
+    it('stands for a member with access who was cut out of the newer keys', async () => {
+        gateManager.getGateMembers.mockResolvedValue([member({ paidUntil: nowSec() + 30 * DAY })]);
+        channel = { ...channel, adminState: listed(), adminUnreadable: true };
+        await settle();
+        expect(subscriptionBannerUI.stateOf(STREAM)).toBe('banned');
+    });
+});
+
 describe('the icon', () => {
     const shown = (el) => !el.classList.contains('hidden');
 
