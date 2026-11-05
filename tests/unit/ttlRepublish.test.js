@@ -18,8 +18,22 @@ vi.mock('../../src/js/logger.js', () => ({
     }
 }));
 
-vi.mock('../../src/js/streamr.js', () => ({
-    streamrController: {
+vi.mock('../../src/js/streamr.js', () => {
+    // The contract read, answered per stream from the getStreamStorageInfo mock
+    // so the tests keep queueing one read per stream.
+    const chainStreamStorage = vi.fn(async (ids) => {
+        const out = new Map();
+        for (const id of ids) {
+            const info = await streamrController.getStreamStorageInfo(id).catch(() => ({ ok: false }));
+            out.set(id, info?.ok === false
+                ? { ok: false, nodes: [], storageDays: null }
+                : { ok: true, nodes: (info?.nodes || []).map(n => String(n).toLowerCase()), storageDays: info?.storageDays ?? null });
+        }
+        return out;
+    });
+    const streamrController = {
+        chainStreamStorage,
+        accountNonces: vi.fn().mockRejectedValue(new Error('no endpoint')),
         isInitialized: vi.fn().mockReturnValue(true),
         getCurrentAddress: vi.fn().mockReturnValue('0xmyaddress'),
         subscribe: vi.fn(),
@@ -38,7 +52,9 @@ vi.mock('../../src/js/streamr.js', () => ({
         addStorageNodeToStream: vi.fn().mockResolvedValue({ success: true, nodeAddress: '0xnode' }),
         removeStorageFromStream: vi.fn().mockResolvedValue({ success: true }),
         checkPermissions: vi.fn().mockResolvedValue({ canSubscribe: true, canPublish: true, isOwner: false })
-    },
+    };
+    return {
+    streamrController,
     STREAM_CONFIG: {
         NODE_ADDRESS: '0xae340e799e8151f6a4999d245e466197aa217667',
         partitions: 1,
@@ -51,7 +67,8 @@ vi.mock('../../src/js/streamr.js', () => ({
     deriveMessageId: vi.fn((id) => `${id}-message`),
     deriveAdminId: vi.fn((id) => `${id}-admin`),
     deriveKeysId: vi.fn((id) => `${id}-keys`)
-}));
+    };
+});
 
 vi.mock('../../src/js/auth.js', () => ({
     authManager: {
@@ -472,7 +489,10 @@ describe('setChannelStorageDays() local sync', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         channelManager.channels.clear();
+        vi.spyOn(channelManager, '_awaitStoredStream').mockResolvedValue(false);
     });
+
+    afterEach(() => channelManager._awaitStoredStream.mockRestore?.());
 
     it('updates channel.storageDays after a successful on-chain update', async () => {
         const channel = {
@@ -819,6 +839,53 @@ describe('storage writes go only where they are needed', () => {
         streamrController.setStorageDays.mockResolvedValue(true);
         streamrController.addStorageNodeToStream.mockResolvedValue({ success: true, nodeAddress: NODE });
         streamrController.removeStorageFromStream.mockResolvedValue({ success: true });
+        vi.spyOn(channelManager, '_awaitStoredStream').mockResolvedValue(false);
+    });
+
+    afterEach(() => channelManager._awaitStoredStream.mockRestore?.());
+
+    it('waits for a write whose receipt read failed to land before sending the next one', async () => {
+        channelManager.channels.set('s-1', plain());
+        const order = [];
+        streamrController.chainStreamStorage.mockResolvedValueOnce(
+            new Map(['s-1', 's-3'].map(id => [id, { ok: true, nodes: [], storageDays: 180 }])));
+        streamrController.addStorageNodeToStream.mockImplementation(async (id) => {
+            order.push(`send ${id}`);
+            return id === 's-1' ? { success: false, error: 'receipt read failed' } : { success: true };
+        });
+        channelManager._awaitStoredStream.mockImplementation(async (stream) => {
+            order.push(`wait ${stream.id}`);
+            return true;
+        });
+        vi.spyOn(channelManager.storageCopy, 'prepare').mockResolvedValueOnce(null);
+
+        const result = await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });
+        expect(order).toEqual(['send s-1', 'wait s-1', 'send s-3']);
+        expect(result.results.message).toBe('applied');
+    });
+
+    it('does not wait for a write that never left', async () => {
+        channelManager.channels.set('s-1', plain());
+        streamrController.chainStreamStorage.mockResolvedValue(
+            new Map(['s-1', 's-3'].map(id => [id, { ok: true, nodes: [], storageDays: 180 }])));
+        streamrController.addStorageNodeToStream.mockResolvedValue({ success: false, error: 'CORS' });
+        vi.spyOn(channelManager, '_writeLeft').mockResolvedValue(false);
+        vi.spyOn(channelManager.storageCopy, 'prepare').mockResolvedValueOnce(null);
+
+        const result = await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });
+        expect(channelManager._awaitStoredStream).not.toHaveBeenCalled();
+        expect(result.results.message).toBe('failed');
+        channelManager._writeLeft.mockRestore();
+        streamrController.chainStreamStorage.mockReset();
+    });
+
+    it('reads a write as left only when the nonce moved, and as left when unsure', async () => {
+        const nonces = (n) => streamrController.accountNonces.mockResolvedValue({ latest: n, pending: n });
+        nonces(5);
+        expect(await channelManager._writeLeft(4)).toBe(true);
+        expect(await channelManager._writeLeft(null)).toBe(true);
+        streamrController.accountNonces.mockRejectedValue(new Error('no endpoint'));
+        expect(await channelManager._writeLeft(5)).toBe(true);
     });
 
     describe('setChannelStorageDays()', () => {
@@ -966,16 +1033,33 @@ describe('storage writes go only where they are needed', () => {
             expect(streamrController.addStorageNodeToStream).toHaveBeenCalledWith('s-3', expect.any(Object));
         });
 
-        it('decides from The Graph, which sees a node removed from another device', async () => {
+        it('decides and confirms on the contracts, whatever the SDK cache still lists', async () => {
             channelManager.channels.set('s-1', plain());
-            graphAPI.getStreamStorage.mockReset();
-            graphAPI.getStreamStorage.mockResolvedValue({ nodes: [], storageDays: 180 });
             streamrController.getStreamStorageInfo.mockReset();
             streamrController.getStreamStorageInfo.mockResolvedValue(state([NODE], 180));
+            const onChain = (nodes) => new Map(['s-1', 's-3', 's-5'].map(id => [id, { ok: true, nodes, storageDays: 180 }]));
+            streamrController.chainStreamStorage
+                .mockResolvedValueOnce(onChain([]))
+                .mockResolvedValueOnce(onChain([NODE]));
             vi.spyOn(channelManager.storageCopy, 'prepare').mockResolvedValueOnce(null);
 
             const result = await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });
             expect(streamrController.addStorageNodeToStream).toHaveBeenCalledTimes(2);
+            expect(result.verified).toBe(true);
+            expect(streamrController.chainStreamStorage.mock.calls[0][1]).toContain(NODE);
+        });
+
+        it('counts a write whose receipt read failed as applied when the chain shows it landed', async () => {
+            channelManager.channels.set('s-1', plain());
+            const onChain = (nodes) => new Map(['s-1', 's-3', 's-5'].map(id => [id, { ok: true, nodes, storageDays: 180 }]));
+            streamrController.chainStreamStorage
+                .mockResolvedValueOnce(onChain([]))
+                .mockResolvedValueOnce(onChain([NODE]));
+            streamrController.addStorageNodeToStream.mockResolvedValue({ success: false, error: 'receipt read failed' });
+            vi.spyOn(channelManager.storageCopy, 'prepare').mockResolvedValueOnce(null);
+
+            const result = await channelManager.addChannelStorageNode('s-1', { storageProvider: 'streamr' });
+            expect(Object.values(result.results)).toEqual(['applied', 'applied']);
             expect(result.verified).toBe(true);
         });
 
