@@ -55,6 +55,7 @@ vi.mock('../../src/js/logger.js', () => ({
 }));
 
 import { chatAreaUI } from '../../src/js/ui/ChatAreaUI.js';
+import { subscriptionBannerUI } from '../../src/js/ui/SubscriptionBannerUI.js';
 
 const PAGE = `
     <div id="history-status-strip" class="hidden"></div>
@@ -113,6 +114,21 @@ describe('empty message area', () => {
         render(loading);
         vi.advanceTimersByTime(10_000);
         expect(document.getElementById('messages-area').innerHTML).toContain('Taking longer than usual');
+    });
+
+    it('says the subscription expired as soon as the banner knows it, without waiting for history', () => {
+        subscriptionBannerUI.stateOf.mockReturnValue('expired');
+        const html = render(loading);
+        subscriptionBannerUI.stateOf.mockReturnValue('active');
+        expect(html).toContain('Your subscription has expired');
+        expect(html).not.toContain('Loading messages');
+    });
+
+    it('says a moderator removed the viewer as soon as the banner knows it', () => {
+        subscriptionBannerUI.stateOf.mockReturnValue('banned');
+        const html = render(loading);
+        subscriptionBannerUI.stateOf.mockReturnValue('active');
+        expect(html).toContain('A moderator removed you');
     });
 
     it('Try again reopens the channel and shows the spinner again', () => {
