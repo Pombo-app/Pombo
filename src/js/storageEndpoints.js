@@ -207,6 +207,14 @@ class StorageEndpointResolver {
         return (this.failures.get(normalizeUrl(url)) || 0) >= CONFIG.storageMedia.nodeFailureLimit;
     }
 
+    /** The URLs of one provider, those with the fewest failures in a row first, else in the given order. */
+    byHealth(urls) {
+        return urls
+            .map((url, i) => ({ url, i, failures: this.failures.get(normalizeUrl(url)) || 0 }))
+            .sort((a, b) => a.failures - b.failures || a.i - b.i)
+            .map(({ url }) => url);
+    }
+
     /**
      * Whether a storage node already resolved this session answers at all.
      * Any HTTP response counts. Never resolves anything, so it costs no chain

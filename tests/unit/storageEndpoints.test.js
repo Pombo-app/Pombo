@@ -177,6 +177,15 @@ describe('storageEndpoints', () => {
         expect(rot).toContain('https://node-a.example');
     });
 
+    it('byHealth() puts the URLs that failed last, keeping the given order otherwise', () => {
+        const urls = ['https://a1.example', 'https://a2.example', 'https://a3.example'];
+        expect(storageEndpoints.byHealth(urls)).toEqual(urls);
+        storageEndpoints.noteFailure('https://a1.example/');
+        expect(storageEndpoints.byHealth(urls)).toEqual(['https://a2.example', 'https://a3.example', 'https://a1.example']);
+        storageEndpoints.noteSuccess('https://a1.example');
+        expect(storageEndpoints.byHealth(urls)).toEqual(urls);
+    });
+
     it('tracks format=metadata support per URL', () => {
         expect(storageEndpoints.supportsMetaFormat('https://node-a.example')).toBeUndefined();
         storageEndpoints.setMetaFormatSupport('https://node-a.example', false);

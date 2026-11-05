@@ -102,7 +102,8 @@ async function signedTargetsBody(action, streamId, partition, targets, signer, {
 
 /**
  * Purge on one provider: the first URL that answers decides; a URL that
- * cannot be reached is skipped for the next one. Every attempt signs afresh,
+ * cannot be reached or fails with a 5xx is skipped for the next one, and the
+ * provider's URLs are tried healthiest first. Every attempt signs afresh,
  * because the node accepts a nonce once.
  * @returns {Promise<{provider: string, url: string|null, status: number, results: Array, error?: string}>}
  */
@@ -112,7 +113,8 @@ export async function purgeOnProvider(provider, streamId, partition, targets, si
 
 async function postTargets(action, provider, streamId, partition, targets, signer, fetchImpl) {
     let lastError = null;
-    for (const url of provider.urls) {
+    let serverError = null;
+    for (const url of storageEndpoints.byHealth(provider.urls)) {
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), PURGE_TIMEOUT_MS);
         try {
@@ -123,20 +125,28 @@ async function postTargets(action, provider, streamId, partition, targets, signe
                 body: JSON.stringify(body),
                 signal: ctrl.signal
             });
+            if (resp.status >= 500) {
+                storageEndpoints.noteFailure(url);
+                Logger.warn(`${action} on ${url}: HTTP ${resp.status}`);
+                serverError = { provider: provider.nodeAddress, url, status: resp.status, results: [] };
+                continue;
+            }
             if (!resp.ok) {
                 Logger.warn(`${action} on ${url}: HTTP ${resp.status}`);
                 return { provider: provider.nodeAddress, url, status: resp.status, results: [] };
             }
+            storageEndpoints.noteSuccess(url);
             const json = await resp.json().catch(() => ({}));
             return { provider: provider.nodeAddress, url, status: resp.status, results: Array.isArray(json?.results) ? json.results : [] };
         } catch (e) {
+            storageEndpoints.noteFailure(url);
             lastError = e;
             Logger.warn(`${action} on ${url} failed: ${e.message}`);
         } finally {
             clearTimeout(t);
         }
     }
-    return { provider: provider.nodeAddress, url: null, status: 0, results: [], error: lastError?.message || 'unreachable' };
+    return serverError || { provider: provider.nodeAddress, url: null, status: 0, results: [], error: lastError?.message || 'unreachable' };
 }
 
 /**
