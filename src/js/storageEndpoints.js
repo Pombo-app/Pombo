@@ -261,9 +261,10 @@ class StorageEndpointResolver {
 
     /**
      * Features a node URL announces on `GET /capabilities`. Cached per URL
-     * with the endpoint TTL; concurrent probes share one request. A 404 is a
-     * vanilla node and caches as an empty set; a network error or any other
-     * status is not cached, so the next call probes again.
+     * with the endpoint TTL; an expired entry is still answered while a
+     * probe refreshes it in the background. Concurrent probes share one
+     * request. A 404 is a vanilla node and caches as an empty set; a network
+     * error or any other status is not cached, so the next call probes again.
      *
      * @param {string} url - Node base URL
      * @param {Object} [options]
@@ -275,9 +276,14 @@ class StorageEndpointResolver {
         if (!u) return undefined;
         const ttl = CONFIG.storageMedia.endpointCacheTtlMs;
         const cached = this.capabilities.get(u);
-        if (!force && cached && Date.now() - cached.at < ttl) {
+        if (!force && cached) {
+            if (Date.now() - cached.at >= ttl) this.refreshCapabilities(u);
             return cached.features;
         }
+        return this.refreshCapabilities(u);
+    }
+
+    refreshCapabilities(u) {
         if (this.capabilityProbes.has(u)) {
             return this.capabilityProbes.get(u);
         }

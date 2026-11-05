@@ -251,6 +251,16 @@ describe('storageEndpoints', () => {
             expect(fetchMock).toHaveBeenCalledTimes(3);
         });
 
+        it('answers an expired entry at once and refreshes it in the background', async () => {
+            const stale = new Set(['stored']);
+            storageEndpoints.capabilities.set('https://node-a.example', { at: Date.now() - CONFIG.storageMedia.endpointCacheTtlMs - 1, features: stale });
+            fetchMock.mockReturnValue(new Promise(() => {}));
+            expect(await storageEndpoints.probeCapabilities('https://node-a.example')).toBe(stale);
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+            expect(await storageEndpoints.probeCapabilities('https://node-a.example')).toBe(stale);
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+        });
+
         it('shares one in-flight probe between concurrent callers', async () => {
             let resolveFetch;
             fetchMock.mockReturnValue(new Promise((r) => { resolveFetch = r; }));
