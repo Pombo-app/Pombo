@@ -297,16 +297,30 @@ html {
     }
 }
 
+:root {
+    --safe-top: env(safe-area-inset-top, 0px);
+}
+
+@supports (-webkit-touch-callout: none) {
+    @media (display-mode: standalone) {
+        :root {
+            /* iOS home-screen apps can report a 0 top inset while drawing under the status bar; lvh still spans it. */
+            --safe-top: max(env(safe-area-inset-top, 0px), calc(100lvh - 100svh));
+            --app-vh: 100lvh;
+        }
+    }
+}
+
 body {
     font-family: 'Inter', sans-serif;
     background-color: var(--pombo-bg);
     color: var(--pombo-overlay-87);
     margin: 0;
-    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px) 0;
+    padding: var(--safe-top) 0 env(safe-area-inset-bottom, 0px) 0;
 }
 
 .app-container {
-    height: calc(var(--app-vh, 100vh) - 3.5rem - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
+    height: calc(var(--app-vh, 100vh) - 3.5rem - var(--safe-top) - var(--offline-banner-h));
 }
 
 /* ----- Offline Banner ----- */
@@ -513,7 +527,7 @@ body.network-offline {
 }
 
 .chat-container {
-    height: calc(100vh - 3.5rem - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
+    height: calc(100vh - 3.5rem - var(--safe-top) - var(--offline-banner-h));
 }
 
 .messages-area {
@@ -2827,7 +2841,7 @@ body.explore-open #explore-channels-list {
     }
     
     .app-container {
-        height: calc(var(--app-vh, 100dvh) - 3.5rem - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
+        height: calc(var(--app-vh, 100dvh) - 3.5rem - var(--safe-top) - var(--offline-banner-h));
         position: relative;
         overflow: hidden;
     }
@@ -2964,7 +2978,7 @@ body.explore-open #explore-channels-list {
     }
     
     body.chat-open .app-container {
-        height: calc(var(--app-vh, 100dvh) - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
+        height: calc(var(--app-vh, 100dvh) - var(--safe-top) - var(--offline-banner-h));
     }
     
     /* ----- CLOSE BUTTON POSITIONING ----- */
@@ -3531,7 +3545,7 @@ body.explore-open #explore-channels-list {
     }
 
     body.channel-details-open .app-container {
-        height: calc(var(--app-vh, 100dvh) - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
+        height: calc(var(--app-vh, 100dvh) - var(--safe-top) - var(--offline-banner-h));
     }
 
     /* Settings/Contacts modal: minimal bottom padding (pill is fixed, overlaps content) */
@@ -3987,7 +4001,7 @@ body.explore-open #explore-channels-list {
     }
     
     .app-container {
-        height: calc(var(--app-vh, 100dvh) - 3rem - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
+        height: calc(var(--app-vh, 100dvh) - 3rem - var(--safe-top) - var(--offline-banner-h));
     }
     
     #disconnect-wallet span {
