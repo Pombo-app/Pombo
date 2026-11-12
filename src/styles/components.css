@@ -2821,9 +2821,7 @@ body.explore-open #explore-channels-list {
     #sidebar-connect-float:not(.hidden) {
         display: block !important;
     }
-    /* Use dynamic viewport height for mobile browsers */
     body {
-        height: 100dvh;
         touch-action: pan-y;
         overscroll-behavior-y: none;
     }
