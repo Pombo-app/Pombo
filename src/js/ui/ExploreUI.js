@@ -4,7 +4,7 @@
  */
 
 import { GATE_MODE } from '../gate.js';
-import { escapeHtml, escapeAttr } from './utils.js';
+import { escapeHtml, escapeAttr, ZOOMABLE_IMAGE_ATTRS } from './utils.js';
 import { modalManager } from './ModalManager.js';
 import { renderExploreDetails } from './exploreDetails.js';
 import { readStreamRetention } from '../streamRetention.js';
@@ -683,7 +683,7 @@ class ExploreUI {
             if (!this._exploreResolvedImages) this._exploreResolvedImages = new Set();
             let thumb;
             if (cachedImage?.dataUrl) {
-                thumb = `<img class="rounded-full object-cover flex-shrink-0" alt="" src="${escapeAttr(cachedImage.dataUrl)}" data-channel-thumb="${escapeAttr(adminStreamId)}" style="width:56px;height:56px" />`;
+                thumb = `<img class="rounded-full object-cover flex-shrink-0 cursor-pointer" alt="" src="${escapeAttr(cachedImage.dataUrl)}" data-channel-thumb="${escapeAttr(adminStreamId)}" ${ZOOMABLE_IMAGE_ATTRS} style="width:56px;height:56px" />`;
             } else if (adminStreamId && !this._exploreResolvedImages.has(adminStreamId)) {
                 thumb = `<div class="rounded-full flex items-center justify-center flex-shrink-0 bg-overlay-4" data-channel-thumb="${escapeAttr(adminStreamId)}" style="width:56px;height:56px"><div class="thumb-spinner" style="width:20px;height:20px"></div></div>`;
             } else {
@@ -744,7 +744,7 @@ class ExploreUI {
                     if (!entry?.dataUrl) return;
                     const slot = listEl.querySelector(`[data-channel-thumb="${CSS.escape(adminStreamId)}"]`);
                     if (slot && !(slot.tagName === 'IMG')) {
-                        slot.outerHTML = `<img class="rounded-full object-cover flex-shrink-0" alt="" src="${escapeAttr(entry.dataUrl)}" data-channel-thumb="${escapeAttr(adminStreamId)}" style="width:56px;height:56px" />`;
+                        slot.outerHTML = `<img class="rounded-full object-cover flex-shrink-0 cursor-pointer" alt="" src="${escapeAttr(entry.dataUrl)}" data-channel-thumb="${escapeAttr(adminStreamId)}" ${ZOOMABLE_IMAGE_ATTRS} style="width:56px;height:56px" />`;
                     } else if (slot && slot.tagName === 'IMG') {
                         slot.src = entry.dataUrl;
                     }
@@ -818,6 +818,7 @@ class ExploreUI {
                 const channelType = item.dataset.type;
                 
                 if (!streamId) return;
+                if (e.target.closest('[data-zoom-image]')) return;
                 if (e.target.closest('.explore-details-btn')) {
                     this._openDetails(channels.find(ch => ch.streamId === streamId));
                     return;
@@ -931,7 +932,7 @@ class ExploreUI {
         const adminStreamId = deriveAdminId(ch.streamId);
         const image = adminStreamId ? channelImageManager.getCached(adminStreamId) : null;
         const thumbHtml = image?.dataUrl
-            ? `<img class="rounded-full object-cover" alt="" src="${escapeAttr(image.dataUrl)}" style="width:88px;height:88px" />`
+            ? `<img class="rounded-full object-cover cursor-pointer" alt="" src="${escapeAttr(image.dataUrl)}" ${ZOOMABLE_IMAGE_ATTRS} style="width:88px;height:88px" />`
             : `<div class="rounded-full overflow-hidden" style="width:88px;height:88px">${getAvatarHtml(ch.streamId, 88, 0.5, null)}</div>`;
         const gate = ch.gateAddress ? this._gateCardInfo.get(ch.gateAddress) : null;
         const gateInfo = gate && gate !== 'pending' ? gate : null;

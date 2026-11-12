@@ -9,7 +9,7 @@ import { generateAvatar, getAvatarHtml } from './AvatarGenerator.js';
 import { identityManager } from '../identity.js';
 import { channelImageManager } from '../channelImageManager.js';
 import { deriveAdminId } from '../streamConstants.js';
-import { escapeAttr } from './utils.js';
+import { escapeAttr, ZOOMABLE_IMAGE_ATTRS } from './utils.js';
 
 class HeaderUI {
     constructor() {
@@ -362,7 +362,7 @@ class HeaderUI {
         const spinnerHtml = `<div class="${radiusCls} flex items-center justify-center bg-overlay-4" style="${sizeStyle}"><div class="thumb-spinner" style="width:18px;height:18px"></div></div>`;
         const avatarHtml = (seed, ensUrl) => `<div class="${radiusCls} overflow-hidden" style="${sizeStyle}">${getAvatarHtml(seed, sizePx, 0.5, ensUrl)}</div>`;
         const fallbackHtml = (seed) => avatarHtml(seed, null);
-        const imgHtml = (url) => `<img class="${radiusCls} object-cover" alt="" src="${escapeAttr(url)}" style="${sizeStyle}" />`;
+        const imgHtml = (url) => `<img class="${radiusCls} object-cover cursor-pointer" alt="" src="${escapeAttr(url)}" ${ZOOMABLE_IMAGE_ATTRS} style="${sizeStyle}" />`;
 
         const renderDM = () => {
             const peer = channel.peerAddress;

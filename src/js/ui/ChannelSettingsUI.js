@@ -5,7 +5,7 @@
 
 import { Logger } from '../logger.js';
 import { modalManager } from './ModalManager.js';
-import { escapeHtml, escapeAttr, wireIdentitySpec, wireIdentityIcon, formatAddress, formatStreamId } from './utils.js';
+import { escapeHtml, escapeAttr, wireIdentitySpec, wireIdentityIcon, formatAddress, formatStreamId, ZOOMABLE_IMAGE_ATTRS } from './utils.js';
 import { sanitizeText } from './sanitizer.js';
 import { relayManager } from '../relayManager.js';
 import { graphAPI } from '../graph.js';
@@ -2560,7 +2560,7 @@ class ChannelSettingsUI {
         const renderPreview = (entry) => {
             if (!previewEl) return;
             if (entry?.dataUrl) {
-                previewEl.innerHTML = `<img src="${escapeAttr(entry.dataUrl)}" alt="Channel image" class="w-full h-full object-cover" />`;
+                previewEl.innerHTML = `<img src="${escapeAttr(entry.dataUrl)}" alt="Channel image" class="w-full h-full object-cover cursor-pointer" ${ZOOMABLE_IMAGE_ATTRS} />`;
             } else {
                 // Fallback: deterministic avatar from streamId
                 previewEl.innerHTML = getAvatarHtml(channel.streamId, AVATAR_PX, 0.5, null);
