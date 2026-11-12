@@ -11,6 +11,7 @@ import { formatAudioTime } from './MessageRenderer.js';
 import { VoiceRecorder, canRecordAudio } from '../audioRecorder.js';
 import { CONFIG } from '../config.js';
 import { audioWaveSvg, WaveMotion } from './audioWave.js';
+import { isIOSWebKit, fitAppToKeyboard } from './iosKeyboard.js';
 
 const SLIDE_TO_CANCEL_PX = 100;
 const SLIDE_TO_LOCK_PX = 60;
@@ -65,6 +66,13 @@ class InputUI {
         this.setupKeyboardImageObserver();
 
         this.initVoiceRecorder();
+
+        if (isIOSWebKit()) {
+            fitAppToKeyboard({
+                composer: document.getElementById('message-input-container'),
+                messagesArea: document.getElementById('messages-area')
+            });
+        }
     }
 
     initVoiceRecorder() {

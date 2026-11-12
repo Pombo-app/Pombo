@@ -306,7 +306,7 @@ body {
 }
 
 .app-container {
-    height: calc(100vh - 3.5rem - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
+    height: calc(var(--app-vh, 100vh) - 3.5rem - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
 }
 
 /* ----- Offline Banner ----- */
@@ -2829,7 +2829,7 @@ body.explore-open #explore-channels-list {
     }
     
     .app-container {
-        height: calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
+        height: calc(var(--app-vh, 100dvh) - 3.5rem - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
         position: relative;
         overflow: hidden;
     }
@@ -2966,7 +2966,7 @@ body.explore-open #explore-channels-list {
     }
     
     body.chat-open .app-container {
-        height: calc(100dvh - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
+        height: calc(var(--app-vh, 100dvh) - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
     }
     
     /* ----- CLOSE BUTTON POSITIONING ----- */
@@ -3454,6 +3454,10 @@ body.explore-open #explore-channels-list {
         padding-bottom: calc(12px + env(safe-area-inset-bottom));
     }
 
+    html.ios-keyboard-open #message-input-container {
+        padding-bottom: 12px;
+    }
+
     #composer-capsule {
         --composer-btn: 2.75rem;
         border-radius: 26px;
@@ -3529,7 +3533,7 @@ body.explore-open #explore-channels-list {
     }
 
     body.channel-details-open .app-container {
-        height: calc(100dvh - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
+        height: calc(var(--app-vh, 100dvh) - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
     }
 
     /* Settings/Contacts modal: minimal bottom padding (pill is fixed, overlaps content) */
@@ -3985,7 +3989,7 @@ body.explore-open #explore-channels-list {
     }
     
     .app-container {
-        height: calc(100dvh - 3rem - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
+        height: calc(var(--app-vh, 100dvh) - 3rem - env(safe-area-inset-top, 0px) - var(--offline-banner-h));
     }
     
     #disconnect-wallet span {
