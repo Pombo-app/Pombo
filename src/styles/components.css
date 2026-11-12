@@ -3985,23 +3985,12 @@ body.explore-open #explore-channels-list {
    SMALL MOBILE (< 480px)
    =========================================== */
 @media (max-width: 479px) {
-    /* Even smaller header */
-    header {
-        height: 3rem;
-        padding-left: 0.375rem;
-        padding-right: 0.5rem;
-    }
-
     #chat-header {
         height: 3.5rem;
         padding-top: 0;
         padding-right: 0.5rem;
         padding-bottom: 0;
         padding-left: 0.5rem;
-    }
-    
-    .app-container {
-        height: calc(var(--app-vh, 100dvh) - 3rem - var(--safe-top) - var(--offline-banner-h));
     }
     
     #disconnect-wallet span {
