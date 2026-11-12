@@ -2040,10 +2040,15 @@ body.cannot-write #context-menu-reply-btn {
     display: none;
 }
 
+/* ----- Media Lightbox ----- */
+#media-lightbox-modal > div:has(> #lightbox-close-btn) {
+    top: calc(1rem + var(--safe-top));
+}
+
 /* ----- Toast Notifications ----- */
 .toast-container {
     position: fixed;
-    top: 1.8rem;
+    top: calc(1.8rem + var(--safe-top));
     left: 50%;
     transform: translateX(-50%);
     z-index: 9999;
@@ -3186,7 +3191,7 @@ body.explore-open #explore-channels-list {
     .accounts-screen {
         height: 100%;
         overflow-y: auto;
-        padding: 44px 20px calc(8rem + env(safe-area-inset-bottom, 0px));
+        padding: calc(44px + var(--safe-top)) 20px calc(8rem + env(safe-area-inset-bottom, 0px));
         display: flex;
         flex-direction: column;
     }
@@ -3512,13 +3517,13 @@ body.explore-open #explore-channels-list {
     /* ----- FULLSCREEN MODALS ON MOBILE ----- */
     #new-channel-modal,
     #dm-inbox-setup-modal {
-        padding: 0 !important;
+        padding: var(--safe-top) 0 0 !important;
     }
 
     /* ----- SETTINGS & CHANNEL DETAILS AS SLIDE-IN CONTAINER ON MOBILE ----- */
     #settings-modal,
     #channel-settings-modal {
-        padding: 0 !important;
+        padding: var(--safe-top) 0 0 !important;
         background: transparent !important;
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
@@ -3579,7 +3584,7 @@ body.explore-open #explore-channels-list {
 
     /* Contacts modal full-screen on mobile */
     #contacts-modal {
-        padding: 0 !important;
+        padding: var(--safe-top) 0 0 !important;
         background: transparent !important;
         backdrop-filter: none !important;
     }
