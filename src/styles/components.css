@@ -135,6 +135,16 @@
 #message-input { word-wrap: break-word; }
 #message-input img { display: none; } /* defence-in-depth: any keyboard-injected <img> stays hidden until our handler extracts it */
 
+/* iOS zooms the page when an editable field under 16px takes focus. */
+@supports (-webkit-touch-callout: none) {
+    input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]),
+    textarea,
+    select,
+    [contenteditable="true"] {
+        font-size: 16px !important;
+    }
+}
+
 /* ----- Switch ----- */
 .pombo-switch {
     position: relative;
