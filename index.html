@@ -657,7 +657,7 @@
 
     <!-- Modal: New Channel -->
     <div id="new-channel-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4 md:p-4">
-        <div class="bg-surface rounded-2xl w-[640px] max-w-[95vw] shadow-2xl border border-overlay-6 overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh]">
+        <div class="bg-surface rounded-2xl w-[640px] md:w-[880px] max-w-[95vw] shadow-2xl border border-overlay-6 overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh]">
             <!-- Header -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-overlay-5 flex-shrink-0">
                 <button id="cancel-channel-btn" class="modal-close-btn text-overlay-40 hover:text-overlay-80 transition p-1 -ml-1 md:order-2 md:ml-0 md:-mr-1">
@@ -673,7 +673,7 @@
             
             <div class="flex flex-1 min-h-0 overflow-hidden">
                 <!-- Sidebar: Channel Type -->
-                <div class="w-40 bg-surface-2 border-r border-overlay-5 py-3 flex flex-col flex-shrink-0">
+                <div class="w-40 md:w-56 bg-surface-2 border-r border-overlay-5 py-3 flex flex-col flex-shrink-0">
                     <div class="px-3 mb-2">
                         <span class="text-[10px] font-medium text-overlay-30 uppercase tracking-wider">Type</span>
                     </div>
@@ -704,7 +704,7 @@
 
                 <!-- Content Panel -->
                 <div class="flex-1 p-5 overflow-y-auto">
-                    <div class="space-y-5">
+                    <div class="space-y-5 md:max-w-[520px] md:mx-auto">
                         <!-- One wrapper for every tab content: the panel's
                              space-y margins land on later siblings even when
                              hidden, pushing every tab but the first down -->
