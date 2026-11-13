@@ -66,6 +66,9 @@ export function formatStreamId(streamId) {
     return formatAddress(streamId.slice(0, slash)) + streamId.slice(slash);
 }
 
+/** Attributes of a channel image that opens full size in the lightbox (MediaHandler). */
+export const ZOOMABLE_IMAGE_ATTRS = 'data-zoom-image role="button" tabindex="0" aria-label="View channel image"';
+
 /**
  * Validate URL for safe use in src/href attributes
  * Prevents javascript: and other dangerous protocols

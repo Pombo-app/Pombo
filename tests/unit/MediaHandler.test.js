@@ -508,6 +508,43 @@ describe('MediaHandler', () => {
             document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
             expect(closeSpy).not.toHaveBeenCalled();
         });
+
+        describe('zoomable channel images', () => {
+            const SRC = 'data:image/jpeg;base64,AAAA';
+            let openSpy;
+
+            beforeEach(() => {
+                document.body.innerHTML = `
+                    <div id="media-lightbox-modal" class="hidden"><img id="lightbox-image"></div>
+                    <img id="zoomable" src="${SRC}" data-zoom-image>
+                    <img id="plain" src="${SRC}">`;
+                openSpy = vi.spyOn(mediaHandler, 'openLightbox').mockImplementation(() => {});
+                mediaHandler.initLightboxModal();
+            });
+
+            it('opens a marked image in the lightbox on click', () => {
+                document.getElementById('zoomable').click();
+                expect(openSpy).toHaveBeenCalledWith(SRC, 'image');
+            });
+
+            it('opens a marked image from the keyboard', () => {
+                const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+                document.getElementById('zoomable').dispatchEvent(event);
+                expect(openSpy).toHaveBeenCalledWith(SRC, 'image');
+                expect(event.defaultPrevented).toBe(true);
+            });
+
+            it('ignores images without the marker', () => {
+                document.getElementById('plain').click();
+                expect(openSpy).not.toHaveBeenCalled();
+            });
+
+            it('refuses a marked image whose src is not a media URL', () => {
+                isValidMediaUrl.mockReturnValue(false);
+                document.getElementById('zoomable').click();
+                expect(openSpy).not.toHaveBeenCalled();
+            });
+        });
     });
 
     // ==================== handleFileDownload ====================

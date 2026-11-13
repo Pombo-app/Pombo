@@ -434,6 +434,17 @@ class MediaHandler {
         if (videoEl) {
             videoEl.addEventListener('click', (e) => e.stopPropagation());
         }
+
+        const openZoomable = (e) => {
+            const img = e.target.closest?.('img[data-zoom-image]');
+            if (!img || !isValidMediaUrl(img.src)) return false;
+            this.openLightbox(img.src, 'image');
+            return true;
+        };
+        document.addEventListener('click', openZoomable);
+        document.addEventListener('keydown', (e) => {
+            if ((e.key === 'Enter' || e.key === ' ') && openZoomable(e)) e.preventDefault();
+        });
     }
 
     /**
