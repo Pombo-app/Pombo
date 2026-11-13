@@ -18,7 +18,6 @@ export function attachMeshComplete(ui) {
         if (!container) return;
         if (isVideo) {
             container.outerHTML = messageRenderer.renderVideoContent({ metadata });
-            mediaHandler.attachLightboxListeners();
         } else {
             // Same bubble the renderer produces, so a finished download looks
             // exactly like a file we are seeding rather than a bare link

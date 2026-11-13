@@ -130,11 +130,8 @@ describe('MediaHandler', () => {
             document.body.innerHTML = `
                 <div id="media-lightbox-modal" class="hidden">
                     <img id="lightbox-image" class="hidden" src="">
-                    <video id="lightbox-video" class="hidden" src=""></video>
                 </div>
             `;
-            // jsdom doesn't have video.pause
-            document.getElementById('lightbox-video').pause = vi.fn();
         }
 
         it('should return early if modal not found', () => {
@@ -142,41 +139,16 @@ describe('MediaHandler', () => {
             // No error
         });
 
-        it('should show image and hide video for image type', () => {
+        it('should show the image for image type', () => {
             setupLightboxDOM();
             mediaHandler.openLightbox('https://x.com/img.png', 'image');
 
             const img = document.getElementById('lightbox-image');
-            const vid = document.getElementById('lightbox-video');
             const modal = document.getElementById('media-lightbox-modal');
 
             expect(img.classList.contains('hidden')).toBe(false);
             expect(img.src).toContain('img.png');
-            expect(vid.classList.contains('hidden')).toBe(true);
             expect(modal.classList.contains('hidden')).toBe(false);
-        });
-
-        it('should show video and hide image for video type', () => {
-            setupLightboxDOM();
-            mediaHandler.openLightbox('https://x.com/vid.mp4', 'video');
-
-            const img = document.getElementById('lightbox-image');
-            const vid = document.getElementById('lightbox-video');
-
-            expect(vid.classList.contains('hidden')).toBe(false);
-            expect(vid.src).toContain('vid.mp4');
-            expect(img.classList.contains('hidden')).toBe(true);
-        });
-
-        it('should pause and clear video src when resetting', () => {
-            setupLightboxDOM();
-            const vid = document.getElementById('lightbox-video');
-            vid.src = 'old.mp4';
-
-            mediaHandler.openLightbox('https://x.com/img.png', 'image');
-            expect(vid.pause).toHaveBeenCalled();
-            // jsdom resolves empty src to base URL, so just check it doesn't keep old value
-            expect(vid.src).not.toContain('old.mp4');
         });
 
         it('should default type to image', () => {
@@ -223,18 +195,14 @@ describe('MediaHandler', () => {
         function setupCloseLightboxDOM() {
             document.body.innerHTML = `
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <div id="media-lightbox-modal">
-                    <video id="lightbox-video" src="v.mp4"></video>
-                </div>
+                <div id="media-lightbox-modal"></div>
             `;
-            document.getElementById('lightbox-video').pause = vi.fn();
         }
 
-        it('should hide modal and pause video', () => {
+        it('should hide modal', () => {
             setupCloseLightboxDOM();
             mediaHandler.closeLightbox();
 
-            expect(document.getElementById('lightbox-video').pause).toHaveBeenCalled();
             expect(document.getElementById('media-lightbox-modal').classList.contains('hidden')).toBe(true);
         });
 
@@ -334,10 +302,8 @@ describe('MediaHandler', () => {
             document.body.innerHTML = `
                 <div id="media-lightbox-modal" class="hidden">
                     <img id="lightbox-image" class="hidden">
-                    <video id="lightbox-video" class="hidden"></video>
                 </div>
             `;
-            document.getElementById('lightbox-video').pause = vi.fn();
 
             const id = mediaHandler.registerMedia('https://x.com/pic.png', 'image');
             mediaHandler.openLightboxById(id);
@@ -359,11 +325,9 @@ describe('MediaHandler', () => {
             document.body.innerHTML = `
                 <div id="media-lightbox-modal" class="hidden">
                     <img id="lightbox-image" class="hidden">
-                    <video id="lightbox-video" class="hidden"></video>
                 </div>
                 <div class="lightbox-trigger" data-media-id="${id}"></div>
             `;
-            document.getElementById('lightbox-video').pause = vi.fn();
 
             mediaHandler.attachLightboxListeners();
 
@@ -405,10 +369,8 @@ describe('MediaHandler', () => {
                 <div id="media-lightbox-modal">
                     <button id="lightbox-close-btn"></button>
                     <img id="lightbox-image">
-                    <video id="lightbox-video"></video>
                 </div>
             `;
-            document.getElementById('lightbox-video').pause = vi.fn();
             const closeSpy = vi.spyOn(mediaHandler, 'closeLightbox');
 
             mediaHandler.initLightboxModal();
@@ -422,10 +384,8 @@ describe('MediaHandler', () => {
                 <div id="media-lightbox-modal">
                     <button id="lightbox-close-btn"></button>
                     <img id="lightbox-image">
-                    <video id="lightbox-video"></video>
                 </div>
             `;
-            document.getElementById('lightbox-video').pause = vi.fn();
             const closeSpy = vi.spyOn(mediaHandler, 'closeLightbox');
 
             mediaHandler.initLightboxModal();
@@ -442,31 +402,13 @@ describe('MediaHandler', () => {
             document.body.innerHTML = `
                 <div id="media-lightbox-modal">
                     <img id="lightbox-image">
-                    <video id="lightbox-video"></video>
                 </div>
             `;
-            document.getElementById('lightbox-video').pause = vi.fn();
             mediaHandler.initLightboxModal();
 
             const event = new MouseEvent('click', { bubbles: true });
             const stopSpy = vi.spyOn(event, 'stopPropagation');
             document.getElementById('lightbox-image').dispatchEvent(event);
-            expect(stopSpy).toHaveBeenCalled();
-        });
-
-        it('should prevent close on video click', () => {
-            document.body.innerHTML = `
-                <div id="media-lightbox-modal">
-                    <img id="lightbox-image">
-                    <video id="lightbox-video"></video>
-                </div>
-            `;
-            document.getElementById('lightbox-video').pause = vi.fn();
-            mediaHandler.initLightboxModal();
-
-            const event = new MouseEvent('click', { bubbles: true });
-            const stopSpy = vi.spyOn(event, 'stopPropagation');
-            document.getElementById('lightbox-video').dispatchEvent(event);
             expect(stopSpy).toHaveBeenCalled();
         });
 
@@ -479,10 +421,8 @@ describe('MediaHandler', () => {
             document.body.innerHTML = `
                 <div id="media-lightbox-modal">
                     <img id="lightbox-image">
-                    <video id="lightbox-video"></video>
                 </div>
             `;
-            document.getElementById('lightbox-video').pause = vi.fn();
             const closeSpy = vi.spyOn(mediaHandler, 'closeLightbox');
 
             mediaHandler.initLightboxModal();
@@ -496,10 +436,8 @@ describe('MediaHandler', () => {
             document.body.innerHTML = `
                 <div id="media-lightbox-modal">
                     <img id="lightbox-image">
-                    <video id="lightbox-video"></video>
                 </div>
             `;
-            document.getElementById('lightbox-video').pause = vi.fn();
             const closeSpy = vi.spyOn(mediaHandler, 'closeLightbox');
 
             mediaHandler.initLightboxModal();

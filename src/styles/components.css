@@ -1030,16 +1030,6 @@ body.network-offline {
     animation: spin 1s linear infinite;
 }
 
-.video-tile-fs {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    padding: 5px;
-    border-radius: 8px;
-    background: rgba(0, 0, 0, 0.55);
-    color: #fff;
-}
-
 .video-tile-pill {
     position: absolute;
     left: 8px;

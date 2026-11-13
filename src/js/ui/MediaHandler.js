@@ -101,7 +101,7 @@ class MediaHandler {
     /**
      * Register media URL and get a safe ID for onclick handlers
      * @param {string} url - Media URL (base64, blob, or http)
-     * @param {string} type - 'image' or 'video'
+     * @param {string} type - 'image'
      * @returns {string|null} - Safe media ID or null if invalid
      */
     registerMedia(url, type = 'image') {
@@ -163,32 +163,22 @@ class MediaHandler {
     /**
      * Open media lightbox
      * @param {string} src - Media source URL
-     * @param {string} type - 'image' or 'video'
+     * @param {string} type - 'image'; any other type opens an empty lightbox
      * @param {Element} [triggerEl] - Element that triggered the open; its closest
      *   `.message-entry` is remembered so we can restore scroll on close.
      */
     openLightbox(src, type = 'image', triggerEl = null) {
         const modal = document.getElementById('media-lightbox-modal');
         const imageEl = document.getElementById('lightbox-image');
-        const videoEl = document.getElementById('lightbox-video');
         
         if (!modal) return;
         
-        // Reset both
         if (imageEl) imageEl.classList.add('hidden');
-        if (videoEl) {
-            videoEl.classList.add('hidden');
-            videoEl.pause();
-            videoEl.src = '';
-        }
         
         // Show appropriate media
         if (type === 'image' && imageEl) {
             imageEl.src = src;
             imageEl.classList.remove('hidden');
-        } else if (type === 'video' && videoEl) {
-            videoEl.src = src;
-            videoEl.classList.remove('hidden');
         }
         document.getElementById('lightbox-save-btn')?.classList.toggle('hidden', type !== 'image');
         
@@ -242,11 +232,6 @@ class MediaHandler {
      */
     closeLightbox(options = {}) {
         const modal = document.getElementById('media-lightbox-modal');
-        const videoEl = document.getElementById('lightbox-video');
-        
-        if (videoEl) {
-            videoEl.pause();
-        }
         
         if (modal) {
             modal.classList.add('hidden');
@@ -400,7 +385,6 @@ class MediaHandler {
         const modal = document.getElementById('media-lightbox-modal');
         const closeBtn = document.getElementById('lightbox-close-btn');
         const imageEl = document.getElementById('lightbox-image');
-        const videoEl = document.getElementById('lightbox-video');
 
         // Close on overlay click
         if (modal) {
@@ -427,12 +411,9 @@ class MediaHandler {
             }
         });
 
-        // Prevent close when clicking on image/video
+        // Prevent close when clicking on the image
         if (imageEl) {
             imageEl.addEventListener('click', (e) => e.stopPropagation());
-        }
-        if (videoEl) {
-            videoEl.addEventListener('click', (e) => e.stopPropagation());
         }
 
         const openZoomable = (e) => {
