@@ -1212,6 +1212,26 @@ describe('MessageRenderer', () => {
             expect(messageRenderer.renderVideoContent(msg)).not.toContain(' autoplay');
         });
 
+        it('should leave fullscreen to the native player controls', () => {
+            const registerMedia = vi.fn(() => 'media-1');
+            messageRenderer.setDependencies({
+                getFileUrl: () => 'blob:v',
+                getCurrentAddress: () => '0x123',
+                isVideoPlayable: () => true,
+                registerMedia
+            });
+
+            const result = messageRenderer.renderVideoContent({
+                type: 'file_announce',
+                metadata: { fileId: 'file-fs-1', fileName: 'a.mp4', fileType: 'video/mp4', fileSize: 10 }
+            });
+
+            expect(result).toMatch(/<video [^>]*\bcontrols\b/);
+            expect(result).not.toContain('lightbox-trigger');
+            expect(result).not.toContain('Fullscreen');
+            expect(registerMedia).not.toHaveBeenCalled();
+        });
+
         it('should keep Save but no player for a format the browser cannot play', () => {
             messageRenderer.setDependencies({
                 getFileUrl: () => 'blob:v',

@@ -696,19 +696,6 @@ class MessageRenderer {
     }
 
     /**
-     * Shared by mesh and storage: the download class and the data-progress-*
-     * nodes are the contract their transfer wiring listens on.
-     * @param {Object} o
-     * @returns {string}
-     */
-    videoFullscreenButton(mediaId) {
-        return mediaId ? `
-                    <button class="video-tile-fs lightbox-trigger" data-media-id="${mediaId}" title="Fullscreen" aria-label="Fullscreen">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
-                    </button>` : '';
-    }
-
-    /**
      * The announce's first-frame thumbnail as an image URL, or '' when absent
      * or not plain bounded base64 (it comes from the sender, unchecked).
      * @param {Object} metadata
@@ -720,6 +707,16 @@ class MessageRenderer {
         return `data:image/jpeg;base64,${t}`;
     }
 
+    videoTileNote() {
+        return `<div class="video-tile-note">This video format can't play here</div>`;
+    }
+
+    /**
+     * Shared by mesh and storage: the download class and the data-progress-*
+     * nodes are the contract their transfer wiring listens on.
+     * @param {Object} o
+     * @returns {string}
+     */
     renderVideoTile({ id, metadata, url, playable = true, downloadClass, msgId = null, canDownload, active, percent = 0, working = false, retryable = false, status = '' }) {
         const safeId = escapeAttr(id);
         const name = escapeHtml(sanitizeText(metadata.fileName));
@@ -730,11 +727,10 @@ class MessageRenderer {
 
         let stage = '';
         if (url && playable) {
-            const mediaId = this.deps.registerMedia?.(url, 'video');
             // #t= makes the browser paint a frame instead of an empty box.
-            stage = `<video src="${url}#t=0.1" class="video-tile-media" controls preload="metadata" playsinline${thumb ? ` poster="${thumb}"` : ''}${autoplay ? ' autoplay' : ''}></video>${this.videoFullscreenButton(mediaId)}`;
+            stage = `<video src="${url}#t=0.1" class="video-tile-media" controls preload="metadata" playsinline${thumb ? ` poster="${thumb}"` : ''}${autoplay ? ' autoplay' : ''}></video>`;
         } else if (url) {
-            stage = `<div class="video-tile-note">This video format can't play here</div>`;
+            stage = this.videoTileNote();
         } else if (canDownload) {
             stage = `<button class="video-tile-play ${downloadClass}" data-file-id="${safeId}"${msgId ? ` data-msg-id="${escapeAttr(msgId)}"` : ''} data-video-play aria-label="Play video"${active ? ' disabled' : ''}>
                         <svg class="download-play-icon w-6 h-6${active ? ' hidden' : ''}" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>

@@ -49,8 +49,6 @@ export function attachStorageTransfers(ui) {
                 const thumb = frame?.querySelector('.video-tile-thumb');
                 if (thumb) { video.poster = thumb.src; thumb.remove(); }
                 play.replaceWith(video);
-                video.insertAdjacentHTML('afterend', messageRenderer.videoFullscreenButton(mediaHandler.registerMedia(url, 'video')));
-                mediaHandler.attachLightboxListeners();
             }
         }
 
