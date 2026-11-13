@@ -71,6 +71,7 @@ import { attachMeshProgress } from './ui/wiring/meshProgress.js';
 import { attachMeshComplete } from './ui/wiring/meshComplete.js';
 import { attachMeshServing } from './ui/wiring/meshServing.js';
 import { attachStorageTransfers } from './ui/wiring/storageTransfers.js';
+import { attachVideoTileFallback } from './ui/wiring/videoTiles.js';
 
 class UIController {
     constructor() {
@@ -1358,6 +1359,7 @@ class UIController {
         attachMeshComplete(this);
         attachMeshServing(this);
         attachStorageTransfers(this);
+        attachVideoTileFallback();
 
         // Seeder update
         mediaController.onSeederUpdate((fileId, count) => {

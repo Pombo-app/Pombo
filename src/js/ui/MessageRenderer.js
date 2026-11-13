@@ -720,6 +720,10 @@ class MessageRenderer {
         return `data:image/jpeg;base64,${t}`;
     }
 
+    videoTileNote() {
+        return `<div class="video-tile-note">This video format can't play here</div>`;
+    }
+
     renderVideoTile({ id, metadata, url, playable = true, downloadClass, msgId = null, canDownload, active, percent = 0, working = false, retryable = false, status = '' }) {
         const safeId = escapeAttr(id);
         const name = escapeHtml(sanitizeText(metadata.fileName));
@@ -734,7 +738,7 @@ class MessageRenderer {
             // #t= makes the browser paint a frame instead of an empty box.
             stage = `<video src="${url}#t=0.1" class="video-tile-media" controls preload="metadata" playsinline${thumb ? ` poster="${thumb}"` : ''}${autoplay ? ' autoplay' : ''}></video>${this.videoFullscreenButton(mediaId)}`;
         } else if (url) {
-            stage = `<div class="video-tile-note">This video format can't play here</div>`;
+            stage = this.videoTileNote();
         } else if (canDownload) {
             stage = `<button class="video-tile-play ${downloadClass}" data-file-id="${safeId}"${msgId ? ` data-msg-id="${escapeAttr(msgId)}"` : ''} data-video-play aria-label="Play video"${active ? ' disabled' : ''}>
                         <svg class="download-play-icon w-6 h-6${active ? ' hidden' : ''}" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
